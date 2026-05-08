@@ -1,0 +1,28 @@
+{
+  "name": "@boltwall/eslint-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./base.js": "./base.js",
+    "./node.js": "./node.js",
+    "./browser.js": "./browser.js",
+    "./react.js": "./react.js",
+    "./next.js": "./next.js"
+  },
+  "scripts": {
+    "build": "echo \"eslint-config: no build output\"",
+    "lint": "echo \"eslint-config: lint from consumer packages\"",
+    "typecheck": "echo \"eslint-config: no typecheck step\"",
+    "test": "echo \"eslint-config: no tests\""
+  },
+  "devDependencies": {
+    "@typescript-eslint/eslint-plugin": "^8.46.2",
+    "@typescript-eslint/parser": "^8.46.2",
+    "eslint": "^9.39.1",
+    "eslint-config-prettier": "^10.1.8",
+    "eslint-plugin-import": "^2.32.0",
+    "eslint-plugin-react": "^7.37.5",
+    "eslint-plugin-react-hooks": "^7.0.1"
+  }
+}
