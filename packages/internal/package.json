@@ -9,13 +9,17 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
+    },
+    "./numeric": {
+      "types": "./dist/numeric.d.ts",
+      "import": "./dist/numeric.js"
     }
   },
   "scripts": {
-    "build": "bunx --bun tsup src/index.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
+    "build": "bunx --bun tsup src/index.ts src/numeric.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "lint": "bun x eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"internal: no tests yet\""
+    "test": "bun test"
   },
   "devDependencies": {
     "@boltwall/eslint-config": "workspace:*",
