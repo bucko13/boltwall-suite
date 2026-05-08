@@ -1,0 +1,39 @@
+{
+  "name": "@boltwall/proxy",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "bin": {
+    "boltwall": "./dist/cli.js"
+  },
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "files": ["dist"],
+  "scripts": {
+    "build": "bunx --bun tsup src/index.ts src/cli.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
+    "lint": "bun x eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"proxy: no tests yet\"",
+    "package-health": "bun run ./scripts/package-health.ts"
+  },
+  "dependencies": {
+    "@boltwall/adapters": "workspace:*",
+    "@boltwall/middleware": "workspace:*",
+    "express": "^5.1.0",
+    "http-proxy-middleware": "^3.0.5"
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/prettier-config": "workspace:*",
+    "@boltwall/typescript-config": "workspace:*",
+    "publint": "^0.3.15",
+    "tsup": "^8.5.0"
+  },
+  "prettier": "@boltwall/prettier-config"
+}
