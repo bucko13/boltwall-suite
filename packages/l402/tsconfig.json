@@ -1,0 +1,8 @@
+{
+  "extends": "@boltwall/typescript-config/browser.json",
+  "compilerOptions": {
+    "outDir": "dist",
+    "rootDir": "src"
+  },
+  "include": ["src/**/*"]
+}
