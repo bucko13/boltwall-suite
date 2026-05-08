@@ -765,6 +765,39 @@ Warp Grep:
 
 ---
 
+## Common Workflows
+
+Use these compact workflows to avoid coordination drift:
+
+### Pick up and execute a bead
+
+```sh
+mcp__mcp-agent-mail__ensure_project(project_root="<repo-root>")
+mcp__mcp-agent-mail__register_agent(project_key="<repo-root>", name="<agent>")
+mcp__mcp-agent-mail__fetch_inbox(project_key="<repo-root>", agent_name="<agent>")
+bv --robot-triage
+br update <id> --claim --actor <agent>
+```
+
+Then reserve files, send a start message in thread `<id>`, implement, close via `br close`, release reservations, sync beads, commit, and push.
+
+### Run a spec-sensitive protocol change
+
+1. Read the relevant L402 spec section before editing.
+2. Add/adjust conformance fixtures in `@boltwall/test-fixtures`.
+3. Add positive and negative tests for wire behavior.
+4. Record exact spec section citations in commit message and code comments where required.
+5. Validate with lint/typecheck/test/build plus browser import checks if `@boltwall/l402` is affected.
+
+### Resolve reservation conflicts
+
+1. Do not edit conflicting paths.
+2. Notify holder in the bead thread with intended scope.
+3. Re-scope reservations to narrow patterns when possible.
+4. Wait for release/expiry, then reacquire reservations and continue.
+
+---
+
 ## Landing the Plane (Session Completion)
 
 **When ending a work session, work is NOT complete until `git push` succeeds.**
@@ -802,6 +835,20 @@ Warp Grep:
 - Never stop before pushing — that leaves work stranded locally and invisible.
 - Never say "ready to push when you are" — you push.
 - If push fails (rejected, hook failure, etc.), investigate the root cause. Do not force-push, do not `--no-verify`, do not amend an already-pushed commit. Fix the underlying issue and create a new commit.
+
+---
+
+## Note for non-Claude Agents
+
+If your runtime does not expose exactly the same MCP helper set as Claude Code, follow the same policy outcomes using equivalent tools:
+
+- Use the repository's actual absolute path as the Agent Mail `project_key`.
+- Keep a stable agent identity for a session and include your agent name in Beads `--actor`.
+- Treat file reservations and Beads status as authoritative coordination state.
+- Use `bv --robot-*` outputs for triage and avoid interactive modes that block automation.
+- Preserve this file's invariants (spec-first protocol behavior, no destructive actions without explicit owner approval, and mandatory push at session end).
+
+Behavioral compliance matters more than tool-brand parity; if a specific helper is unavailable, document the fallback used in the bead thread.
 
 ---
 
