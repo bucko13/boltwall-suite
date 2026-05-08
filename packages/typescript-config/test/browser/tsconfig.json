@@ -1,0 +1,4 @@
+{
+  "extends": "../../browser.json",
+  "include": ["src/**/*"]
+}
