@@ -1,0 +1,51 @@
+{
+  "name": "@boltwall/adapters",
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./lnd": {
+      "types": "./dist/lnd/index.d.ts",
+      "import": "./dist/lnd/index.js"
+    },
+    "./opennode": {
+      "types": "./dist/opennode/index.d.ts",
+      "import": "./dist/opennode/index.js"
+    },
+    "./btcpay": {
+      "types": "./dist/btcpay/index.d.ts",
+      "import": "./dist/btcpay/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "import": "./dist/testing/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/lnd/index.ts src/opennode/index.ts src/btcpay/index.ts src/testing/index.ts --format esm --dts --clean --sourcemap",
+    "lint": "bun x eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "package-health": "publint && sh -c 'tmp=/private/tmp/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'"
+  },
+  "dependencies": {},
+  "peerDependencies": {
+    "lightning": "^10.26.2"
+  },
+  "peerDependenciesMeta": {
+    "lightning": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/prettier-config": "workspace:*",
+    "@boltwall/typescript-config": "workspace:*",
+    "lightning": "^10.26.2",
+    "publint": "^0.3.15",
+    "tsup": "^8.5.0"
+  },
+  "prettier": "@boltwall/prettier-config"
+}
