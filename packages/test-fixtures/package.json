@@ -1,0 +1,26 @@
+{
+  "name": "@boltwall/test-fixtures",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bunx --bun tsc -p tsconfig.json",
+    "lint": "bun x eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"test-fixtures: no tests yet\""
+  },
+  "devDependencies": {
+    "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/prettier-config": "workspace:*",
+    "@boltwall/typescript-config": "workspace:*"
+  },
+  "prettier": "@boltwall/prettier-config"
+}
