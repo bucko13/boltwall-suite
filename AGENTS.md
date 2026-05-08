@@ -4,6 +4,22 @@ This file is the operational contract for AI agents working in this repository. 
 
 ---
 
+## SESSION START — RUN BEFORE TOUCHING ANY BEAD
+
+The very first actions in any new session, in this exact order, before triage or claim:
+
+1. `mcp__mcp-agent-mail__ensure_project` (`project_root=<absolute path to this repository>`).
+2. `mcp__mcp-agent-mail__register_agent` (same `project_key`, stable `agent_name`).
+3. `mcp__mcp-agent-mail__fetch_inbox` — handle anything addressed to you first.
+4. THEN `bv --robot-triage` to pick a bead.
+5. Claim atomically with `br update <id> --claim` (sets `status=in_progress` AND `assignee` together — `--status=in_progress` alone leaves you anonymous).
+6. Reserve files via `file_reservation_paths` BEFORE editing.
+7. Announce in-thread via `send_message(thread_id="<bead-id>")` so peers can see what you're doing.
+
+Skipping any of steps 1–3 leaves you invisible to peer agents and breaks reservation safety. Skipping step 5's `--claim` flag (using `--status=in_progress` alone) leaves the assignee field null and creates the same coordination failure even if you registered. The full canonical workflow is documented in `Beads Workflow Integration → Workflow Pattern (canonical — every step is mandatory)` later in this file.
+
+---
+
 ## TOP PRIORITY — L402 SPEC COMPLIANCE
 
 **Maintaining strict, byte-for-byte compliance with the L402 protocol specification is the single most important objective of this project. It outranks ergonomics, developer convenience, performance, brevity, and aesthetic preferences. If a change is more convenient but spec-divergent, the change is wrong.**
@@ -514,6 +530,8 @@ bun run test:e2e                         # Playwright e2e for playground
 
 Agent Mail is available as an MCP server for coordinating work across agents. **This is the primary mechanism for multi-agent work delegation in this repo.**
 
+> **Mandatory at session start:** call `ensure_project` + `register_agent` + `fetch_inbox` BEFORE running `bv --robot-triage` or `br update --claim`. See `Beads Workflow Integration → Step 0 — Session start` for the exact sequence. Agents that skip this are invisible to peers and break file-reservation safety.
+
 What Agent Mail provides:
 
 - Identities, inbox/outbox, searchable threads.
@@ -522,7 +540,7 @@ What Agent Mail provides:
 
 ### Core patterns
 
-The `project_key` is the absolute repo path: `<repo-root>`.
+The `project_key` is the absolute path to this repository on the current machine. Do not commit personal home-directory paths; use `<repo-root>` in examples and substitute the real absolute path only in local tool calls.
 
 1. **Register identity.**
    - `ensure_project` then `register_agent` with `project_key=<repo-root>`.
@@ -566,6 +584,20 @@ These are complementary, not redundant. Don't use Mail to track issue state (tha
 This project uses [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for issue tracking and [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) for graph-aware triage. Issues are stored in `.beads/` and tracked in git.
 
 `br` (beads_rust) is non-invasive and never executes git commands. You must run git commands manually after `br sync --flush-only`.
+
+### Step 0 — Session start (run BEFORE any other work)
+
+**Before picking, claiming, or touching a single bead, complete these registration steps. Skipping them leaves you invisible to peer agents and unable to coordinate edits.**
+
+1. **Register identity with Mail.**
+   - `mcp__mcp-agent-mail__ensure_project` with `project_root=<repo-root>` (idempotent — safe to run every session).
+   - `mcp__mcp-agent-mail__register_agent` with the same `project_key` and a stable `agent_name` (use the same name across sessions so your inbox/outbox history is continuous).
+2. **Check inbox.**
+   - `mcp__mcp-agent-mail__fetch_inbox` — respond to or acknowledge anything addressed to you before grabbing new work. Pending coordination requests trump fresh tasks.
+3. **THEN triage.**
+   - Only after the two steps above, run `bv --robot-triage` and pick a bead.
+
+If `register_agent` returns `from_agent not registered` or similar, fix the `project_key` (must be the absolute repo path) and retry. Do not proceed without a registered identity — it breaks all subsequent Mail calls.
 
 ### Using bv as an AI sidecar
 
@@ -621,19 +653,25 @@ br ready              # Show issues ready to work (no blockers)
 br list --status=open # All open issues
 br show <id>          # Full issue details with dependencies
 br create --title="..." --type=task --priority=2
-br update <id> --status=in_progress
+br update <id> --claim                # atomic: status=in_progress AND assignee=<your name>
 br close <id> --reason="Completed"
 br close <id1> <id2>  # Close multiple issues at once
 br sync --flush-only  # Export DB to JSONL
 ```
 
-### Workflow Pattern
+### Workflow Pattern (canonical — every step is mandatory)
 
-1. **Triage**: Run `bv --robot-triage` to find the highest-impact actionable work
-2. **Claim**: Use `br update <id> --status=in_progress`
-3. **Work**: Implement the task
-4. **Complete**: Use `br close <id>`
-5. **Sync**: Always run `br sync --flush-only` at session end
+This is the single workflow contract. The shorter "Triage → Claim → Work → Complete → Sync" framing that used to live here was incomplete: it omitted Mail registration, file reservations, and the in-thread announce, and it caused at least one agent to start work without ever registering with Mail. Follow the full sequence below.
+
+0. **Session start** — see `Step 0 — Session start` above. Mail `ensure_project` + `register_agent` + `fetch_inbox` must complete before you triage. This is not optional.
+1. **Triage.** `bv --robot-triage` → pick a bead from `recommendations`. Skip beads labeled `requires-owner` unless your work is to prepare artifacts for owner review.
+2. **Claim atomically.** `br update <id> --claim` (the `--claim` flag sets BOTH `status=in_progress` AND `assignee=<your agent name>` in one operation). Do **not** use `br update <id> --status=in_progress` alone — that leaves `assignee` null and peer agents cannot see who owns the work.
+3. **Reserve edit surface (Mail).** `mcp__mcp-agent-mail__file_reservation_paths(project_key="<repo-root>", agent_name=<you>, paths=[...narrowest pattern that covers your edits...], ttl_seconds=3600, exclusive=true, reason="<bead-id>")`. Reserve before editing — not after.
+4. **Announce start (Mail).** `mcp__mcp-agent-mail__send_message(..., thread_id="<bead-id>", subject="[<bead-id>] Start: <short title>", ack_required=true)`. One thread per bead id, persistent for the bead's lifetime.
+5. **Work.** Implement the task. Reply in-thread on meaningful progress and at handoff points.
+6. **Complete.** `br close <id> --reason "Completed: <one-line summary>"`. Beads is the status authority — close the bead BEFORE releasing reservations.
+7. **Release reservations (Mail).** `mcp__mcp-agent-mail__release_file_reservations(project_key=..., agent_name=<you>, paths=[...same patterns...])`. Final mail reply: `[<bead-id>] Completed` with summary + commit hash.
+8. **Sync + push.** `br sync --flush-only` exports `.beads/` changes; then `git add` / `git commit` / `git push` per "Landing the Plane" below. Work is NOT done until `git push` succeeds.
 
 ### Key Concepts
 
@@ -671,24 +709,29 @@ git push                # Push to remote
 
 ### Picking up a bead-tracked task
 
-1. **Pick ready work.**
-   - `br ready --json` → choose one item (highest priority, no blockers).
-   - Or use `bv --robot-triage` and pick from `recommendations`.
-   - Skip owner-only approval gates unless your work is to prepare artifacts for owner review; do not close `requires-owner` beads without the explicit acceptance required by their criteria.
+See `Workflow Pattern (canonical — every step is mandatory)` above for the full sequence (steps 0–8). This subsection is a quick reference, not a substitute. If anything here conflicts with the canonical workflow, the canonical workflow wins.
 
-2. **Reserve edit surface (Mail).**
-   - `file_reservation_paths(project_key="<repo-root>", agent_name=<you>, paths=["packages/l402/**"], ttl_seconds=3600, exclusive=true, reason="br-123")`
+Reservation/announce examples for a bead `br-123`:
 
-3. **Announce start (Mail).**
-   - `send_message(..., thread_id="br-123", subject="[br-123] Start: <short title>", ack_required=true)`
+```text
+file_reservation_paths(project_key="<repo-root>",
+                       agent_name=<you>,
+                       paths=["packages/l402/**"],
+                       ttl_seconds=3600,
+                       exclusive=true,
+                       reason="br-123")
 
-4. **Work and update.**
-   - Reply in-thread with progress and attach artifacts; keep one thread per bead id.
+send_message(..., thread_id="br-123",
+             subject="[br-123] Start: <short title>",
+             ack_required=true)
 
-5. **Complete and release.**
-   - `br close br-123 --reason "Completed"` (Beads is status authority).
-   - `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=["packages/l402/**"])`
-   - Final Mail reply: `[br-123] Completed` with summary and links.
+# on completion:
+br close br-123 --reason "Completed: <summary>"
+release_file_reservations(project_key="<repo-root>",
+                          agent_name=<you>,
+                          paths=["packages/l402/**"])
+send_message(..., thread_id="br-123", subject="[br-123] Completed", ...)
+```
 
 ### Mapping cheat-sheet
 
