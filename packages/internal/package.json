@@ -1,0 +1,27 @@
+{
+  "name": "@boltwall/internal",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "import": "./dist/index.js"
+    }
+  },
+  "scripts": {
+    "build": "bunx --bun tsup src/index.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
+    "lint": "bun x eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "echo \"internal: no tests yet\""
+  },
+  "devDependencies": {
+    "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/prettier-config": "workspace:*",
+    "@boltwall/typescript-config": "workspace:*",
+    "tsup": "^8.5.0"
+  },
+  "prettier": "@boltwall/prettier-config"
+}
