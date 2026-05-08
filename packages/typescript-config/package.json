@@ -1,0 +1,13 @@
+{
+  "name": "@boltwall/typescript-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "exports": {
+    "./base.json": "./base.json",
+    "./library.json": "./library.json",
+    "./node.json": "./node.json",
+    "./browser.json": "./browser.json",
+    "./nextjs.json": "./nextjs.json"
+  }
+}
