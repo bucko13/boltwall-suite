@@ -1,0 +1,55 @@
+{
+  "name": "@boltwall/middleware",
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./dist/core/index.js",
+  "types": "./dist/core/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./core": {
+      "types": "./dist/core/index.d.ts",
+      "import": "./dist/core/index.js"
+    },
+    "./express": {
+      "types": "./dist/express/index.d.ts",
+      "import": "./dist/express/index.js"
+    }
+  },
+  "files": ["dist"],
+  "sideEffects": false,
+  "scripts": {
+    "build": "tsup src/core/index.ts src/express/index.ts --format esm --dts --clean --sourcemap",
+    "lint": "bun x eslint src",
+    "typecheck": "tsc --noEmit",
+    "test": "bun test",
+    "package-health": "publint && sh -c 'tmp=/private/tmp/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'"
+  },
+  "dependencies": {
+    "@boltwall/l402": "workspace:*",
+    "pino": "^9.9.4"
+  },
+  "peerDependencies": {
+    "express": "^4 || ^5"
+  },
+  "peerDependenciesMeta": {
+    "express": {
+      "optional": true
+    }
+  },
+  "devDependencies": {
+    "@arethetypeswrong/cli": "^0.18.2",
+    "@boltwall/adapters": "workspace:*",
+    "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/prettier-config": "workspace:*",
+    "@boltwall/test-fixtures": "workspace:*",
+    "@boltwall/typescript-config": "workspace:*",
+    "express": "^5.1.0",
+    "publint": "^0.3.15",
+    "supertest": "^7.1.4",
+    "tsup": "^8.5.0"
+  },
+  "prettier": "@boltwall/prettier-config"
+}
