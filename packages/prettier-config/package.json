@@ -1,0 +1,17 @@
+{
+  "name": "@boltwall/prettier-config",
+  "private": true,
+  "version": "0.0.0",
+  "type": "module",
+  "main": "./index.js",
+  "exports": "./index.js",
+  "scripts": {
+    "build": "echo \"prettier-config: no build output\"",
+    "lint": "prettier --check index.js",
+    "typecheck": "echo \"prettier-config: no typecheck step\"",
+    "test": "bun run lint"
+  },
+  "devDependencies": {
+    "prettier": "^3.8.3"
+  }
+}
