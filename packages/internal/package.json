@@ -13,10 +13,14 @@
     "./numeric": {
       "types": "./dist/numeric.d.ts",
       "import": "./dist/numeric.js"
+    },
+    "./header-grammar": {
+      "types": "./dist/header-grammar.d.ts",
+      "import": "./dist/header-grammar.js"
     }
   },
   "scripts": {
-    "build": "bunx --bun tsup src/index.ts src/numeric.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
+    "build": "bunx --bun tsup src/index.ts src/numeric.ts src/header-grammar.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "lint": "bun x eslint src",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
