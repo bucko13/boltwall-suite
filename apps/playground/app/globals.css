@@ -2,13 +2,16 @@
 
 :root {
   color-scheme: light;
-  --bg: #f6f2e8;
-  --bg-grid: rgba(26, 36, 48, 0.08);
-  --panel: rgba(255, 252, 247, 0.84);
-  --border: rgba(26, 36, 48, 0.14);
-  --ink: #17202b;
-  --muted: #586474;
-  --accent: #bc5a2b;
+  --page: #f3f5ee;
+  --ink: #111820;
+  --muted: #5d6875;
+  --rule: rgba(17, 24, 32, 0.14);
+  --surface: #fbfcf7;
+  --surface-2: #eef2e8;
+  --orange: #d1622b;
+  --green: #167d68;
+  --blue: #2563a6;
+  --violet: #5a55a3;
 }
 
 * {
@@ -22,97 +25,461 @@ body {
 }
 
 body {
-  font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", serif;
   color: var(--ink);
   background:
-    linear-gradient(180deg, rgba(255, 255, 255, 0.45), rgba(255, 255, 255, 0))
-      0 0 / 100% 100%,
-    linear-gradient(var(--bg-grid) 1px, transparent 1px),
-    linear-gradient(90deg, var(--bg-grid) 1px, transparent 1px),
-    var(--bg);
-  background-size:
-    100% 100%,
-    28px 28px,
-    28px 28px,
-    auto;
+    linear-gradient(90deg, rgba(17, 24, 32, 0.05) 1px, transparent 1px) 0 0 / 24px 24px,
+    linear-gradient(rgba(17, 24, 32, 0.05) 1px, transparent 1px) 0 0 / 24px 24px,
+    var(--page);
+  font-family:
+    Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI",
+    sans-serif;
 }
 
-.shell {
-  display: grid;
-  min-height: 100vh;
-  place-items: center;
-  padding: 2rem;
+button,
+code {
+  font: inherit;
 }
 
-.panel {
-  width: min(100%, 68rem);
-  border: 1px solid var(--border);
-  border-radius: 1.5rem;
-  padding: 2rem;
-  background: var(--panel);
-  backdrop-filter: blur(12px);
-  box-shadow: 0 24px 60px rgba(17, 24, 39, 0.08);
+.concept-shell {
+  width: min(100%, 1440px);
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.review-header {
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 24px;
+  min-height: 22vh;
+  padding: 12px 0 28px;
+}
+
+.eyebrow,
+.concept-id,
+.review-meta,
+dt,
+.mockup-topbar,
+.field-row,
+.price,
+.mobile-preview span {
+  font-family:
+    "SFMono-Regular", "Roboto Mono", Consolas, "Liberation Mono", monospace;
+  letter-spacing: 0;
 }
 
 .eyebrow {
-  margin: 0 0 0.75rem;
-  color: var(--accent);
-  font-family: "IBM Plex Mono", "SFMono-Regular", monospace;
-  font-size: 0.8rem;
-  letter-spacing: 0.16em;
+  margin: 0 0 10px;
+  color: var(--green);
+  font-size: 0.78rem;
+  font-weight: 700;
   text-transform: uppercase;
 }
 
+h1,
+h2,
+p,
+dl,
+dd {
+  margin: 0;
+}
+
 h1 {
-  margin: 0;
-  max-width: 12ch;
-  font-size: clamp(3rem, 7vw, 5.75rem);
-  line-height: 0.95;
+  max-width: 11ch;
+  font-size: clamp(3.5rem, 9vw, 8rem);
+  line-height: 0.9;
 }
 
-.lede {
-  margin: 1.5rem 0 0;
-  max-width: 40rem;
-  color: var(--muted);
-  font-size: 1.125rem;
-  line-height: 1.6;
-}
-
-.status-grid {
+.review-meta {
   display: grid;
-  gap: 1rem;
-  margin-top: 2rem;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-}
-
-.status-grid article {
-  border: 1px solid var(--border);
-  border-radius: 1rem;
-  padding: 1rem;
-  background: rgba(255, 255, 255, 0.72);
-}
-
-.status-grid h2 {
-  margin: 0 0 0.5rem;
-  font-size: 1rem;
-}
-
-.status-grid p {
-  margin: 0;
+  justify-items: end;
+  gap: 6px;
   color: var(--muted);
-  line-height: 1.5;
+  font-size: 0.82rem;
 }
 
-@media (max-width: 720px) {
-  .shell {
-    padding: 1rem;
-  }
+.concept-grid {
+  display: grid;
+  gap: 18px;
+}
 
-  .panel {
-    padding: 1.5rem;
-  }
+.concept-card {
+  display: grid;
+  grid-template-columns: minmax(260px, 0.36fr) minmax(0, 1fr);
+  gap: 18px;
+  min-height: 540px;
+  border: 1px solid var(--rule);
+  border-radius: 8px;
+  padding: 18px;
+  background: var(--surface);
+  box-shadow: 0 18px 44px rgba(17, 24, 32, 0.08);
+}
 
-  .status-grid {
+@supports (color: color-mix(in lab, red, red)) {
+  .concept-card {
+    background: color-mix(in srgb, var(--surface) 92%, var(--concept-accent) 8%);
+  }
+}
+
+.theme-ledger {
+  --concept-accent: var(--green);
+  --concept-secondary: var(--orange);
+}
+
+.theme-signal {
+  --concept-accent: var(--violet);
+  --concept-secondary: #d6b31f;
+}
+
+.theme-market {
+  --concept-accent: var(--blue);
+  --concept-secondary: #c54461;
+}
+
+.concept-copy {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+  border-right: 1px solid var(--rule);
+  padding: 10px 18px 10px 4px;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .concept-copy {
+    border-right: 1px solid color-mix(in srgb, var(--rule) 72%, var(--concept-accent) 28%);
+  }
+}
+
+.concept-id {
+  width: fit-content;
+  border: 1px solid var(--concept-accent);
+  border-radius: 6px;
+  padding: 6px 8px;
+  color: var(--concept-accent);
+  font-size: 0.76rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .concept-id {
+    border: 1px solid color-mix(in srgb, var(--concept-accent) 70%, black 10%);
+    color: color-mix(in srgb, var(--concept-accent) 86%, black 14%);
+  }
+}
+
+.concept-copy h2 {
+  max-width: 9ch;
+  font-size: clamp(2rem, 4vw, 4.6rem);
+  line-height: 0.94;
+}
+
+.concept-copy p,
+.concept-copy dd {
+  color: var(--muted);
+  font-size: 0.98rem;
+  line-height: 1.55;
+}
+
+.concept-copy dl {
+  display: grid;
+  gap: 14px;
+  margin-top: auto;
+}
+
+.concept-copy dt {
+  margin-bottom: 4px;
+  color: var(--ink);
+  font-size: 0.72rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mockup-pair {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 14px;
+  min-width: 0;
+}
+
+.mockup {
+  display: grid;
+  grid-template-rows: auto 1fr;
+  min-width: 0;
+  overflow: hidden;
+  border: 1px solid var(--concept-accent);
+  border-radius: 8px;
+  background: var(--mock-bg);
+  color: var(--mock-ink);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .mockup {
+    border: 1px solid color-mix(in srgb, var(--concept-accent) 28%, var(--rule));
+  }
+}
+
+.mockup.light {
+  --mock-bg: #fffefa;
+  --mock-panel: #f2f5ec;
+  --mock-panel-strong: #e5ece0;
+  --mock-ink: #101820;
+  --mock-muted: #617080;
+  --mock-rule: rgba(16, 24, 32, 0.14);
+}
+
+.mockup.dark {
+  --mock-bg: #10151a;
+  --mock-panel: #182027;
+  --mock-panel-strong: #202b33;
+  --mock-ink: #eef4ef;
+  --mock-muted: #9eabb8;
+  --mock-rule: rgba(238, 244, 239, 0.14);
+}
+
+.mockup-topbar {
+  display: grid;
+  grid-template-columns: auto 1fr auto;
+  align-items: center;
+  gap: 10px;
+  border-bottom: 1px solid var(--mock-rule);
+  padding: 10px;
+  font-size: 0.68rem;
+}
+
+.mark {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  border-radius: 6px;
+  background: var(--concept-accent);
+  color: white;
+  font-weight: 900;
+}
+
+.mockup-topbar nav {
+  display: flex;
+  gap: 8px;
+  min-width: 0;
+}
+
+.mockup-topbar nav span,
+.network {
+  overflow: hidden;
+  border: 1px solid var(--mock-rule);
+  border-radius: 6px;
+  padding: 5px 7px;
+  color: var(--mock-muted);
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.mockup-body {
+  display: grid;
+  grid-template-columns: minmax(0, 1.1fr) minmax(118px, 0.64fr);
+  grid-template-rows: auto 1fr;
+  gap: 10px;
+  min-height: 420px;
+  padding: 10px;
+}
+
+.hero-pane,
+.data-pane,
+.paid-pane,
+.mobile-preview {
+  border: 1px solid var(--mock-rule);
+  border-radius: 8px;
+  background: var(--mock-panel);
+}
+
+.hero-pane {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: end;
+  justify-content: space-between;
+  gap: 12px;
+  min-height: 112px;
+  padding: 14px;
+  background:
+    linear-gradient(135deg, var(--concept-accent), transparent 62%),
+    var(--mock-panel);
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  .hero-pane {
+    background:
+      linear-gradient(135deg, color-mix(in srgb, var(--concept-accent) 24%, transparent), transparent 62%),
+      var(--mock-panel);
+  }
+}
+
+.hero-pane p {
+  color: var(--mock-muted);
+  font-size: 0.78rem;
+}
+
+.hero-pane strong {
+  display: block;
+  max-width: 10ch;
+  margin-top: 6px;
+  font-size: 1.72rem;
+  line-height: 0.96;
+}
+
+.hero-pane code {
+  max-width: 14ch;
+  color: var(--concept-secondary);
+  font-size: 0.74rem;
+  line-height: 1.4;
+}
+
+.data-pane {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+  padding: 10px;
+}
+
+.field-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  min-height: 46px;
+  border-radius: 6px;
+  padding: 8px;
+  background: var(--mock-panel-strong);
+  font-size: 0.7rem;
+}
+
+.field-row span {
+  color: var(--mock-muted);
+}
+
+.field-row b {
+  overflow: hidden;
+  max-width: 9ch;
+  color: var(--mock-ink);
+  font-weight: 800;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.paid-pane {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 12px;
+}
+
+.paid-pane strong {
+  display: block;
+  margin-top: 8px;
+  font-size: 1.08rem;
+  line-height: 1.1;
+}
+
+.price {
+  color: var(--concept-secondary);
+  font-size: 0.74rem;
+  font-weight: 900;
+}
+
+.paid-pane button,
+.mobile-preview button {
+  width: 100%;
+  border: 0;
+  border-radius: 6px;
+  padding: 10px 12px;
+  background: var(--concept-accent);
+  color: white;
+  font-weight: 800;
+}
+
+.mobile-preview {
+  grid-column: 1 / -1;
+  display: none;
+  gap: 8px;
+  width: min(100%, 174px);
+  min-height: 230px;
+  margin: 2px auto 0;
+  padding: 10px;
+}
+
+.mobile-preview span {
+  color: var(--mock-muted);
+  font-size: 0.68rem;
+  font-weight: 800;
+  text-transform: uppercase;
+}
+
+.mobile-preview div {
+  min-height: 54px;
+  border-radius: 6px;
+  background: var(--mock-panel-strong);
+}
+
+@media (max-width: 1120px) {
+  .concept-card {
     grid-template-columns: 1fr;
+  }
+
+  .concept-copy {
+    border-right: 0;
+    border-bottom: 1px solid var(--rule);
+    padding: 4px 4px 18px;
+  }
+}
+
+@supports (color: color-mix(in lab, red, red)) {
+  @media (max-width: 1120px) {
+    .concept-copy {
+      border-bottom: 1px solid color-mix(in srgb, var(--rule) 72%, var(--concept-accent) 28%);
+    }
+  }
+}
+
+@media (max-width: 760px) {
+  .concept-shell {
+    padding: 16px;
+  }
+
+  .review-header {
+    display: grid;
+    align-items: start;
+    min-height: auto;
+    padding: 18px 0;
+  }
+
+  .review-meta {
+    justify-items: start;
+  }
+
+  .concept-card {
+    min-height: auto;
+    padding: 12px;
+  }
+
+  .mockup-pair {
+    grid-template-columns: 1fr;
+  }
+
+  .mockup-body {
+    grid-template-columns: 1fr;
+    min-height: auto;
+  }
+
+  .hero-pane {
+    display: grid;
+  }
+
+  .hero-pane strong {
+    max-width: 12ch;
+  }
+
+  .mobile-preview {
+    display: grid;
   }
 }
