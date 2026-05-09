@@ -33,7 +33,9 @@
     "package-health": "publint && sh -c 'tmp=/private/tmp/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'",
     "size": "size-limit"
   },
-  "dependencies": {},
+  "dependencies": {
+    "@noble/hashes": "^2.2.0"
+  },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
