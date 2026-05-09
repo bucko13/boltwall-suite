@@ -135,6 +135,18 @@ These files are workspace-shared and should be edited by **one agent at a time**
 
 Reserve before editing, even for one-line fixes. Releasing immediately after your edit is fine — the reservation only needs to cover the actual edit window, not the whole bead.
 
+### Log-and-defer rule for shared-config drift
+
+If your bead is implementation work and you discover a needed fix in a shared-config file (`packages/typescript-config/**`, `packages/eslint-config/**`, `packages/prettier-config/**`, `turbo.json`, root `package.json`), **do not patch it inline**. Inline patching is what reopened `bw-f4p.3` and produced the silent `ignoreDeprecations` drift in `packages/typescript-config/base.json` during the parallel scaffold pass — both bugs originated as agents tacking shared-config fixes onto unrelated beads.
+
+The rule:
+
+1. **Stop, file a focused bead** describing the shared-config issue (one bead per shared file, single owner). Use the appropriate phase/area labels and reference your current bead in the description.
+2. **Work around it in your own bead** if possible (a local override, a guarded import, or even pause on a non-blocked sibling task). Note the workaround in your commit body and reference the new bead.
+3. **If your bead is genuinely blocked** until the shared-config fix lands, mark the new bead as a blocker on yours via `br dep add` and pause — do not silently expand your bead's scope.
+
+The new bead should be small and surgical: one fix, one owner, one reservation on the shared-config path. This is what turns an "every agent reopens shared config" failure mode into "shared config has a single linear edit history that the precommit guard can enforce."
+
 ### Why this exists
 
 The Phase 0 parallel scaffold pass exposed exactly this failure mode: four agents updating `bun.lock` simultaneously across `bw-f4p.7`, `bw-f4p.8`, `bw-f4p.9`, `bw-f4p.11`, plus a fifth (`bw-f4p.10` proxy) that correctly skipped the lockfile. The fix was a single coordinated reconcile bead (`bw-f4p.24`). These rules turn that ad-hoc fix into a permanent invariant.
