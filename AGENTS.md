@@ -96,6 +96,51 @@ Rules:
 
 ---
 
+## LOCKFILE DISCIPLINE — `bun.lock` is a shared, single-writer resource
+
+`bun.lock` is workspace-wide state. Every package's manifest changes update it, and two agents installing concurrently produce divergent lockfiles that conflict on merge. Bun has no cross-process install mutex; coordination is the agent's responsibility, enforced by file reservations and the precommit guard.
+
+### Hard rules
+
+1. **Never stage `bun.lock` in a normal bead's commit.** Run `bun install` locally as needed (so your typecheck/build/test pass), but leave `bun.lock` unstaged. Your commit message should say so explicitly: *"bun.lock is intentionally left unstaged; will be reconciled by the next bw-f4p.24-style reconcile bead."*
+
+2. **Only an explicit lockfile-reconcile bead may stage and commit `bun.lock`.** Reconcile beads carry the `lockfile-reconcile` label (or are clearly named "Reconcile bun.lock for ..."). If your bead does not match that description, do not touch the lockfile.
+
+3. **Lockfile reservations are global, not per-phase.** If your bead adds, upgrades, or removes a workspace or third-party dependency, you MUST reserve `bun.lock` via `file_reservation_paths(paths=["bun.lock"], exclusive=true)` before any manifest edit. This serializes all dep-changing work across every epic — Phase 1's reconcile and Phase 3's reconcile cannot run simultaneously even though they're in different epics, because they reserve the same path.
+
+4. **A single global lockfile slot exists at any time.** There is no per-epic lockfile. Phase reconcile beads are scheduling artifacts only — internally they all queue on the same `bun.lock` reservation.
+
+### When you need to add a dependency
+
+1. Reserve `bun.lock` and the package's `package.json` (e.g. `packages/l402/package.json`) exclusively before editing.
+2. Edit the manifest, run `bun install` locally for validation.
+3. Stage **only** the manifest change in your commit. Do not stage `bun.lock`.
+4. Mention in your commit body that the lockfile is deferred to the next reconcile bead.
+5. Release the `bun.lock` reservation when your manifest edit is complete (the reconcile bead will re-reserve it).
+
+If your bead is the reconcile bead itself: you reserve `bun.lock` for the duration, run one coherent `bun install`, validate that all root scripts (`bun run typecheck`, `lint`, `build`, `test`) exit 0, and commit `bun.lock` plus any necessary follow-up manifest fixes you discovered during the install.
+
+### Other workspace-shared files with the same single-writer property
+
+These files are workspace-shared and should be edited by **one agent at a time**, with an exclusive reservation on the path:
+
+- `bun.lock` — see above.
+- `turbo.json` — pipeline definitions for every task. Concurrent edits collide on the JSON tree.
+- `packages/typescript-config/**` — shared tsconfig presets (consumers break if drift is uncoordinated).
+- `packages/eslint-config/**` — shared lint config.
+- `packages/prettier-config/**` — shared formatter config.
+- `package.json` (root) — workspace wiring and root devDependencies.
+- A package's barrel export file (`packages/<pkg>/src/index.ts` or equivalent). When multiple beads add new exports to the same package, they must serialize on the barrel; intermediate src/ files (e.g. `src/wallet/**`) can run in parallel under separate reservations.
+- `AGENTS.md` itself.
+
+Reserve before editing, even for one-line fixes. Releasing immediately after your edit is fine — the reservation only needs to cover the actual edit window, not the whole bead.
+
+### Why this exists
+
+The Phase 0 parallel scaffold pass exposed exactly this failure mode: four agents updating `bun.lock` simultaneously across `bw-f4p.7`, `bw-f4p.8`, `bw-f4p.9`, `bw-f4p.11`, plus a fifth (`bw-f4p.10` proxy) that correctly skipped the lockfile. The fix was a single coordinated reconcile bead (`bw-f4p.24`). These rules turn that ad-hoc fix into a permanent invariant.
+
+---
+
 ## Project Architecture
 
 Boltwall Suite is a **TypeScript monorepo** for L402 (Lightning Network service authentication). Layout:
