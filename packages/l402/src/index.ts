@@ -5,6 +5,11 @@ export {
 } from "./build-authenticate-headers";
 
 export {
+  buildAuthorizationHeader,
+  type BuildAuthorizationHeaderArgs,
+} from "./build-authorization-header";
+
+export {
   parseAuthenticateHeader,
   type L402ChallengeFields,
   type L402Scheme,
