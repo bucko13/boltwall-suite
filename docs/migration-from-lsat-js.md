@@ -1,0 +1,157 @@
+# Migration from lsat-js
+
+This document records the compatibility audit for the MIT-licensed
+`Tierion/lsat-js` package. It is the decision source for preserving legacy
+LSAT behavior in `@boltwall/l402` without carrying over Node-only types,
+LSAT-only naming, or behavior that conflicts with the current L402 specs.
+
+## Sources Audited
+
+- `Tierion/lsat-js` repository, `master`, public entrypoint `src/index.ts`:
+  exports `identifier`, `caveat`, `lsat`, `types`, `satisfiers`, `macaroon`,
+  and `service`.
+- `lsat-js` npm package `2.0.6`, published under MIT.
+- `Tierion/lsat-js` README API summary.
+- L402 protocol-specification.md sections 5, 6, 9, and 10.
+- L402 macaroon-spec.md sections Identifier Structure, Caveat Format,
+  Attenuation, Verification, and HTTP Header Encoding.
+
+No AGPL `boltwall` source, comments, tests, or generated docs were copied.
+
+## Decision Classes
+
+| Decision | Meaning |
+|---|---|
+| `preserve-exact` | Keep the same public name and compatible call shape because it remains correct. |
+| `preserve-compatible` | Keep equivalent functionality, usually with L402-native names or safer types. |
+| `replace-with-migration` | Provide a documented replacement because the old API is LSAT-specific, Buffer/Node-only, number-amount based, or conflicts with current L402 semantics. |
+| `drop` | Do not preserve. The API is not meaningful for current L402 or exposes implementation details. |
+
+## Cross-Cutting Migration Rules
+
+| Legacy behavior | v1 decision |
+|---|---|
+| `LSAT` is the only scheme emitted by class serializers. | New APIs emit `L402` by default. Legacy `LSAT` emission is explicit via `{ legacy: true }`. L402 protocol-specification.md section 10 requires accepting both schemes and recommends dual challenge emission for servers. |
+| `Buffer` appears in public types such as `IdentifierOptions`. | Public APIs use `Uint8Array` and `string`. Buffer-only call shapes are `replace-with-migration`. |
+| Amount fields are `number` sats. | Public amount fields use `bigint` millisatoshis per `docs/numeric-strategy.md`. Legacy numeric sats fields are migration/display compatibility only. |
+| Preimage verification compares hex strings directly. | Verification uses normalized bytes and constant-time comparison on payment hashes. L402 protocol-specification.md section 6 and macaroon-spec.md Verification require `sha256(preimage) == payment_hash`; AGENTS.md requires constant-time checks. |
+| Unknown caveats without satisfiers are ignored. | Preserve this behavior. L402 macaroon-spec.md Verification says unknown caveats MUST be skipped, not rejected. |
+
+## Public API Inventory
+
+| Legacy API | Source | Decision | Replacement / v1 target | Phase | Notes and required tests |
+|---|---|---|---|---|---|
+| `Lsat` class | `src/lsat.ts` | `preserve-compatible` | `L402` class facade | Phase 1, `bw-b63.14` | Preserve useful object workflow, but use L402 naming, no `Buffer`, and default modern scheme emission. Tests: LSAT and L402 token/challenge round-trips. |
+| `Lsat.type = "LSAT"` | `src/lsat.ts` | `replace-with-migration` | `L402.scheme` or serializer options if needed | Phase 1, `bw-b63.14` | A fixed LSAT-only type conflicts with L402-native default emission. |
+| `new Lsat(options)` | `src/lsat.ts`, `LsatOptions` | `preserve-compatible` | `new L402(options)` or static constructors | Phase 1, `bw-b63.14` | Constructor options must avoid `Buffer` and represent amounts as `bigint amountMsat`. |
+| `Lsat.fromHeader(header)` | `src/lsat.ts` | `preserve-compatible` | `L402.fromHeader(header)` | Phase 1, `bw-b63.14` | Must accept `LSAT` and `L402`. Tests share fixtures with `parseAuthenticateHeader`. |
+| `Lsat.fromChallenge(challenge)` | `src/lsat.ts` | `preserve-compatible` | `L402.fromChallenge(challenge)` | Phase 1, `bw-b63.14` | Legacy accepted raw challenge without scheme. Preserve if it can delegate to strict parser/builders. |
+| `Lsat.fromToken(token, invoice?)` | `src/lsat.ts` | `preserve-compatible` | `L402.fromToken(token, invoice?)` | Phase 1, `bw-b63.14` | Must accept legacy `LSAT M:r` and modern `L402 M:r`; multi-macaroon token support required. |
+| `Lsat.fromMacaroon(macaroon, invoice?)` | `src/lsat.ts` | `preserve-compatible` | `L402.fromMacaroon(macaroon, invoice?)` | Phase 1/2 | Depends on identifier decode now and richer macaroon decode in Phase 2. |
+| `Lsat#toToken()` | `src/lsat.ts` | `preserve-compatible` | `L402#toToken(options?: { legacy?: boolean })` | Phase 1, `bw-b63.14` | Default emits `L402`; `{ legacy: true }` emits `LSAT`. Must document relation to `buildAuthorizationHeader`. |
+| Pending token ending with `:` when no preimage exists | `src/lsat.ts` | `preserve-compatible` | `L402#toToken()` pending form | Phase 1, `bw-b63.14` | Only preserve if parser/builders intentionally accept empty preimage for object state. Authorization header parser for paid retries should continue requiring valid preimage. |
+| `Lsat#toChallenge()` | `src/lsat.ts` | `preserve-compatible` | `L402#toChallenge(options?: { legacy?: boolean; compatibility?: ... })` or `buildAuthenticateHeaders` | Phase 1, `bw-b63.14` | Server challenge default remains dual LSAT-first/L402-second via `buildAuthenticateHeaders`. |
+| `Lsat#setPreimage(preimage)` | `src/lsat.ts` | `preserve-compatible` | `L402#setPreimage(preimage)` | Phase 1, `bw-b63.14` | Validate 32-byte hex and use `verifyPreimage`. Tests: valid, wrong length, non-hex, mismatched hash. |
+| `Lsat#isExpired()` | `src/lsat.ts` | `preserve-compatible` | `L402#isExpired()` | Phase 2 or legacy subpath | Needs caveat decoding and time semantics. Use current L402 caveat naming where possible; legacy `expiration` remains in `@boltwall/l402/legacy`. |
+| `Lsat#isPending()` | `src/lsat.ts` | `preserve-exact` | `L402#isPending()` | Phase 1, `bw-b63.14` | Same semantics: no preimage means pending. |
+| `Lsat#isSatisfied()` | `src/lsat.ts` | `preserve-compatible` | `L402#isSatisfied()` | Phase 1, `bw-b63.14` | Must use constant-time payment-hash comparison via `verifyPreimage`. |
+| `Lsat#getMacaroon()` | `src/lsat.ts` | `replace-with-migration` | `decodeMacaroon` / `MacaroonCodec` internal result if exposed later | Phase 2 | Legacy returned `macaroon` library JSON internals. Do not expose wrapped library shapes. |
+| `Lsat#getExpirationFromMacaroon(macaroon?)` | `src/lsat.ts` | `preserve-compatible` | Legacy helper under `@boltwall/l402/legacy` | Phase 2, `bw-1dl.7` | Legacy caveat condition is `expiration`; current standard timeout caveat uses service constraint style. |
+| `Lsat#addFirstPartyCaveat(caveat)` | `src/lsat.ts` | `preserve-compatible` | `L402#addFirstPartyCaveat(caveat)` or Phase 2 macaroon attenuator | Phase 2 | Depends on MacaroonCodec append-only caveat support. Must not mutate unexpectedly unless class docs say so. |
+| `Lsat#getCaveats()` | `src/lsat.ts` | `preserve-compatible` | `L402#getCaveats()` returning `Caveat[]` | Phase 2 | Should use project `Caveat` shape, not legacy comparator class. |
+| `Lsat#addInvoice(invoice)` | `src/lsat.ts` | `preserve-compatible` | `L402#addInvoice(invoice)` | Phase 1/2 | Must decode BOLT 11 to verify payment hash and set `amountMsat: bigint`. |
+| `Lsat#toJSON()` | `src/lsat.ts` | `preserve-compatible` | `L402#toJSON()` | Phase 1/2 | JSON serializes bigint fields as decimal strings. Do not emit bigint directly. |
+| `Lsat#id` | `src/lsat.ts` | `preserve-compatible` | `L402#id` or `tokenId` accessor | Phase 1/2 | Legacy `id` is encoded identifier string. Prefer explicit identifier/token fields. |
+| `Lsat#baseMacaroon` | `src/lsat.ts` | `preserve-compatible` | `L402#macaroon` or `L402#macaroons` | Phase 1, `bw-b63.14` | Multi-macaroon credentials require array support. Keep single accessor only as convenience. |
+| `Lsat#paymentHash` | `src/lsat.ts` | `preserve-compatible` | `L402#paymentHash` as hex string plus byte accessor if needed | Phase 1, `bw-b63.14` | Internals stay `Uint8Array`; string accessor is okay for JSON/display. |
+| `Lsat#paymentPreimage` | `src/lsat.ts` | `preserve-compatible` | `L402#preimage` / `paymentPreimage` alias | Phase 1, `bw-b63.14` | Keep bearer credential handling out of logs. |
+| `Lsat#validUntil` | `src/lsat.ts` | `preserve-compatible` | `L402#validUntil` | Phase 2 | Number timestamp is acceptable for JS time, but JSON docs must define milliseconds. |
+| `Lsat#timeCreated` | `src/lsat.ts` | `preserve-compatible` | `L402#timeCreated` | Phase 1, `bw-b63.14` | Keep only if class facade needs legacy JSON compatibility. |
+| `Lsat#invoice` | `src/lsat.ts` | `preserve-exact` | `L402#invoice` | Phase 1, `bw-b63.14` | Raw BOLT 11 string. |
+| `Lsat#amountPaid` | `src/lsat.ts` | `replace-with-migration` | `amountPaidMsat: bigint` | Later follow-up | Legacy `number` sats is not preserved on public protocol surfaces. |
+| `Lsat#routingFeePaid` | `src/lsat.ts` | `replace-with-migration` | `routingFeePaidMsat: bigint` | Later follow-up | Same numeric policy. |
+| `Lsat#invoiceAmount` | `src/lsat.ts` | `replace-with-migration` | `invoiceAmountMsat: bigint` | Phase 1/2 | `decodeBolt11Invoice` owns amount decode. |
+| `parseChallengePart(challenge)` | `src/lsat.ts` | `drop` | `parseAuthenticateHeader` | Phase 1 implemented | Private-ish parser helper; current parser handles quoted values and dual challenges. |
+| `Identifier` class | `src/identifier.ts` | `replace-with-migration` | `MacaroonIdentifierV0` + encode/decode helpers | Phase 1/2 | Legacy extends `bufio.Struct` and exposes `Buffer`. Preserve data model, not class. |
+| `Identifier#toString()` | `src/identifier.ts` | `preserve-compatible` | `encodeIdentifier(...)` if public inverse is added | Phase 2 or follow-up | Current Phase 1 only decodes. Add public encoder only if minting/class facade needs it. |
+| `Identifier.fromString(str)` | `src/identifier.ts` | `replace-with-migration` | `decodeIdentifier` / identifier parser | Phase 1/2 | Avoid implicit hex/base64 ambiguity in public API. |
+| `Identifier#write/read` | `src/identifier.ts` | `drop` | Internal encoder/decoder | Phase 2 | Serialization internals should not be public. |
+| `LATEST_VERSION` | `src/identifier.ts` | `preserve-compatible` | `MACAROON_IDENTIFIER_VERSION_V0` or documented constant | Later follow-up | Optional public constant. Avoid exposing legacy name unless needed. |
+| `TOKEN_ID_SIZE` | `src/identifier.ts` | `preserve-compatible` | `TOKEN_ID_BYTE_LENGTH` | Later follow-up | Optional public constant. |
+| `ErrUnknownVersion` | `src/identifier.ts` | `replace-with-migration` | typed project error or `unsupported-identifier-version` | Phase 1 implemented as thrown code | Do not preserve legacy error class unless error model requires it. |
+| `decodeIdentifierFromMacaroon(raw)` | `src/identifier.ts` | `replace-with-migration` | `decodeIdentifier(raw)` | Phase 1 implemented | Current helper returns structured fields, not raw encoded identifier string. |
+| `IdentifierOptions` | `src/types/lsat.ts` | `replace-with-migration` | `MacaroonIdentifierV0` | Phase 1 implemented | Legacy type exposes `Buffer`. |
+| `LsatOptions` | `src/types/lsat.ts` | `preserve-compatible` | `L402Options` | Phase 1/2 | Replace amount numbers with `bigint` msat and use L402 naming. |
+| `Caveat` class | `src/caveat.ts` | `preserve-compatible` | `Caveat` interface plus helpers | Phase 1/2 | Current L402 spec uses `condition=value`. Legacy comparator support belongs in legacy helpers only. |
+| `new Caveat({ condition, value, comp })` | `src/caveat.ts` | `replace-with-migration` | `parseCaveat`, `serializeCaveat`, `servicesCaveat`, `capabilitiesCaveat`, `constraintCaveat` | Phase 1 implemented | L402 standard caveats are single `=` strings. `<` and `>` comparator syntax is legacy-specific. |
+| `Caveat#encode()` | `src/caveat.ts` | `preserve-compatible` | `serializeCaveat(caveat)` | Phase 1 implemented | Tests must cover exact `condition=value` output. |
+| `Caveat.decode(c)` | `src/caveat.ts` | `preserve-compatible` | `parseCaveat(c)` | Phase 1 implemented | Parse first `=`; comparator parsing moves to legacy helper if needed. |
+| `CaveatOptions` | `src/types/lsat.ts` | `replace-with-migration` | `Caveat` | Phase 1 implemented | No comparator in standard caveat shape. |
+| `ErrInvalidCaveat` | `src/caveat.ts` | `replace-with-migration` | short error codes / future typed errors | Phase 1/2 | Do not preserve class unless public error taxonomy later requires it. |
+| `hasCaveat(rawMac, caveat)` | `src/caveat.ts` | `preserve-compatible` | `hasCaveat` or `getCaveats(...).some(...)` | Phase 2 | Depends on MacaroonCodec caveat decoding. Return boolean, not mixed `string | boolean | Error`. |
+| `verifyCaveats(caveats, satisfiers, options)` | `src/caveat.ts` | `preserve-compatible` | `verifyCaveats(caveats, satisfiers, context)` | Phase 2, `bw-1dl.6/.9/.10` | Preserve unknown-caveat skip and satisfyPrevious/satisfyFinal semantics. |
+| `Satisfier` interface | `src/types/satisfier.ts` | `preserve-compatible` | `CaveatSatisfier` | Phase 2, `bw-1dl.6` | Keep condition plus final/previous checks; use typed context instead of `any`. |
+| `SatisfyPrevious` | `src/types/satisfier.ts` | `preserve-compatible` | `satisfyPrevious(prev, curr, context)` | Phase 2 | Required for attenuation. |
+| `SatisfyFinal` | `src/types/satisfier.ts` | `preserve-compatible` | `satisfyFinal(caveat, context)` | Phase 2 | Required for request-context verification. |
+| `expirationSatisfier` | `src/satisfiers.ts` | `replace-with-migration` | legacy expiration satisfier under `@boltwall/l402/legacy`; standard timeout/valid-until satisfier in core | Phase 2, `bw-1dl.7` | Legacy condition `expiration` differs from current standard constraint naming. |
+| `createServicesSatisfier(targetService)` | `src/satisfiers.ts` | `preserve-compatible` | `servicesSatisfier(targetService)` | Phase 2, `bw-1dl.6` | Must enforce subset attenuation per macaroon-spec.md Verification. |
+| `createCapabilitiesSatisfier(service, targetCapability)` | `src/satisfiers.ts` | `preserve-compatible` | `capabilitiesSatisfier(service, targetCapability)` | Phase 2, `bw-1dl.6` | Must enforce subset attenuation. |
+| `getCaveatsFromMacaroon(rawMac)` | `src/macaroon.ts` | `preserve-compatible` | `getCaveatsFromMacaroon` or class method | Phase 2 | Must return project `Caveat[]` and skip/flag malformed caveat bytes according to verifier needs. |
+| `verifyMacaroonCaveats(rawMac, secret, satisfiers, options)` | `src/macaroon.ts` | `replace-with-migration` | `verifyMacaroon({ macaroons, preimage, rootKeyStore, satisfiers, context })` | Phase 2, `bw-1dl.5` | Current verification needs root key lookup, preimage binding, constant-time signature/hash checks, multi-macaroon support, and unknown-caveat skip. |
+| `getRawMacaroon(mac, urlSafe?)` | `src/macaroon.ts` | `drop` | Internal `MacaroonCodec.encodeRaw` | Phase 2, `bw-1dl.2` | Exposes wrapped macaroon library internals and URL-safe option not used by L402 HTTP header encoding. |
+| `MacaroonClass` interface | `src/types/index.ts` | `drop` | internal `RawMacaroon` | Phase 2, `bw-1dl.2` | Do not expose wrapped library internals. |
+| `Service` class | `src/service.ts` | `replace-with-migration` | plain `{ name: string; tier: number }` service objects | Phase 1/2 | Avoid `bufio.Struct`; current helper already accepts plain objects. |
+| `ServiceClassOptions` | `src/service.ts` | `replace-with-migration` | `{ name: string; tier: number }` | Phase 1/2 | Type alias/interface only if exported service object API is needed. |
+| `SERVICES_CAVEAT_CONDITION` | `src/service.ts` | `preserve-compatible` | `SERVICES_CAVEAT_CONDITION` | Later follow-up | Optional named constant for consumers. |
+| `SERVICE_CAPABILITIES_SUFFIX` | `src/service.ts` | `preserve-compatible` | `SERVICE_CAPABILITIES_SUFFIX` | Later follow-up | Optional named constant for consumers. |
+| `decodeServicesCaveat(s)` | `src/service.ts` | `preserve-compatible` | `parseServicesCaveatValue(s)` | Phase 2, `bw-1dl.6` | Should throw typed/short errors, return array only, not `Service[] | Error`. |
+| `encodeServicesCaveatValue(services)` | `src/service.ts` | `preserve-compatible` | `serializeServicesCaveatValue(services)` | Phase 2, `bw-1dl.6` | Current Phase 1 `servicesCaveat` covers construction but not public decode. |
+| `createNewCapabilitiesCaveat(serviceName, capabilities?)` | `src/service.ts` | `preserve-compatible` | `capabilitiesCaveat(serviceName, capabilities)` | Phase 1 implemented | Current helper is L402-native and plain-data based. |
+| `decodeCapabilitiesValue(value)` | `src/service.ts` | `preserve-compatible` | `parseCapabilitiesCaveatValue(value)` | Phase 2, `bw-1dl.6` | Needed by built-in satisfiers. |
+| `NoServicesError` | `src/service.ts` | `replace-with-migration` | short error code / typed project error | Phase 2 | Do not preserve legacy class unless error model requires it. |
+| `InvalidServicesError` | `src/service.ts` | `replace-with-migration` | short error code / typed project error | Phase 2 | Same. |
+| `InvalidCapabilitiesError` | `src/service.ts` | `replace-with-migration` | short error code / typed project error | Phase 2 | Same. |
+| `isHex(h)` | `src/helpers.ts` | `drop` | internal hex parser | Phase 1 implemented internally | Generic helper is not part of desired public surface. |
+| `decode(req)` | `src/helpers.ts` | `drop` | `decodeBolt11Invoice(invoice)` | Phase 1, `bw-b63.6` | Wrapper around old `bolt11` library, including simnet patching, should not be public. |
+| `getIdFromRequest(req)` | `src/helpers.ts` | `replace-with-migration` | `decodeBolt11Invoice(invoice).paymentHash` | Phase 1, `bw-b63.6` | Current API should return structured invoice data. |
+| `stringToBytes(s)` / `utf8Encoder` / `isValue` | `src/helpers.ts` | `drop` | internal utilities if needed | Internal | Not public protocol API. |
+
+## Required Bead Updates
+
+- `bw-b63.14` must implement the Phase 1 class decisions above: `L402`
+  facade, token/challenge constructors, pending/satisfied state, selected
+  legacy-compatible properties, and tests shared with functional helpers.
+- `bw-1dl.6`, `bw-1dl.9`, and `bw-1dl.10` cover satisfier behavior,
+  attenuation chains, and unknown-caveat skip semantics.
+- `bw-1dl.7` covers the legacy `expiration` caveat helper.
+- `bw-1dl.2`, `bw-1dl.4`, and `bw-1dl.5` cover macaroon codec, minting, and
+  verification replacements for legacy macaroon helpers.
+- `bw-b63.6` owns invoice amount/hash migration from legacy `number` sats to
+  `bigint amountMsat`.
+
+## Testing Requirements
+
+Every `preserve-exact` and `preserve-compatible` row above needs a positive
+test and at least one negative or migration-path test in the implementation
+bead that owns it. Class facade tests must include:
+
+- `L402.fromToken("LSAT M:r").toToken({ legacy: true })` preserves legacy
+  scheme emission.
+- `L402.fromToken("L402 M:r").toToken()` emits modern `L402`.
+- Multi-macaroon credentials round-trip through both functional helpers and
+  the class facade.
+- `setPreimage` rejects malformed and mismatched preimages.
+- JSON output serializes msat amounts as decimal strings if amount fields are
+  included.
+
+## Compatibility Summary
+
+The useful legacy surface is the object workflow: parse challenge or token,
+inspect macaroon/invoice/payment hash, set a preimage, serialize a paid retry,
+and evaluate caveats with satisfiers. That workflow should survive under the
+`L402` class facade.
+
+The legacy implementation details should not survive: public `Buffer` types,
+`bufio.Struct` inheritance, wrapped `macaroon` library JSON classes, `number`
+sat amounts, mixed return types such as `string | boolean | Error`, and
+LSAT-only default emission.
