@@ -12,6 +12,28 @@ macaroon verification, and compatibility helpers land in later beads.
 - `@boltwall/l402/legacy` — legacy LSAT compatibility surface
 - `@boltwall/l402/testing` — fixture/test helpers
 
+## Quick start: emit a payment challenge
+
+```ts
+import { buildAuthenticateHeaders } from "@boltwall/l402";
+
+const headers = buildAuthenticateHeaders({
+  macaroon: "AGIAJEemVQUTEyNCR0exk7ek90Cg==",
+  invoice: "lnbc1500n1pw5kjhmpp5...",
+});
+
+const responseHeaders = new Headers();
+
+// Default server emission follows L402 protocol-specification.md §10:
+// LSAT first for legacy clients, then L402 for current clients.
+for (const value of headers) {
+  responseHeaders.append("WWW-Authenticate", value);
+}
+```
+
+Use `compatibility: "l402-only"` only when a deployment or test explicitly
+does not need legacy LSAT challenge compatibility.
+
 ## Tech stack decisions
 
 ### BOLT 11 invoice decoder: `light-bolt11-decoder`

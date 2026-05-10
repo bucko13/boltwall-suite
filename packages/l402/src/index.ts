@@ -1,4 +1,10 @@
 export {
+  buildAuthenticateHeaders,
+  type AuthenticateHeaderCompatibility,
+  type BuildAuthenticateHeadersArgs,
+} from "./build-authenticate-headers";
+
+export {
   parseAuthenticateHeader,
   type L402ChallengeFields,
   type L402Scheme,
