@@ -12,6 +12,22 @@ macaroon verification, and compatibility helpers land in later beads.
 - `@boltwall/l402/legacy` — legacy LSAT compatibility surface
 - `@boltwall/l402/testing` — fixture/test helpers
 
+## Quick start: parse an L402 challenge
+
+```ts
+import { parseAuthenticateHeader } from "@boltwall/l402";
+
+const header = `L402 macaroon="AGIAJEemVQUTEyNCR0exk7ek90Cg==", invoice="lnbc1500n1pw5kjhmpp5..."`;
+const challenges = parseAuthenticateHeader(header);
+
+console.log(challenges[0]?.scheme); // "L402"
+console.log(challenges[0]?.macaroon); // "AGIAJEemVQUTEyNCR0exk7ek90Cg=="
+console.log(challenges[0]?.invoice); // "lnbc1500n1pw5kjhmpp5..."
+```
+
+The parser also accepts legacy `LSAT` challenges so migration clients can
+handle old servers, but new servers should emit `L402` by default.
+
 ## Quick start: emit a payment challenge
 
 ```ts
