@@ -106,6 +106,29 @@ Phase 0's `bw-f4p.24` is the canonical example.
 
 ---
 
+## Barrel export discipline
+
+Public barrel files — `packages/l402/src/index.ts`, `packages/test-fixtures/src/index.ts`, and equivalents in other packages — are touched by every implementation bead in a phase. They are a shared write surface, like `bun.lock`. An exclusive long-lived reservation on a barrel serialises a phase's otherwise-parallel work.
+
+Rules:
+
+1. **A bead is complete without its barrel export, unless the bead's exit criteria explicitly require the export.** By default, implementation beads MAY close with their new symbols unexported from the package's public `index.ts`. The feature, fixtures, and tests landing in their own files is sufficient for `br close`. If a bead's "Acceptance criteria" or "What" section explicitly names the barrel export as a deliverable, follow that — the bead-level instruction wins.
+2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a bead chooses to add its own export, the reservation on the barrel must cover only the acquire → edit → commit → release window — not the bead's lifetime. The default is to defer (rule 3).
+3. **Defer via the phase-complete bead.** Each phase has a `Phase N implementation complete` rollup bead (Phase 1 = `bw-b63.15`, Phase 2 = `bw-1dl.13`, Phase 3 = `bw-2yn.7`, Phase 4 = `bw-zxk.11`). Before closing an implementation bead that deferred its export, append a one-line entry to that rollup bead under a `### Pending barrel exports` section:
+
+   ```
+   - bw-b63.1 → export `decodeIdentifier`, `MacaroonIdentifierV0` from `packages/l402/src/index.ts`
+   - bw-b63.8 → export `parseCaveat`, `serializeCaveat`, `servicesCaveat`, `capabilitiesCaveat`, `constraintCaveat`, `Caveat` from `packages/l402/src/index.ts`; `caveats` fixture set from `packages/test-fixtures/src/index.ts`
+   ```
+
+   If the section doesn't exist yet, the first bead to defer creates it (`br update <phase-bead> --description-append "..."` or hand-edit + `br sync`).
+4. **The phase-complete bead batches the reconcile.** Its acceptance work includes a single commit that adds every queued export, runs root `bun run lint`/`typecheck`/`test`/`build`, and clears the section. That commit briefly holds an exclusive reservation on the affected barrels; no other bead should be editing them concurrently.
+5. **Do not stall on a held barrel reservation.** If a peer is holding a long-lived reservation on a barrel (against rule 2), defer per rule 3 rather than waiting. File a bead noting the violation if it recurs.
+
+This rule extends the "log-and-defer" pattern (see Code Editing Discipline) to barrels specifically, because barrels are the most common shared-write-surface contention in Phase 1–4 work.
+
+---
+
 ## Project Architecture
 
 Boltwall Suite is a **TypeScript monorepo** for L402 (Lightning Network service authentication). Layout:
@@ -586,9 +609,9 @@ The procedure for using these tools is in `Beads Workflow Integration → Workfl
 
 ## Beads Workflow Integration
 
-This project uses [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for issue tracking and [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) for graph-aware triage. Issues are stored in `.beads/` and tracked in git.
+This project uses [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for issue tracking and [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) for graph-aware triage. Issues are stored in `.beads/` **on the local machine only** — `.beads/` is gitignored and is not part of the OSS-distributed repo. All co-operating agents must share the same local checkout to see each other's bead state.
 
-`br` (beads_rust) is non-invasive and never executes git commands. You must run git commands manually after `br sync --flush-only`.
+`br sync --flush-only` exports the SQLite DB to `.beads/issues.jsonl` as a human-readable canonical view. It is a local-only operation; there is nothing to commit afterward.
 
 ### Using bv as an AI sidecar
 
@@ -662,7 +685,7 @@ The single workflow contract. Step 0 is also summarized in `SESSION START` at th
 5. **Work.** Implement the task. Reply in-thread on meaningful progress and at handoff points.
 6. **Complete.** `br close <id> --reason "Completed: <one-line summary>"`. Close the bead BEFORE releasing reservations — Beads is the status authority.
 7. **Release reservations.** `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...same patterns...])`. Final mail reply: `[<bead-id>] Completed` with summary + commit hash.
-8. **Sync + push.** `br sync --flush-only`, then `git add` / `git commit` / `git push` per `Landing the Plane` below. Work is NOT done until `git push` succeeds.
+8. **Sync + push.** `br sync --flush-only` to refresh the local `.beads/issues.jsonl` canonical view, then `git add` / `git commit` / `git push` of code changes per `Landing the Plane` below. Bead state itself is local-only and is not pushed; code work is NOT done until `git push` of the code changes succeeds.
 
 **Bead-id conventions.** Mail `thread_id` = `br-###`. Mail subject prefix = `[br-###]`. File reservation `reason` = `br-###`. Commit messages: include `br-###` for traceability.
 
@@ -828,9 +851,8 @@ Then reserve files, send a start message in thread `<id>`, implement, close via 
 5. **PUSH TO REMOTE.** This is mandatory:
    ```sh
    git pull --rebase
-   br sync --flush-only
-   git add .beads/
-   git add <other staged paths>            # avoid `git add -A` unless verified clean
+   br sync --flush-only                    # local-only canonical view; `.beads/` is gitignored
+   git add <staged paths>                  # avoid `git add -A` unless verified clean
    git commit -m "<subject>"               # body covers exit criteria, tests run, spec citations, dep justification, AGPL note
    git push
    git status                              # MUST show "up to date with origin/main"
