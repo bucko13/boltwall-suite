@@ -1,0 +1,279 @@
+import {
+  buildAuthenticateHeaders,
+  type AuthenticateHeaderCompatibility,
+} from "./build-authenticate-headers";
+import { buildAuthorizationHeader } from "./build-authorization-header";
+import { decodeIdentifier } from "./decode-identifier";
+import { parseAuthenticateHeader } from "./parse-authenticate-header";
+import { parseAuthorizationHeader } from "./parse-authorization-header";
+import { verifyPreimage } from "./verify-preimage";
+
+/** Constructor input for the `L402` compatibility facade. */
+export interface L402Options {
+  /** Base64 macaroon credential(s), in the same order used on the wire. */
+  macaroons: string | string[];
+  /** Optional BOLT 11 invoice from the L402 challenge. */
+  invoice?: string;
+  /** Optional 32-byte payment hash as hex or bytes. */
+  paymentHash?: string | Uint8Array;
+  /** Optional 32-byte payment preimage as hex. */
+  paymentPreimage?: string;
+  /** Creation timestamp in milliseconds since the Unix epoch. */
+  timeCreated?: number;
+}
+
+/** Serialization options for `L402#toToken`. */
+export interface L402TokenOptions {
+  /** Emit the legacy `LSAT` Authorization scheme instead of `L402`. */
+  legacy?: boolean;
+}
+
+/** Serialization options for `L402#toChallenge`. */
+export interface L402ChallengeOptions {
+  /** Emit the legacy `LSAT` WWW-Authenticate scheme. */
+  legacy?: boolean;
+  /** Explicit single-scheme challenge mode; dual challenges need the functional helper. */
+  compatibility?: Exclude<AuthenticateHeaderCompatibility, "dual">;
+}
+
+function normalizeMacaroons(macaroons: string | string[]): string[] {
+  const normalized = Array.isArray(macaroons) ? macaroons : [macaroons];
+  if (normalized.length === 0) {
+    throw new Error("empty-macaroons");
+  }
+  for (const macaroon of normalized) {
+    if (macaroon.length === 0) {
+      throw new Error("empty-macaroon");
+    }
+  }
+  return normalized;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function parsePossiblyPendingToken(token: string): {
+  macaroons: string[];
+  paymentPreimage?: string;
+} {
+  const separator = token.lastIndexOf(":");
+  if (separator === token.length - 1) {
+    const prefix = token.slice(0, separator);
+    const firstSpace = /\s/.exec(prefix.trim());
+    if (firstSpace === null) {
+      throw new Error("missing-scheme");
+    }
+    const scheme = prefix.trim().slice(0, firstSpace.index).toUpperCase();
+    if (scheme !== "L402" && scheme !== "LSAT") {
+      throw new Error("scheme-mismatch");
+    }
+    const macaroons = prefix
+      .trim()
+      .slice(firstSpace.index)
+      .trim()
+      .split(",")
+      .map((m) => m.trim());
+    return { macaroons: normalizeMacaroons(macaroons) };
+  }
+
+  const parsed = parseAuthorizationHeader(token);
+  return {
+    macaroons: parsed.macaroons,
+    paymentPreimage: parsed.preimage,
+  };
+}
+
+/**
+ * L402-native compatibility facade for the useful legacy `lsat-js` object
+ * workflow.
+ *
+ * This class intentionally delegates all HTTP wire parsing/serialization to
+ * the functional helpers in this package. It exists for source migration from
+ * `Lsat.fromToken(...)` / `Lsat#toToken()` style code, while preserving current
+ * L402 defaults: new credential emission uses the `L402` scheme unless
+ * `{ legacy: true }` is requested.
+ *
+ * Spec references:
+ * - L402 protocol-specification.md sections 5 and 10: Authorization /
+ *   WWW-Authenticate grammar and LSAT/L402 backwards compatibility.
+ * - L402 macaroon-spec.md Identifier Structure and Verification: payment hash
+ *   extraction and `sha256(preimage) == payment_hash` validation.
+ */
+export class L402 {
+  readonly macaroons: string[];
+  invoice?: string;
+  paymentHash?: Uint8Array;
+  paymentPreimage?: string;
+  readonly timeCreated: number;
+
+  constructor(options: L402Options) {
+    this.macaroons = normalizeMacaroons(options.macaroons);
+    this.timeCreated = options.timeCreated ?? Date.now();
+
+    if (options.invoice !== undefined) {
+      this.invoice = options.invoice;
+    }
+    if (options.paymentHash !== undefined) {
+      this.paymentHash =
+        typeof options.paymentHash === "string"
+          ? hexToBytes32(options.paymentHash, "paymentHash")
+          : options.paymentHash;
+    }
+    if (options.paymentPreimage !== undefined) {
+      this.setPreimage(options.paymentPreimage);
+    }
+  }
+
+  get macaroon(): string {
+    return this.macaroons[0] ?? "";
+  }
+
+  get baseMacaroon(): string {
+    return this.macaroon;
+  }
+
+  get paymentHashHex(): string | undefined {
+    return this.paymentHash === undefined ? undefined : bytesToHex(this.paymentHash);
+  }
+
+  isPending(): boolean {
+    return this.paymentPreimage === undefined;
+  }
+
+  isSatisfied(): boolean {
+    if (this.paymentHash === undefined || this.paymentPreimage === undefined) {
+      return false;
+    }
+    return verifyPreimage({
+      paymentHash: this.paymentHash,
+      preimage: this.paymentPreimage,
+    });
+  }
+
+  setPreimage(preimage: string): void {
+    hexToBytes32(preimage, "preimage");
+    if (this.paymentHash !== undefined) {
+      const ok = verifyPreimage({ paymentHash: this.paymentHash, preimage });
+      if (!ok) {
+        throw new Error("preimage-mismatch");
+      }
+    }
+    this.paymentPreimage = preimage;
+  }
+
+  toToken(options: L402TokenOptions = {}): string {
+    const tokenOptions: Parameters<typeof buildAuthorizationHeader>[0] = {
+      macaroons: this.macaroons,
+      preimage: this.paymentPreimage ?? "",
+    };
+    if (options.legacy !== undefined) {
+      tokenOptions.legacy = options.legacy;
+    }
+    return buildAuthorizationHeader(tokenOptions);
+  }
+
+  toChallenge(options: L402ChallengeOptions = {}): string {
+    if (this.invoice === undefined) {
+      throw new Error("missing-invoice");
+    }
+    const compatibility =
+      options.compatibility ?? (options.legacy === true ? "lsat-only" : "l402-only");
+    return buildAuthenticateHeaders({
+      macaroon: this.macaroon,
+      invoice: this.invoice,
+      compatibility,
+    })[0]!;
+  }
+
+  toJSON(): {
+    macaroons: string[];
+    invoice?: string;
+    paymentHash?: string;
+    paymentPreimage?: string;
+    timeCreated: number;
+    isPending: boolean;
+    isSatisfied: boolean;
+  } {
+    const json: {
+      macaroons: string[];
+      invoice?: string;
+      paymentHash?: string;
+      paymentPreimage?: string;
+      timeCreated: number;
+      isPending: boolean;
+      isSatisfied: boolean;
+    } = {
+      macaroons: this.macaroons,
+      timeCreated: this.timeCreated,
+      isPending: this.isPending(),
+      isSatisfied: this.isSatisfied(),
+    };
+    if (this.invoice !== undefined) {
+      json.invoice = this.invoice;
+    }
+    if (this.paymentHashHex !== undefined) {
+      json.paymentHash = this.paymentHashHex;
+    }
+    if (this.paymentPreimage !== undefined) {
+      json.paymentPreimage = this.paymentPreimage;
+    }
+    return json;
+  }
+
+  static fromToken(token: string, invoice?: string): L402 {
+    const parsed = parsePossiblyPendingToken(token);
+    const options: L402Options = {
+      macaroons: parsed.macaroons,
+    };
+    if (invoice !== undefined) {
+      options.invoice = invoice;
+    }
+    if (parsed.paymentPreimage !== undefined) {
+      options.paymentPreimage = parsed.paymentPreimage;
+    }
+    return new L402(options);
+  }
+
+  static fromMacaroon(macaroon: string, invoice?: string): L402 {
+    const identifier = decodeIdentifier(macaroon);
+    const options: L402Options = {
+      macaroons: macaroon,
+      paymentHash: identifier.paymentHash,
+    };
+    if (invoice !== undefined) {
+      options.invoice = invoice;
+    }
+    return new L402(options);
+  }
+
+  static fromChallenge(challenge: string): L402 {
+    const header = /^(L402|LSAT)\s/i.test(challenge) ? challenge : `L402 ${challenge}`;
+    const parsed = parseAuthenticateHeader(header)[0];
+    if (parsed === undefined) {
+      throw new Error("empty-header");
+    }
+    return new L402({
+      macaroons: parsed.macaroon,
+      invoice: parsed.invoice,
+    });
+  }
+
+  static fromHeader(header: string): L402 {
+    return L402.fromChallenge(header);
+  }
+}
+
+function hexToBytes32(hex: string, label: string): Uint8Array {
+  if (hex.length !== 64) {
+    throw new RangeError(`${label} must be 32 bytes`);
+  }
+  if (!/^[0-9a-fA-F]+$/.test(hex)) {
+    throw new RangeError(`${label} must be hex`);
+  }
+  const out = new Uint8Array(32);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
