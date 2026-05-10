@@ -1,38 +1,9 @@
-type Concept = {
-  id: string;
-  title: string;
-  tagline: string;
-  palette: "ledger" | "signal" | "market";
-  density: string;
-  posture: string;
-};
-
-const concepts: Concept[] = [
-  {
-    id: "A",
-    title: "Ledger Desk",
-    tagline: "A quiet analyst surface for inspecting credentials and payment state.",
-    palette: "ledger",
-    density: "Balanced panels",
-    posture: "Best fit for docs-forward demos and careful debugging.",
-  },
-  {
-    id: "B",
-    title: "Signal Console",
-    tagline: "A high-contrast operations console with fast payment-flow scanning.",
-    palette: "signal",
-    density: "Dense telemetry",
-    posture: "Best fit for cypherpunk energy and live proxy monitoring.",
-  },
-  {
-    id: "C",
-    title: "Market Terminal",
-    tagline: "A compact commercial tool for comparing prices, invoices, and access.",
-    palette: "market",
-    density: "Tabbed workbench",
-    posture: "Best fit for repeated middleware and backend-adapter testing.",
-  },
-];
+const longMacaroon =
+  "AgEDbHRuYndhbGwCCmNoYWxsZW5nZQACIPQx7kZ80cv2A8x9uG0ew7Wb4uKQm7W6b4j7e51p9n7iAAITc2VydmljZXM9cG9rZWRleDowAAIVcG9rZWRleF9jYXBhYmlsaXRpZXM9cmVhZAAAG2V4cGlyZXNfYXQ9MjAyNi0wNS0xMFQyMTozMFoAAAVzaWc=";
+const longInvoice =
+  "lnbc1500n1pj9x8dapp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsp5w9j7k7l4m3n2p1q0r8s6t5u4v3w2x1y0z9a8b7c6d5e4f3g2h1qpp5z7s9q8r6t4y2u0i9o8p7a6s5d4f3g2h1j0k9l8m7n6b5v4c3x2sdqqcqzzsxqyz5vqsp5examplelonginvoicepayloadforreviewonly9qyyssq";
+const preimage =
+  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
 export default function HomePage() {
   return (
@@ -44,49 +15,44 @@ export default function HomePage() {
         </div>
         <div className="review-meta" aria-label="Design gate status">
           <span>bw-0dw.10</span>
-          <span>Owner selection pending</span>
+          <span>Selected: Color Grid</span>
         </div>
       </header>
 
-      <section className="concept-grid" aria-label="Playground visual concepts">
-        {concepts.map((concept) => (
-          <article className={`concept-card theme-${concept.palette}`} key={concept.id}>
-            <div className="concept-copy">
-              <span className="concept-id">Concept {concept.id}</span>
-              <h2>{concept.title}</h2>
-              <p>{concept.tagline}</p>
-              <dl>
-                <div>
-                  <dt>Density</dt>
-                  <dd>{concept.density}</dd>
-                </div>
-                <div>
-                  <dt>Posture</dt>
-                  <dd>{concept.posture}</dd>
-                </div>
-              </dl>
-            </div>
+      <section className="concept-grid" aria-label="Selected playground visual concept">
+        <article className="concept-card theme-colorgrid layout-colorgrid">
+          <div className="concept-copy">
+            <span className="concept-id">Selected concept</span>
+            <h2>Color Grid</h2>
+            <p>
+              A bright, flat-grid interface with strong teal section color, coral accents,
+              squared panels, and matching light and dark surfaces.
+            </p>
+            <dl>
+              <div>
+                <dt>Density</dt>
+                <dd>Color-coded grid</dd>
+              </div>
+              <div>
+                <dt>Posture</dt>
+                <dd>Developer tool clarity with enough product energy to feel distinct.</dd>
+              </div>
+            </dl>
+          </div>
 
-            <div className="mockup-pair" aria-label={`${concept.title} light and dark previews`}>
-              <PlaygroundMockup concept={concept} mode="light" />
-              <PlaygroundMockup concept={concept} mode="dark" />
-            </div>
-          </article>
-        ))}
+          <div className="mockup-pair" aria-label="Color Grid light and dark previews">
+            <PlaygroundMockup mode="light" />
+            <PlaygroundMockup mode="dark" />
+          </div>
+        </article>
       </section>
     </main>
   );
 }
 
-function PlaygroundMockup({
-  concept,
-  mode,
-}: {
-  concept: Concept;
-  mode: "light" | "dark";
-}) {
+function PlaygroundMockup({ mode }: { mode: "light" | "dark" }) {
   return (
-    <div className={`mockup ${mode}`} aria-label={`${concept.title} ${mode} mode`}>
+    <div className={`mockup mockup-colorgrid ${mode}`} aria-label={`Color Grid ${mode} mode`}>
       <div className="mockup-topbar">
         <span className="mark">BW</span>
         <nav aria-label="Preview navigation">
@@ -108,16 +74,25 @@ function PlaygroundMockup({
 
         <section className="data-pane" aria-label="Protocol fields preview">
           <div className="field-row">
-            <span>macaroon</span>
-            <b>AGIAJ...</b>
+            <div className="field-row-head">
+              <span>macaroon</span>
+              <button type="button">Copy</button>
+            </div>
+            <code>{longMacaroon}</code>
           </div>
           <div className="field-row">
-            <span>invoice</span>
-            <b>lnbc1500n...</b>
+            <div className="field-row-head">
+              <span>invoice</span>
+              <button type="button">Copy</button>
+            </div>
+            <code>{longInvoice}</code>
           </div>
           <div className="field-row">
-            <span>preimage</span>
-            <b>pending</b>
+            <div className="field-row-head">
+              <span>preimage</span>
+              <button type="button">Copy</button>
+            </div>
+            <code>{preimage}</code>
           </div>
         </section>
 
