@@ -1,116 +1,221 @@
-const longMacaroon =
-  "AgEDbHRuYndhbGwCCmNoYWxsZW5nZQACIPQx7kZ80cv2A8x9uG0ew7Wb4uKQm7W6b4j7e51p9n7iAAITc2VydmljZXM9cG9rZWRleDowAAIVcG9rZWRleF9jYXBhYmlsaXRpZXM9cmVhZAAAG2V4cGlyZXNfYXQ9MjAyNi0wNS0xMFQyMTozMFoAAAVzaWc=";
-const longInvoice =
+"use client";
+
+import { useMemo, useState } from "react";
+
+type FlowStepId = "request" | "challenge" | "invoice" | "retry" | "success";
+
+type FlowStep = {
+  id: FlowStepId;
+  label: string;
+  status: string;
+  method: string;
+  detail: string;
+};
+
+const mockChallenge =
+  'LSAT macaroon="AgEDbHRuYndhbGwCCmNoYWxsZW5nZQACIPQx7kZ80cv2A8x9uG0ew7Wb4uKQm7W6b4j7e51p9n7i", invoice="lnbc1500n1pj9x8dapp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq"';
+const mockCredential =
+  "LSAT AgEDbHRuYndhbGwCCmNoYWxsZW5nZQACIPQx7kZ80cv2A8x9uG0ew7Wb4uKQm7W6b4j7e51p9n7i:000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const mockInvoice =
   "lnbc1500n1pj9x8dapp5qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqsp5w9j7k7l4m3n2p1q0r8s6t5u4v3w2x1y0z9a8b7c6d5e4f3g2h1qpp5z7s9q8r6t4y2u0i9o8p7a6s5d4f3g2h1j0k9l8m7n6b5v4c3x2sdqqcqzzsxqyz5vqsp5examplelonginvoicepayloadforreviewonly9qyyssq";
-const preimage =
-  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+const flowSteps: FlowStep[] = [
+  {
+    id: "request",
+    label: "Protected request",
+    status: "GET /api/pokedex/pikachu",
+    method: "no credential",
+    detail: "Client sends a normal request to a protected route.",
+  },
+  {
+    id: "challenge",
+    label: "402 challenge",
+    status: "402 Payment Required",
+    method: "WWW-Authenticate",
+    detail: "Mock middleware returns dual LSAT/L402 challenge headers.",
+  },
+  {
+    id: "invoice",
+    label: "Invoice",
+    status: "1,500 msat",
+    method: "mock wallet",
+    detail: "The demo records a local paid state; no Lightning payment is sent.",
+  },
+  {
+    id: "retry",
+    label: "Credential retry",
+    status: "Authorization",
+    method: "macaroon + preimage",
+    detail: "Client retries with the locally generated demo credential.",
+  },
+  {
+    id: "success",
+    label: "Pokedex response",
+    status: "200 OK",
+    method: "fixture response",
+    detail: "The route returns fixture data for design review.",
+  },
+];
+
+const pokedexRows = [
+  ["name", "pikachu"],
+  ["type", "electric"],
+  ["height", "0.4 m"],
+  ["weight", "6.0 kg"],
+];
+
+const proxyRows = [
+  ["origin", "https://api.example.test"],
+  ["protected path", "/pokedex/:name"],
+  ["price", "1,500 msat"],
+  ["backend", "unconfigured"],
+];
+
+const firstFlowStep = flowSteps[0] as FlowStep;
 
 export default function HomePage() {
+  const [activeStep, setActiveStep] = useState<FlowStepId>("request");
+  const activeIndex = flowSteps.findIndex((step) => step.id === activeStep);
+  const active = flowSteps[activeIndex] ?? firstFlowStep;
+
+  const nextStep = useMemo(() => {
+    const nextIndex = Math.min(activeIndex + 1, flowSteps.length - 1);
+    return flowSteps[nextIndex] ?? firstFlowStep;
+  }, [activeIndex]);
+
+  const previousStep = flowSteps[Math.max(activeIndex - 1, 0)] ?? firstFlowStep;
+
   return (
-    <main className="concept-shell">
-      <header className="review-header">
+    <main className="playground-shell">
+      <header className="app-header">
         <div>
           <p className="eyebrow">Boltwall Playground</p>
-          <h1>Visual concept review</h1>
+          <h1>L402 payment flow</h1>
         </div>
-        <div className="review-meta" aria-label="Design gate status">
-          <span>bw-0dw.10</span>
-          <span>Selected: Color Grid</span>
+        <div className="demo-badge" aria-label="Demo environment status">
+          <span>Mocked demo</span>
+          <strong>No wallet, proxy, or secrets connected</strong>
         </div>
       </header>
 
-      <section className="concept-grid" aria-label="Selected playground visual concept">
-        <article className="concept-card theme-colorgrid layout-colorgrid">
-          <div className="concept-copy">
-            <span className="concept-id">Selected concept</span>
-            <h2>Color Grid</h2>
-            <p>
-              A bright, flat-grid interface with strong teal section color, coral accents,
-              squared panels, and matching light and dark surfaces.
-            </p>
-            <dl>
-              <div>
-                <dt>Density</dt>
-                <dd>Color-coded grid</dd>
-              </div>
-              <div>
-                <dt>Posture</dt>
-                <dd>Developer tool clarity with enough product energy to feel distinct.</dd>
-              </div>
-            </dl>
+      <section className="workbench" aria-label="Mocked L402 paid-flow demo">
+        <nav className="flow-rail" aria-label="Demo flow steps">
+          {flowSteps.map((step, index) => (
+            <button
+              aria-current={step.id === active.id ? "step" : undefined}
+              className="flow-step"
+              key={step.id}
+              onClick={() => setActiveStep(step.id)}
+              type="button"
+            >
+              <span>{String(index + 1).padStart(2, "0")}</span>
+              <strong>{step.label}</strong>
+              <em>{step.status}</em>
+            </button>
+          ))}
+        </nav>
+
+        <section className="flow-panel" aria-live="polite">
+          <div className="panel-header">
+            <div>
+              <p>{active.method}</p>
+              <h2>{active.label}</h2>
+            </div>
+            <span>{active.status}</span>
           </div>
 
-          <div className="mockup-pair" aria-label="Color Grid light and dark previews">
-            <PlaygroundMockup mode="light" />
-            <PlaygroundMockup mode="dark" />
+          <div className="mock-warning">
+            <strong>Mocked/demo-only</strong>
+            <span>{active.detail}</span>
           </div>
-        </article>
+
+          <ProtocolRows activeStep={active.id} />
+
+          <div className="panel-actions">
+            <button
+              disabled={active.id === "request"}
+              onClick={() => setActiveStep(previousStep.id)}
+              type="button"
+            >
+              Previous
+            </button>
+            <button
+              disabled={active.id === "success"}
+              onClick={() => setActiveStep(nextStep.id)}
+              type="button"
+            >
+              Advance
+            </button>
+          </div>
+        </section>
+
+        <aside className="result-panel" aria-label="Mocked Pokedex and proxy state">
+          <section>
+            <div className="section-head">
+              <p>fixture response</p>
+              <h2>Pokedex</h2>
+            </div>
+            <DataGrid rows={pokedexRows} />
+          </section>
+
+          <section>
+            <div className="section-head">
+              <p>deployment preview</p>
+              <h2>Proxy config</h2>
+            </div>
+            <DataGrid rows={proxyRows} />
+            <div className="secret-state">
+              <strong>Disabled</strong>
+              <span>Backend credentials and macaroon root keys are not configured.</span>
+            </div>
+          </section>
+        </aside>
       </section>
     </main>
   );
 }
 
-function PlaygroundMockup({ mode }: { mode: "light" | "dark" }) {
+function ProtocolRows({ activeStep }: { activeStep: FlowStepId }) {
+  const rows = [
+    ["WWW-Authenticate", activeStep === "request" ? "pending" : mockChallenge],
+    [
+      "bolt11",
+      activeStep === "invoice" || activeStep === "retry" || activeStep === "success"
+        ? mockInvoice
+        : "pending",
+    ],
+    [
+      "Authorization",
+      activeStep === "retry" || activeStep === "success" ? mockCredential : "pending",
+    ],
+  ];
+
   return (
-    <div className={`mockup mockup-colorgrid ${mode}`} aria-label={`Color Grid ${mode} mode`}>
-      <div className="mockup-topbar">
-        <span className="mark">BW</span>
-        <nav aria-label="Preview navigation">
-          <span>Inspect</span>
-          <span>Pay</span>
-          <span>Proxy</span>
-        </nav>
-        <span className="network">regtest</span>
-      </div>
-
-      <div className="mockup-body">
-        <section className="hero-pane" aria-label="Credential overview preview">
+    <div className="protocol-table" aria-label="Mock protocol values">
+      {rows.map(([label, value]) => (
+        <div className="protocol-row" key={label}>
           <div>
-            <p>L402 challenge</p>
-            <strong>401 payment required</strong>
+            <span>{label}</span>
+            <button type="button" aria-label={`Copy ${label}`}>
+              Copy
+            </button>
           </div>
-          <code>LSAT + L402 dual challenge</code>
-        </section>
-
-        <section className="data-pane" aria-label="Protocol fields preview">
-          <div className="field-row">
-            <div className="field-row-head">
-              <span>macaroon</span>
-              <button type="button">Copy</button>
-            </div>
-            <code>{longMacaroon}</code>
-          </div>
-          <div className="field-row">
-            <div className="field-row-head">
-              <span>invoice</span>
-              <button type="button">Copy</button>
-            </div>
-            <code>{longInvoice}</code>
-          </div>
-          <div className="field-row">
-            <div className="field-row-head">
-              <span>preimage</span>
-              <button type="button">Copy</button>
-            </div>
-            <code>{preimage}</code>
-          </div>
-        </section>
-
-        <section className="paid-pane" aria-label="Paid demo preview">
-          <div>
-            <span className="price">1,500 msat</span>
-            <strong>Pokedex endpoint</strong>
-          </div>
-          <button type="button">Settle invoice</button>
-        </section>
-
-        <aside className="mobile-preview" aria-label="Mobile preview">
-          <span>Mobile</span>
-          <div />
-          <div />
-          <button type="button">Pay</button>
-        </aside>
-      </div>
+          <code>{value}</code>
+        </div>
+      ))}
     </div>
+  );
+}
+
+function DataGrid({ rows }: { rows: string[][] }) {
+  return (
+    <dl className="data-grid">
+      {rows.map(([term, value]) => (
+        <div key={term}>
+          <dt>{term}</dt>
+          <dd>{value}</dd>
+        </div>
+      ))}
+    </dl>
   );
 }
