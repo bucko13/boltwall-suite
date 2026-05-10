@@ -38,7 +38,8 @@
     "size": "size-limit"
   },
   "dependencies": {
-    "@noble/hashes": "^2.2.0"
+    "@noble/hashes": "^2.2.0",
+    "light-bolt11-decoder": "^3.2.0"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
