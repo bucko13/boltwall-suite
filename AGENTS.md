@@ -13,7 +13,7 @@ The very first actions in any new session, in this exact order, before triage or
 3. `mcp__mcp-agent-mail__fetch_inbox` — handle anything addressed to you first.
 4. THEN `bv --robot-triage` to pick a bead.
 5. Claim atomically with `br update <id> --claim` (sets `status=in_progress` AND `assignee` together — `--status=in_progress` alone leaves you anonymous).
-6. Reserve files via `file_reservation_paths` BEFORE editing.
+6. Reserve files via `file_reservation_paths` BEFORE editing. Follow RULE 2 for reservation lifecycle, shared write surfaces, and handoffs.
 7. Announce in-thread via `send_message(thread_id="<bead-id>")` so peers can see what you're doing.
 
 Skipping any of steps 1–3 leaves you invisible to peer agents and breaks reservation safety. Skipping step 5's `--claim` flag (using `--status=in_progress` alone) leaves the assignee field null and creates the same coordination failure even if you registered. The full canonical workflow is documented in `Beads Workflow Integration → Workflow Pattern (canonical — every step is mandatory)` later in this file.
@@ -56,6 +56,57 @@ You may NOT delete any file or directory unless the owner explicitly gives the e
 - If you think something should be removed, stop and ask. You must receive clear written approval **before** any deletion command is even proposed.
 
 Treat "never delete files without permission" as a hard invariant.
+
+---
+
+## RULE 2 – PARALLEL WORK & HANDOFF SAFETY
+
+This repository can be worked on by multiple agents at once. Coordination rules are correctness rules, not etiquette.
+
+### Reservation lifecycle
+
+Before editing any file, reserve it through Agent Mail. A reservation protects the full edit lifecycle:
+
+1. reserve the exact path(s)
+2. re-read the current file contents
+3. edit
+4. validate the change as required by the bead
+5. commit the change, or leave an explicit handoff note
+6. release the reservation
+
+Do not release a reservation while you still have uncommitted changes to that reserved file. If you cannot finish and commit the change now, either keep the reservation and hand off clearly, or remove your local edit before releasing. Never leave a shared file locally modified after releasing its reservation.
+
+Before committing, run `git status`, review every file you are committing, and re-read any reserved file that may have changed upstream since you began.
+
+### Shared write surfaces
+
+The following files are shared write surfaces and must not be held casually:
+
+- package barrel exports such as `packages/l402/src/index.ts`
+- `bun.lock`
+- root workspace config
+- shared test fixture indexes
+- GitHub workflow files
+- generated public API/config surfaces used across packages
+
+For shared write surfaces, prefer deferring the change to the phase-complete/reconcile bead. If immediate editing is required, the reservation must cover the entire short critical section:
+
+`reserve -> re-read -> edit -> commit -> release`
+
+A "short reservation" is invalid if the file remains modified locally after release.
+
+### Hand-offs
+
+If you stop, pause, hit a blocker, or leave work unfinished, post a handoff note on the bead thread before releasing any reservation. The handoff must include:
+
+- current status
+- files changed or reserved
+- validation already run
+- validation still needed
+- known risks or conflicts
+- exact next step
+
+Do not close a bead with uncommitted changes. Do not leave a bead `in_progress` without a current Agent Mail thread update explaining ownership and next action.
 
 ---
 
@@ -106,14 +157,14 @@ Phase 0's `bw-f4p.24` is the canonical example.
 
 ---
 
-## Barrel export discipline
+## Barrel Export Discipline
 
-Public barrel files — `packages/l402/src/index.ts`, `packages/test-fixtures/src/index.ts`, and equivalents in other packages — are touched by every implementation bead in a phase. They are a shared write surface, like `bun.lock`. An exclusive long-lived reservation on a barrel serialises a phase's otherwise-parallel work.
+Barrel files are shared write surfaces governed by RULE 2. Implementation beads should normally avoid editing public barrels directly.
 
 Rules:
 
 1. **A bead is complete without its barrel export, unless the bead's exit criteria explicitly require the export.** By default, implementation beads MAY close with their new symbols unexported from the package's public `index.ts`. The feature, fixtures, and tests landing in their own files is sufficient for `br close`. If a bead's "Acceptance criteria" or "What" section explicitly names the barrel export as a deliverable, follow that — the bead-level instruction wins.
-2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a bead chooses to add its own export, the reservation on the barrel must cover only the acquire → edit → commit → release window — not the bead's lifetime. The default is to defer (rule 3).
+2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a bead chooses to add its own export, the reservation on the barrel must cover the full `reserve -> re-read -> edit -> commit -> release` window. Never release a barrel reservation while the barrel file remains modified in your working tree.
 3. **Defer via the phase-complete bead.** Each phase has a `Phase N implementation complete` rollup bead (Phase 1 = `bw-b63.15`, Phase 2 = `bw-1dl.13`, Phase 3 = `bw-2yn.7`, Phase 4 = `bw-zxk.11`). Before closing an implementation bead that deferred its export, append a one-line entry to that rollup bead under a `### Pending barrel exports` section:
 
    ```
@@ -124,8 +175,6 @@ Rules:
    If the section doesn't exist yet, the first bead to defer creates it (`br update <phase-bead> --description-append "..."` or hand-edit + `br sync`).
 4. **The phase-complete bead batches the reconcile.** Its acceptance work includes a single commit that adds every queued export, runs root `bun run lint`/`typecheck`/`test`/`build`, and clears the section. That commit briefly holds an exclusive reservation on the affected barrels; no other bead should be editing them concurrently.
 5. **Do not stall on a held barrel reservation.** If a peer is holding a long-lived reservation on a barrel (against rule 2), defer per rule 3 rather than waiting. File a bead noting the violation if it recurs.
-
-This rule extends the "log-and-defer" pattern (see Code Editing Discipline) to barrels specifically, because barrels are the most common shared-write-surface contention in Phase 1–4 work.
 
 ---
 
@@ -580,7 +629,7 @@ Claim-before-edit recipe:
 1. Claim the bead with `br update <id> --claim --actor <agent-name>`.
 2. Reserve the narrowest edit surface with `file_reservation_paths(..., paths=[...], ttl_seconds=3600, exclusive=true, reason="<id>")`.
 3. Announce the start in the bead thread with `send_message(thread_id="<id>", subject="[<id>] Start: ...", ack_required=true)`.
-4. Release the same reservations only after the bead is closed or handed off.
+4. Release the same reservations only after the bead is closed or handed off under RULE 2. Never release while reserved files remain locally modified.
 
 ### Tools reference
 
@@ -680,11 +729,11 @@ The single workflow contract. Step 0 is also summarized in `SESSION START` at th
 0. **Session start.** `ensure_project` + `register_agent` + `fetch_inbox`, in that order, before triage. Skipping makes you invisible to peers.
 1. **Triage.** `bv --robot-triage` → pick a bead from `recommendations`. Skip beads labeled `requires-owner` unless your work is to prepare artifacts for owner review.
 2. **Claim atomically.** `br update <id> --claim` (sets `status=in_progress` AND `assignee` in one call). `--status=in_progress` alone leaves `assignee` null and peers can't see who owns the work.
-3. **Reserve edit surface.** `file_reservation_paths(project_key="<repo-root>", agent_name=<you>, paths=[...narrowest pattern...], ttl_seconds=3600, exclusive=true, reason="<bead-id>")`. Reserve before editing — not after.
+3. **Reserve edit surface.** `file_reservation_paths(project_key="<repo-root>", agent_name=<you>, paths=[...narrowest pattern...], ttl_seconds=3600, exclusive=true, reason="<bead-id>")`. Reserve before editing — not after. Follow RULE 2 for the full lifecycle.
 4. **Announce start.** `send_message(thread_id="<bead-id>", subject="[<bead-id>] Start: <short title>", ack_required=true)`. One thread per bead id, persistent for the bead's lifetime.
-5. **Work.** Implement the task. Reply in-thread on meaningful progress and at handoff points.
+5. **Work.** Implement the task. Reply in-thread on meaningful progress and at handoff points. Handoffs must include the RULE 2 checklist.
 6. **Complete.** `br close <id> --reason "Completed: <one-line summary>"`. Close the bead BEFORE releasing reservations — Beads is the status authority.
-7. **Release reservations.** `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...same patterns...])`. Final mail reply: `[<bead-id>] Completed` with summary + commit hash.
+7. **Release reservations.** `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...same patterns...])`. Release only when RULE 2 allows it. Final mail reply: `[<bead-id>] Completed` with summary + commit hash.
 8. **Sync + push.** `br sync --flush-only` to refresh the local `.beads/issues.jsonl` canonical view, then `git add` / `git commit` / `git push` of code changes per `Landing the Plane` below. Bead state itself is local-only and is not pushed; code work is NOT done until `git push` of the code changes succeeds.
 
 **Bead-id conventions.** Mail `thread_id` = `br-###`. Mail subject prefix = `[br-###]`. File reservation `reason` = `br-###`. Commit messages: include `br-###` for traceability.
