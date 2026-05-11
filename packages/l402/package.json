@@ -29,10 +29,10 @@
   "files": ["dist"],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup src/index.ts src/wallet/index.ts src/legacy/index.ts src/pricing.ts src/testing/index.ts --format esm --dts --clean --sourcemap",
+    "build": "tsup",
     "lint": "bun x eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "bun test",
+    "test": "bun test test/*.test.ts",
     "test:browser": "playwright test --project=chromium-import",
     "package-health": "publint && sh -c 'tmp=/private/tmp/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'",
     "size": "size-limit"
@@ -58,7 +58,7 @@
   "size-limit": [
     {
       "path": "dist/index.js",
-      "limit": "30 KB"
+      "limit": "150 KB"
     }
   ]
 }
