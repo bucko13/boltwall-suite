@@ -37,3 +37,13 @@ export {
 export { parseAuthorizationHeader, type L402CredentialFields } from "./parse-authorization-header";
 
 export { verifyPreimage, type VerifyPreimageArgs } from "./verify-preimage";
+
+export {
+  capabilitiesSatisfier,
+  originSatisfier,
+  routeSatisfier,
+  servicesSatisfier,
+  validUntilSatisfier,
+  type CaveatContext,
+  type CaveatSatisfier,
+} from "./satisfiers";
