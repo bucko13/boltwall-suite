@@ -1,46 +1,94 @@
 # @boltwall/l402
 
-Browser-and-Node L402 protocol library for Boltwall Suite.
+Browser-and-Node TypeScript implementation of the L402 HTTP authentication
+surface for Boltwall Suite.
 
-## Entrypoints
+`@boltwall/l402` owns protocol parsing, header serialization, BOLT 11 invoice
+decoding, L402 macaroon minting and verification, caveat helpers, and the
+small legacy LSAT compatibility facade. The package is ESM-only, has one public
+entrypoint (`@boltwall/l402`), and keeps browser-facing APIs on `string`,
+`Uint8Array`, `bigint`, and Web platform types. Public APIs do not require
+Node `Buffer`.
 
-- `@boltwall/l402` — protocol API
+## Public API
 
-## Macaroon codec boundary
+Use the root package export for all supported APIs:
 
-The raw macaroon codec lives inside `@boltwall/l402` as a private
-implementation detail. It implements the L402 macaroon HMAC chain,
-first-party caveat encoding, V2 binary serialization, and signature
-verification required by `mintMacaroon`, `decodeIdentifier`, and
-`verifyMacaroon`. It is intentionally not exported as
+```ts
+import {
+  L402,
+  buildAuthenticateHeaders,
+  buildAuthorizationHeader,
+  decodeBolt11Invoice,
+  decodeIdentifier,
+  mintMacaroon,
+  parseAuthenticateHeader,
+  parseAuthorizationHeader,
+  verifyMacaroon,
+} from "@boltwall/l402";
+```
+
+The current public surface includes:
+
+- Header helpers: `parseAuthenticateHeader`, `buildAuthenticateHeaders`,
+  `parseAuthorizationHeader`, and `buildAuthorizationHeader`.
+- Invoice and identifier helpers: `decodeBolt11Invoice` and
+  `decodeIdentifier`.
+- Macaroon helpers: `mintMacaroon`, `verifyMacaroon`,
+  `InMemoryRootKeyStore`, and the `RootKeyStore` interface.
+- Caveat helpers: `parseCaveat`, `serializeCaveat`, `servicesCaveat`,
+  `capabilitiesCaveat`, `constraintCaveat`, and satisfier factories for
+  services, capabilities, origin, route, and `valid-until`.
+- Compatibility helpers: `L402`, `expirationCaveat`, and
+  `expirationSatisfier`.
+
+There are no public `@boltwall/l402/*` subpaths in v0.1.0. The earlier empty
+`wallet`, `testing`, `pricing`, `legacy`, and `internal` subpaths are not part
+of the stable package API. Pricing amounts exposed by this package are
+millisatoshis represented as `bigint`, such as `DecodedInvoice.amountMsat`.
+
+## Protocol behavior
+
+The package follows the current L402 scheme while preserving the deployed LSAT
+scheme where the protocol requires compatibility:
+
+- `buildAuthenticateHeaders()` defaults to dual challenge emission:
+  `LSAT` first, then `L402`. This follows L402 protocol-specification.md §10.
+- `parseAuthenticateHeader()` accepts both `LSAT` and `L402` challenge
+  schemes and returns all challenges from repeated or folded headers.
+- `buildAuthorizationHeader()` emits `L402` by default and can emit `LSAT`
+  with `{ legacy: true }`.
+- `parseAuthorizationHeader()` accepts both `LSAT` and `L402` credentials.
+- Multi-macaroon credentials are first-class:
+  `L402 M1,M2:<preimage-hex>` parses to `macaroons: ["M1", "M2"]`.
+- `verifyMacaroon()` verifies every macaroon in the credential, requires all
+  macaroons to bind to the same payment hash, and verifies the supplied
+  preimage against that hash.
+- Unknown caveats are skipped by default, as required by L402
+  macaroon-spec.md §Verification. Callers that need a policy fail-closed mode
+  can pass `strictUnknownCaveats: true`, but middleware must still register
+  satisfiers for every caveat it relies on.
+- L402 credentials are bearer credentials. Production deployments must protect
+  `WWW-Authenticate` and `Authorization` headers with TLS; see L402
+  protocol-specification.md §9.1.
+
+## Runtime boundary
+
+`@boltwall/l402` is designed for browser and Node runtimes. The raw macaroon
+codec lives inside the package as a private implementation detail. It
+implements the L402 macaroon HMAC chain, first-party caveat encoding, V2 binary
+serialization, and signature verification required by `mintMacaroon`,
+`decodeIdentifier`, and `verifyMacaroon`. It is intentionally not exported as
 `@boltwall/l402/internal/*`, not moved to `@boltwall/internal`, and not a
 standalone public package before v0.1.0.
 
 Consumers should use `mintMacaroon` and `verifyMacaroon` instead of depending
-on raw macaroon internals or the wrapped `macaroon@3.0.4` library shape. The
-browser import test exercises those public APIs in Chromium and avoids loading
-unpublished `dist/internal/*` paths. If a future release exposes a raw codec,
-that surface needs its own JSDoc, fixtures, compatibility notes, and API docs.
+on raw macaroon internals or the wrapped `macaroon@3.0.4` library shape. If a
+future release exposes a raw codec, that surface needs its own JSDoc, fixtures,
+compatibility notes, and API docs.
 
 Spec references: L402 macaroon-spec.md §HMAC Chain Construction, §Verification,
 and §Serialization Formats / Macaroon V2 Binary Format.
-
-## LSAT compatibility helpers
-
-The root `@boltwall/l402` package includes compatibility helpers for existing
-LSAT-style credentials. New protocol code should prefer L402-native caveats,
-but imported LSAT macaroons may still carry the older `expiration=<unix-ms>`
-caveat shape.
-
-```ts
-import { expirationCaveat, expirationSatisfier } from "@boltwall/l402";
-```
-
-`expirationCaveat(unixMs)` and `expirationSatisfier()` preserve that imported
-LSAT caveat shape. Prefer the standard `valid-until` caveat and
-`validUntilSatisfier` for new macaroons. L402 protocol-specification.md §10
-requires accepting legacy `LSAT` credentials, but the package does not expose a
-broad `@boltwall/l402/legacy` public subpath.
 
 ## Quick start: parse an L402 challenge
 
@@ -80,6 +128,86 @@ for (const value of headers) {
 Use `compatibility: "l402-only"` only when a deployment or test explicitly
 does not need legacy LSAT challenge compatibility.
 
+## Quick start: build a paid retry credential
+
+```ts
+import { buildAuthorizationHeader, parseAuthorizationHeader } from "@boltwall/l402";
+
+const authorization = buildAuthorizationHeader({
+  macaroons: ["AGIAJEemVQUTEyNCR0exk7ek90Cg=="],
+  preimage: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+});
+
+const credential = parseAuthorizationHeader(authorization);
+
+console.log(credential.scheme); // "L402"
+console.log(credential.macaroons.length); // 1
+console.log(credential.preimage.length); // 64
+```
+
+The preimage is bearer-sensitive proof of payment. Do not log it at info level
+or expose it outside the retry request.
+
+## Quick start: decode invoice amount
+
+```ts
+import { decodeBolt11Invoice } from "@boltwall/l402";
+
+const invoice = "lnbc1500n1pw5kjhmpp5...";
+const decoded = decodeBolt11Invoice(invoice);
+
+console.log(decoded.paymentHashHex);
+console.log(decoded.amountMsat); // bigint, in millisatoshis
+console.log(decoded.expiresAt);
+```
+
+The decoded amount is always `bigint` millisatoshis. Downstream pricing policy
+must compare against that unit directly; avoid `number` satoshi conversions in
+verification paths.
+
+## Quick start: mint and verify a macaroon
+
+```ts
+import {
+  InMemoryRootKeyStore,
+  mintMacaroon,
+  servicesCaveat,
+  servicesSatisfier,
+  verifyMacaroon,
+} from "@boltwall/l402";
+
+const rootKey = new Uint8Array(32);
+const tokenId = new Uint8Array(32);
+const paymentHash = Uint8Array.from([
+  0x66, 0x68, 0x7a, 0xad, 0xf8, 0x62, 0xbd, 0x77, 0x6c, 0x8f, 0xc1, 0x8b, 0x8e, 0x9f, 0x8e, 0x20,
+  0x08, 0x97, 0x14, 0x85, 0x6e, 0xe2, 0x33, 0xb3, 0x90, 0x2a, 0x59, 0x1d, 0x0d, 0x5f, 0x29, 0x25,
+]);
+
+const macaroon = mintMacaroon({
+  rootKey,
+  identifier: { version: 0, paymentHash, tokenId },
+  caveats: [servicesCaveat([{ name: "pokedex", tier: 0 }])],
+});
+
+const rootKeyStore = new InMemoryRootKeyStore();
+await rootKeyStore.put(tokenId, rootKey);
+
+const result = await verifyMacaroon({
+  macaroons: [macaroon],
+  preimage: "0000000000000000000000000000000000000000000000000000000000000000",
+  rootKeyStore,
+  satisfiers: [servicesSatisfier("pokedex")],
+  context: {},
+});
+
+console.log(result.ok);
+```
+
+The example uses deterministic test bytes for readability; the payment hash is
+`sha256` of the all-zero preimage used below. Production code must use
+cryptographically random root keys and token ids, use the real invoice payment
+hash, and store root keys server-side only.
+
 ## Pending facade tokens
 
 `L402.fromToken()` accepts a trailing-colon token such as `LSAT <macaroon>:` so
@@ -95,6 +223,23 @@ explicit migration persistence where the value will not be sent as an
 Authorization header. `parseAuthorizationHeader()` remains strict and rejects
 missing or malformed preimages. Both `L402` and `LSAT` schemes are accepted for
 incoming credentials per L402 protocol-specification.md §10.
+
+## LSAT compatibility helpers
+
+The root `@boltwall/l402` package includes compatibility helpers for existing
+LSAT-style credentials. New protocol code should prefer L402-native caveats,
+but imported LSAT macaroons may still carry the older `expiration=<unix-ms>`
+caveat shape.
+
+```ts
+import { expirationCaveat, expirationSatisfier } from "@boltwall/l402";
+```
+
+`expirationCaveat(unixMs)` and `expirationSatisfier()` preserve that imported
+LSAT caveat shape. Prefer the standard `valid-until` caveat and
+`validUntilSatisfier` for new macaroons. L402 protocol-specification.md §10
+requires accepting legacy `LSAT` credentials, but the package does not expose a
+broad `@boltwall/l402/legacy` public subpath.
 
 ## Tech stack decisions
 
@@ -157,7 +302,6 @@ Encoding](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
 decoder is responsible for translating these into our `bigint` msat
 canonical form at the package boundary.
 
-**Implementation bead:** `bw-b63.6` adds `light-bolt11-decoder` as a
-production dep on `@boltwall/l402` and ships
-`decodeBolt11Invoice(invoice: string): DecodedInvoice` from the public
-API. The spike does not pre-install the dep; that is bw-b63.6's scope.
+**Implementation:** `@boltwall/l402` ships
+`decodeBolt11Invoice(invoice: string): DecodedInvoice` from the root public API.
+The wrapper keeps consumers insulated from the underlying decoder package.
