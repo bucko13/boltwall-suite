@@ -1,5 +1,6 @@
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
+import { timingSafeEqual } from "@boltwall/internal";
 import { importMacaroon } from "macaroon";
 
 const ROOT_KEY_LENGTH = 32;
@@ -58,7 +59,7 @@ export function verifyRawSignature(args: {
     args.macaroon.identifier,
     args.macaroon.caveats,
   );
-  return timingSafeEqualBytes(expected, args.macaroon.signature);
+  return timingSafeEqual(expected, args.macaroon.signature);
 }
 
 export function addFirstPartyCaveat(
@@ -164,15 +165,4 @@ function bytesToBase64(bytes: Uint8Array): string {
     binary += String.fromCharCode(byte);
   }
   return btoa(binary);
-}
-
-function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
-  }
-  return diff === 0;
 }
