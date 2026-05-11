@@ -173,7 +173,7 @@ async function verifyCaveats(args: {
       if (
         previous === undefined ||
         next === undefined ||
-        satisfier.satisfyPrevious?.(previous, next) === false
+        !(await safeSatisfyPrevious(satisfier, previous, next))
       ) {
         return { ok: false, reason: `caveat-rejected:${condition}` };
       }
@@ -183,12 +183,36 @@ async function verifyCaveats(args: {
     if (finalCaveat === undefined) {
       continue;
     }
-    if (!(await satisfier.satisfyFinal(finalCaveat, args.context))) {
+    if (!(await safeSatisfyFinal(satisfier, finalCaveat, args.context))) {
       return { ok: false, reason: `caveat-rejected:${condition}` };
     }
   }
 
   return { ok: true };
+}
+
+async function safeSatisfyPrevious(
+  satisfier: CaveatSatisfier,
+  previous: Caveat,
+  next: Caveat,
+): Promise<boolean> {
+  try {
+    return satisfier.satisfyPrevious?.(previous, next) !== false;
+  } catch {
+    return false;
+  }
+}
+
+async function safeSatisfyFinal(
+  satisfier: CaveatSatisfier,
+  caveat: Caveat,
+  context: CaveatContext,
+): Promise<boolean> {
+  try {
+    return await satisfier.satisfyFinal(caveat, context);
+  } catch {
+    return false;
+  }
 }
 
 function safeDecodeIdentifierBytes(identifier: Uint8Array): {

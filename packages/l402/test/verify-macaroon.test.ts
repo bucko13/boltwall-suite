@@ -3,8 +3,11 @@ import { describe, expect, test } from "bun:test";
 
 import {
   InMemoryRootKeyStore,
+  capabilitiesSatisfier,
   mintMacaroon,
+  routeSatisfier,
   servicesSatisfier,
+  validUntilSatisfier,
   verifyMacaroon,
   type CaveatSatisfier,
 } from "../src";
@@ -126,6 +129,99 @@ describe("verifyMacaroon", () => {
         context: {},
       }),
     ).resolves.toEqual({ ok: false, reason: "caveat-rejected:services" });
+  });
+
+  test("rejects malformed services values without throwing", async () => {
+    const finalReject = await createFixture({
+      caveats: [{ condition: "services", value: "pokedex" }],
+    });
+    const attenuationReject = await createFixture({
+      caveats: [
+        { condition: "services", value: "pokedex:0" },
+        { condition: "services", value: "" },
+      ],
+    });
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [finalReject.macaroon],
+        preimage: finalReject.preimage,
+        rootKeyStore: finalReject.rootKeyStore,
+        satisfiers: [servicesSatisfier("pokedex")],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: false, reason: "caveat-rejected:services" });
+    await expect(
+      verifyMacaroon({
+        macaroons: [attenuationReject.macaroon],
+        preimage: attenuationReject.preimage,
+        rootKeyStore: attenuationReject.rootKeyStore,
+        satisfiers: [servicesSatisfier("pokedex")],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: false, reason: "caveat-rejected:services" });
+  });
+
+  test("rejects malformed valid-until values without throwing", async () => {
+    const finalReject = await createFixture({
+      caveats: [{ condition: "valid-until", value: "later" }],
+    });
+    const attenuationReject = await createFixture({
+      caveats: [
+        { condition: "valid-until", value: "2030-01-01T00:00:00Z" },
+        { condition: "valid-until", value: "eventually" },
+      ],
+    });
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [finalReject.macaroon],
+        preimage: finalReject.preimage,
+        rootKeyStore: finalReject.rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: { now: new Date("2026-01-01T00:00:00Z") },
+      }),
+    ).resolves.toEqual({ ok: false, reason: "caveat-rejected:valid-until" });
+    await expect(
+      verifyMacaroon({
+        macaroons: [attenuationReject.macaroon],
+        preimage: attenuationReject.preimage,
+        rootKeyStore: attenuationReject.rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: { now: new Date("2026-01-01T00:00:00Z") },
+      }),
+    ).resolves.toEqual({ ok: false, reason: "caveat-rejected:valid-until" });
+  });
+
+  test("rejects malformed route and capability values without throwing", async () => {
+    const routeReject = await createFixture({
+      caveats: [{ condition: "route", value: "" }],
+    });
+    const capabilityReject = await createFixture({
+      caveats: [{ condition: "pokedex_capabilities", value: "" }],
+    });
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [routeReject.macaroon],
+        preimage: routeReject.preimage,
+        rootKeyStore: routeReject.rootKeyStore,
+        satisfiers: [routeSatisfier(["/pokemon/*"])],
+        context: { request: new Request("https://example.test/pokemon/1") },
+      }),
+    ).resolves.toEqual({ ok: false, reason: "caveat-rejected:route" });
+    await expect(
+      verifyMacaroon({
+        macaroons: [capabilityReject.macaroon],
+        preimage: capabilityReject.preimage,
+        rootKeyStore: capabilityReject.rootKeyStore,
+        satisfiers: [capabilitiesSatisfier("pokedex", "read")],
+        context: {},
+      }),
+    ).resolves.toEqual({
+      ok: false,
+      reason: "caveat-rejected:pokedex_capabilities",
+    });
   });
 
   test("skips unknown caveats by default and rejects them in strict mode", async () => {
