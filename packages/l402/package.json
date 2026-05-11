@@ -8,10 +8,6 @@
     ".": {
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
-    },
-    "./legacy": {
-      "types": "./dist/legacy/index.d.ts",
-      "import": "./dist/legacy/index.js"
     }
   },
   "files": [

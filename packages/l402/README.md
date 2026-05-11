@@ -5,7 +5,6 @@ Browser-and-Node L402 protocol library for Boltwall Suite.
 ## Entrypoints
 
 - `@boltwall/l402` — protocol API
-- `@boltwall/l402/legacy` — legacy LSAT compatibility helpers
 
 ## Macaroon codec boundary
 
@@ -26,21 +25,22 @@ that surface needs its own JSDoc, fixtures, compatibility notes, and API docs.
 Spec references: L402 macaroon-spec.md §HMAC Chain Construction, §Verification,
 and §Serialization Formats / Macaroon V2 Binary Format.
 
-## Legacy LSAT migration helpers
+## LSAT compatibility helpers
 
-The `@boltwall/l402/legacy` subpath contains migration-only helpers for
-existing LSAT-style credentials. New protocol code should use the L402-native
-APIs from the root package.
+The root `@boltwall/l402` package includes compatibility helpers for existing
+LSAT-style credentials. New protocol code should prefer L402-native caveats,
+but imported LSAT macaroons may still carry the older `expiration=<unix-ms>`
+caveat shape.
 
 ```ts
-import { expirationCaveat, expirationSatisfier } from "@boltwall/l402/legacy";
+import { expirationCaveat, expirationSatisfier } from "@boltwall/l402";
 ```
 
-`expirationCaveat(unixMs)` and `expirationSatisfier()` preserve the deprecated
-`expiration=<unix-ms>` caveat shape used by older LSAT middleware. Prefer the
-standard `valid-until` caveat and `validUntilSatisfier` for new macaroons. See
-[Migration from legacy boltwall](../../docs/migration-from-boltwall.md) for the
-compatibility boundary.
+`expirationCaveat(unixMs)` and `expirationSatisfier()` preserve that imported
+LSAT caveat shape. Prefer the standard `valid-until` caveat and
+`validUntilSatisfier` for new macaroons. L402 protocol-specification.md §10
+requires accepting legacy `LSAT` credentials, but the package does not expose a
+broad `@boltwall/l402/legacy` public subpath.
 
 ## Quick start: parse an L402 challenge
 

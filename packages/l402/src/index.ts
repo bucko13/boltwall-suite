@@ -20,11 +20,7 @@ export {
 
 export { decodeIdentifier, type MacaroonIdentifierV0 } from "./decode-identifier";
 
-export {
-  decodeBolt11Invoice,
-  type Bolt11Network,
-  type DecodedInvoice,
-} from "./decode-invoice";
+export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./decode-invoice";
 
 export { L402, type L402ChallengeOptions, type L402Options, type L402TokenOptions } from "./l402";
 
@@ -57,3 +53,5 @@ export {
   type CaveatContext,
   type CaveatSatisfier,
 } from "./satisfiers";
+
+export { expirationCaveat, expirationSatisfier } from "./legacy";

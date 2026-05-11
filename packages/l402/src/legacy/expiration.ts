@@ -2,11 +2,11 @@ import type { Caveat } from "../caveats";
 import type { CaveatSatisfier } from "../satisfiers";
 
 /**
- * Builds the legacy `expiration=<unix-ms>` caveat used by older LSAT clients.
+ * Builds the `expiration=<unix-ms>` compatibility caveat used by older LSAT clients.
  *
- * @deprecated Use `validUntilSatisfier` from `@boltwall/l402` with a standard
- * ISO-8601 `valid-until` caveat instead. This helper exists only for
- * migration compatibility with legacy LSAT-style macaroons.
+ * New L402 macaroons should use a standard ISO-8601 `valid-until` caveat
+ * instead. This helper preserves migration compatibility with LSAT-style
+ * macaroons while being exported from the primary `@boltwall/l402` API.
  */
 export function expirationCaveat(unixMs: number): Caveat {
   if (!Number.isFinite(unixMs)) {
@@ -20,15 +20,16 @@ export function expirationCaveat(unixMs: number): Caveat {
 }
 
 /**
- * Verifies the legacy `expiration=<unix-ms>` caveat used by older LSAT clients.
+ * Verifies the `expiration=<unix-ms>` compatibility caveat used by older LSAT clients.
  *
  * L402 macaroon-spec.md §Caveat Format and §Verification define caveats as
  * `condition=value` strings evaluated by registered satisfiers. This satisfier
- * is intentionally kept under the legacy subpath because current L402 code
- * should prefer the standard `valid-until` caveat shape.
+ * exists for LSAT compatibility; current L402 code should prefer the standard
+ * `valid-until` caveat shape for new macaroons.
  *
- * @deprecated Use `validUntilSatisfier` from `@boltwall/l402`. This helper is
- * migration-only and should not be used by new protocol code.
+ * L402 protocol-specification.md §10 requires accepting legacy LSAT
+ * credentials. Register this satisfier when verifying imported macaroons that
+ * carry `expiration` caveats.
  */
 export function expirationSatisfier(): CaveatSatisfier {
   return {

@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { parseCaveat, serializeCaveat } from "../src/caveats";
-import { expirationCaveat, expirationSatisfier } from "../src/legacy";
+import { expirationCaveat, expirationSatisfier, parseCaveat, serializeCaveat } from "../src";
 
-describe("legacy expiration caveat", () => {
-  test("builds and round-trips the legacy expiration wire shape", () => {
+describe("expiration compatibility caveat", () => {
+  test("builds and round-trips the expiration compatibility wire shape", () => {
     const caveat = expirationCaveat(1_577_228_778_197);
 
     expect(caveat).toEqual({
@@ -20,7 +19,7 @@ describe("legacy expiration caveat", () => {
   });
 });
 
-describe("legacy expiration satisfier", () => {
+describe("expiration compatibility satisfier", () => {
   test("accepts future expirations and rejects expired caveats", () => {
     const satisfier = expirationSatisfier();
     const context = { now: new Date(1_700_000_000_000) };
