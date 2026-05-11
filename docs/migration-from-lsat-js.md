@@ -116,7 +116,7 @@ No AGPL `boltwall` source, comments, tests, or generated docs were copied.
 | `getIdFromRequest(req)` | `src/helpers.ts` | `replace-with-migration` | `decodeBolt11Invoice(invoice).paymentHash` | Phase 1, `bw-b63.6` | Current API should return structured invoice data. |
 | `stringToBytes(s)` / `utf8Encoder` / `isValue` | `src/helpers.ts` | `drop` | internal utilities if needed | Internal | Not public protocol API. |
 
-## Required Bead Updates
+## Required Implementation Work
 
 - `bw-b63.14` must implement the Phase 1 class decisions above: `L402`
   facade, token/challenge constructors, pending/satisfied state, selected
@@ -133,7 +133,7 @@ No AGPL `boltwall` source, comments, tests, or generated docs were copied.
 
 Every `preserve-exact` and `preserve-compatible` row above needs a positive
 test and at least one negative or migration-path test in the implementation
-bead that owns it. Class facade tests must include:
+task that owns it. Class facade tests must include:
 
 - `L402.fromToken("LSAT M:r").toToken({ legacy: true })` preserves legacy
   scheme emission.

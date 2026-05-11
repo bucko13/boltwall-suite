@@ -1,7 +1,5 @@
 # Playground Visual Concepts
 
-Bead: `bw-0dw.10`
-
 The owner selected Concept D, **Color Grid**, as the direction to carry forward.
 
 The playground first screen at `apps/playground/app/page.tsx` now preserves that

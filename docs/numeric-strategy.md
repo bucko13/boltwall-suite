@@ -3,7 +3,7 @@
 Canonical conventions for representing money amounts, payment-hash counters,
 expiry timestamps, and any other numeric values that cross package boundaries
 in Boltwall Suite. This document is the source of truth referenced by AGENTS.md
-"Code Quality Bar" and by every bead that adds a numeric public API.
+"Code Quality Bar" and by every task that adds a numeric public API.
 
 ## TL;DR
 
@@ -163,9 +163,10 @@ Every new public function or type that takes or returns a money amount must:
 3. If the function crosses a JSON / HTTP boundary, document the serialized
    type in the type definition and add a round-trip test.
 
-## Open follow-up beads
+## Open follow-up work
 
-Track implementation work that follows from this decision in beads:
+Track implementation work that follows from this decision in the project task
+system:
 
 - `@boltwall/internal/numeric` skeleton with `parseAmount`, `formatSats`,
   `formatBtc`, sats↔msats helpers (will be created in Phase 0 alongside the

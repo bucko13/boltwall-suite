@@ -178,243 +178,30 @@ Rules:
 
 ---
 
-## Project Architecture
+## Project Architecture And Routing
 
-Boltwall Suite is a **TypeScript monorepo** for L402 (Lightning Network service authentication). Layout:
+Hard triggers stay in this file. Longer reference material lives in focused docs:
 
-```
-boltwall-suite/
-├── apps/
-│   └── playground/                 # @boltwall/playground (Next.js, private)
-├── packages/
-│   ├── l402/                       # @boltwall/l402 (browser+node protocol lib)
-│   ├── middleware/                 # @boltwall/middleware (Web Fetch core + Express adapter)
-│   ├── adapters/                   # @boltwall/adapters (Lightning backends, subpath exports)
-│   ├── proxy/                      # @boltwall/proxy (reverse proxy package + CLI)
-│   ├── internal/                   # @boltwall/internal (private — small shared runtime utilities)
-│   ├── test-fixtures/              # @boltwall/test-fixtures (private — L402 conformance vectors)
-│   ├── eslint-config/              # @boltwall/eslint-config (private — shared ESLint flat config)
-│   ├── typescript-config/          # @boltwall/typescript-config (private — shared tsconfig presets)
-│   └── prettier-config/            # @boltwall/prettier-config (private — shared Prettier config)
-├── templates/proxy-vercel/         # deploy-button template
-├── examples/                       # standalone consumer examples
-├── docs/                           # flat architectural docs
-├── .github/workflows/
-├── .changeset/
-├── turbo.json                      # task pipeline definitions
-├── package.json                    # workspace root
-└── ...
-```
-
-Key patterns:
-
-- `@boltwall/l402` is the foundation. Middleware, proxy, and playground consume it; they do **not** re-implement wire parsing or verification.
-- `@boltwall/middleware` is split: a Web Fetch core (`(req: Request, config) => Promise<L402GateResult>`) plus an Express adapter. Hono / Next.js Route Handlers / Bun.serve / Deno consume the core directly via documented one-line patterns — no separate adapter packages.
-- `@boltwall/adapters` uses subpath exports (`@boltwall/adapters/lnd`, `/opennode`, `/btcpay`, `/testing`) so consumers don't pull in unused backend dependencies.
-- `@boltwall/internal` houses small shared utilities under ~200 lines each (see Dependency Policy below).
-- `@boltwall/test-fixtures` is the single source of truth for L402 wire vectors. No package gets its own private interpretation of the wire format.
-
-When adding features:
-
-- Add to the smallest package that can host the change. Prefer extending an existing module over creating a new one.
-- Follow existing patterns for packages, exports, and capability flags.
-- Test under both Node and the Playwright Chromium browser-import suite for anything in `@boltwall/l402`.
-
----
-
-## Monorepo Conventions (Turborepo + Bun workspaces)
-
-This repo uses **Bun workspaces** for package management and **Turborepo** for task orchestration and caching. The following conventions are non-negotiable. Per Turborepo guidance, all packages live exactly one directory deep under `apps/` or `packages/` — **no nested packages** like `apps/foo/bar` or `packages/group/lib`. Package managers handle nesting ambiguously; we don't.
-
-### Shared configuration packages
-
-Tool configurations are shared via **dedicated workspace packages**, not via duplicated config files in each package. Each shared-config package is private (`"private": true`) and is consumed via `workspace:*`.
-
-| Config | Package | Exports |
-|---|---|---|
-| ESLint flat config | `@boltwall/eslint-config` | `base.js`, `node.js`, `browser.js`, `react.js`, `next.js` (one preset per surface) |
-| TypeScript | `@boltwall/typescript-config` | `base.json`, `library.json`, `node.json`, `browser.json`, `nextjs.json` |
-| Prettier | `@boltwall/prettier-config` | A single default config object exported as the package main |
-
-**Consuming a shared config from a package:**
-
-```jsonc
-// packages/<pkg>/package.json
-{
-  "devDependencies": {
-    "@boltwall/eslint-config": "workspace:*",
-    "@boltwall/typescript-config": "workspace:*",
-    "@boltwall/prettier-config": "workspace:*"
-  }
-}
-```
-
-```js
-// packages/<pkg>/eslint.config.js
-import baseConfig from "@boltwall/eslint-config/browser.js";
-
-export default [
-  ...baseConfig,
-  // package-specific overrides only
-];
-```
-
-```jsonc
-// packages/<pkg>/tsconfig.json
-{
-  "extends": "@boltwall/typescript-config/library.json",
-  "compilerOptions": {
-    "outDir": "dist"
-  },
-  "include": ["src/**/*"]
-}
-```
-
-```jsonc
-// packages/<pkg>/package.json (Prettier config — option A: re-export)
-{
-  "prettier": "@boltwall/prettier-config"
-}
-```
-
-**Rules:**
-
-- Never copy lint/TS/Prettier config wholesale into a package. Extend the shared package and add narrow overrides.
-- Never add ESLint plugins or TS lib dependencies to individual packages — they go in the shared config package's `devDependencies` and are resolved transitively.
-- Never put runtime code in a config package, and never put config in `@boltwall/internal`.
-
-### Workspace dependency protocol
-
-Internal dependencies always use the `workspace:*` protocol (Bun and Turborepo both support it):
-
-```jsonc
-{
-  "dependencies": {
-    "@boltwall/l402": "workspace:*",
-    "@boltwall/internal": "workspace:*"
-  }
-}
-```
-
-Never use `file:` paths, relative paths, or version numbers for workspace packages. `workspace:*` is the only correct form. Bun rewrites it to a real version on publish.
-
-### Cross-package code reuse — where does shared code live?
-
-| What you're sharing | Where it lives |
+| If your task touches... | Read... |
 |---|---|
-| Small runtime utilities used in 2+ packages, each ≤~200 lines | `@boltwall/internal` (private) |
-| Larger shared runtime code that has its own coherent surface | A new dedicated package under `packages/` |
-| ESLint / Prettier / TypeScript configs | `@boltwall/eslint-config` / `@boltwall/prettier-config` / `@boltwall/typescript-config` |
-| L402 wire vectors and protocol fixtures | `@boltwall/test-fixtures` (private) |
-| Public protocol API consumed by middleware/proxy/playground | `@boltwall/l402` |
+| package boundaries, package roles, feature placement, or non-goals | `docs/architecture.md` |
+| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages | `docs/monorepo-conventions.md` |
+| test design, validation commands, browser import checks, or e2e coverage | `docs/testing.md` |
+| public exports, JSDoc, generated docs, or compatibility notes | `docs/api-docs.md` |
+| external dependency additions or shared utility placement | `docs/dependency-policy.md` |
+| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
+| L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
+| startup, reservations, handoff, close, commit, push, or release sequence | `.agents/skills/boltwall-workflow/SKILL.md` |
 
-If you find yourself copying a function between two packages: stop and lift it into the appropriate shared package above. Code duplication across workspace packages is a smell.
+Mandatory summaries:
 
-### Third-party dependencies — package-level, not centralized
-
-Each package declares its own third-party dependencies in its own `package.json`. Bun handles hoisting at install time. **Do not** try to centralize third-party deps via a meta-package. Specifically:
-
-- If `@boltwall/l402` and `@boltwall/middleware` both use `@noble/hashes`, they each list `@noble/hashes` in their own `dependencies`. Same version range, ideally. Bun de-duplicates on disk.
-- The `@boltwall/internal` package is for *our* utilities, not for re-exporting third-party deps.
-- The dep policy in §Dependency Policy still applies — every external dep needs the ~200-line justification.
-
-### `turbo.json` task pipeline
-
-The root `turbo.json` defines the task graph. Canonical pipeline:
-
-```jsonc
-{
-  "$schema": "https://turborepo.dev/schema.json",
-  "tasks": {
-    "build": {
-      "dependsOn": ["^build"],
-      "outputs": ["dist/**", ".next/**", "!.next/cache/**"]
-    },
-    "lint": {
-      "dependsOn": ["^lint"]
-    },
-    "typecheck": {
-      "dependsOn": ["^build"]
-    },
-    "test": {
-      "dependsOn": ["^build"]
-    },
-    "test:browser": {
-      "dependsOn": ["build"]
-    },
-    "test:e2e": {
-      "dependsOn": ["^build"],
-      "cache": false
-    },
-    "package-health": {
-      "dependsOn": ["build"]
-    },
-    "size": {
-      "dependsOn": ["build"]
-    },
-    "dev": {
-      "persistent": true,
-      "cache": false
-    }
-  }
-}
-```
-
-**Conventions:**
-
-- `^build` means "run `build` in upstream workspace dependencies first." Use it whenever a task consumes built artifacts of another workspace package.
-- `outputs` MUST list every directory that the task writes to be cached. Missing `outputs` means cache hits restore nothing.
-- `inputs` defaults to all Git-tracked files in the package. Override only when a task should run on a narrower set (e.g., docs-only checks).
-- `cache: false` only for tasks with side effects (deploys) or genuinely non-deterministic (e2e, dev servers).
-- `persistent: true` for long-running tasks (`dev`).
-- Use `bun run <task>` at the root to invoke Turbo; package-level scripts run via `turbo run <task> --filter=@boltwall/<pkg>`.
-
-### Adding a new package
-
-Checklist:
-
-1. Create directory under `packages/` (or `apps/` if it's an app). Single level only — no nesting.
-2. Add `package.json` with:
-   - `"name": "@boltwall/<name>"`
-   - `"private": true` if it should not publish, otherwise omit.
-   - `"type": "module"` (ESM-only).
-   - `"exports"` map (subpath exports as needed).
-   - `"scripts"`: at minimum `build`, `lint`, `typecheck`, `test`.
-   - `"devDependencies"`: `@boltwall/eslint-config`, `@boltwall/typescript-config`, `@boltwall/prettier-config` via `workspace:*`.
-3. Add `eslint.config.js` extending the appropriate `@boltwall/eslint-config` preset.
-4. Add `tsconfig.json` extending the appropriate `@boltwall/typescript-config` preset.
-5. Add `prettier` field in `package.json` pointing at `@boltwall/prettier-config`.
-6. Wire `bun.lock` via `bun install` at the workspace root. Never edit lockfiles by hand.
-7. If the package is publishable (`@boltwall/l402`, `@boltwall/middleware`, `@boltwall/adapters`, `@boltwall/proxy`):
-   - Add `publint` and `arethetypeswrong` to its `package-health` script.
-   - Verify `exports` map is correct for ESM consumers.
-   - Confirm no `Buffer` or `node:*` imports leak into browser bundles (where applicable).
-8. If the package needs Turbo task overrides, add them to the root `turbo.json` — never duplicate the root `turbo.json` inside the package.
-
-### What does NOT live in shared packages
-
-- Phase-specific or workflow-specific logic.
-- One-off scripts (those go in the package that uses them, or in `scripts/` at the root if truly cross-cutting).
-- Generated code (build outputs in `dist/`, never committed).
-
----
-
-## Mission and Non-Goals
-
-**Mission.** Maintain a spec-correct L402 toolchain: protocol library, server middleware, deployable proxy, demo playground, shared adapters for Lightning backends. Browser-and-Node, aperture-compatible, MIT-licensed, published under the `@boltwall` npm scope.
-
-**Non-goals:**
-
-- gRPC L402.
-- Edge runtime support for middleware/proxy (Cloudflare Workers, Vercel Edge).
-- CLN and LDK adapters (interface designed-for, not shipped).
-- CJS builds.
-- Older browsers.
-- Hosted SaaS proxy.
-- Browser extension version of the playground.
-- Fastify / Koa / Hapi middleware adapters (Web-Fetch-native runtimes consume the core directly).
-
-**Spec citations beat opinions.** Any change to wire format, status codes, header parsing, caveat semantics, or macaroon binary handling MUST cite the relevant section of the L402 spec. Citations are recorded in commit messages and code comments.
+- `@boltwall/l402` owns protocol behavior; downstream packages do not reimplement wire parsing or verification.
+- `@boltwall/test-fixtures` is the single source of truth for L402 wire vectors.
+- Packages live exactly one directory deep under `apps/` or `packages/`.
+- Internal workspace dependencies use `workspace:*`.
+- Shared lint, TypeScript, and Prettier config must be consumed from the shared config packages.
+- Add features to the smallest package that can own them.
+- No CJS builds, old-browser support, hosted SaaS proxy, or edge middleware/proxy runtime in v1.
 
 ---
 
@@ -444,9 +231,9 @@ Package-specific commands (LND regtest, aperture interop, Vercel deploy) are doc
 
 The contract is the union of:
 
-1. **The relevant exit criteria** for the bead/task at hand.
-2. **Testing expectations** (see Testing section below).
-3. **Security boundaries** (see Security Boundaries section).
+1. **The relevant exit criteria** for the task at hand.
+2. **Testing expectations** (see `docs/testing.md`).
+3. **Security boundaries** (see `docs/security-boundaries.md`).
 4. **Code quality bar** (typing, `Uint8Array`, `bigint` msat, dependency policy, capability flag accuracy).
 5. **Relevant architectural docs** in `docs/` if they exist for the area being changed.
 6. **Spec sections** that govern the change. For any wire-format, status code, caveat, or identifier work, locate and cite the relevant L402 spec sections.
@@ -479,7 +266,7 @@ If the original choice is genuinely wrong, say so plainly with the corrected rea
 - Large mechanical changes: break into smaller, explicit edits and review diffs file-by-file.
 - Subtle/complex changes: edit by hand, file-by-file, with careful reasoning.
 - Prefer fewer, smaller, reviewable diffs over one large patch.
-- **Stay in scope.** If your bead discovers a needed fix outside its scope (shared configs, lockfile reconcile, unrelated bug), file a separate focused bead for it and reference the new bead from your commit body. Do not expand the current bead's surface to include drive-by fixes.
+- **Stay in scope.** If your task discovers a needed fix outside its scope (shared configs, lockfile reconcile, unrelated bug), track it as separate focused work and reference it from your change record. Do not expand the current task's surface to include drive-by fixes.
 
 ---
 
@@ -500,28 +287,11 @@ We optimize for clean architecture.
 
 ## Dependency Policy
 
-**Prefer `@boltwall/internal` over external deps when the functionality fits in under ~200 lines.**
+Prefer `@boltwall/internal` over external dependencies when the functionality fits
+in roughly 200 lines with good unit tests. Every external dependency addition
+must justify why a small internal utility is not the better fit.
 
-Before running `bun add <some-pkg>`, consider whether the same functionality could be implemented as a small utility in `@boltwall/internal`. If yes — under ~200 lines of well-commented TypeScript with positive and negative tests — build it there. The 200-line threshold is the rough complexity boundary where maintaining a small internal implementation is cheaper than absorbing a transitive dependency tree, supply-chain surface, license review, and version drift over the project's lifetime.
-
-**Almost always internal:**
-- Base64url encode/decode helpers
-- Hex ↔ `Uint8Array` converters
-- Constant-time byte-array comparison (`Uint8Array`-native)
-- Small parsers, tokenizers, validators
-- Header-grammar utilities
-
-**Almost always external:**
-- Cryptographic primitives (use `@noble/hashes`, WebCrypto)
-- Well-established protocol implementations (BOLT 11 decoders, macaroon binary format)
-- Large parsers
-- Framework integrations
-
-Every external-dep addition justifies the choice in the change record: "I considered building this in `@boltwall/internal` but [reason]."
-
-When unsure of an API on a third-party library, look up current docs rather than guessing.
-
-**Cross-reference:** The "Monorepo Conventions" section above governs *where* shared code lives once you've decided to share it. This section governs *whether* something should be a dependency at all. Both apply simultaneously.
+Read `docs/dependency-policy.md` before adding dependencies or shared utilities.
 
 ---
 
@@ -535,26 +305,20 @@ When unsure of an API on a third-party library, look up current docs rather than
 - New backend adapters ship with capability flags accurate to the implementation.
 - Lightning amounts use `bigint` millisatoshis throughout. `number` sats is a bug.
 
-### Generated API Docs
-
-Public package documentation is generated from TypeScript signatures and JSDoc, similar in spirit to the legacy LSAT library docs. Treat public comments as part of the API contract:
-
-- Add JSDoc when creating or changing exported functions, classes, interfaces, type aliases, errors, config objects, adapters, and framework helpers.
-- Keep comments factual and maintenance-friendly. Do not paste long spec text; cite the relevant spec/source and describe the local behavior.
-- Document compatibility behavior explicitly, especially dual LSAT/L402 challenge emission, legacy LSAT parsing/emission, Aperture interop, caveat handling, and browser-vs-Node constraints.
-- Internal helpers only need comments when the behavior is subtle. Do not bury public API documentation on private implementation details.
-- Generated docs must build cleanly before v0.1.0 stabilization.
+Read `docs/api-docs.md` before adding or changing public exports.
 
 ---
 
 ## Security Boundaries
 
-- **No credentials, API keys, root keys, production macaroons, or `.env` files committed — ever.** `.gitignore` covers common cases; verify before staging.
-- **Bearer-credential handling.** Macaroons and preimages must not be logged at info level. Pino redaction config lives in `packages/middleware/src/logger.ts`.
-- **Constant-time comparison required** on the server verification path (signature equality, payment-hash equality). Use `crypto.timingSafeEqual` server-side. Browser code uses a `Uint8Array`-native helper from `@boltwall/internal` (raw `===` on byte arrays leaks timing).
-- **TLS required** for any documented deployment path. Examples that omit TLS must say so loudly with a banner.
-- **Invoice amount verification.** Middleware MUST verify the bolt11 amount matches the configured price. Skipping this is a security bug, not a feature.
-- **Unknown-caveat security model.** Per L402 spec, unknown caveats are *skipped* when no satisfier matches. The middleware therefore declares and verifies the *known* caveats it depends on. **Never rely on unknown caveats failing closed.**
+- **No credentials, API keys, root keys, production macaroons, or `.env` files committed — ever.**
+- **Bearer-credential handling.** Macaroons and preimages must not be logged at info level.
+- **Constant-time comparison required** on verification paths for signature and payment-hash equality.
+- **TLS required** for documented deployment paths. Examples that omit TLS must say so clearly.
+- **Invoice amount verification.** Middleware MUST verify the bolt11 amount matches the configured price.
+- **Unknown-caveat security model.** Unknown caveats are skipped when no satisfier matches. Never rely on unknown caveats failing closed.
+
+Read `docs/security-boundaries.md` when touching security-sensitive behavior.
 
 ---
 
@@ -588,21 +352,12 @@ Always follow links rather than relying on memory.
 
 ## Testing
 
-Commands are in the Tooling Cheatsheet above. The `test:browser` Playwright Chromium import test verifies built ESM imports cleanly with no Node-only references and is required for any cross-runtime change in `@boltwall/l402`.
+Write tests that prove behavior. Use focused unit tests for local logic,
+integration tests for package boundaries, and e2e tests for user-visible flows.
+The `test:browser` Playwright Chromium import test is required for cross-runtime
+changes in `@boltwall/l402`.
 
-### Testing expectations by change type
-
-| Change type | Required tests |
-|---|---|
-| Bug fix | Failing regression test before fix; fix flips it green |
-| New caveat helper | Positive + negative vectors in `@boltwall/test-fixtures`; `satisfyPrevious` attenuation case if applicable |
-| New backend adapter | Capability flags accurate; `MockAdapter` parity test; nightly real-endpoint test (when available); capability-mismatch boot rejection test |
-| New public API | Typed signature + JSDoc + README example that compiles |
-| Wire-format change | Spec citation in change record; dual-scheme tests; multi-macaroon tests where relevant; conformance fixture round-trip |
-| Cross-runtime change in `@boltwall/l402` | Playwright Chromium import test green; built ESM has no `node:*` references |
-| Playground UI change | Playwright e2e covering the new flow; visual regression for desktop + mobile |
-| Pricing/invoice change | `bigint` round-trip test; invoice amount verification test |
-| Security boundary touched | Explicit test for the boundary (e.g., timing-attack regression for constant-time comparison) |
+Read `docs/testing.md` for the validation matrix and good test-shape guidance.
 
 ---
 
