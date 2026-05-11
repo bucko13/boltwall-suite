@@ -106,6 +106,25 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         decodedMacaroon,
         new TextEncoder().encode("route=/pokemon/*"),
       );
+      const tokenId = new Uint8Array(32).fill(0x22);
+      const rootKeyStore = new l402.InMemoryRootKeyStore();
+      await rootKeyStore.put(tokenId, hexToBytes(fixtures.macaroon.rootKeyHex));
+      const mintedMacaroon = l402.mintMacaroon({
+        rootKey: hexToBytes(fixtures.macaroon.rootKeyHex),
+        identifier: {
+          version: 0,
+          paymentHash: hexToBytes(fixtures.goodPreimage.paymentHashHex),
+          tokenId,
+        },
+        caveats: [{ condition: "services", value: "pokedex:0" }],
+      });
+      const verifiedMacaroon = await l402.verifyMacaroon({
+        macaroons: [mintedMacaroon],
+        preimage: fixtures.goodPreimage.preimageHex,
+        rootKeyStore,
+        satisfiers: [l402.servicesSatisfier("pokedex")],
+        context: {},
+      });
 
       let invalidIdentifierReason = "";
       try {
@@ -123,6 +142,8 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           decodeBolt11Invoice: typeof l402.decodeBolt11Invoice,
           verifyPreimage: typeof l402.verifyPreimage,
           parseCaveat: typeof l402.parseCaveat,
+          mintMacaroon: typeof l402.mintMacaroon,
+          verifyMacaroon: typeof l402.verifyMacaroon,
           mintRaw: typeof macaroonCodec.mintRaw,
         },
         challenge,
@@ -147,6 +168,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           signatureLength: decodedMacaroon.signature.length,
           verified: macaroonVerified,
           attenuatedCaveatCount: attenuatedMacaroon.caveats.length,
+          publicVerified: verifiedMacaroon,
         },
       };
 
@@ -183,6 +205,8 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     decodeBolt11Invoice: "function",
     verifyPreimage: "function",
     parseCaveat: "function",
+    mintMacaroon: "function",
+    verifyMacaroon: "function",
     mintRaw: "function",
   });
 
@@ -207,6 +231,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     signatureLength: 32,
     verified: true,
     attenuatedCaveatCount: 3,
+    publicVerified: { ok: true },
   });
 
   expect(consoleErrors).toEqual([]);

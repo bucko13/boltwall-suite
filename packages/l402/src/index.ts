@@ -43,6 +43,12 @@ export { InMemoryRootKeyStore, type RootKeyStore } from "./root-key-store";
 export { verifyPreimage, type VerifyPreimageArgs } from "./verify-preimage";
 
 export {
+  verifyMacaroon,
+  type VerifyMacaroonArgs,
+  type VerifyMacaroonResult,
+} from "./verify-macaroon";
+
+export {
   capabilitiesSatisfier,
   originSatisfier,
   routeSatisfier,
