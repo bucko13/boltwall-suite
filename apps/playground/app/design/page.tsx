@@ -4,17 +4,17 @@ import type { CSSProperties, ReactNode } from "react";
 import { useState } from "react";
 
 import { BigBlob } from "../../components/ui/big-blob";
+import { CaveatPill } from "../../components/ui/caveat-pill";
+import { Cell } from "../../components/ui/cell";
+import { Chip } from "../../components/ui/chip";
 import { CodeSnippet } from "../../components/ui/code-snippet";
+import { CodeStrip } from "../../components/ui/code-strip";
+import { HeaderRow } from "../../components/ui/header-row";
+import { LogoBeaker } from "../../components/ui/logo-beaker";
 import {
   MacaroonStripe,
   type MacaroonSegments,
 } from "../../components/ui/macaroon-stripe";
-import { CaveatPill } from "../../components/ui/caveat-pill";
-import { Cell } from "../../components/ui/cell";
-import { Chip } from "../../components/ui/chip";
-import { CodeStrip } from "../../components/ui/code-strip";
-import { HeaderRow } from "../../components/ui/header-row";
-import { LogoBeaker } from "../../components/ui/logo-beaker";
 import {
   StatusPill,
   type StatusPillState,

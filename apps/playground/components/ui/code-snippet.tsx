@@ -1,7 +1,7 @@
 "use client";
 
-import { useState } from "react";
 import { Highlight } from "prism-react-renderer";
+import { useState } from "react";
 
 import { designTheme } from "../../lib/highlight";
 
