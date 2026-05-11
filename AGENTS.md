@@ -44,7 +44,6 @@ Use local skills when available, but keep this file's mandatory checks in view:
   reservations, handoff, close, commit, push, and release sequence.
 - `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
   after reading the relevant live L402 spec sections.
-- `.agents/AGENT_MAIL.md` for Agent Mail fallback and troubleshooting.
 
 Agents without skill support must still follow the explicit checklists in this
 file.
@@ -392,9 +391,8 @@ Read `docs/testing.md` for the validation matrix and good test-shape guidance.
 
 ## Agent Coordination And Task Workflow
 
-Use `.agents/skills/boltwall-workflow/SKILL.md` for the full local runbook and
-`.agents/AGENT_MAIL.md` for Agent Mail fallback/troubleshooting. This section is
-the mandatory minimum.
+Use `.agents/skills/boltwall-workflow/SKILL.md` for the full local runbook. This
+section is the mandatory minimum.
 
 Agent Mail is the coordination channel for agent identity, inboxes, threaded
 updates, file reservations, and handoffs. The local task graph is managed with
@@ -431,6 +429,20 @@ If Agent Mail tools are unavailable, preserve the outcomes: stable actor
 identity, explicit reservation-equivalent notes, no overlapping edits, clear
 handoffs, and documented fallback. Missing tool parity is not permission to skip
 coordination.
+
+Agent Mail fallback rules:
+
+- MCP Agent Mail tools, macros, and resources are the normal path for identity,
+  inboxes, messages, reservations, and releases.
+- The Agent Mail CLI is for admin/config/docs/share/archive/doctor style
+  operations unless a reliable runtime bridge is explicitly available.
+- If contact policy blocks peer broadcast, use the tool's contact request path
+  when available, record an equivalent self-addressed task-thread note, and
+  mention the fallback in completion notes.
+- If MCP Agent Mail is unavailable, do not claim a reservation, inbox check, or
+  message was completed. Preserve the coordination outcome with explicit
+  task-thread or task-note fallback, and do not edit until overlap risk is
+  resolved.
 
 ## Search And Refactor Tools
 
