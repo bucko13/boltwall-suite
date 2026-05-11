@@ -28,6 +28,8 @@ export {
 
 export { L402, type L402ChallengeOptions, type L402Options, type L402TokenOptions } from "./l402";
 
+export { mintMacaroon, type MintMacaroonArgs } from "./mint-macaroon";
+
 export {
   parseAuthenticateHeader,
   type L402ChallengeFields,
