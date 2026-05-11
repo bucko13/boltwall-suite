@@ -29,7 +29,9 @@ boltwall-suite/
 ## Package Roles
 
 - `@boltwall/l402` owns protocol behavior. Middleware, proxy, and playground
-  consume it rather than reimplementing wire parsing or verification.
+  consume it rather than reimplementing wire parsing or verification. Its
+  macaroon codec is a private implementation detail used to implement the
+  public mint/verify APIs, not a shared package or exported subpath.
 - `@boltwall/middleware` exposes a Web Fetch core plus an Express adapter.
   Web-Fetch-native runtimes consume the core directly.
 - `@boltwall/adapters` uses subpath exports such as `/lnd`, `/opennode`,

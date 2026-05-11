@@ -1,12 +1,7 @@
 import { defineConfig } from "tsup";
 
 export default defineConfig({
-  entry: [
-    "src/index.ts",
-    "src/legacy/index.ts",
-    "src/pricing.ts",
-    "src/internal/macaroon.ts",
-  ],
+  entry: ["src/index.ts", "src/legacy/index.ts", "src/pricing.ts"],
   format: ["esm"],
   dts: true,
   clean: true,

@@ -8,6 +8,25 @@ Browser-and-Node L402 protocol library for Boltwall Suite.
 - `@boltwall/l402/legacy` — legacy LSAT compatibility helpers
 - `@boltwall/l402/pricing` — millisatoshi conversion helpers
 
+## Macaroon codec boundary
+
+The raw macaroon codec lives inside `@boltwall/l402` as a private
+implementation detail. It implements the L402 macaroon HMAC chain,
+first-party caveat encoding, V2 binary serialization, and signature
+verification required by `mintMacaroon`, `decodeIdentifier`, and
+`verifyMacaroon`. It is intentionally not exported as
+`@boltwall/l402/internal/*`, not moved to `@boltwall/internal`, and not a
+standalone public package before v0.1.0.
+
+Consumers should use `mintMacaroon` and `verifyMacaroon` instead of depending
+on raw macaroon internals or the wrapped `macaroon@3.0.4` library shape. The
+browser import test exercises those public APIs in Chromium and avoids loading
+unpublished `dist/internal/*` paths. If a future release exposes a raw codec,
+that surface needs its own JSDoc, fixtures, compatibility notes, and API docs.
+
+Spec references: L402 macaroon-spec.md §HMAC Chain Construction, §Verification,
+and §Serialization Formats / Macaroon V2 Binary Format.
+
 ## Legacy LSAT migration helpers
 
 The `@boltwall/l402/legacy` subpath contains migration-only helpers for
@@ -77,15 +96,15 @@ not through a local encoder.
 **Chosen:** [`light-bolt11-decoder`](https://github.com/fiatjaf/light-bolt11-decoder)
 (MIT, v3.2.0+).
 
-| Constraint | `light-bolt11-decoder@3.2.0` | `bolt11@1.4.1` (legacy-used by `lsat-js`) |
-|---|---|---|
-| Decode-only API | ✅ — `decode(invoice)` returns a `sections` array | ✅ — but ships encode/sign too (unused weight) |
-| Browser-import-clean | ✅ — depends only on `@scure/base` (Uint8Array native) | ❌ — uses `Buffer` (via `safe-buffer`); transitive `bitcoinjs-lib`, `secp256k1`, `lodash` |
-| ESM consumption | ✅ — `import { decode } from "light-bolt11-decoder"` works under Node 22 + Bun | ⚠️ — CJS only; usable via default-import interop but adds asymmetry |
-| Maintenance | ✅ — last published 2024-09 | ⚠️ — last published 2023-03 |
-| Disk footprint | ~156 KB (with `@scure/base`) | ~7.5 MB (with full `bitcoinjs-lib` + `secp256k1` + `lodash`) |
-| Source size | 397 LOC | 1037 LOC |
-| Public API uses Buffer | ❌ no | ✅ yes |
+| Constraint             | `light-bolt11-decoder@3.2.0`                                                   | `bolt11@1.4.1` (legacy-used by `lsat-js`)                                                 |
+| ---------------------- | ------------------------------------------------------------------------------ | ----------------------------------------------------------------------------------------- |
+| Decode-only API        | ✅ — `decode(invoice)` returns a `sections` array                              | ✅ — but ships encode/sign too (unused weight)                                            |
+| Browser-import-clean   | ✅ — depends only on `@scure/base` (Uint8Array native)                         | ❌ — uses `Buffer` (via `safe-buffer`); transitive `bitcoinjs-lib`, `secp256k1`, `lodash` |
+| ESM consumption        | ✅ — `import { decode } from "light-bolt11-decoder"` works under Node 22 + Bun | ⚠️ — CJS only; usable via default-import interop but adds asymmetry                       |
+| Maintenance            | ✅ — last published 2024-09                                                    | ⚠️ — last published 2023-03                                                               |
+| Disk footprint         | ~156 KB (with `@scure/base`)                                                   | ~7.5 MB (with full `bitcoinjs-lib` + `secp256k1` + `lodash`)                              |
+| Source size            | 397 LOC                                                                        | 1037 LOC                                                                                  |
+| Public API uses Buffer | ❌ no                                                                          | ✅ yes                                                                                    |
 
 **Decode validation** (run against the spec example invoice in
 `@boltwall/test-fixtures/challenges/spec-examples` —
@@ -95,8 +114,7 @@ not through a local encoder.
 import { decode } from "light-bolt11-decoder";
 
 const decoded = decode(SPEC_EXAMPLE_INVOICE);
-const byTag = (name: string) =>
-  decoded.sections.find((s) => s.name === name)?.value;
+const byTag = (name: string) => decoded.sections.find((s) => s.name === name)?.value;
 
 byTag("payment_hash"); // "4f346baeff5a99cc6c5636b1e72ff750f4aa0e2fc1250482fc38e06a9822a7dc"
 BigInt(byTag("amount") ?? "0"); // 150000n  (msat)
