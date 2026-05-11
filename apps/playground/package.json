@@ -7,7 +7,7 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "bun x eslint app",
+    "lint": "eslint app",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no unit tests in playground; see test:e2e\"",
     "test:e2e": "playwright test"

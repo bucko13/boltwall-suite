@@ -21,7 +21,7 @@
   },
   "scripts": {
     "build": "bunx --bun tsup src/index.ts src/numeric.ts src/header-grammar.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
-    "lint": "bun x eslint src",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "bun test"
   },

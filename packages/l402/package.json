@@ -30,7 +30,7 @@
   "sideEffects": false,
   "scripts": {
     "build": "tsup",
-    "lint": "bun x eslint src",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "bun test test/*.test.ts",
     "test:browser": "playwright test --project=chromium-import",

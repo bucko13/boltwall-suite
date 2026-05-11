@@ -13,7 +13,7 @@
   },
   "scripts": {
     "build": "bunx --bun tsc -p tsconfig.json",
-    "lint": "bun x eslint src",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "echo \"test-fixtures: no tests yet\""
   },

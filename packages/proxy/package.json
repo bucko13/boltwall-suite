@@ -16,7 +16,7 @@
   "files": ["dist"],
   "scripts": {
     "build": "bunx --bun tsup src/index.ts src/cli.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
-    "lint": "bun x eslint src",
+    "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "echo \"proxy: no tests yet\"",
     "package-health": "bun run ./scripts/package-health.ts"
