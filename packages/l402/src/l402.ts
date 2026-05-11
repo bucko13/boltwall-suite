@@ -22,7 +22,7 @@ export interface L402Options {
   timeCreated?: number;
 }
 
-/** Serialization options for `L402#toToken`. */
+/** Serialization options for `L402#toToken` and `L402#toPendingToken`. */
 export interface L402TokenOptions {
   /** Emit the legacy `LSAT` Authorization scheme instead of `L402`. */
   legacy?: boolean;
@@ -60,16 +60,19 @@ function parsePossiblyPendingToken(token: string): {
   const separator = token.lastIndexOf(":");
   if (separator === token.length - 1) {
     const prefix = token.slice(0, separator);
-    const firstSpace = /\s/.exec(prefix.trim());
+    const trimmedPrefix = prefix.trim();
+    const firstSpace = /\s/.exec(trimmedPrefix);
     if (firstSpace === null) {
+      if (/^(L402|LSAT)$/i.test(trimmedPrefix)) {
+        throw new Error("empty-macaroons");
+      }
       throw new Error("missing-scheme");
     }
-    const scheme = prefix.trim().slice(0, firstSpace.index).toUpperCase();
+    const scheme = trimmedPrefix.slice(0, firstSpace.index).toUpperCase();
     if (scheme !== "L402" && scheme !== "LSAT") {
       throw new Error("scheme-mismatch");
     }
-    const macaroons = prefix
-      .trim()
+    const macaroons = trimmedPrefix
       .slice(firstSpace.index)
       .trim()
       .split(",")
@@ -91,8 +94,12 @@ function parsePossiblyPendingToken(token: string): {
  * This class intentionally delegates all HTTP wire parsing/serialization to
  * the functional helpers in this package. It exists for source migration from
  * `Lsat.fromToken(...)` / `Lsat#toToken()` style code, while preserving current
- * L402 defaults: new credential emission uses the `L402` scheme unless
- * `{ legacy: true }` is requested.
+ * L402 defaults: paid credential emission uses the `L402` scheme unless
+ * `{ legacy: true }` is requested. Pending objects can parse legacy
+ * trailing-colon tokens for migration state, but `toToken()` emits only paid
+ * Authorization credentials. Use `toPendingToken()` when a migration workflow
+ * needs to round-trip an unpaid object state that is not a valid retry
+ * credential.
  *
  * Spec references:
  * - L402 protocol-specification.md sections 5 and 10: Authorization /
@@ -163,14 +170,22 @@ export class L402 {
   }
 
   toToken(options: L402TokenOptions = {}): string {
+    if (this.paymentPreimage === undefined) {
+      throw new Error("missing-preimage");
+    }
     const tokenOptions: Parameters<typeof buildAuthorizationHeader>[0] = {
       macaroons: this.macaroons,
-      preimage: this.paymentPreimage ?? "",
+      preimage: this.paymentPreimage,
     };
     if (options.legacy !== undefined) {
       tokenOptions.legacy = options.legacy;
     }
     return buildAuthorizationHeader(tokenOptions);
+  }
+
+  toPendingToken(options: L402TokenOptions = {}): string {
+    const scheme = options.legacy === true ? "LSAT" : "L402";
+    return `${scheme} ${this.macaroons.join(",")}:`;
   }
 
   toChallenge(options: L402ChallengeOptions = {}): string {

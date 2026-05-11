@@ -31,11 +31,18 @@ describe("L402 class facade / token round trips", () => {
     );
   });
 
-  test("preserves pending token shape with empty preimage", () => {
+  test("keeps pending token state separate from paid Authorization tokens", () => {
     const token = `LSAT ${SPEC_EXAMPLE_MACAROON}:`;
     const l402 = L402.fromToken(token);
     expect(l402.isPending()).toBe(true);
-    expect(l402.toToken({ legacy: true })).toBe(token);
+    expect(() => l402.toToken({ legacy: true })).toThrow("missing-preimage");
+    expect(l402.toPendingToken({ legacy: true })).toBe(token);
+    expect(l402.toPendingToken()).toBe(`L402 ${SPEC_EXAMPLE_MACAROON}:`);
+  });
+
+  test("rejects malformed pending tokens through the compatibility parser", () => {
+    expect(() => L402.fromToken(`Bearer ${SPEC_EXAMPLE_MACAROON}:`)).toThrow("scheme-mismatch");
+    expect(() => L402.fromToken("L402 :")).toThrow("empty-macaroons");
   });
 });
 

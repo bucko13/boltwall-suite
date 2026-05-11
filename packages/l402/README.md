@@ -81,6 +81,22 @@ for (const value of headers) {
 Use `compatibility: "l402-only"` only when a deployment or test explicitly
 does not need legacy LSAT challenge compatibility.
 
+## Pending facade tokens
+
+`L402.fromToken()` accepts a trailing-colon token such as `LSAT <macaroon>:` so
+legacy `lsat-js` migration code can model a macaroon whose invoice has not been
+paid yet. That object state is intentionally separate from a paid HTTP
+Authorization credential: L402 protocol-specification.md §5 defines the retry
+credential as `<macaroons>:<preimage-hex>`, and the preimage is the proof of
+payment.
+
+For that reason, `L402#toToken()` throws `missing-preimage` while the object is
+pending. Call `setPreimage(preimage)` first, or use `toPendingToken()` only for
+explicit migration persistence where the value will not be sent as an
+Authorization header. `parseAuthorizationHeader()` remains strict and rejects
+missing or malformed preimages. Both `L402` and `LSAT` schemes are accepted for
+incoming credentials per L402 protocol-specification.md §10.
+
 ## Tech stack decisions
 
 ### BOLT 11 invoice decoder: `light-bolt11-decoder`
