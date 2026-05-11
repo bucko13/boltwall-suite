@@ -5,115 +5,185 @@ import {
   InMemoryRootKeyStore,
   buildAuthorizationHeader,
   capabilitiesSatisfier,
-  decodeIdentifier,
   mintMacaroon,
-  parseAuthenticateHeader,
+  parseAuthorizationHeader,
+  parseCaveat,
   servicesSatisfier,
   verifyMacaroon,
+  type Caveat,
   type CaveatSatisfier,
 } from "../../src";
+import { decodeRaw } from "../../src/internal/macaroon";
 
-const smokeTest = process.env.APERTURE_SMOKE === "1" ? test : test.skip;
-const PAYMENT_PREIMAGE_LENGTH = 32;
+const APERTURE_PAYMENT_HASH = Uint8Array.from({ length: 32 }, (_, index) => index + 1);
+const APERTURE_TOKEN_ID = Uint8Array.from({ length: 32 }, (_, index) => 32 - index);
+const ROOT_KEY = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
+const PREIMAGE = new Uint8Array(32).fill(0x42);
+const PREIMAGE_HASH = sha256(PREIMAGE);
 
-describe("Aperture manual smoke", () => {
-  smokeTest("verifies an Aperture-minted macaroon with Boltwall", async () => {
-    const macaroon = requiredEnv("APERTURE_SMOKE_MACAROON_B64");
-    const rootKey = hexToBytes(requiredEnv("APERTURE_SMOKE_ROOT_KEY_HEX"));
-    const preimage = hexToBytes(requiredEnv("APERTURE_SMOKE_PREIMAGE_HEX"));
-    const identifier = decodeIdentifier(macaroon);
+describe("Aperture library vector smoke", () => {
+  test("matches Aperture EncodeIdentifierBytes byte layout", () => {
+    const macaroon = mintMacaroon({
+      rootKey: ROOT_KEY,
+      identifier: {
+        version: 0,
+        paymentHash: APERTURE_PAYMENT_HASH,
+        tokenId: APERTURE_TOKEN_ID,
+      },
+    });
+    const raw = decodeRaw(macaroon);
+
+    // L402 macaroon-spec.md §Identifier Structure; Aperture
+    // l402/identifier_test.go uses payment_hash=[1..32] and token_id=[32..1],
+    // expecting 2-byte big-endian version 0 followed by payment hash and token id.
+    expect(bytesToHex(raw.identifier)).toBe(
+      [
+        "0000",
+        "0102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f20",
+        "201f1e1d1c1b1a191817161514131211100f0e0d0c0b0a090807060504030201",
+      ].join(""),
+    );
+  });
+
+  test("parses Aperture SetHeader Authorization shapes", () => {
+    const macaroon = mintMacaroon({
+      rootKey: ROOT_KEY,
+      identifier: {
+        version: 0,
+        paymentHash: PREIMAGE_HASH,
+        tokenId: APERTURE_TOKEN_ID,
+      },
+    });
+    const l402 = buildAuthorizationHeader({
+      macaroons: macaroon,
+      preimage: bytesToHex(PREIMAGE),
+    });
+    const lsat = buildAuthorizationHeader({
+      macaroons: macaroon,
+      preimage: bytesToHex(PREIMAGE),
+      legacy: true,
+    });
+
+    // L402 protocol-specification.md §5 and §10; Aperture l402/header.go accepts
+    // both Authorization schemes and SetHeader emits LSAT first for legacy
+    // compatibility before adding L402.
+    expect(parseAuthorizationHeader(lsat)).toEqual({
+      scheme: "LSAT",
+      macaroons: [macaroon],
+      preimage: bytesToHex(PREIMAGE),
+    });
+    expect(parseAuthorizationHeader(l402)).toEqual({
+      scheme: "L402",
+      macaroons: [macaroon],
+      preimage: bytesToHex(PREIMAGE),
+    });
+  });
+
+  test("matches Aperture caveat parser vectors", () => {
+    expect(parseCaveat("expiration=1337")).toEqual({
+      condition: "expiration",
+      value: "1337",
+    });
+    expect(parseCaveat("expiration=1337=")).toEqual({
+      condition: "expiration",
+      value: "1337=",
+    });
+    expect(() => parseCaveat("expiration:1337")).toThrow("missing-caveat-separator");
+  });
+
+  test("verifies Aperture services and capabilities behavior", async () => {
     const rootKeyStore = new InMemoryRootKeyStore();
-    await rootKeyStore.put(identifier.tokenId, rootKey);
+    await rootKeyStore.put(APERTURE_TOKEN_ID, ROOT_KEY);
+    const macaroon = mintMacaroon({
+      rootKey: ROOT_KEY,
+      identifier: {
+        version: 0,
+        paymentHash: PREIMAGE_HASH,
+        tokenId: APERTURE_TOKEN_ID,
+      },
+      caveats: [
+        { condition: "services", value: "restricted:0,other:0" },
+        { condition: "services", value: "restricted:0" },
+        { condition: "restricted_capabilities", value: "read" },
+      ],
+    });
 
     await expect(
       verifyMacaroon({
         macaroons: [macaroon],
-        preimage,
+        preimage: PREIMAGE,
         rootKeyStore,
-        satisfiers: apertureSatisfiers(),
-        context: {
-          request: new Request(process.env.APERTURE_SMOKE_URL ?? "http://localhost:8081/pokemon/1"),
-          now: new Date(),
-        },
+        satisfiers: [servicesSatisfier("restricted"), capabilitiesSatisfier("restricted", "read")],
+        context: {},
       }),
     ).resolves.toEqual({ ok: true });
   });
 
-  smokeTest("can present a Boltwall-minted credential to Aperture", async () => {
-    const apertureUrl = requiredEnv("APERTURE_SMOKE_URL");
-    const preimage = hexToBytes(requiredEnv("APERTURE_SMOKE_PREIMAGE_HEX"));
-    assertLength(preimage, PAYMENT_PREIMAGE_LENGTH, "APERTURE_SMOKE_PREIMAGE_HEX");
-    const rootKey = envHex("APERTURE_SMOKE_BOLTWALL_ROOT_KEY_HEX") ?? repeatedBytes(0xa4);
-    const tokenId = envHex("APERTURE_SMOKE_BOLTWALL_TOKEN_ID_HEX") ?? repeatedBytes(0xb7);
+  test("verifies Aperture unknown caveat behavior", async () => {
+    const rootKeyStore = new InMemoryRootKeyStore();
+    await rootKeyStore.put(APERTURE_TOKEN_ID, ROOT_KEY);
     const macaroon = mintMacaroon({
-      rootKey,
+      rootKey: ROOT_KEY,
       identifier: {
         version: 0,
-        paymentHash: sha256(preimage),
-        tokenId,
+        paymentHash: PREIMAGE_HASH,
+        tokenId: APERTURE_TOKEN_ID,
       },
-      caveats: [{ condition: "services", value: `${apertureService()}:0` }],
-    });
-    const authorization = buildAuthorizationHeader({
-      macaroons: macaroon,
-      preimage: bytesToHex(preimage),
+      caveats: [
+        { condition: "services", value: "restricted:0" },
+        { condition: "unknown-aperture-vector", value: "ignored" },
+      ],
     });
 
-    if (process.env.APERTURE_SMOKE_EXPECT_APERTURE_ACCEPTS_BOLTWALL !== "1") {
-      throw new Error(
-        [
-          "preload Aperture with this Boltwall test root key before enabling the reverse smoke:",
-          `APERTURE_SMOKE_BOLTWALL_TOKEN_ID_HEX=${bytesToHex(tokenId)}`,
-          `APERTURE_SMOKE_BOLTWALL_ROOT_KEY_HEX=${bytesToHex(rootKey)}`,
-          "then rerun with APERTURE_SMOKE_EXPECT_APERTURE_ACCEPTS_BOLTWALL=1",
-        ].join("\n"),
-      );
-    }
+    await expect(
+      verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE,
+        rootKeyStore,
+        satisfiers: [servicesSatisfier("restricted")],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: true });
+  });
 
-    const response = await fetch(apertureUrl, {
-      headers: {
-        Authorization: authorization,
+  test("verifies Aperture timeout attenuation behavior", async () => {
+    const rootKeyStore = new InMemoryRootKeyStore();
+    await rootKeyStore.put(APERTURE_TOKEN_ID, ROOT_KEY);
+    const macaroon = mintMacaroon({
+      rootKey: ROOT_KEY,
+      identifier: {
+        version: 0,
+        paymentHash: PREIMAGE_HASH,
+        tokenId: APERTURE_TOKEN_ID,
       },
+      caveats: [
+        { condition: "restricted_valid_until", value: "1000" },
+        { condition: "restricted_valid_until", value: "500" },
+      ],
     });
-    if (response.status === 402) {
-      const challenge = response.headers.get("WWW-Authenticate");
-      if (challenge !== null) {
-        expect(parseAuthenticateHeader(challenge).length).toBeGreaterThan(0);
-      }
-    }
-    expect(response.status).toBe(200);
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE,
+        rootKeyStore,
+        satisfiers: [apertureTimeoutSatisfier("restricted", new Date(0))],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 });
 
-function apertureSatisfiers(): CaveatSatisfier[] {
-  const service = apertureService();
-  const satisfiers: CaveatSatisfier[] = [servicesSatisfier(service)];
-  const capability = process.env.APERTURE_SMOKE_CAPABILITY;
-  if (capability !== undefined && capability.length > 0) {
-    satisfiers.push(capabilitiesSatisfier(service, capability));
-  }
-  return satisfiers;
-}
-
-function apertureService(): string {
-  return process.env.APERTURE_SMOKE_SERVICE ?? "pokedex";
-}
-
-function requiredEnv(name: string): string {
-  const value = process.env[name];
-  if (value === undefined || value.length === 0) {
-    throw new Error(`missing ${name}`);
-  }
-  return value;
-}
-
-function envHex(name: string): Uint8Array | null {
-  const value = process.env[name];
-  return value === undefined || value.length === 0 ? null : hexToBytes(value);
-}
-
-function repeatedBytes(byte: number): Uint8Array {
-  return new Uint8Array(32).fill(byte);
+function apertureTimeoutSatisfier(service: string, now: Date): CaveatSatisfier {
+  return {
+    condition: `${service}_valid_until`,
+    satisfyPrevious(previous, next) {
+      return parseUnixSeconds(next) <= parseUnixSeconds(previous);
+    },
+    satisfyFinal(caveat) {
+      return Math.floor(now.getTime() / 1000) < parseUnixSeconds(caveat);
+    },
+  };
 }
 
 function hexToBytes(hex: string): Uint8Array {
@@ -131,8 +201,9 @@ function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
-function assertLength(bytes: Uint8Array, expected: number, label: string): void {
-  if (bytes.length !== expected) {
-    throw new Error(`${label} must decode to ${String(expected)} bytes`);
+function parseUnixSeconds(caveat: Caveat): number {
+  if (!/^\d+$/.test(caveat.value)) {
+    throw new Error("invalid-aperture-timeout");
   }
+  return Number(caveat.value);
 }

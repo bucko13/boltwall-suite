@@ -1,17 +1,29 @@
-# Aperture Smoke Fixture
+# Aperture Interop Notes
 
-This fixture is an opt-in manual smoke harness for `bw-1dl.11`. It is not part
-of default CI because it needs Docker, a local regtest LND, and outbound access
-to build Lightning Labs' Aperture reference implementation.
+Phase 2 interop smoke is vector-only. It uses deterministic vectors from the
+Lightning Labs Aperture `l402` library tests and source, so it runs in default
+package tests without Docker, LND, live invoices, or secret root-key extraction.
 
-The smoke covers the two Phase 2 interop questions:
+The default smoke lives at:
 
-- Aperture-minted macaroon bytes can be verified by `@boltwall/l402`.
-- A `@boltwall/l402`-minted credential can be presented to an Aperture-protected
-  endpoint when the matching root key has been preloaded into the same Aperture
-  root-key store.
+```sh
+bun test packages/l402/test/interop/aperture-smoke.test.ts
+```
 
-## Run
+It covers:
+
+- Aperture `EncodeIdentifierBytes` layout from `l402/identifier_test.go`.
+- Aperture `SetHeader` / `FromHeader` Authorization scheme behavior from
+  `l402/header.go`.
+- Aperture caveat parser vectors from `l402/caveat_test.go`.
+- Aperture services/capabilities/timeout/unknown-caveat verification behavior
+  from `l402/satisfier_test.go` and `l402/caveat_test.go`.
+
+## Live Server Fixture
+
+The Docker files in this directory are not a Phase 2 gate. They are retained as
+a draft for the later live-server compatibility pass, when end-to-end validation
+can run against real Aperture, Docker, and regtest LND together.
 
 1. Start or reuse a regtest LND whose RPC port is reachable from Docker as
    `host.docker.internal:10009`.
@@ -33,29 +45,6 @@ The smoke covers the two Phase 2 interop questions:
    ```sh
    curl -i http://localhost:8081/pokemon/1
    ```
-
-5. Pay the returned invoice with the same regtest Lightning setup and capture:
-   - the `WWW-Authenticate` macaroon value
-   - the payment preimage
-   - the 32-byte root key Aperture stored for that macaroon token id
-
-6. Run the package smoke test:
-
-   ```sh
-   APERTURE_SMOKE=1 \
-   APERTURE_SMOKE_MACAROON_B64=<challenge-macaroon> \
-   APERTURE_SMOKE_ROOT_KEY_HEX=<aperture-root-key> \
-   APERTURE_SMOKE_PREIMAGE_HEX=<payment-preimage> \
-   APERTURE_SMOKE_URL=http://localhost:8081/pokemon/1 \
-   bun test packages/l402/test/interop/aperture-smoke.test.ts
-   ```
-
-For the reverse-direction test, preload Aperture with the root key and token id
-that the Bun test reports in its failure message, then rerun with:
-
-```sh
-APERTURE_SMOKE_EXPECT_APERTURE_ACCEPTS_BOLTWALL=1
-```
 
 The fixture intentionally uses `insecure: true` for localhost-only manual
 testing. Production deployments must use TLS because L402 credentials are bearer
