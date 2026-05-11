@@ -4,21 +4,50 @@ This file is the operational contract for AI agents working in this repository. 
 
 ---
 
-## SESSION START — RUN BEFORE TOUCHING ANY BEAD
+## SESSION START — RUN BEFORE TOUCHING ANY TASK
 
 The very first actions in any new session, in this exact order, before triage or claim:
 
 1. `mcp__mcp-agent-mail__ensure_project` (`project_root=<absolute path to this repository>`).
 2. `mcp__mcp-agent-mail__register_agent` (same `project_key`, stable `agent_name`).
 3. `mcp__mcp-agent-mail__fetch_inbox` — handle anything addressed to you first.
-4. THEN `bv --robot-triage` to pick a bead.
-5. Claim atomically with `br update <id> --claim` (sets `status=in_progress` AND `assignee` together — `--status=in_progress` alone leaves you anonymous).
+4. THEN `bv --robot-triage` to pick a task.
+5. Claim atomically with `br update <id> --claim --actor <agent>` (sets `status=in_progress` AND `assignee` together — `--status=in_progress` alone leaves you anonymous).
 6. Reserve files via `file_reservation_paths` BEFORE editing. Follow RULE 2 for reservation lifecycle, shared write surfaces, and handoffs.
-7. Announce in-thread via `send_message(thread_id="<bead-id>")` so peers can see what you're doing.
+7. Announce in-thread via `send_message(thread_id="<task-id>")` so peers can see what you're doing.
 
-Skipping any of steps 1–3 leaves you invisible to peer agents and breaks reservation safety. Skipping step 5's `--claim` flag (using `--status=in_progress` alone) leaves the assignee field null and creates the same coordination failure even if you registered. The full canonical workflow is documented in `Beads Workflow Integration → Workflow Pattern (canonical — every step is mandatory)` later in this file.
+Skipping any of steps 1–3 leaves you invisible to peer agents and breaks reservation safety. Skipping step 5's `--claim` flag (using `--status=in_progress` alone) leaves the assignee field null and creates the same coordination failure even if you registered. The local happy-path runbook is `.agents/skills/boltwall-workflow/SKILL.md`.
 
 If peer agents may have edited the tree since you last looked: run `git status` and `git log --oneline -10`, and re-read any file you plan to modify. Don't assume your mental model is current.
+
+---
+
+## Authority Hierarchy
+
+When instructions conflict, apply this order:
+
+1. The owner's latest explicit instruction.
+2. This `AGENTS.md` contract.
+3. The current task's exit criteria.
+4. Repository docs and package READMEs.
+5. Local skills and helper runbooks.
+6. General agent habits or external examples.
+
+Skills and docs explain how to execute the policy; they do not weaken or replace
+the hard rules in this file.
+
+## Skill Discovery Index
+
+Use local skills when available, but keep this file's mandatory checks in view:
+
+- `.agents/skills/boltwall-workflow/SKILL.md` for startup, task claiming,
+  reservations, handoff, close, commit, push, and release sequence.
+- `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
+  after reading the relevant live L402 spec sections.
+- `.agents/AGENT_MAIL.md` for Agent Mail fallback and troubleshooting.
+
+Agents without skill support must still follow the explicit checklists in this
+file.
 
 ---
 
@@ -70,7 +99,7 @@ Before editing any file, reserve it through Agent Mail. A reservation protects t
 1. reserve the exact path(s)
 2. re-read the current file contents
 3. edit
-4. validate the change as required by the bead
+4. validate the change as required by the task
 5. commit the change, or leave an explicit handoff note
 6. release the reservation
 
@@ -89,7 +118,7 @@ The following files are shared write surfaces and must not be held casually:
 - GitHub workflow files
 - generated public API/config surfaces used across packages
 
-For shared write surfaces, prefer deferring the change to the phase-complete/reconcile bead. If immediate editing is required, the reservation must cover the entire short critical section:
+For shared write surfaces, prefer deferring the change to phase-complete/reconcile work. If immediate editing is required, the reservation must cover the entire short critical section:
 
 `reserve -> re-read -> edit -> commit -> release`
 
@@ -97,7 +126,7 @@ A "short reservation" is invalid if the file remains modified locally after rele
 
 ### Hand-offs
 
-If you stop, pause, hit a blocker, or leave work unfinished, post a handoff note on the bead thread before releasing any reservation. The handoff must include:
+If you stop, pause, hit a blocker, or leave work unfinished, post a handoff note on the task thread before releasing any reservation. The handoff must include:
 
 - current status
 - files changed or reserved
@@ -106,7 +135,7 @@ If you stop, pause, hit a blocker, or leave work unfinished, post a handoff note
 - known risks or conflicts
 - exact next step
 
-Do not close a bead with uncommitted changes. Do not leave a bead `in_progress` without a current Agent Mail thread update explaining ownership and next action.
+Do not close a task with uncommitted changes. Do not leave a task `in_progress` without a current Agent Mail thread update explaining ownership and next action.
 
 ---
 
@@ -151,7 +180,7 @@ Rules:
 
 `bun.lock` is a derived artifact. Run `bun install` locally as often as you need — local lockfile churn is fine. **Do not stage `bun.lock` in your commit.**
 
-A designated reconcile bead (label `lockfile-reconcile`) is the only thing that commits `bun.lock`. It reserves `bun.lock` briefly, runs one clean `bun install` after a wave of manifest changes has landed, validates that root `bun run typecheck`/`lint`/`build`/`test` all exit 0, and commits the resulting lockfile. Reconcile beads are short-lived; the reservation only covers the install + commit window.
+A designated reconcile task (label `lockfile-reconcile`) is the only thing that commits `bun.lock`. It reserves `bun.lock` briefly, runs one clean `bun install` after a wave of manifest changes has landed, validates that root `bun run typecheck`/`lint`/`build`/`test` all exit 0, and commits the resulting lockfile. Reconcile tasks are short-lived; the reservation only covers the install + commit window.
 
 Phase 0's `bw-f4p.24` is the canonical example.
 
@@ -159,22 +188,22 @@ Phase 0's `bw-f4p.24` is the canonical example.
 
 ## Barrel Export Discipline
 
-Barrel files are shared write surfaces governed by RULE 2. Implementation beads should normally avoid editing public barrels directly.
+Barrel files are shared write surfaces governed by RULE 2. Implementation tasks should normally avoid editing public barrels directly.
 
 Rules:
 
-1. **A bead is complete without its barrel export, unless the bead's exit criteria explicitly require the export.** By default, implementation beads MAY close with their new symbols unexported from the package's public `index.ts`. The feature, fixtures, and tests landing in their own files is sufficient for `br close`. If a bead's "Acceptance criteria" or "What" section explicitly names the barrel export as a deliverable, follow that — the bead-level instruction wins.
-2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a bead chooses to add its own export, the reservation on the barrel must cover the full `reserve -> re-read -> edit -> commit -> release` window. Never release a barrel reservation while the barrel file remains modified in your working tree.
-3. **Defer via the phase-complete bead.** Each phase has a `Phase N implementation complete` rollup bead (Phase 1 = `bw-b63.15`, Phase 2 = `bw-1dl.13`, Phase 3 = `bw-2yn.7`, Phase 4 = `bw-zxk.11`). Before closing an implementation bead that deferred its export, append a one-line entry to that rollup bead under a `### Pending barrel exports` section:
+1. **A task is complete without its barrel export, unless the task's exit criteria explicitly require the export.** By default, implementation tasks MAY close with their new symbols unexported from the package's public `index.ts`. The feature, fixtures, and tests landing in their own files is sufficient for `br close`. If a task's acceptance criteria explicitly name the barrel export as a deliverable, follow that.
+2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a task chooses to add its own export, the reservation on the barrel must cover the full `reserve -> re-read -> edit -> commit -> release` window. Never release a barrel reservation while the barrel file remains modified in your working tree.
+3. **Defer via the phase-complete task.** Each phase has a `Phase N implementation complete` rollup task (Phase 1 = `bw-b63.15`, Phase 2 = `bw-1dl.13`, Phase 3 = `bw-2yn.7`, Phase 4 = `bw-zxk.11`). Before closing implementation work that deferred its export, append a one-line entry to that rollup task under a `### Pending barrel exports` section:
 
    ```
    - bw-b63.1 → export `decodeIdentifier`, `MacaroonIdentifierV0` from `packages/l402/src/index.ts`
    - bw-b63.8 → export `parseCaveat`, `serializeCaveat`, `servicesCaveat`, `capabilitiesCaveat`, `constraintCaveat`, `Caveat` from `packages/l402/src/index.ts`; `caveats` fixture set from `packages/test-fixtures/src/index.ts`
    ```
 
-   If the section doesn't exist yet, the first bead to defer creates it (`br update <phase-bead> --description-append "..."` or hand-edit + `br sync`).
-4. **The phase-complete bead batches the reconcile.** Its acceptance work includes a single commit that adds every queued export, runs root `bun run lint`/`typecheck`/`test`/`build`, and clears the section. That commit briefly holds an exclusive reservation on the affected barrels; no other bead should be editing them concurrently.
-5. **Do not stall on a held barrel reservation.** If a peer is holding a long-lived reservation on a barrel (against rule 2), defer per rule 3 rather than waiting. File a bead noting the violation if it recurs.
+   If the section doesn't exist yet, the first task to defer creates it (`br update <phase-task> --description-append "..."` or hand-edit + `br sync`).
+4. **The phase-complete task batches the reconcile.** Its acceptance work includes a single commit that adds every queued export, runs root `bun run lint`/`typecheck`/`test`/`build`, and clears the section. That commit briefly holds an exclusive reservation on the affected barrels; no other task should be editing them concurrently.
+5. **Do not stall on a held barrel reservation.** If a peer is holding a long-lived reservation on a barrel (against rule 2), defer per rule 3 rather than waiting. Track recurring violations as separate work.
 
 ---
 
@@ -361,278 +390,55 @@ Read `docs/testing.md` for the validation matrix and good test-shape guidance.
 
 ---
 
-## MCP Agent Mail — Multi-Agent Coordination
-
-Agent Mail is available as an MCP server for coordinating work across agents. **This is the primary mechanism for multi-agent work delegation in this repo.**
-
-> **Mandatory at session start:** call `ensure_project` + `register_agent` + `fetch_inbox` BEFORE running `bv --robot-triage` or `br update --claim`. See `Beads Workflow Integration → Step 0 — Session start` for the exact sequence. Agents that skip this are invisible to peers and break file-reservation safety.
-
-What Agent Mail provides:
-
-- Identities, inbox/outbox, searchable threads.
-- Advisory file reservations (leases) so agents don't clobber each other.
-- Persistent artifacts in git (human-auditable).
-
-Project coordination identity:
-
-- Local tool calls use `project_key=<repo-root>` where `<repo-root>` is the absolute path to this checkout on the current machine.
-- Resource reads may use the Agent Mail project slug returned by `ensure_project` when a URI cannot represent a raw absolute path cleanly. Do not commit a machine-specific slug.
-- Use stable agent names returned by `register_agent`; do not invent role names for message recipients.
-
-Claim-before-edit recipe:
-
-1. Claim the bead with `br update <id> --claim --actor <agent-name>`.
-2. Reserve the narrowest edit surface with `file_reservation_paths(..., paths=[...], ttl_seconds=3600, exclusive=true, reason="<id>")`.
-3. Announce the start in the bead thread with `send_message(thread_id="<id>", subject="[<id>] Start: ...", ack_required=true)`.
-4. Release the same reservations only after the bead is closed or handed off under RULE 2. Never release while reserved files remain locally modified.
-
-### Tools reference
-
-The procedure for using these tools is in `Beads Workflow Integration → Workflow Pattern (canonical — every step is mandatory)` below. This subsection only describes what each tool does.
-
-`project_key` is the absolute path to this repository on the current machine. Do not commit personal home-directory paths; write `<repo-root>` in examples and substitute the real path only in local tool calls.
-
-| Tool | Purpose |
-|---|---|
-| `ensure_project` | Idempotent project registration. Safe to call every session. |
-| `register_agent` | Register a stable `agent_name` so peers see who's online. |
-| `file_reservation_paths` | Lease an edit surface; pass `paths`, `ttl_seconds`, `exclusive`, `reason="<bead-id>"`. Use the narrowest pattern that covers your edits. |
-| `send_message` / `fetch_inbox` / `acknowledge_message` | In-thread coordination keyed by `thread_id="<bead-id>"`. |
-| `resource://inbox/{Agent}` / `resource://thread/{id}` | Token-cheap reads via MCP resources. |
-| `release_file_reservations` | Drop your leases on bead close. |
-
-**Macros** combine common sequences: `macro_start_session`, `macro_prepare_thread`, `macro_file_reservation_cycle`, `macro_contact_handshake`. Prefer macros when speed matters more than fine-grained control.
-
-**Common pitfalls.** `from_agent not registered` → call `register_agent` with the correct absolute `project_key`. `FILE_RESERVATION_CONFLICT` → narrow your patterns, wait for expiry, or use a non-exclusive reservation.
-
-**Mail vs Beads.** Mail = agent-to-agent coordination (messaging, file reservations, hand-offs). Beads/bv = "what to work on" (triage, priority, dependencies). Don't track issue state in Mail; don't message peers via Beads.
-
-<!-- bv-agent-instructions-v2 -->
-
----
-
-## Beads Workflow Integration
-
-This project uses [beads_rust](https://github.com/Dicklesworthstone/beads_rust) (`br`) for issue tracking and [beads_viewer](https://github.com/Dicklesworthstone/beads_viewer) (`bv`) for graph-aware triage. Issues are stored in `.beads/` **on the local machine only** — `.beads/` is gitignored and is not part of the OSS-distributed repo. All co-operating agents must share the same local checkout to see each other's bead state.
-
-`br sync --flush-only` exports the SQLite DB to `.beads/issues.jsonl` as a human-readable canonical view. It is a local-only operation; there is nothing to commit afterward.
-
-### Using bv as an AI sidecar
-
-bv is a graph-aware triage engine for Beads projects (.beads/beads.jsonl). Instead of parsing JSONL or hallucinating graph traversal, use robot flags for deterministic, dependency-aware outputs with precomputed metrics (PageRank, betweenness, critical path, cycles, HITS, eigenvector, k-core).
-
-**Scope boundary:** bv handles *what to work on* (triage, priority, planning). `br` handles creating, modifying, and closing beads.
-
-**CRITICAL: Use ONLY --robot-* flags. Bare bv launches an interactive TUI that blocks your session.**
-
-#### The Workflow: Start With Triage
-
-**`bv --robot-triage` is your single entry point.** It returns everything you need in one call:
-- `quick_ref`: at-a-glance counts + top 3 picks
-- `recommendations`: ranked actionable items with scores, reasons, unblock info
-- `quick_wins`: low-effort high-impact items
-- `blockers_to_clear`: items that unblock the most downstream work
-- `project_health`: status/type/priority distributions, graph metrics
-- `commands`: copy-paste shell commands for next steps
-
-```bash
-bv --robot-triage        # THE MEGA-COMMAND: start here
-bv --robot-next          # Minimal: just the single top pick + claim command
-
-# Token-optimized output (TOON) for lower LLM context usage:
-bv --robot-triage --format toon
-```
-
-#### Other bv Commands
-
-| Command | Returns |
-|---------|---------|
-| `--robot-plan` | Parallel execution tracks with unblocks lists |
-| `--robot-priority` | Priority misalignment detection with confidence |
-| `--robot-insights` | Full metrics: PageRank, betweenness, HITS, eigenvector, critical path, cycles, k-core |
-| `--robot-alerts` | Stale issues, blocking cascades, priority mismatches |
-| `--robot-suggest` | Hygiene: duplicates, missing deps, label suggestions, cycle breaks |
-| `--robot-diff --diff-since <ref>` | Changes since ref: new/closed/modified issues |
-| `--robot-graph [--graph-format=json\|dot\|mermaid]` | Dependency graph export |
-
-#### Scoping & Filtering
-
-```bash
-bv --robot-plan --label backend              # Scope to label's subgraph
-bv --robot-insights --as-of HEAD~30          # Historical point-in-time
-bv --recipe actionable --robot-plan          # Pre-filter: ready to work (no blockers)
-bv --recipe high-impact --robot-triage       # Pre-filter: top PageRank scores
-```
-
-### br Commands for Issue Management
-
-```bash
-br ready              # Show issues ready to work (no blockers)
-br list --status=open # All open issues
-br show <id>          # Full issue details with dependencies
-br create --title="..." --type=task --priority=2
-br update <id> --claim                # atomic: status=in_progress AND assignee=<your name>
-br close <id> --reason="Completed"
-br close <id1> <id2>  # Close multiple issues at once
-br sync --flush-only  # Export DB to JSONL
-```
-
-### Workflow Pattern (canonical — every step is mandatory)
-
-The single workflow contract. Step 0 is also summarized in `SESSION START` at the top of this file; both should be read.
-
-0. **Session start.** `ensure_project` + `register_agent` + `fetch_inbox`, in that order, before triage. Skipping makes you invisible to peers.
-1. **Triage.** `bv --robot-triage` → pick a bead from `recommendations`. Skip beads labeled `requires-owner` unless your work is to prepare artifacts for owner review.
-2. **Claim atomically.** `br update <id> --claim` (sets `status=in_progress` AND `assignee` in one call). `--status=in_progress` alone leaves `assignee` null and peers can't see who owns the work.
-3. **Reserve edit surface.** `file_reservation_paths(project_key="<repo-root>", agent_name=<you>, paths=[...narrowest pattern...], ttl_seconds=3600, exclusive=true, reason="<bead-id>")`. Reserve before editing — not after. Follow RULE 2 for the full lifecycle.
-4. **Announce start.** `send_message(thread_id="<bead-id>", subject="[<bead-id>] Start: <short title>", ack_required=true)`. One thread per bead id, persistent for the bead's lifetime.
-5. **Work.** Implement the task. Reply in-thread on meaningful progress and at handoff points. Handoffs must include the RULE 2 checklist.
-6. **Complete.** `br close <id> --reason "Completed: <one-line summary>"`. Close the bead BEFORE releasing reservations — Beads is the status authority.
-7. **Release reservations.** `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...same patterns...])`. Release only when RULE 2 allows it. Final mail reply: `[<bead-id>] Completed` with summary + commit hash.
-8. **Sync + push.** `br sync --flush-only` to refresh the local `.beads/issues.jsonl` canonical view, then `git add` / `git commit` / `git push` of code changes per `Landing the Plane` below. Bead state itself is local-only and is not pushed; code work is NOT done until `git push` of the code changes succeeds.
-
-**Bead-id conventions.** Mail `thread_id` = `br-###`. Mail subject prefix = `[br-###]`. File reservation `reason` = `br-###`. Commit messages: include `br-###` for traceability.
-
-### Key Concepts
-
-- **Dependencies**: Issues can block other issues. `br ready` shows only unblocked work.
-- **Priority**: P0=critical, P1=high, P2=medium, P3=low, P4=backlog (use numbers 0-4, not words)
-- **Types**: task, bug, feature, epic, chore, docs, question
-- **Blocking**: `br dep add <issue> <depends-on>` to add dependencies
-- **Complexity estimates**: use labels, not time estimates. Apply exactly one of `complexity:s`, `complexity:m`, `complexity:l`, or `complexity:xl` to implementation beads. These mean relative execution complexity and coordination risk, not wall-clock duration.
-- **Work graph**: Beads tracks executable work, status, priority, dependencies, and ownership. Durable project memory belongs in AGENTS.md, README.md, and `docs/`, not permanent pinned/reference beads.
-- **Owner gates**: `requires-owner` means the bead needs explicit owner action or approval. Agents may prepare artifacts for these beads, but must not close them unless the acceptance criteria say agent verification is enough.
-- **Epics**: epics are phase/integration contracts. Treat their `## Success Criteria` as the phase contract, coordinate the child beads, and use `br epic status --json` and `br epic close-eligible` to decide when an epic can close.
-
-### Complexity Labels
-
-Use complexity labels consistently:
-
-- `complexity:s`: small, local change with low coupling and straightforward validation.
-- `complexity:m`: moderate implementation touching a few files or one package boundary; needs focused tests.
-- `complexity:l`: broad feature or cross-package work with meaningful integration risk.
-- `complexity:xl`: security-critical, architecture-defining, or multi-phase work that should be decomposed before implementation.
-
-Do not use time estimates for planning. If a bead is too large to classify clearly, split it or mark it `complexity:xl` and create smaller child beads.
-
-### Session Protocol
-
-See `Landing the Plane` below for the canonical session-completion sequence (sync, push, release reservations, final mail reply).
-
-<!-- end-bv-agent-instructions -->
-
----
-
-## ast-grep vs ripgrep
-
-**Use `ast-grep` when structure matters.** It parses code and matches AST nodes, so results ignore comments/strings, understand syntax, and can **safely rewrite** code.
-
-- Refactors/codemods: rename APIs, change import forms, rewrite call sites or variable kinds.
-- Policy checks: enforce patterns across the repo (`scan` with rules + `test`).
-- Editor/automation: LSP mode; `--json` output for tooling.
-
-**Use `ripgrep` when text is enough.** Fastest way to grep literals/regex across files.
-
-- Recon: find strings, TODOs, log lines, config values, non-code assets.
-- Pre-filter: narrow candidate files before a precise pass.
-
-**Rule of thumb:**
-
-- Need correctness over speed, or you'll **apply changes** → start with `ast-grep`.
-- Need raw speed or you're just **hunting text** → start with `rg`.
-- Often combine: `rg` to shortlist files, then `ast-grep` to match/modify with precision.
-
-**Snippets:**
-
-```sh
-# find structured code (ignores comments/strings)
-ast-grep run -l TypeScript -p 'import $X from "$P"'
-
-# codemod (only real `var` declarations become `let`)
-ast-grep run -l TypeScript -p 'var $A = $B' -r 'let $A = $B' -U
-
-# quick textual hunt
-rg -n 'console\.log\(' -t ts
-
-# combine speed + precision
-rg -l -t ts '@boltwall/' | xargs ast-grep run -l TypeScript -p 'import { $X } from "@boltwall/$P"' --json
-```
-
-**Mental model:**
-
-- Unit of match: `ast-grep` = node; `rg` = line.
-- False positives: `ast-grep` low; `rg` depends on regex.
-- Rewrites: `ast-grep` first-class; `rg` requires ad-hoc sed/awk and risks collateral edits.
-
----
-
-## Morph Warp Grep — AI-Powered Code Search
-
-Use `mcp__morph-mcp__warp_grep` for "how does X work?" discovery across the codebase.
-
-**When to use:**
-
-- You don't know where something lives.
-- You want data flow across multiple files (e.g., header parse → middleware → adapter → invoice → response).
-- You want all touchpoints of a cross-cutting concern (e.g., caveat verification, capability flag handling).
-
-```
-mcp__morph-mcp__warp_grep(
-  repoPath: "<repo-root>",
-  query: "How does dual-scheme challenge emission work end-to-end?"
-)
-```
-
-Warp Grep:
-
-- Expands a natural-language query into multiple search patterns.
-- Runs targeted greps, reads code, follows imports, returns concise snippets with line numbers.
-- Reduces token usage by returning only relevant slices, not entire files.
-
-**When not to use Warp Grep:**
-
-- You already know the function/identifier name → use `rg`.
-- You know the exact file → just open it.
-- You only need a yes/no existence check.
-
-| Scenario | Tool |
-|---|---|
-| "How does dual-scheme challenge emission work?" | `warp_grep` |
-| "Where is `parseAuthenticateHeader` defined?" | `rg` |
-| "Replace `var` with `let`" | `ast-grep` |
-
----
-
-## Common Workflows
-
-Use these compact workflows to avoid coordination drift:
-
-### Pick up and execute a bead
-
-```sh
-mcp__mcp-agent-mail__ensure_project(project_root="<repo-root>")
-mcp__mcp-agent-mail__register_agent(project_key="<repo-root>", name="<agent>")
-mcp__mcp-agent-mail__fetch_inbox(project_key="<repo-root>", agent_name="<agent>")
-bv --robot-triage
-br update <id> --claim --actor <agent>
-```
-
-Then reserve files, send a start message in thread `<id>`, implement, close via `br close`, release reservations, sync beads, commit, and push.
-
-### Run a spec-sensitive protocol change
-
-1. Read the relevant L402 spec section before editing.
-2. Add/adjust conformance fixtures in `@boltwall/test-fixtures`.
-3. Add positive and negative tests for wire behavior.
-4. Record exact spec section citations in commit message and code comments where required.
-5. Validate with lint/typecheck/test/build plus browser import checks if `@boltwall/l402` is affected.
-
-### Resolve reservation conflicts
-
-1. Do not edit conflicting paths.
-2. Notify holder in the bead thread with intended scope.
-3. Re-scope reservations to narrow patterns when possible.
-4. Wait for release/expiry, then reacquire reservations and continue.
+## Agent Coordination And Task Workflow
+
+Use `.agents/skills/boltwall-workflow/SKILL.md` for the full local runbook and
+`.agents/AGENT_MAIL.md` for Agent Mail fallback/troubleshooting. This section is
+the mandatory minimum.
+
+Agent Mail is the coordination channel for agent identity, inboxes, threaded
+updates, file reservations, and handoffs. The local task graph is managed with
+`br` and `bv`.
+
+Mandatory workflow:
+
+1. **Session start:** `ensure_project` -> `register_agent` -> `fetch_inbox`.
+2. **Triage:** `bv --robot-triage` or another `bv --robot-*` command. Never run
+   bare interactive `bv` in automation.
+3. **Claim:** `br update <id> --claim --actor <agent>`. Do not use
+   `--status=in_progress` alone.
+4. **Reserve:** call `file_reservation_paths` for the narrowest exact paths
+   before editing.
+5. **Announce:** send a start note with `thread_id="<task-id>"`, claimed task,
+   reserved paths, intended scope, and validation plan.
+6. **Work:** re-read reserved files, stay in scope, check inbox on meaningful
+   pauses, renew reservations when needed, and do not edit conflicting paths.
+7. **Handoff:** if unfinished, post status, changed/reserved files, validation
+   done, validation still needed, risks/conflicts, and exact next step before
+   releasing reservations.
+8. **Update in-progress task state:** if the work is not ready to land, update
+   task status and post a handoff. Do not close finished work before commit and
+   push.
+9. **Land code:** pull/rebase, `br sync --flush-only`, stage reviewed paths,
+   commit, push, verify clean status.
+10. **Close finished task:** after the code push succeeds, close completed work
+    or update any remaining in-progress task state.
+11. **Release and complete:** release reservations only when no reserved file
+    remains locally modified, then send completion mail with summary,
+    validation, commit hash, and released paths.
+
+If Agent Mail tools are unavailable, preserve the outcomes: stable actor
+identity, explicit reservation-equivalent notes, no overlapping edits, clear
+handoffs, and documented fallback. Missing tool parity is not permission to skip
+coordination.
+
+## Search And Refactor Tools
+
+- Use `rg` for fast text search.
+- Use `ast-grep` when structure matters or when applying codemods.
+- Use Warp Grep only for broad "how does this work?" discovery when available.
+- Avoid ad hoc text rewrites for subtle code changes; keep diffs small and
+  review file-by-file.
 
 ---
 
@@ -642,7 +448,7 @@ Then reserve files, send a start message in thread `<id>`, implement, close via 
 
 ### Mandatory workflow
 
-1. **File issues for remaining work** — open beads (`br create ...`) for anything that needs follow-up.
+1. **File issues for remaining work** — create tracked tasks (`br create ...`) for anything that needs follow-up.
 2. **Verify the validation contract was met.** If any gate is missing, do not push — fix or escalate.
 3. **Run quality gates locally** if code changed:
    ```sh
@@ -651,20 +457,23 @@ Then reserve files, send a start message in thread `<id>`, implement, close via 
    bun run test
    bun run build
    ```
-4. **Update bead status** — close finished work, update in-progress items.
+4. **Update in-progress task status** — if work is not ready to land, record the
+   current state and handoff. Do not close finished work before commit and push.
 5. **PUSH TO REMOTE.** This is mandatory:
    ```sh
    git pull --rebase
-   br sync --flush-only                    # local-only canonical view; `.beads/` is gitignored
+   br sync --flush-only                    # local-only task export; nothing to commit
    git add <staged paths>                  # avoid `git add -A` unless verified clean
    git commit -m "<subject>"               # body covers exit criteria, tests run, spec citations, dep justification, AGPL note
    git push
    git status                              # MUST show "up to date with origin/main"
    ```
-6. **Release file reservations (Mail).**
+6. **Close completed task status** — only after `git push` succeeds. If work
+   remains, leave it open with a current handoff note.
+7. **Release file reservations (Mail).**
    - `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...])`
-7. **Final Mail reply** in the bead thread: `[br-###] Completed` with summary and commit hash.
-8. **Hand off** if work remains: short note describing remaining work and outstanding blockers.
+8. **Final Mail reply** in the task thread with summary and commit hash.
+9. **Hand off** if work remains: short note describing remaining work and outstanding blockers.
 
 ### Critical rules
 
@@ -680,12 +489,12 @@ Then reserve files, send a start message in thread `<id>`, implement, close via 
 If your runtime does not expose exactly the same MCP helper set as Claude Code, follow the same policy outcomes using equivalent tools:
 
 - Use the repository's actual absolute path as the Agent Mail `project_key`.
-- Keep a stable agent identity for a session and include your agent name in Beads `--actor`.
-- Treat file reservations and Beads status as authoritative coordination state.
+- Keep a stable agent identity for a session and include your agent name in `br --actor`.
+- Treat file reservations and task status as authoritative coordination state.
 - Use `bv --robot-*` outputs for triage and avoid interactive modes that block automation.
 - Preserve this file's invariants (spec-first protocol behavior, no destructive actions without explicit owner approval, and mandatory push at session end).
 
-Behavioral compliance matters more than tool-brand parity; if a specific helper is unavailable, document the fallback used in the bead thread.
+Behavioral compliance matters more than tool-brand parity; if a specific helper is unavailable, document the fallback used in the task thread.
 
 ---
 
@@ -693,7 +502,7 @@ Behavioral compliance matters more than tool-brand parity; if a specific helper 
 
 When stuck, escalate before improvising:
 
-- **Spec ambiguity** → document the ambiguity in a comment on the relevant architectural doc (or open the doc if it doesn't exist) and raise it with the owner. Open a bead so the question is tracked.
+- **Spec ambiguity** → document the ambiguity in a comment on the relevant architectural doc (or open the doc if it doesn't exist) and raise it with the owner. Create a tracked task so the question is not lost.
 - **Macaroon library limitation** → use the documented escape hatch (vendored fork at `packages/macaroon/`, `Uint8Array` all the way down).
 - **Real-endpoint test failure** → investigate; do NOT skip the nightly compat workflow.
 - **Anything destructive** (force push, branch delete, file deletion, npm operations) → ask the owner first, every time.
