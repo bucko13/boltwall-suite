@@ -1,1 +1,1 @@
-export {};
+export { expirationCaveat, expirationSatisfier } from "./expiration";

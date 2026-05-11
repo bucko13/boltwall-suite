@@ -12,6 +12,22 @@ macaroon verification, and compatibility helpers land in later beads.
 - `@boltwall/l402/legacy` — legacy LSAT compatibility surface
 - `@boltwall/l402/testing` — fixture/test helpers
 
+## Legacy LSAT migration helpers
+
+The `@boltwall/l402/legacy` subpath contains migration-only helpers for
+existing LSAT-style credentials. New protocol code should use the L402-native
+APIs from the root package.
+
+```ts
+import { expirationCaveat, expirationSatisfier } from "@boltwall/l402/legacy";
+```
+
+`expirationCaveat(unixMs)` and `expirationSatisfier()` preserve the deprecated
+`expiration=<unix-ms>` caveat shape used by older LSAT middleware. Prefer the
+standard `valid-until` caveat and `validUntilSatisfier` for new macaroons. See
+[Migration from legacy boltwall](../../docs/migration-from-boltwall.md) for the
+compatibility boundary.
+
 ## Quick start: parse an L402 challenge
 
 ```ts
