@@ -12,9 +12,10 @@ in Boltwall Suite. This document is the source of truth referenced by AGENTS.md
   amount Lightning can express, and string-input parsing is a small enough
   problem to live as a helper in `@boltwall/internal` under the dependency
   policy.
-- **Ergonomic public helpers:** `sats(n)`, `msats(n)`, `btc(n)` returning
-  `bigint` msat, exported from the smallest package that owns the surface
-  (see "Where helpers live" below).
+- **Ergonomic workspace helpers:** `sats(n)`, `msats(n)`, `btc(n)` returning
+  `bigint` msat, kept in `@boltwall/internal/numeric` for package
+  implementation code. Public package configuration exposes typed `bigint`
+  fields rather than requiring consumers to import conversion helpers.
 - **`number` is forbidden for any money amount that crosses a public package
   boundary.** Internal scratch variables in tight loops may use `number` only
   when bounded and obviously safe; convert at the boundary.
@@ -25,7 +26,7 @@ in Boltwall Suite. This document is the source of truth referenced by AGENTS.md
 
 Lightning amounts are denominated in millisatoshis. The maximum Bitcoin supply
 of 21 000 000 BTC = 2.1 × 10¹⁵ msat is technically below
-`Number.MAX_SAFE_INTEGER` (≈ 9.007 × 10¹⁵), so `number` would fit *individual*
+`Number.MAX_SAFE_INTEGER` (≈ 9.007 × 10¹⁵), so `number` would fit _individual_
 balances. It does not fit safely once you start summing balances, accruing
 fees, dealing with bookkeeping rollups, or accepting third-party amount fields
 that may exceed 21 M BTC for protocol reasons (e.g. test vectors, regtest).
@@ -42,7 +43,7 @@ problems a decimal library solves (precise sub-unit arithmetic, banker's
 rounding, lossless display formatting of decimal user input) do not appear at
 the wire or protocol level.
 
-The two places where non-integer reasoning *might* sneak in are:
+The two places where non-integer reasoning _might_ sneak in are:
 
 1. **Display unit conversion** (msat ↔ sats ↔ BTC) for UI. Always done from
    `bigint` msat → formatted string. Never floats. A 20-line formatter in
@@ -59,12 +60,12 @@ maintenance and supply-chain tail we do not need.
 
 ## Where helpers live
 
-| Surface | Location | Notes |
-|---|---|---|
-| Low-level conversion primitives (string ↔ `bigint`, msat ↔ sats) | `@boltwall/internal/numeric` | Private. No semantic meaning beyond unit math. |
-| `sats(n)`, `msats(n)`, `btc(n)` ergonomic constructors | `@boltwall/l402/pricing` | Public. Protocol-level "this many sats" semantics. Re-exportable by adapters. |
-| Display formatter (`formatSats`, `formatBtc`) | `@boltwall/internal/numeric` | Private. Playground or other consumers read through l402 or middleware re-exports if/when needed. |
-| Input parser (`parseAmount` accepting `"1500 sats"` etc.) | `@boltwall/internal/numeric` | Private. Boundary-only; only Playground/CLI need it. |
+| Surface                                                          | Location                     | Notes                                                                                                                                              |
+| ---------------------------------------------------------------- | ---------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Low-level conversion primitives (string ↔ `bigint`, msat ↔ sats) | `@boltwall/internal/numeric` | Private. No semantic meaning beyond unit math.                                                                                                     |
+| `sats(n)`, `msats(n)`, `btc(n)` ergonomic constructors           | `@boltwall/internal/numeric` | Private workspace helpers for implementation code. Public docs should describe `bigint` msat fields, not ask consumers to import internal helpers. |
+| Display formatter (`formatSats`, `formatBtc`)                    | `@boltwall/internal/numeric` | Private. Playground or other consumers read through l402 or middleware re-exports if/when needed.                                                  |
+| Input parser (`parseAmount` accepting `"1500 sats"` etc.)        | `@boltwall/internal/numeric` | Private. Boundary-only; only Playground/CLI need it.                                                                                               |
 
 Public protocol shapes (e.g. `L402PricingDecision`, `L402GateResult.invoice`,
 `InvoiceRequest.amountMsat`, `BackendCapabilities.minAmountMsat`) carry
@@ -75,7 +76,7 @@ mistakes that actually happen (passing the wrong unit, missing the helper).
 ## Helper signatures (canonical)
 
 ```ts
-// @boltwall/l402/pricing — public
+// @boltwall/internal/numeric — private workspace helper
 export const sats  = (n: number | bigint): bigint => /* * 1000n */ ;
 export const msats = (n: bigint): bigint            => n;
 export const btc   = (n: number | bigint): bigint => /* * 100_000_000_000n */ ;
@@ -171,8 +172,8 @@ system:
 - `@boltwall/internal/numeric` skeleton with `parseAmount`, `formatSats`,
   `formatBtc`, sats↔msats helpers (will be created in Phase 0 alongside the
   `@boltwall/internal` package skeleton, `bw-f4p.5`).
-- Public `sats` / `msats` / `btc` exports in `@boltwall/l402/pricing`
-  (Phase 1 implementation track).
+- Workspace-only `sats` / `msats` / `btc` helpers in
+  `@boltwall/internal/numeric`.
 - BOLT 11 decoder return-type binding to `bigint` msat (`bw-f4p.17` spike).
 
 Spec references:

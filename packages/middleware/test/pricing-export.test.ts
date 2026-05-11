@@ -1,11 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
-import { btc, msats, sats } from "../src/express/index";
+import * as expressExports from "../src/express/index";
 
 describe("express pricing re-export", () => {
-  test("re-exports public l402 pricing helpers", () => {
-    expect(sats(2)).toBe(2_000n);
-    expect(msats(3n)).toBe(3n);
-    expect(btc(1n)).toBe(100_000_000_000n);
+  test("does not expose private workspace pricing helpers", () => {
+    expect("sats" in expressExports).toBe(false);
+    expect("msats" in expressExports).toBe(false);
+    expect("btc" in expressExports).toBe(false);
   });
 });

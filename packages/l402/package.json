@@ -12,10 +12,6 @@
     "./legacy": {
       "types": "./dist/legacy/index.d.ts",
       "import": "./dist/legacy/index.js"
-    },
-    "./pricing": {
-      "types": "./dist/pricing.d.ts",
-      "import": "./dist/pricing.js"
     }
   },
   "files": [

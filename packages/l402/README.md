@@ -6,7 +6,6 @@ Browser-and-Node L402 protocol library for Boltwall Suite.
 
 - `@boltwall/l402` — protocol API
 - `@boltwall/l402/legacy` — legacy LSAT compatibility helpers
-- `@boltwall/l402/pricing` — millisatoshi conversion helpers
 
 ## Macaroon codec boundary
 
