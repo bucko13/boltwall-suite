@@ -28,3 +28,12 @@ test("playground exposes an editable L402 learning workflow", async ({ page }) =
   await expect(page.getByText("HTTP 402. Challenge loaded into the editor.")).toBeVisible();
   await expect(page.getByLabel("Parsed challenge fields").getByText("L402")).toBeVisible();
 });
+
+test("playground reports invalid challenge syntax from the l402 parser", async ({ page }) => {
+  await page.goto("/");
+
+  await page.getByLabel("WWW-Authenticate").fill('Bearer realm="not-l402"');
+
+  await expect(page.getByText("Parser error: scheme-mismatch")).toBeVisible();
+  await expect(page.getByLabel("Authorization")).toHaveValue("");
+});

@@ -13,6 +13,7 @@
     "test:e2e": "playwright test"
   },
   "dependencies": {
+    "@boltwall/l402": "workspace:*",
     "@tailwindcss/postcss": "^4.1.17",
     "next": "^15.5.6",
     "react": "^19.2.0",

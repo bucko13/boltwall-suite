@@ -1,5 +1,10 @@
 "use client";
 
+import {
+  buildAuthorizationHeader,
+  parseAuthenticateHeader,
+  type L402ChallengeFields,
+} from "@boltwall/l402";
 import { useMemo, useState } from "react";
 
 const sampleChallenge =
@@ -7,22 +12,19 @@ const sampleChallenge =
 const samplePreimage = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
 type ParsedChallenge = {
-  scheme: string;
-  macaroon: string;
-  invoice: string;
+  fields: L402ChallengeFields[];
+  error: string | null;
 };
 
-function readQuotedValue(source: string, key: string) {
-  const match = source.match(new RegExp(`${key}="([^"]+)"`));
-  return match?.[1] ?? "";
-}
-
 function parseChallenge(source: string): ParsedChallenge {
-  return {
-    scheme: source.trim().split(/\s+/)[0] ?? "",
-    macaroon: readQuotedValue(source, "macaroon"),
-    invoice: readQuotedValue(source, "invoice"),
-  };
+  try {
+    return { fields: parseAuthenticateHeader(source), error: null };
+  } catch (error) {
+    return {
+      fields: [],
+      error: error instanceof Error ? error.message : "invalid-challenge",
+    };
+  }
 }
 
 export default function HomePage() {
@@ -32,8 +34,15 @@ export default function HomePage() {
   const [requestState, setRequestState] = useState("Ready to request an L402-protected endpoint.");
 
   const parsed = useMemo(() => parseChallenge(challenge), [challenge]);
+  const activeChallenge = parsed.fields[0];
   const token =
-    parsed.macaroon && preimage ? `${parsed.scheme} ${parsed.macaroon}:${preimage}` : "";
+    activeChallenge && preimage
+      ? buildAuthorizationHeader({
+          macaroons: activeChallenge.macaroon,
+          preimage,
+          legacy: activeChallenge.scheme === "LSAT",
+        })
+      : "";
 
   async function requestEndpoint() {
     setRequestState("Requesting endpoint...");
@@ -130,20 +139,29 @@ export default function HomePage() {
 }
 
 function ParsedRows({ parsed }: { parsed: ParsedChallenge }) {
+  const first = parsed.fields[0];
   const rows = [
-    ["scheme", parsed.scheme || "missing"],
-    ["macaroon", parsed.macaroon || "missing"],
-    ["invoice", parsed.invoice || "missing"],
+    ["scheme", first?.scheme ?? "missing"],
+    ["macaroon", first?.macaroon ?? "missing"],
+    ["invoice", first?.invoice ?? "missing"],
+    ["challenges", parsed.fields.length.toString()],
   ];
 
   return (
-    <dl className="parsed-grid" aria-label="Parsed challenge fields">
-      {rows.map(([label, value]) => (
-        <div key={label}>
-          <dt>{label}</dt>
-          <dd>{value}</dd>
-        </div>
-      ))}
-    </dl>
+    <>
+      <dl className="parsed-grid" aria-label="Parsed challenge fields">
+        {rows.map(([label, value]) => (
+          <div key={label}>
+            <dt>{label}</dt>
+            <dd>{value}</dd>
+          </div>
+        ))}
+      </dl>
+      {parsed.error ? (
+        <p className="parser-error" role="status">
+          Parser error: {parsed.error}
+        </p>
+      ) : null}
+    </>
   );
 }

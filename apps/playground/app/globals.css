@@ -217,6 +217,15 @@ textarea[readonly] {
   overflow-wrap: anywhere;
 }
 
+.parser-error {
+  border-left: 4px solid var(--coral);
+  padding-left: 10px;
+  color: var(--coral);
+  font-size: 0.92rem;
+  font-weight: 800;
+  line-height: 1.45;
+}
+
 .live-panel {
   border-left: 8px solid var(--coral);
 }
