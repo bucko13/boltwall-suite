@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 import {
   BOLT11_SPEC_EXAMPLES,
   malformedIdentifierFixtures,
+  macaroonCodecFixtures,
   multiMacaroonAuthorizationFixtures,
   specChallengeFixtures,
   specIdentifierFixtures,
@@ -30,6 +31,9 @@ const goodPreimageFixture = specPreimageFixtures.find(
 const badPreimageFixture = specPreimageFixtures.find(
   (fixture) => fixture.name === "near-miss-rejects",
 );
+const macaroonFixture = macaroonCodecFixtures.find(
+  (fixture) => fixture.name === "v0-identifier-standard-caveats",
+);
 
 if (
   challengeFixture === undefined ||
@@ -42,7 +46,8 @@ if (
   malformedIdentifierFixture.expected.ok !== false ||
   invoiceFixture === undefined ||
   goodPreimageFixture === undefined ||
-  badPreimageFixture === undefined
+  badPreimageFixture === undefined ||
+  macaroonFixture === undefined
 ) {
   throw new Error("missing-browser-import-fixtures");
 }
@@ -69,6 +74,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
   const result = await page.evaluate(
     async (fixtures) => {
       const l402 = await import("/index.js");
+      const macaroonCodec = await import("/internal/macaroon.js");
 
       const challenge = l402.parseAuthenticateHeader(fixtures.challenge.header);
       const authorization = l402.parseAuthorizationHeader(
@@ -85,6 +91,21 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         preimage: fixtures.badPreimage.preimageHex,
       });
       const caveat = l402.parseCaveat("services=pokedex:0");
+      const rawMacaroon = macaroonCodec.mintRaw({
+        rootKey: hexToBytes(fixtures.macaroon.rootKeyHex),
+        identifier: hexToBytes(fixtures.macaroon.identifierHex),
+        caveats: fixtures.macaroon.caveatHexes.map(hexToBytes),
+      });
+      const encodedMacaroon = macaroonCodec.encodeRaw(rawMacaroon);
+      const decodedMacaroon = macaroonCodec.decodeRaw(encodedMacaroon);
+      const macaroonVerified = macaroonCodec.verifyRawSignature({
+        macaroon: decodedMacaroon,
+        rootKey: hexToBytes(fixtures.macaroon.rootKeyHex),
+      });
+      const attenuatedMacaroon = macaroonCodec.addFirstPartyCaveat(
+        decodedMacaroon,
+        new TextEncoder().encode("route=/pokemon/*"),
+      );
 
       let invalidIdentifierReason = "";
       try {
@@ -102,6 +123,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           decodeBolt11Invoice: typeof l402.decodeBolt11Invoice,
           verifyPreimage: typeof l402.verifyPreimage,
           parseCaveat: typeof l402.parseCaveat,
+          mintRaw: typeof macaroonCodec.mintRaw,
         },
         challenge,
         authorization,
@@ -120,7 +142,21 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         preimageOk,
         preimageRejected,
         caveat,
+        macaroon: {
+          caveatCount: decodedMacaroon.caveats.length,
+          signatureLength: decodedMacaroon.signature.length,
+          verified: macaroonVerified,
+          attenuatedCaveatCount: attenuatedMacaroon.caveats.length,
+        },
       };
+
+      function hexToBytes(hex: string): Uint8Array {
+        const out = new Uint8Array(hex.length / 2);
+        for (let i = 0; i < out.length; i++) {
+          out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+        }
+        return out;
+      }
 
       function bytesToHex(bytes: Uint8Array): string {
         return Array.from(bytes, (byte) =>
@@ -136,6 +172,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
       invoice: invoiceFixture,
       goodPreimage: goodPreimageFixture,
       badPreimage: badPreimageFixture,
+      macaroon: macaroonFixture,
     },
   );
 
@@ -146,6 +183,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     decodeBolt11Invoice: "function",
     verifyPreimage: "function",
     parseCaveat: "function",
+    mintRaw: "function",
   });
 
   expect(result.challenge).toEqual(challengeFixture.expected.fields);
@@ -164,6 +202,12 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
   expect(result.preimageOk).toBe(true);
   expect(result.preimageRejected).toBe(false);
   expect(result.caveat).toEqual({ condition: "services", value: "pokedex:0" });
+  expect(result.macaroon).toEqual({
+    caveatCount: 2,
+    signatureLength: 32,
+    verified: true,
+    attenuatedCaveatCount: 3,
+  });
 
   expect(consoleErrors).toEqual([]);
   expect(pageErrors).toEqual([]);

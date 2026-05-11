@@ -36,6 +36,8 @@ export {
 
 export { parseAuthorizationHeader, type L402CredentialFields } from "./parse-authorization-header";
 
+export { InMemoryRootKeyStore, type RootKeyStore } from "./root-key-store";
+
 export { verifyPreimage, type VerifyPreimageArgs } from "./verify-preimage";
 
 export {

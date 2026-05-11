@@ -5,3 +5,4 @@ export * from "./bolt11";
 export * from "./identifiers";
 export * from "./caveats";
 export * from "./attenuation-chains";
+export * from "./macaroons";

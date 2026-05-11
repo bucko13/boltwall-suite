@@ -39,7 +39,8 @@
   },
   "dependencies": {
     "@noble/hashes": "^2.2.0",
-    "light-bolt11-decoder": "^3.2.0"
+    "light-bolt11-decoder": "^3.2.0",
+    "macaroon": "3.0.4"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
