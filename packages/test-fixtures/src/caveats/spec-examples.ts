@@ -17,6 +17,23 @@ export interface CaveatFixture {
       };
 }
 
+export interface UnknownCaveatVerificationFixture {
+  name: string;
+  source: string;
+  rootKeyHex: string;
+  tokenIdHex: string;
+  paymentHashHex: string;
+  preimageHex: string;
+  knownCaveat: {
+    condition: "valid-until";
+    value: string;
+  };
+  unknownCaveat: {
+    condition: string;
+    value: string;
+  };
+}
+
 export const specCaveatFixtures: CaveatFixture[] = [
   {
     name: "services-single",
@@ -97,6 +114,23 @@ export const specCaveatFixtures: CaveatFixture[] = [
     },
   },
 ];
+
+export const unknownCaveatVerificationFixture: UnknownCaveatVerificationFixture = {
+  name: "unknown-caveat-skip-with-known-valid-until",
+  source: "L402 macaroon-spec.md §Verification / Step 3: Caveat Verification",
+  rootKeyHex: "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+  tokenIdHex: "2222222222222222222222222222222222222222222222222222222222222222",
+  paymentHashHex: "66687aadf862bd776c8fc18b8e9f8e20089714856ee233b3902a591d0d5f2925",
+  preimageHex: "0000000000000000000000000000000000000000000000000000000000000000",
+  knownCaveat: {
+    condition: "valid-until",
+    value: "2030-01-01T00:00:00Z",
+  },
+  unknownCaveat: {
+    condition: "experimental-future-feature",
+    value: "quantum-mode",
+  },
+};
 
 export const malformedCaveatFixtures: CaveatFixture[] = [
   {
