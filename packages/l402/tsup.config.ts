@@ -3,10 +3,8 @@ import { defineConfig } from "tsup";
 export default defineConfig({
   entry: [
     "src/index.ts",
-    "src/wallet/index.ts",
     "src/legacy/index.ts",
     "src/pricing.ts",
-    "src/testing/index.ts",
     "src/internal/macaroon.ts",
   ],
   format: ["esm"],
