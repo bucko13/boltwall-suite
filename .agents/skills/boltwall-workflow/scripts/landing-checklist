@@ -1,0 +1,41 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: landing-checklist [--dry-run] [--task <id>] [--help]
+
+Print and partially verify the Boltwall landing sequence. This script does not
+commit, push, close tasks, or release Agent Mail reservations.
+USAGE
+}
+
+task="<task-id>"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) shift ;;
+    --task) task="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+echo "VERIFIED: git status"
+git status --short --branch
+echo
+echo "REQUIRED BEFORE PUSH:"
+echo "1. Verify validation contract."
+echo "2. Review every staged path and reserved file."
+echo "3. git pull --rebase"
+echo "4. br sync --flush-only"
+echo "5. git add <reviewed paths>"
+echo "6. git commit -m \"<subject>\""
+echo "7. git push"
+echo "8. git status --short --branch"
+echo
+echo "REQUIRED AFTER SUCCESSFUL PUSH:"
+echo "br close $task --reason \"Completed: <summary>\""
+echo "Before releasing reservations, verify no reserved file remains locally modified."
+echo "UNVERIFIED MCP: release_file_reservations(...)"
+echo "UNVERIFIED MCP: send_message(thread_id=\"$task\", subject=\"[$task] Completed\", body_md=\"summary + validation + commit hash + released paths\")"

@@ -1,0 +1,44 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: start-session [--dry-run] [--repo <path>] [--agent <name>]
+
+Print the mandatory Boltwall session-start sequence. This script does not call
+MCP Agent Mail, so Agent Mail steps are marked UNVERIFIED.
+
+Options:
+  --dry-run       Print checks and required calls without mutating anything.
+  --repo <path>   Repository root. Defaults to current directory.
+  --agent <name>  Agent name to show in required calls.
+  --help          Show this help.
+USAGE
+}
+
+repo="$(pwd)"
+agent="<agent>"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) shift ;;
+    --repo) repo="$2"; shift 2 ;;
+    --agent) agent="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+echo "VERIFIED: current directory: $(pwd)"
+git status --short --branch
+echo
+echo "UNVERIFIED MCP REQUIRED before triage or edits:"
+echo "1. ensure_project(human_key=\"$repo\")"
+echo "2. register_agent(project_key=\"$repo\", agent_name=\"$agent\")"
+echo "3. fetch_inbox(project_key=\"$repo\", agent_name=\"$agent\")"
+echo
+echo "NEXT VERIFIED/LOCAL COMMANDS after MCP inbox is handled:"
+echo "bv --robot-triage"
+echo "br ready --json"
+echo
+echo "Do not edit files until Agent Mail startup, task claim, reservation, and start note are complete."

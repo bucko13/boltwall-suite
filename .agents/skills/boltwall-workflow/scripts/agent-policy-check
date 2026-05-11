@@ -1,0 +1,51 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: agent-policy-check [--help]
+
+Check that AGENTS.md still contains required invariant phrases. This is a
+read-only heuristic, not a replacement for policy review.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+file="AGENTS.md"
+[ -f "$file" ] || { echo "FAIL: AGENTS.md not found in current directory" >&2; exit 1; }
+
+patterns='ensure_project
+register_agent
+fetch_inbox
+bv --robot
+--claim --actor
+file_reservation_paths
+git push
+L402 SPEC COMPLIANCE
+owner explicitly gives the exact command
+bun.lock
+Barrel Export Discipline
+AGPL Isolation
+constant-time
+bolt11 amount
+docs/testing.md'
+
+fail=0
+while IFS= read -r pattern; do
+  if rg -q --fixed-strings -- "$pattern" "$file"; then
+    echo "PASS: $pattern"
+  else
+    echo "FAIL: missing $pattern"
+    fail=1
+  fi
+done <<EOF
+$patterns
+EOF
+
+exit "$fail"

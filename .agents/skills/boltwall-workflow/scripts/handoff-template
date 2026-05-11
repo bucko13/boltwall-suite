@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: handoff-template [--task <id>] [--help]
+
+Print the required handoff template. No files are created or modified.
+USAGE
+}
+
+task="<task-id>"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --task) task="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+cat <<EOF
+[$task] Handoff
+
+Status:
+Files changed or reserved:
+Validation already run:
+Validation still needed:
+Known risks or conflicts:
+Exact next step:
+
+UNVERIFIED MCP REQUIRED:
+- Send this in thread_id="$task" before releasing reservations.
+- Release reservations only if no reserved file remains locally modified or ownership is clearly handed off.
+EOF

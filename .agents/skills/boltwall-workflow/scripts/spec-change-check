@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: spec-change-check [--dry-run] [--help]
+
+Detect likely protocol-sensitive changed paths from git diff names and print
+the required spec workflow. No files are created or modified.
+USAGE
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) shift ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+changed="$(git diff --name-only HEAD || true)"
+echo "VERIFIED: changed paths from git diff --name-only HEAD"
+printf '%s\n' "$changed"
+echo
+if printf '%s\n' "$changed" | rg -q '(^packages/l402/|^packages/test-fixtures/|l402|lsat|macaroon|caveat|satisfier|WWW-Authenticate|Authorization)'; then
+  echo "PROTOCOL-SENSITIVE PATHS DETECTED."
+  echo "Required before editing/landing:"
+  echo "- Read live L402/macaroon/agent spec section governing the behavior."
+  echo "- Record exact spec citation in change record."
+  echo "- Check fixture and browser-import impact."
+  echo "- Use .agents/skills/l402-protocol-work/SKILL.md."
+else
+  echo "No obvious protocol-sensitive changed paths detected."
+  echo "This is a heuristic, not proof. If behavior touches protocol surface, run the protocol workflow anyway."
+fi

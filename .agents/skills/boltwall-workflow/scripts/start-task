@@ -1,0 +1,50 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: start-task --task <id> --agent <name> --paths <path[,path...]> [--repo <path>] [--dry-run]
+
+Print the mandatory claim/reserve/announce sequence for a task. This script does
+not call MCP Agent Mail, so reservation and message steps are marked UNVERIFIED.
+
+Options:
+  --task <id>     Task id.
+  --agent <name>  Agent name.
+  --paths <list>  Comma-separated path list to reserve.
+  --repo <path>   Repository root. Defaults to current directory.
+  --dry-run       Print only. This is the only supported mode.
+  --help          Show this help.
+USAGE
+}
+
+repo="$(pwd)"
+task=""
+agent=""
+paths=""
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --dry-run) shift ;;
+    --task) task="$2"; shift 2 ;;
+    --agent) agent="$2"; shift 2 ;;
+    --paths) paths="$2"; shift 2 ;;
+    --repo) repo="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+[ -n "$task" ] || { echo "--task is required" >&2; usage >&2; exit 2; }
+[ -n "$agent" ] || { echo "--agent is required" >&2; usage >&2; exit 2; }
+[ -n "$paths" ] || { echo "--paths is required" >&2; usage >&2; exit 2; }
+paths_json="[\"$(printf '%s' "$paths" | sed 's/,/\", \"/g')\"]"
+
+echo "LOCAL CLAIM COMMAND:"
+echo "br update $task --claim --actor $agent"
+echo
+echo "UNVERIFIED MCP REQUIRED before editing:"
+echo "file_reservation_paths(project_key=\"$repo\", agent_name=\"$agent\", paths=$paths_json, ttl_seconds=3600, exclusive=true, reason=\"$task\")"
+echo "send_message(project_key=\"$repo\", sender_name=\"$agent\", thread_id=\"$task\", subject=\"[$task] Start: <summary>\", body_md=\"Claimed $task. Reserved: $paths. Scope: <scope>. Validation: <plan>.\")"
+echo
+echo "After the reservation is granted, re-read reserved files before editing."

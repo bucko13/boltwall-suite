@@ -1,0 +1,35 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: validate-contract [--task <id>] [--help]
+
+Print the validation-contract checklist for a task. No files are created or
+modified.
+USAGE
+}
+
+task="<task-id>"
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --task) task="$2"; shift 2 ;;
+    --help|-h) usage; exit 0 ;;
+    *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
+  esac
+done
+
+cat <<EOF
+Validation contract for $task:
+
+[ ] Task exit criteria are known.
+[ ] Test expectations from docs/testing.md are known.
+[ ] Security boundaries from docs/security-boundaries.md are checked if relevant.
+[ ] Code quality/public API expectations are known.
+[ ] Relevant docs/README material has been read.
+[ ] Protocol work has exact live spec section citations, if applicable.
+[ ] Required validation commands are identified before implementation.
+
+If any item is unknown or ambiguous, stop and raise a blocker before editing.
+EOF

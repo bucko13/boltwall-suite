@@ -80,8 +80,14 @@ tls.cert
 # Plans (per-owner: implementation plan documents are local-only)
 plans/
 
-# Agent local-only state and repo-local skill/config overlays
-.agents/
+# Agent local-only runtime state. Repo-local skills are tracked.
+.agents/*
+!.agents/skills/
+.agents/skills/*
+!.agents/skills/boltwall-workflow/
+!.agents/skills/boltwall-workflow/**
+!.agents/skills/l402-protocol-work/
+!.agents/skills/l402-protocol-work/**
 .claude/
 
 # bv (beads viewer) local config and caches

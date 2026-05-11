@@ -8,7 +8,7 @@ This file is the operational contract for AI agents working in this repository. 
 
 The very first actions in any new session, in this exact order, before triage or claim:
 
-1. `mcp__mcp-agent-mail__ensure_project` (`project_root=<absolute path to this repository>`).
+1. `mcp__mcp-agent-mail__ensure_project` (`human_key=<absolute path to this repository>`).
 2. `mcp__mcp-agent-mail__register_agent` (same `project_key`, stable `agent_name`).
 3. `mcp__mcp-agent-mail__fetch_inbox` — handle anything addressed to you first.
 4. THEN `bv --robot-triage` to pick a task.
@@ -218,6 +218,7 @@ Hard triggers stay in this file. Longer reference material lives in focused docs
 | public exports, JSDoc, generated docs, or compatibility notes | `docs/api-docs.md` |
 | external dependency additions or shared utility placement | `docs/dependency-policy.md` |
 | secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
+| playground UI, visual direction, or demo flow ergonomics | `docs/playground-visual-concepts.md` and `docs/testing.md` |
 | L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
 | startup, reservations, handoff, close, commit, push, or release sequence | `.agents/skills/boltwall-workflow/SKILL.md` |
 
