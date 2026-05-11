@@ -121,6 +121,8 @@ The following files are shared write surfaces and must not be held casually:
 - GitHub workflow files
 - generated public API/config surfaces used across packages
 
+Build output directories (e.g. `apps/playground/.next`, `packages/*/dist`) are **not** coordination surfaces. They are disposable artifacts. Do not reserve them, do not coordinate writes to them. The playground `build` script clears `.next` before every production build — agents never need to manage it.
+
 For shared write surfaces, prefer deferring the change to phase-complete/reconcile work. If immediate editing is required, the reservation must cover the entire short critical section:
 
 `reserve -> re-read -> edit -> commit -> release`

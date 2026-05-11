@@ -1,39 +1,10 @@
 import { expect, test } from "@playwright/test";
 
-test("playground exposes an editable L402 learning workflow", async ({ page }) => {
-  await page.route("**/api/protected/pokedex", async (route) => {
-    await route.fulfill({
-      status: 402,
-      headers: {
-        "www-authenticate":
-          'L402 macaroon="AgEDbHRuYndhbGwCCm5ld19jaGFsbGVuZ2U=", invoice="lnbc2500n1ptest"',
-      },
-      body: JSON.stringify({ error: "payment required" }),
-    });
-  });
-
+// Home page is now the design-system landing page (bw-0dw.1).
+// Full workbench panels land in bw-0dw.2+.
+test("home page renders and links to /design", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "L402 playground" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Challenge" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Credential" })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Protected endpoint" })).toBeVisible();
-
-  await expect(page.getByLabel("Parsed challenge fields").getByText("LSAT")).toBeVisible();
-
-  await page.getByLabel("Preimage").fill("abcdef");
-  await expect(page.getByLabel("Authorization")).toContainText(":abcdef");
-
-  await page.getByRole("button", { name: "Request endpoint" }).click();
-  await expect(page.getByText("HTTP 402. Challenge loaded into the editor.")).toBeVisible();
-  await expect(page.getByLabel("Parsed challenge fields").getByText("L402")).toBeVisible();
-});
-
-test("playground reports invalid challenge syntax from the l402 parser", async ({ page }) => {
-  await page.goto("/");
-
-  await page.getByLabel("WWW-Authenticate").fill('Bearer realm="not-l402"');
-
-  await expect(page.getByText("Parser error: scheme-mismatch")).toBeVisible();
-  await expect(page.getByLabel("Authorization")).toHaveValue("");
+  await expect(page.getByRole("heading", { name: "playground" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Open /design" })).toBeVisible();
 });
