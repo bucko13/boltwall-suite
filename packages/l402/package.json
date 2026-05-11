@@ -9,10 +9,6 @@
       "types": "./dist/index.d.ts",
       "import": "./dist/index.js"
     },
-    "./wallet": {
-      "types": "./dist/wallet/index.d.ts",
-      "import": "./dist/wallet/index.js"
-    },
     "./legacy": {
       "types": "./dist/legacy/index.d.ts",
       "import": "./dist/legacy/index.js"
@@ -20,10 +16,6 @@
     "./pricing": {
       "types": "./dist/pricing.d.ts",
       "import": "./dist/pricing.js"
-    },
-    "./testing": {
-      "types": "./dist/testing/index.d.ts",
-      "import": "./dist/testing/index.js"
     }
   },
   "files": [
