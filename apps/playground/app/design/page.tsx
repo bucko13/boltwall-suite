@@ -3,6 +3,10 @@
 import type { CSSProperties, ReactNode } from "react";
 
 import { BigBlob } from "../../components/ui/big-blob";
+import {
+  MacaroonStripe,
+  type MacaroonSegments,
+} from "../../components/ui/macaroon-stripe";
 import { CaveatPill } from "../../components/ui/caveat-pill";
 import { Cell } from "../../components/ui/cell";
 import { Chip } from "../../components/ui/chip";
@@ -112,6 +116,37 @@ function PrimitiveRow({
     </div>
   );
 }
+
+function hexToBytes(hex: string): Uint8Array {
+  const bytes = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < bytes.length; i++) {
+    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return bytes;
+}
+
+// Fixture from @boltwall/test-fixtures macaroonCodecFixtures[1]
+const DEMO_SEGMENTS: MacaroonSegments = {
+  identifier: hexToBytes(
+    "0000aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaabbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  ),
+  location: "lsat.boltwall.io",
+  caveats: [
+    {
+      raw: hexToBytes("73657276696365733d706f6b656465783a30"),
+      condition: "services",
+      value: "pokedex:0",
+    },
+    {
+      raw: hexToBytes("706f6b656465785f6361706162696c69746965733d72656164"),
+      condition: "pokedex_capabilities",
+      value: "read",
+    },
+  ],
+  signature: hexToBytes(
+    "7d9c1332faaddecafe9999cafedeadbeef5566770088aabb1122ccdd33440055",
+  ),
+};
 
 const STATUS_STATES: StatusPillState[] = [
   "idle",
@@ -346,7 +381,14 @@ export default function DesignPage() {
         </PrimitiveRow>
       </Section>
 
-      <Section kicker="03" title="Composite — Validate a token">
+      <Section kicker="03" title="MacaroonStripe">
+        <p style={{ color: "var(--color-dim)", fontSize: "var(--size-12)", marginBottom: 16 }}>
+          4-segment macaroon visualization. Click a segment to reveal raw bytes.
+        </p>
+        <MacaroonStripe segments={DEMO_SEGMENTS} />
+      </Section>
+
+      <Section kicker="04" title="Composite — Validate a token">
         <ValidateComposite />
       </Section>
     </main>
