@@ -26,6 +26,17 @@ assertBackendSupports(backend, { hodl: true });
 - `@boltwall/adapters/btcpay`
 - `@boltwall/adapters/testing`
 
+## Testing adapter
+
+`@boltwall/adapters/testing` exports `MockAdapter`, a deterministic in-memory
+backend for middleware, proxy, and playground tests. It advertises the full
+capability surface and lets tests drive invoice state directly with `settle`,
+`expire`, `cancelInvoice`, and `settleHodlInvoice`.
+
+The mock returns placeholder `mockbolt11_...` payment request strings rather
+than real BOLT 11 invoices. Tests that need real invoice decoding should use
+fixtures from `@boltwall/l402` or a concrete backend adapter.
+
 ## Notes
 
 - There is intentionally no root export for concrete adapter classes. Consumers
