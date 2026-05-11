@@ -17,10 +17,14 @@
     "./header-grammar": {
       "types": "./dist/header-grammar.d.ts",
       "import": "./dist/header-grammar.js"
+    },
+    "./timing-safe-equal": {
+      "types": "./dist/timing-safe-equal.d.ts",
+      "import": "./dist/timing-safe-equal.js"
     }
   },
   "scripts": {
-    "build": "bunx --bun tsup src/index.ts src/numeric.ts src/header-grammar.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
+    "build": "bunx --bun tsup src/index.ts src/numeric.ts src/header-grammar.ts src/timing-safe-equal.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
     "test": "bun test"

@@ -1,3 +1,4 @@
+import { timingSafeEqual } from "@boltwall/internal";
 import { sha256 } from "@noble/hashes/sha2.js";
 
 const PAYMENT_HASH_LENGTH = 32;
@@ -48,28 +49,6 @@ function normalizeBytes32(value: Bytes32Input, label: string): Uint8Array {
 }
 
 /**
- * Constant-time `Uint8Array` equality. Lengths are public information per
- * standard timing-safe comparison practice and are checked first; the
- * byte-level comparison runs in time independent of which (if any) byte
- * differs first.
- *
- * TODO(bw-1dl.1, Phase 2): replace with the dedicated
- * `@boltwall/internal/timing-safe-equal.ts` helper when it lands. Inline
- * here for Phase 1 per the bw-b63.7 acceptance criteria.
- */
-function timingSafeEqualBytes(a: Uint8Array, b: Uint8Array): boolean {
-  if (a.length !== b.length) {
-    return false;
-  }
-  let diff = 0;
-  for (let i = 0; i < a.length; i++) {
-    // Force read of every byte; bitwise OR accumulates without short-circuit.
-    diff |= (a[i] ?? 0) ^ (b[i] ?? 0);
-  }
-  return diff === 0;
-}
-
-/**
  * Verify that a Lightning payment preimage hashes to the macaroon's
  * `payment_hash` — i.e. that the bearer of this credential paid the
  * invoice the macaroon was minted against.
@@ -104,5 +83,5 @@ export function verifyPreimage(args: VerifyPreimageArgs): boolean {
   }
 
   const computed = sha256(preimage);
-  return timingSafeEqualBytes(computed, paymentHash);
+  return timingSafeEqual(computed, paymentHash);
 }
