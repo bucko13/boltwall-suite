@@ -2,13 +2,15 @@ import { LogoBeaker } from "./logo-beaker";
 import { ThemeToggle } from "./theme-toggle";
 
 const PANEL_LINKS = [
+  { label: "signing key", href: "#" },
   { label: "from invoice", href: "#" },
   { label: "from challenge", href: "#" },
   { label: "parse token", href: "#" },
-  { label: "validate", href: "#" },
-  { label: "satisfy", href: "#" },
   { label: "caveats", href: "#" },
   { label: "expiration", href: "#" },
+  { label: "validate", href: "#" },
+  { label: "satisfy", href: "#" },
+  { label: "demo", href: "#" },
 ];
 
 const META_LINKS = [

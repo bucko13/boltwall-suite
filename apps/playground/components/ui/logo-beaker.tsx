@@ -19,6 +19,7 @@ export function LogoBeaker({
       strokeLinecap="round"
       strokeLinejoin="round"
       aria-hidden="true"
+      data-testid="beaker-logo"
       {...rest}
     >
       {/* Mouth */}
