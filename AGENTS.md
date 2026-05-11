@@ -36,6 +36,10 @@ When instructions conflict, apply this order:
 Skills and docs explain how to execute the policy; they do not weaken or replace
 the hard rules in this file.
 
+For protocol semantics, the live L402 protocol, macaroon, and agent specs are
+authoritative unless the owner explicitly documents an intentional divergence in
+this repository.
+
 ## Skill Discovery Index
 
 Use local skills when available, but keep this file's mandatory checks in view:

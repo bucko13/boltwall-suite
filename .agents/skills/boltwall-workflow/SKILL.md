@@ -124,8 +124,9 @@ handoff must include:
 - known risks or conflicts
 - exact next step
 
-Do not release a reservation while reserved files remain locally modified unless
-you first remove your local edit or clearly hand off ownership.
+Do not release a reservation while reserved files remain locally modified. If you
+cannot finish and commit now, either keep the reservation and post a handoff, or
+remove your local edit before releasing.
 
 ## Close And Land
 
