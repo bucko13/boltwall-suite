@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
 
 import { Nav } from "../components/ui/nav";
@@ -40,10 +41,12 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
       </head>
       <body>
-        <ThemeProvider>
-          <Nav />
-          {children}
-        </ThemeProvider>
+        <NuqsAdapter>
+          <ThemeProvider>
+            <Nav />
+            {children}
+          </ThemeProvider>
+        </NuqsAdapter>
       </body>
     </html>
   );
