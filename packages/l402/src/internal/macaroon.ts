@@ -1,11 +1,14 @@
+import { timingSafeEqual } from "@boltwall/internal";
 import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
-import { timingSafeEqual } from "@boltwall/internal";
 import { importMacaroon } from "macaroon";
 
 const ROOT_KEY_LENGTH = 32;
 const IDENTIFIER_V0_LENGTH = 66;
 const SIGNATURE_LENGTH = 32;
+const FIELD_EOS = 0;
+const FIELD_IDENTIFIER = 2;
+const FIELD_SIGNATURE = 6;
 
 export interface RawMacaroon {
   identifier: Uint8Array;
@@ -14,23 +17,13 @@ export interface RawMacaroon {
 }
 
 export function decodeRaw(macaroonB64: string): RawMacaroon {
-  const macaroon = normalizeImportedMacaroon(
-    importMacaroon(base64ToBytes(macaroonB64)),
-  );
+  const macaroon = normalizeImportedMacaroon(importMacaroon(base64ToBytes(macaroonB64)));
   return rawFromLibraryMacaroon(macaroon);
 }
 
 export function encodeRaw(raw: RawMacaroon): string {
   assertRawMacaroon(raw);
-  const macaroon = normalizeImportedMacaroon(
-    importMacaroon({
-      v: 2,
-      i64: bytesToBase64(raw.identifier),
-      s64: bytesToBase64(raw.signature),
-      c: raw.caveats.map((caveat) => ({ i64: bytesToBase64(caveat) })),
-    }),
-  );
-  return bytesToBase64(macaroon.exportBinary());
+  return bytesToBase64(encodeBinaryV2(raw));
 }
 
 export function mintRaw(args: {
@@ -48,24 +41,14 @@ export function mintRaw(args: {
   };
 }
 
-export function verifyRawSignature(args: {
-  macaroon: RawMacaroon;
-  rootKey: Uint8Array;
-}): boolean {
+export function verifyRawSignature(args: { macaroon: RawMacaroon; rootKey: Uint8Array }): boolean {
   assertLength(args.rootKey, ROOT_KEY_LENGTH, "rootKey");
   assertRawMacaroon(args.macaroon);
-  const expected = computeSignature(
-    args.rootKey,
-    args.macaroon.identifier,
-    args.macaroon.caveats,
-  );
+  const expected = computeSignature(args.rootKey, args.macaroon.identifier, args.macaroon.caveats);
   return timingSafeEqual(expected, args.macaroon.signature);
 }
 
-export function addFirstPartyCaveat(
-  macaroon: RawMacaroon,
-  caveat: Uint8Array,
-): RawMacaroon {
+export function addFirstPartyCaveat(macaroon: RawMacaroon, caveat: Uint8Array): RawMacaroon {
   assertRawMacaroon(macaroon);
   const nextCaveat = copyBytes(caveat);
   return {
@@ -95,9 +78,7 @@ function rawFromLibraryMacaroon(macaroon: {
   return raw;
 }
 
-function normalizeImportedMacaroon(
-  macaroon: ReturnType<typeof importMacaroon>,
-): {
+function normalizeImportedMacaroon(macaroon: ReturnType<typeof importMacaroon>): {
   caveats: Array<{ identifier: Uint8Array; vid?: Uint8Array }>;
   identifier: Uint8Array;
   signature: Uint8Array;
@@ -129,6 +110,51 @@ function signNext(previousSignature: Uint8Array, caveat: Uint8Array): Uint8Array
   return copyBytes(hmac(sha256, previousSignature, caveat));
 }
 
+function encodeBinaryV2(raw: RawMacaroon): Uint8Array {
+  const writer = new BinaryWriter(binaryV2Length(raw));
+  // L402 macaroon-spec.md §Serialization Formats / Macaroon V2 Binary Format:
+  // L402 uses V2 binary macaroons. The upstream macaroon library encodes the
+  // caveat id using the same identifier field tag used by gopkg.in/macaroon.v2.
+  writer.byte(2);
+  writer.field(FIELD_IDENTIFIER, raw.identifier);
+  writer.byte(FIELD_EOS);
+  for (const caveat of raw.caveats) {
+    writer.field(FIELD_IDENTIFIER, caveat);
+    writer.byte(FIELD_EOS);
+  }
+  writer.byte(FIELD_EOS);
+  writer.field(FIELD_SIGNATURE, raw.signature);
+  return writer.bytes;
+}
+
+function binaryV2Length(raw: RawMacaroon): number {
+  let length = 1;
+  length += fieldLength(raw.identifier);
+  length += 1;
+  for (const caveat of raw.caveats) {
+    length += fieldLength(caveat);
+    length += 1;
+  }
+  length += 1;
+  length += fieldLength(raw.signature);
+  return length;
+}
+
+function fieldLength(bytes: Uint8Array): number {
+  return 1 + uvarintLength(bytes.length) + bytes.length;
+}
+
+function uvarintLength(value: number): number {
+  assertUvarint(value);
+  let length = 1;
+  let remaining = value;
+  while (remaining >= 0x80) {
+    length++;
+    remaining >>>= 7;
+  }
+  return length;
+}
+
 function assertRawMacaroon(raw: RawMacaroon): void {
   assertLength(raw.identifier, IDENTIFIER_V0_LENGTH, "identifier");
   assertLength(raw.signature, SIGNATURE_LENGTH, "signature");
@@ -136,14 +162,53 @@ function assertRawMacaroon(raw: RawMacaroon): void {
 
 function assertLength(bytes: Uint8Array, expected: number, label: string): void {
   if (bytes.length !== expected) {
-    throw new RangeError(
-      `${label} must be ${String(expected)} bytes, got ${String(bytes.length)}`,
-    );
+    throw new RangeError(`${label} must be ${String(expected)} bytes, got ${String(bytes.length)}`);
   }
 }
 
 function copyBytes(bytes: Uint8Array): Uint8Array {
   return bytes.slice();
+}
+
+class BinaryWriter {
+  private readonly buffer: Uint8Array;
+  private offset = 0;
+
+  constructor(length: number) {
+    this.buffer = new Uint8Array(length);
+  }
+
+  byte(byte: number): void {
+    this.buffer[this.offset] = byte;
+    this.offset++;
+  }
+
+  field(tag: number, bytes: Uint8Array): void {
+    this.byte(tag);
+    this.uvarint(bytes.length);
+    this.buffer.set(bytes, this.offset);
+    this.offset += bytes.length;
+  }
+
+  uvarint(value: number): void {
+    assertUvarint(value);
+    let remaining = value;
+    while (remaining >= 0x80) {
+      this.byte((remaining & 0x7f) | 0x80);
+      remaining >>>= 7;
+    }
+    this.byte(remaining);
+  }
+
+  get bytes(): Uint8Array {
+    return this.buffer;
+  }
+}
+
+function assertUvarint(value: number): void {
+  if (!Number.isSafeInteger(value) || value < 0 || value > 0xffffffff) {
+    throw new RangeError(`varint ${String(value)} out of range`);
+  }
 }
 
 function base64ToBytes(input: string): Uint8Array {

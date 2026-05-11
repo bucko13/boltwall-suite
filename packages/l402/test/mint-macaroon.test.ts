@@ -53,6 +53,27 @@ describe("mintMacaroon", () => {
     ]);
   });
 
+  test("mints and decodes a macaroon with multiple first-party caveats", () => {
+    const macaroon = mintMacaroon({
+      rootKey: fixtureRootKey(),
+      identifier: fixtureIdentifier(),
+      caveats: [
+        { condition: "services", value: "pokedex:0,proxy:0" },
+        { condition: "services", value: "pokedex:0" },
+        { condition: "pokedex_capabilities", value: "read" },
+        { condition: "unknown-aperture-vector", value: "ignored" },
+      ],
+    });
+
+    const raw = decodeRaw(macaroon);
+    expect(raw.caveats.map(bytesToUtf8)).toEqual([
+      "services=pokedex:0,proxy:0",
+      "services=pokedex:0",
+      "pokedex_capabilities=read",
+      "unknown-aperture-vector=ignored",
+    ]);
+  });
+
   test("round-trips through Authorization header helpers", () => {
     const macaroon = mintMacaroon({
       rootKey: fixtureRootKey(),
