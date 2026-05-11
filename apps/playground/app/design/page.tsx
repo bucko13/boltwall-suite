@@ -1,8 +1,10 @@
 "use client";
 
 import type { CSSProperties, ReactNode } from "react";
+import { useState } from "react";
 
 import { BigBlob } from "../../components/ui/big-blob";
+import { CodeSnippet } from "../../components/ui/code-snippet";
 import {
   MacaroonStripe,
   type MacaroonSegments,
@@ -388,10 +390,77 @@ export default function DesignPage() {
         <MacaroonStripe segments={DEMO_SEGMENTS} />
       </Section>
 
-      <Section kicker="04" title="Composite — Validate a token">
+      <Section kicker="04" title="CodeSnippet">
+        <p style={{ color: "var(--color-dim)", fontSize: "var(--size-12)", marginBottom: 16 }}>
+          Live-updating syntax-highlighted snippet. Type in the field to see the template update.
+        </p>
+        <CodeSnippetDemo />
+      </Section>
+
+      <Section kicker="05" title="Composite — Validate a token">
         <ValidateComposite />
       </Section>
     </main>
+  );
+}
+
+const SNIPPET_TEMPLATE = `// Build an L402 Authorization header
+const header = buildAuthorizationHeader({
+  macaroons: "{{macaroon}}",
+  preimage:  "{{preimage}}",
+});`;
+
+function CodeSnippetDemo() {
+  const [macaroon, setMacaroon] = useState("AgEDbHRu…");
+  const [preimage, setPreimage] = useState("0001020304…");
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      <div style={{ display: "flex", gap: 12, flexWrap: "wrap" }}>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 200 }}>
+          <span style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}>macaroon</span>
+          <input
+            data-testid="code-snippet-input"
+            value={macaroon}
+            onChange={(e) => setMacaroon(e.target.value)}
+            spellCheck={false}
+            style={{
+              padding: "6px 10px",
+              background: "var(--color-surface-alt)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
+              fontSize: "var(--size-13)",
+              color: "var(--color-text)",
+              fontFamily:
+                "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
+            }}
+          />
+        </label>
+        <label style={{ display: "flex", flexDirection: "column", gap: 4, flex: 1, minWidth: 200 }}>
+          <span style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}>preimage</span>
+          <input
+            value={preimage}
+            onChange={(e) => setPreimage(e.target.value)}
+            spellCheck={false}
+            style={{
+              padding: "6px 10px",
+              background: "var(--color-surface-alt)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
+              fontSize: "var(--size-13)",
+              color: "var(--color-text)",
+              fontFamily:
+                "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
+            }}
+          />
+        </label>
+      </div>
+      <CodeSnippet
+        language="typescript"
+        template={SNIPPET_TEMPLATE}
+        values={{ macaroon, preimage }}
+      />
+    </div>
   );
 }
 
