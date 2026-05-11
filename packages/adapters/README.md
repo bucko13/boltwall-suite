@@ -2,10 +2,15 @@
 
 Lightning backend adapters for Boltwall Suite.
 
-This package is scaffolded in Phase 0. The shared backend types and the LND,
-OpenNode, BTCPay, and testing adapters land in later beads.
+The root entrypoint exposes shared backend types only. Concrete adapters are
+loaded from subpath entrypoints so consumers do not pull in unused backend
+dependencies.
 
-## Planned entrypoints
+```ts
+import type { LightningBackend } from "@boltwall/adapters";
+```
+
+## Adapter entrypoints
 
 - `@boltwall/adapters/lnd`
 - `@boltwall/adapters/opennode`
@@ -14,7 +19,7 @@ OpenNode, BTCPay, and testing adapters land in later beads.
 
 ## Notes
 
-- There is intentionally no root `@boltwall/adapters` export. Consumers must
-  import a specific subpath.
+- There is intentionally no root export for concrete adapter classes. Consumers
+  import concrete implementations from a specific subpath.
 - `lightning` is a peer dependency so non-LND consumers do not pull it unless
   they need the LND adapter.
