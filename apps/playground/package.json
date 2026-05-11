@@ -24,6 +24,7 @@
   },
   "devDependencies": {
     "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
     "@playwright/test": "^1.56.1",
