@@ -63,7 +63,7 @@ export type VerifyMacaroonResult =
  */
 export async function verifyMacaroon(args: VerifyMacaroonArgs): Promise<VerifyMacaroonResult> {
   if (args.macaroons.length === 0) {
-    return { ok: false, reason: "signature-invalid" };
+    throw new Error("empty macaroon credential");
   }
 
   let firstPaymentHash: Uint8Array | null = null;
