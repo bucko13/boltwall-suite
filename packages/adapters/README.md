@@ -10,6 +10,15 @@ dependencies.
 import type { LightningBackend } from "@boltwall/adapters";
 ```
 
+Middleware and proxy startup code can validate feature-dependent configuration
+against a backend before serving requests:
+
+```ts
+import { assertBackendSupports } from "@boltwall/adapters";
+
+assertBackendSupports(backend, { hodl: true });
+```
+
 ## Adapter entrypoints
 
 - `@boltwall/adapters/lnd`
@@ -21,6 +30,9 @@ import type { LightningBackend } from "@boltwall/adapters";
 
 - There is intentionally no root export for concrete adapter classes. Consumers
   import concrete implementations from a specific subpath.
+- Capability validation is a boot-time check. Unsupported HODL, cancellation,
+  streaming, or custom-description settings should fail before the first paid
+  request reaches middleware.
 - `lightning` is a peer dependency so non-LND consumers do not pull it unless
   they need the LND adapter.
 

@@ -11,11 +11,34 @@ export interface BackendCapabilities {
   readonly customDescription: boolean;
 }
 
+export type RequiredBackendCapabilities = Partial<
+  Record<keyof BackendCapabilities, true>
+>;
+
 /**
  * Human-readable backend family. The string is descriptive only; security
  * decisions must use capabilities and verified invoice state instead.
  */
 export type BackendKind = "lnd" | "btcpay" | "opennode" | "mock" | (string & {});
+
+/**
+ * Error thrown when a Boltwall configuration asks a backend to provide a
+ * feature its capability flags do not advertise.
+ */
+export class BackendCapabilityError extends Error {
+  readonly kind = "missing-capability";
+  readonly capability: keyof BackendCapabilities;
+  readonly backendKind: BackendKind;
+
+  constructor(backend: LightningBackend, capability: keyof BackendCapabilities) {
+    super(
+      `${formatBackendKind(backend.kind)} (kind="${backend.kind}") does not support ${formatCapability(capability)}, but boltwall config requires ${capability}: true.`,
+    );
+    this.name = "BackendCapabilityError";
+    this.capability = capability;
+    this.backendKind = backend.kind;
+  }
+}
 
 /**
  * Request to create a BOLT 11 Lightning invoice.
@@ -80,4 +103,59 @@ export interface LightningBackend {
   cancelInvoice?(paymentHash: string): Promise<void>;
   settleHodlInvoice?(preimage: string): Promise<void>;
   subscribeInvoices?(): AsyncIterable<InvoiceLookup>;
+}
+
+/**
+ * Validate that a Lightning backend supports every feature required by the
+ * calling middleware or proxy configuration.
+ *
+ * This check is intentionally synchronous so unsupported HODL, cancellation,
+ * streaming, or description settings fail during boot instead of on the first
+ * paid request.
+ */
+export function assertBackendSupports(
+  backend: LightningBackend,
+  required: RequiredBackendCapabilities,
+): void {
+  for (const capability of backendCapabilityKeys) {
+    if (required[capability] === true && backend.capabilities[capability] !== true) {
+      throw new BackendCapabilityError(backend, capability);
+    }
+  }
+}
+
+const backendCapabilityKeys = [
+  "hodl",
+  "cancelInvoice",
+  "streamingInvoices",
+  "customDescription",
+] as const satisfies readonly (keyof BackendCapabilities)[];
+
+function formatBackendKind(kind: BackendKind): string {
+  if (kind === "lnd") {
+    return "LndAdapter";
+  }
+  if (kind === "btcpay") {
+    return "BtcpayAdapter";
+  }
+  if (kind === "opennode") {
+    return "OpenNodeAdapter";
+  }
+  if (kind === "mock") {
+    return "MockAdapter";
+  }
+  return `${kind} adapter`;
+}
+
+function formatCapability(capability: keyof BackendCapabilities): string {
+  if (capability === "hodl") {
+    return "HODL invoices";
+  }
+  if (capability === "cancelInvoice") {
+    return "invoice cancellation";
+  }
+  if (capability === "streamingInvoices") {
+    return "invoice streaming";
+  }
+  return "custom invoice descriptions";
 }

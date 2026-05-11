@@ -1,6 +1,10 @@
 import { describe, expect, test } from "bun:test";
 
-import type { LightningBackend } from "../src";
+import {
+  assertBackendSupports,
+  BackendCapabilityError,
+  type LightningBackend,
+} from "../src";
 
 describe("LightningBackend type contract", () => {
   test("accepts a stub backend with capability flags and bigint millisatoshi amounts", async () => {
@@ -126,3 +130,98 @@ describe("LightningBackend type contract", () => {
     expect(lookup.status).toBe("open");
   });
 });
+
+describe("assertBackendSupports", () => {
+  test("accepts a backend that supports the required capabilities", () => {
+    const backend = stubBackend("mock", {
+      hodl: true,
+      cancelInvoice: true,
+      streamingInvoices: true,
+      customDescription: true,
+    });
+
+    expect(() =>
+      assertBackendSupports(backend, {
+        hodl: true,
+        cancelInvoice: true,
+        streamingInvoices: true,
+        customDescription: true,
+      }),
+    ).not.toThrow();
+  });
+
+  test("throws an actionable error when HODL support is required but missing", () => {
+    const backend = stubBackend("opennode", {
+      hodl: false,
+      cancelInvoice: false,
+      streamingInvoices: false,
+      customDescription: true,
+    });
+
+    expect(() => assertBackendSupports(backend, { hodl: true })).toThrow(
+      BackendCapabilityError,
+    );
+
+    try {
+      assertBackendSupports(backend, { hodl: true });
+      throw new Error("expected assertBackendSupports to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(BackendCapabilityError);
+      if (!(error instanceof BackendCapabilityError)) {
+        throw error;
+      }
+      expect(error.kind).toBe("missing-capability");
+      expect(error.capability).toBe("hodl");
+      expect(error.backendKind).toBe("opennode");
+      expect(error.message).toContain("does not support HODL invoices");
+      expect(error.message).toContain("requires hodl: true");
+    }
+  });
+
+  test("throws for missing cancellation support", () => {
+    const backend = stubBackend("btcpay", {
+      hodl: false,
+      cancelInvoice: false,
+      streamingInvoices: false,
+      customDescription: true,
+    });
+
+    expect(() =>
+      assertBackendSupports(backend, { cancelInvoice: true }),
+    ).toThrow("does not support invoice cancellation");
+  });
+
+  test("ignores capabilities not explicitly required", () => {
+    const backend = stubBackend("btcpay", {
+      hodl: false,
+      cancelInvoice: false,
+      streamingInvoices: false,
+      customDescription: false,
+    });
+
+    expect(() => assertBackendSupports(backend, {})).not.toThrow();
+  });
+});
+
+function stubBackend(
+  kind: LightningBackend["kind"],
+  capabilities: LightningBackend["capabilities"],
+): LightningBackend {
+  return {
+    kind,
+    capabilities,
+    async createInvoice(request) {
+      return {
+        paymentRequest: "lnbc1stub",
+        paymentHash: "0000000000000000000000000000000000000000000000000000000000000000",
+        amountMsat: request.amountMsat,
+      };
+    },
+    async lookupInvoice(paymentHash) {
+      return {
+        status: "open",
+        paymentHash,
+      };
+    },
+  };
+}
