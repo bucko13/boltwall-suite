@@ -1,0 +1,29 @@
+listenaddr: "0.0.0.0:8081"
+basedir: "/root/.aperture"
+staticroot: "/root/.aperture/static"
+servestatic: false
+debuglevel: "debug"
+insecure: true
+strictverify: false
+dbbackend: "sqlite"
+
+authenticator:
+  network: "regtest"
+  disable: false
+  lndhost: "host.docker.internal:10009"
+  tlspath: "/lnd/tls.cert"
+  macdir: "/lnd/macaroons"
+
+sqlite:
+  dbfile: "/root/.aperture/data/aperture.db"
+  skipmigrations: false
+
+services:
+  - name: "pokedex"
+    hostregexp: "^localhost:8081$"
+    pathregexp: "^/pokemon.*$"
+    address: "backend:18080"
+    protocol: "http"
+    capabilities: "read"
+    price: 1
+    timeout: 3600
