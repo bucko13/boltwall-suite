@@ -1,5 +1,22 @@
 # Playground Visual Concepts
 
+## Superseded
+
+The selection captured in this document has been superseded by the revised
+playground design direction tracked in **bead `bw-0dw.15`**. The current
+normative specification for the playground is
+[`docs/playground-design-system.md`](./playground-design-system.md) — a
+Cells + Macaroon-stripe design system that replaces the Color Grid direction
+described below.
+
+The Concept D / Color Grid material is retained here as historical reference
+only; it documents an earlier decision and is no longer the build target. Do
+not implement against this document.
+
+---
+
+## Original direction (historical)
+
 The owner selected Concept D, **Color Grid**, as the direction to carry forward.
 
 The playground first screen at `apps/playground/app/page.tsx` now preserves that
