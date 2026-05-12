@@ -288,8 +288,8 @@ boundary per the [numeric strategy](../../docs/numeric-strategy.md).
 **Why not the legacy choice?** `bolt11@1.4.1` was the legacy-used dep
 (`Tierion/lsat-js@^1.3.2`), but it fails the modern constraints in three
 load-bearing ways: (1) it pulls `bitcoinjs-lib` + `secp256k1` + `lodash`
-into the bundle (orders-of-magnitude heavier than our 30 KB
-`size-limit` budget for `dist/index.js`), (2) it uses Node `Buffer` in its
+into the bundle (orders-of-magnitude heavier than our `size-limit`
+budget for `dist/index.js`), (2) it uses Node `Buffer` in its
 public API which is forbidden in browser code per AGENTS.md "Code Quality
 Bar", and (3) it ships encode/sign capabilities we will never use. The
 upgrade path is `decodeBolt11Invoice` (the wrapped public API in

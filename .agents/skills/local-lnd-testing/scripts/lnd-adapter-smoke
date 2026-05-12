@@ -1,0 +1,250 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+LND_ENV="$SCRIPT_DIR/lnd-env"
+LNCLI="$SCRIPT_DIR/lncli-docker"
+LIGHTNING_REGTEST="$SCRIPT_DIR/lightning-regtest"
+
+SERVER_NODE="david"
+PAYER_NODE="carol"
+AMOUNT_MSAT="1000"
+READY_LOCAL_SATS="1000000"
+DESCRIPTION="boltwall-lnd-adapter-smoke"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  lnd-adapter-smoke [--server <node>] [--payer <node>] [--amount-msat <msat>] [--ready-local-sats <sats>]
+
+Runs the LndAdapter real-regtest proof:
+  1. ensure payer -> server channel readiness,
+  2. create an invoice through @boltwall/adapters/lnd,
+  3. verify lookupInvoice reports open,
+  4. pay the invoice from the payer node with lncli,
+  5. verify lookupInvoice reports settled with a preimage shape.
+
+Defaults match the local skill examples:
+  --payer carol --server david --amount-msat 1000
+
+Output is proof-safe: it includes the local BOLT11, payment hash, statuses, and
+preimage presence/length, but never prints certs, macaroons, seeds, or env files.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --server)
+      shift
+      SERVER_NODE="${1:-}"
+      ;;
+    --payer)
+      shift
+      PAYER_NODE="${1:-}"
+      ;;
+    --amount-msat)
+      shift
+      AMOUNT_MSAT="${1:-}"
+      ;;
+    --ready-local-sats)
+      shift
+      READY_LOCAL_SATS="${1:-}"
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if [ -z "$SERVER_NODE" ] || [ -z "$PAYER_NODE" ]; then
+  echo "--server and --payer must be non-empty." >&2
+  exit 2
+fi
+
+case "$AMOUNT_MSAT" in
+  '' | *[!0-9]*)
+    echo "--amount-msat must be a positive integer." >&2
+    exit 2
+    ;;
+esac
+
+if [ "$AMOUNT_MSAT" -lt 1 ]; then
+  echo "--amount-msat must be positive." >&2
+  exit 2
+fi
+
+case "$READY_LOCAL_SATS" in
+  '' | *[!0-9]*)
+    echo "--ready-local-sats must be a positive integer." >&2
+    exit 2
+    ;;
+esac
+
+if [ "$READY_LOCAL_SATS" -lt 20000 ]; then
+  echo "--ready-local-sats must be at least 20000." >&2
+  exit 2
+fi
+
+for command_name in bun node; do
+  if ! command -v "$command_name" >/dev/null 2>&1; then
+    echo "$command_name is required but not found on PATH." >&2
+    exit 1
+  fi
+done
+
+json_read() {
+  key="$1"
+  node -e '
+    const fs = require("node:fs");
+    const key = process.argv[1];
+    const data = JSON.parse(fs.readFileSync(0, "utf8"));
+    let value = data;
+    for (const part of key.split(".")) value = value?.[part];
+    if (value === undefined || value === null) process.exit(1);
+    process.stdout.write(String(value));
+  ' "$key"
+}
+
+normalize_socket() {
+  socket="$1"
+  case "$socket" in
+    127.0.0.1:*)
+      printf 'localhost:%s\n' "${socket#127.0.0.1:}"
+      ;;
+    *)
+      printf '%s\n' "$socket"
+      ;;
+  esac
+}
+
+echo "Preparing local LND topology: payer=$PAYER_NODE server=$SERVER_NODE local_sats=$READY_LOCAL_SATS"
+"$LIGHTNING_REGTEST" ready "$PAYER_NODE" "$SERVER_NODE" "$READY_LOCAL_SATS"
+
+lnd_env_json="$("$LND_ENV" --node "$SERVER_NODE" --json)"
+raw_socket="$(printf '%s' "$lnd_env_json" | json_read LND_SOCKET)"
+socket="$(normalize_socket "$raw_socket")"
+cert="$(printf '%s' "$lnd_env_json" | json_read LND_CERT_BASE64)"
+macaroon="$(printf '%s' "$lnd_env_json" | json_read LND_MACAROON_BASE64)"
+
+echo "Creating invoice with LndAdapter: server=$SERVER_NODE socket=$socket amount_msat=$AMOUNT_MSAT"
+created_json="$(
+  cd "$REPO_ROOT"
+  ADAPTER_SOCKET="$socket" \
+    ADAPTER_CERT_BASE64="$cert" \
+    ADAPTER_MACAROON_BASE64="$macaroon" \
+    ADAPTER_AMOUNT_MSAT="$AMOUNT_MSAT" \
+    ADAPTER_DESCRIPTION="$DESCRIPTION" \
+    bun --silent --eval '
+      import { LndAdapter } from "./packages/adapters/src/lnd";
+
+      const socket = process.env.ADAPTER_SOCKET;
+      const cert = process.env.ADAPTER_CERT_BASE64;
+      const macaroon = process.env.ADAPTER_MACAROON_BASE64;
+      const amountMsat = BigInt(process.env.ADAPTER_AMOUNT_MSAT ?? "");
+      const description = process.env.ADAPTER_DESCRIPTION;
+
+      if (!socket || !cert || !macaroon || !description) {
+        throw new Error("Missing adapter smoke environment");
+      }
+
+      const adapter = new LndAdapter({ socket, cert, macaroon });
+      const created = await adapter.createInvoice({ amountMsat, description });
+      const open = await adapter.lookupInvoice(created.paymentHash);
+
+      console.log(
+        JSON.stringify({
+          paymentRequest: created.paymentRequest,
+          paymentHash: created.paymentHash,
+          amountMsat: created.amountMsat.toString(),
+          openStatus: open.status,
+        }),
+      );
+    '
+)"
+
+payment_request="$(printf '%s' "$created_json" | json_read paymentRequest)"
+payment_hash="$(printf '%s' "$created_json" | json_read paymentHash)"
+created_amount_msat="$(printf '%s' "$created_json" | json_read amountMsat)"
+open_status="$(printf '%s' "$created_json" | json_read openStatus)"
+
+if [ "$open_status" != "open" ]; then
+  echo "Expected open lookup status, got '$open_status'." >&2
+  exit 1
+fi
+
+echo "LndAdapter open proof:"
+printf '  payment_request=%s\n' "$payment_request"
+printf '  payment_hash=%s amount_msat=%s open_status=%s\n' \
+  "$payment_hash" "$created_amount_msat" "$open_status"
+
+echo "Paying invoice from $PAYER_NODE..."
+payment_json="$("$LNCLI" "$PAYER_NODE" payinvoice --force "$payment_request")"
+payment_status="$(printf '%s' "$payment_json" | json_read status 2>/dev/null || true)"
+payment_error="$(printf '%s' "$payment_json" | json_read payment_error 2>/dev/null || true)"
+
+settled_json="$(
+  cd "$REPO_ROOT"
+  ADAPTER_SOCKET="$socket" \
+    ADAPTER_CERT_BASE64="$cert" \
+    ADAPTER_MACAROON_BASE64="$macaroon" \
+    ADAPTER_PAYMENT_HASH="$payment_hash" \
+    bun --silent --eval '
+      import { LndAdapter } from "./packages/adapters/src/lnd";
+
+      const socket = process.env.ADAPTER_SOCKET;
+      const cert = process.env.ADAPTER_CERT_BASE64;
+      const macaroon = process.env.ADAPTER_MACAROON_BASE64;
+      const paymentHash = process.env.ADAPTER_PAYMENT_HASH;
+
+      if (!socket || !cert || !macaroon || !paymentHash) {
+        throw new Error("Missing adapter smoke environment");
+      }
+
+      const adapter = new LndAdapter({ socket, cert, macaroon });
+      const settled = await adapter.lookupInvoice(paymentHash);
+
+      console.log(
+        JSON.stringify({
+          status: settled.status,
+          paymentHash: settled.paymentHash,
+          amountMsat: settled.amountMsat.toString(),
+          preimagePresent: typeof settled.preimage === "string",
+          preimageLength: settled.preimage?.length ?? 0,
+        }),
+      );
+    '
+)"
+
+settled_status="$(printf '%s' "$settled_json" | json_read status)"
+settled_amount_msat="$(printf '%s' "$settled_json" | json_read amountMsat)"
+preimage_present="$(printf '%s' "$settled_json" | json_read preimagePresent)"
+preimage_length="$(printf '%s' "$settled_json" | json_read preimageLength)"
+
+if [ "$settled_status" != "settled" ]; then
+  echo "Expected settled lookup status, got '$settled_status'." >&2
+  [ -z "$payment_error" ] || echo "lncli payment_error: $payment_error" >&2
+  exit 1
+fi
+
+if [ "$preimage_present" != "true" ] || [ "$preimage_length" -ne 64 ]; then
+  echo "Expected a 64-character preimage shape in settled lookup." >&2
+  exit 1
+fi
+
+if [ -z "$payment_status" ]; then
+  payment_status="SETTLED_LOOKUP_CONFIRMED"
+fi
+
+echo "LndAdapter settled proof:"
+printf '  payer=%s server=%s payment_status=%s lookup_status=%s\n' \
+  "$PAYER_NODE" "$SERVER_NODE" "$payment_status" "$settled_status"
+printf '  payment_hash=%s amount_msat=%s preimage_present=%s preimage_length=%s\n' \
+  "$payment_hash" "$settled_amount_msat" "$preimage_present" "$preimage_length"

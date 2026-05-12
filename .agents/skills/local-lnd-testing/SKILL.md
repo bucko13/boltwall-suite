@@ -118,6 +118,26 @@ prefix:
 [".agents/skills/local-lnd-testing/scripts/lightning-regtest"]
 ```
 
+## LndAdapter Smoke
+
+Use `lnd-adapter-smoke` when a task needs proof that `@boltwall/adapters/lnd`
+can create a real invoice and observe settlement through the `lightning` npm
+package:
+
+```sh
+.agents/skills/local-lnd-testing/scripts/lnd-adapter-smoke --payer carol --server david --amount-msat 1000
+```
+
+The helper ensures payer-to-server channel readiness, derives the server LND
+env contract without printing credentials, normalizes the host socket to avoid
+IP-address TLS server-name failures in `lightning`, creates a `LndAdapter`
+invoice, pays it with `lncli-docker`, then prints proof-safe output: local
+BOLT11, payment hash, open/settled statuses, amount, and preimage shape.
+
+Never paste certs, macaroons, seeds, env files, or full helper debug traces into
+task notes. The helper output is intended for `REGTEST.md` evidence because it
+redacts credential material by construction.
+
 ## Ephemeral LND Env Contract
 
 Use `lnd-env` when adapter, middleware, proxy, or playground code needs to talk
@@ -162,9 +182,11 @@ environment variables.
 5. Use `lightning-regtest ready <first> <second>` before tests need spendable
    channel liquidity.
 6. Use `lightning-regtest move <from> <to> <sats>` for payment proof.
-7. Use `lncli-docker <node> ...` only for ad hoc node inspection that is not
+7. Use `lnd-adapter-smoke --payer <first> --server <second>` when the proof must
+   go through `LndAdapter` instead of raw `lncli` invoice creation.
+8. Use `lncli-docker <node> ...` only for ad hoc node inspection that is not
    covered by the higher-level helper.
-8. For settled-flow proof, record only non-secret facts: command names, invoice
+9. For settled-flow proof, record only non-secret facts: command names, invoice
    status transitions, payment hash, and success/failure summaries. Never paste
    certs, macaroons, seeds, or full env files.
 
