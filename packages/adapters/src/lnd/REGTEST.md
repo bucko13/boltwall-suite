@@ -137,6 +137,101 @@ Scriptable/agent-friendly steps after prerequisites:
 This split is intentional for now: agent-run checks are reliable once a local
 operator has a healthy Polar network and credentials ready.
 
+## Polar Automation Feasibility
+
+Repository/session findings from 2026-05-12:
+
+- `Polar.app` is installed locally, but there is no `polar` CLI on `PATH`.
+- There is no `lncli` on `PATH` in this session.
+- Polar appears to be an Electron app bundle with internal Docker and gRPC
+  plumbing, but no stable repo-local automation entrypoint is documented here.
+- Agent-run Docker access is a prerequisite for any fully automated local
+  network bootstrap; in this session, direct Docker access was unavailable.
+
+### Control-surface assessment
+
+| Verification step | Agent-runnable through Polar today? | Why |
+|---|---|---|
+| Launch Polar app | No reliable headless path | GUI app is installed, but no supported CLI was found. |
+| Bootstrap regtest network | No reliable headless path | Polar likely drives Docker internally, but this repo has no stable scripted entrypoint for that lifecycle. |
+| Open/fund channel in Polar | No reliable headless path | This currently depends on the GUI or undocumented app internals. |
+| Extract server cert + admin macaroon | Partial | Feasible only after the operator exposes or copies the values; this doc does not rely on undocumented filesystem paths. |
+| Run `LndAdapter` create/lookup checks | Yes | Once `LND_SOCKET`, `LND_CERT_BASE64`, and `LND_MACAROON_BASE64` are exported, the adapter smoke is scriptable. |
+| Pay invoice from peer node | Partial | Scriptable if payer-node CLI/container access exists; otherwise still manual in Polar. |
+| HODL settle/cancel verification | Yes | Scriptable after the network and credentials exist. |
+
+### Practical conclusion
+
+Polar is a good local operator tool, but it is not a good primary automation
+surface for agent-run verification in this repository today. The dependable
+automation boundary starts *after* a healthy local network already exists and
+credentials have been exported into env vars.
+
+## Recommended Local And CI Split
+
+### Local operator-assisted flow
+
+Keep Polar as the shortest path for a human maintainer to:
+
+1. launch the network,
+2. open/fund channels,
+3. retrieve the first cert/macaroon set,
+4. optionally pay invoices from the UI.
+
+After that handoff, agent-run checks should use only exported env vars and
+scripted adapter calls.
+
+### Agent/CI automation path
+
+Do not build CI around Polar's desktop UI. Instead, create a dedicated
+containerized LND smoke harness that owns:
+
+1. regtest bootstrap,
+2. wallet unlock/init,
+3. channel funding/open,
+4. cert/macaroon extraction,
+5. invoice creation and payment loop,
+6. teardown.
+
+That harness can back both:
+
+- a local agent-run smoke for maintainers with Docker access, and
+- a skipped-by-default or explicitly gated CI/manual workflow.
+
+## Minimal Proof Sequence For The Recommended Harness
+
+This is the target command shape for automation work:
+
+```bash
+# 1. Start a purpose-built regtest topology.
+docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml up -d
+
+# 2. Wait for LND gRPC to become reachable and export credentials from mounted volumes.
+export LND_SOCKET="127.0.0.1:10009"
+export LND_CERT_BASE64="$(base64 < tls.cert | tr -d '\n')"
+export LND_MACAROON_BASE64="$(base64 < admin.macaroon | tr -d '\n')"
+
+# 3. Run the adapter smoke.
+bun test packages/adapters/test/lnd-adapter.test.ts
+bun run <future-lnd-smoke-command>
+
+# 4. Pay the created invoice from the payer node CLI/container.
+docker exec <payer-container> lncli payinvoice --force <bolt11>
+
+# 5. Verify settled lookup and optional HODL settle/cancel cases.
+```
+
+This proof sequence is intentionally container-first. It avoids depending on
+undocumented Polar app internals and is a better fit for agent execution.
+
+## Risks And Constraints
+
+- Docker availability is the main local automation dependency.
+- LND startup and channel-confirmation timing will need explicit waits/retries.
+- Credential extraction must stay ephemeral; never commit certs or macaroons.
+- Host-specific app paths, GUI automation, and copied Polar state are too flaky
+  to make the primary verification path.
+
 ## Troubleshooting
 
 - `connection-refused` or timeouts:
