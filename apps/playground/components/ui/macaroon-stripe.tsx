@@ -35,10 +35,10 @@ export function MacaroonStripe({
   onSelectSegment,
   onTamper,
 }: MacaroonStripeProps) {
-  const [internalSel, setInternalSel] = useState<{ kind: SegmentKind; index?: number } | null>(null);
-  const active = selectedSegment !== undefined
-    ? { kind: selectedSegment }
-    : internalSel;
+  const [internalSel, setInternalSel] = useState<{ kind: SegmentKind; index?: number } | null>(
+    null,
+  );
+  const active = selectedSegment !== undefined ? { kind: selectedSegment } : internalSel;
 
   function select(slot: SegSlot) {
     const next = { kind: slot.kind, index: slot.index };
@@ -97,14 +97,16 @@ export function MacaroonStripe({
               style={{
                 flex: `0 0 ${pct}%`,
                 minWidth: 24,
-                background: isActive ? color : `color-mix(in srgb, ${color} 30%, var(--color-surface-alt))`,
+                background: isActive
+                  ? color
+                  : `color-mix(in srgb, ${color} 30%, var(--color-surface-alt))`,
                 borderRight: i < slots.length - 1 ? "1px solid var(--color-surface)" : "none",
                 display: "flex",
                 alignItems: "center",
                 justifyContent: "center",
                 fontSize: "var(--size-10)",
                 fontWeight: 600,
-                color: isActive ? "var(--color-surface)" : color,
+                color: isActive ? "var(--color-page)" : "var(--color-text)",
                 overflow: "hidden",
                 whiteSpace: "nowrap",
                 transition: "background 120ms",
@@ -146,68 +148,60 @@ export function MacaroonStripe({
       </div>
 
       {/* Active segment detail */}
-      {active ? (() => {
-        if (active.kind === "identifier") {
-          return (
-            <SegmentDetail
-              kind="identifier"
-              label="identifier"
-              raw={segments.identifier}
-            />
-          );
-        }
-        if (active.kind === "location") {
-          return (
-            <SegmentDetail
-              kind="location"
-              label="location"
-              value={segments.location}
-              raw={locationBytes}
-            />
-          );
-        }
-        if (active.kind === "caveat" && active.index !== undefined) {
-          const c = segments.caveats[active.index];
-          return c ? (
-            <div>
-              <SegmentDetail
-                kind="caveat"
-                label={`caveat ${active.index + 1}`}
-                value={`${c.condition} = ${c.value}`}
-                raw={c.raw}
-              />
-              {onTamper ? (
-                <button
-                  type="button"
-                  onClick={() => onTamper("caveat", active.index)}
-                  style={{
-                    marginTop: 6,
-                    padding: "4px 10px",
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    background: "var(--color-danger-soft)",
-                    color: "var(--color-danger)",
-                    border: "1px solid var(--color-danger)",
-                    borderRadius: 4,
-                  }}
-                >
-                  Tamper
-                </button>
-              ) : null}
-            </div>
-          ) : null;
-        }
-        if (active.kind === "signature") {
-          return (
-            <SegmentDetail
-              kind="signature"
-              label="signature"
-              raw={segments.signature}
-            />
-          );
-        }
-        return null;
-      })() : null}
+      {active
+        ? (() => {
+            if (active.kind === "identifier") {
+              return (
+                <SegmentDetail kind="identifier" label="identifier" raw={segments.identifier} />
+              );
+            }
+            if (active.kind === "location") {
+              return (
+                <SegmentDetail
+                  kind="location"
+                  label="location"
+                  value={segments.location}
+                  raw={locationBytes}
+                />
+              );
+            }
+            if (active.kind === "caveat" && active.index !== undefined) {
+              const c = segments.caveats[active.index];
+              return c ? (
+                <div>
+                  <SegmentDetail
+                    kind="caveat"
+                    label={`caveat ${active.index + 1}`}
+                    value={`${c.condition} = ${c.value}`}
+                    raw={c.raw}
+                  />
+                  {onTamper ? (
+                    <button
+                      type="button"
+                      onClick={() => onTamper("caveat", active.index)}
+                      style={{
+                        marginTop: 6,
+                        padding: "4px 10px",
+                        fontSize: "var(--size-12)",
+                        fontWeight: 500,
+                        background: "var(--color-danger-soft)",
+                        color: "var(--color-danger)",
+                        border: "1px solid var(--color-danger)",
+                        borderRadius: 4,
+                      }}
+                    >
+                      Tamper
+                    </button>
+                  ) : null}
+                </div>
+              ) : null;
+            }
+            if (active.kind === "signature") {
+              return <SegmentDetail kind="signature" label="signature" raw={segments.signature} />;
+            }
+            return null;
+          })()
+        : null}
     </div>
   );
 }

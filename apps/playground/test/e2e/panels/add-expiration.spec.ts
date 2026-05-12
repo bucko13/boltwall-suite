@@ -42,5 +42,23 @@ test.describe("panels / add-expiration", () => {
   test("code snippet contains seconds value", async ({ page }) => {
     await page.fill("[data-testid='expiration-seconds-input']", "7200");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("7200");
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "recipe code",
+    );
+  });
+
+  test("built expiration snippet uses exact generated timestamp", async ({ page }) => {
+    await page.fill("[data-testid='expiration-seconds-input']", "3600");
+    await page.click("[data-testid='expiration-compute']");
+
+    const output = await page.locator("[data-testid='expiration-output']").textContent();
+    const isoValue = output?.match(/value:\s*([0-9TZ:.-]+)/)?.[1];
+    expect(isoValue).toBeDefined();
+
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+      `value: "${isoValue}"`,
+    );
+    await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("Date.now()");
   });
 });

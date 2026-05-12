@@ -6,6 +6,7 @@ import { useState } from "react";
 import { designTheme } from "../../lib/highlight";
 
 export type CodeSnippetLanguage = "typescript" | "javascript" | "shell" | "json";
+export type CodeSnippetContract = "exact" | "current-input" | "recipe";
 
 export type CodeSnippetProps = {
   language: CodeSnippetLanguage;
@@ -13,7 +14,18 @@ export type CodeSnippetProps = {
   template: string;
   /** Current values for placeholder substitution. */
   values: Record<string, string>;
+  /**
+   * Contract shown beside copy controls so snippets are not mistaken for exact
+   * reproducers when they are only recipes.
+   */
+  contract?: CodeSnippetContract;
   copyable?: boolean;
+};
+
+const CONTRACT_LABELS: Record<CodeSnippetContract, string> = {
+  exact: "exact code",
+  "current-input": "current input code",
+  recipe: "recipe code",
 };
 
 function substituteTemplate(template: string, values: Record<string, string>): string {
@@ -24,16 +36,20 @@ export function CodeSnippet({
   language,
   template,
   values,
+  contract = "current-input",
   copyable = true,
 }: CodeSnippetProps) {
   const [copied, setCopied] = useState(false);
   const code = substituteTemplate(template, values);
 
   function handleCopy() {
-    navigator.clipboard.writeText(code).then(() => {
-      setCopied(true);
-      setTimeout(() => setCopied(false), 1500);
-    }).catch(() => {});
+    navigator.clipboard
+      .writeText(code)
+      .then(() => {
+        setCopied(true);
+        setTimeout(() => setCopied(false), 1500);
+      })
+      .catch(() => {});
   }
 
   return (
@@ -41,10 +57,36 @@ export function CodeSnippet({
       data-testid="code-snippet"
       style={{ position: "relative", borderTop: "1px solid var(--color-border)" }}
     >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 12,
+          padding: "7px 16px",
+          background: "var(--color-surface-alt)",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <span
+          data-testid="code-snippet-contract"
+          style={{
+            fontSize: "var(--size-11)",
+            color: "var(--color-dim)",
+            fontFamily:
+              "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+          }}
+        >
+          {CONTRACT_LABELS[contract]}
+        </span>
+      </div>
+
       <Highlight theme={designTheme} code={code} language={language}>
         {({ className, style, tokens, getLineProps, getTokenProps }) => (
           <pre
             className={className}
+            tabIndex={0}
+            aria-label="Code snippet"
             style={{
               ...style,
               margin: 0,

@@ -8,6 +8,9 @@ test.describe("panels / caveats", () => {
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText("const caveats = []");
+    await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("pokedex:0");
   });
 
   test("add a caveat and see it in the list", async ({ page }) => {
@@ -19,6 +22,8 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-output']")).toContainText(
       "services=pokedex:0",
     );
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText('"services"');
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText('"pokedex:0"');
   });
 
   test("add two caveats then remove first", async ({ page }) => {

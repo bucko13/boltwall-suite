@@ -53,6 +53,9 @@ test.describe("panels / parse-token", () => {
 
   test("code snippet reflects token value", async ({ page }) => {
     await page.fill("[data-testid='parse-token-input']", FIXTURE_MACAROON);
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "current input code",
+    );
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
       `const macaroon = "${FIXTURE_MACAROON}"`,
     );

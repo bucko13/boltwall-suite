@@ -236,14 +236,14 @@ export function SatisfyL402() {
     : results
       ? `${Object.values(results).filter((v) => v === "matched").length}/${Object.keys(results).length} matched`
       : "idle";
-  const snippetRows = satisfierRows.length > 0 ? satisfierRows : [{ name: "valid-until" }];
-  const satisfiersSource = snippetRows
+  const satisfiersSource = satisfierRows
     .map((row) =>
       row.name === "services"
         ? `  servicesSatisfier(${JSON.stringify(row.param ?? "")})`
         : "  validUntilSatisfier()",
     )
     .join(",\n");
+  const hasSatisfiers = satisfierRows.length > 0;
 
   return (
     <Cell
@@ -479,7 +479,12 @@ export function SatisfyL402() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`}
+          contract="exact"
+          template={
+            hasSatisfiers
+              ? `import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
+              : `const satisfiers = [];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
+          }
           values={{ satisfiersSource }}
         />
       }

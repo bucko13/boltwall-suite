@@ -27,6 +27,10 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();
   const [key, setKey] = useRememberedStringInput("key", {
@@ -42,6 +46,10 @@ export function GenerateL402Token() {
   );
 
   const [macaroon, setMacaroon] = useState<string | null>(null);
+  const [mintedIdentifier, setMintedIdentifier] = useState<{
+    paymentHashHex: string;
+    tokenIdHex: string;
+  } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
   function generate() {
@@ -81,11 +89,16 @@ export function GenerateL402Token() {
       const result = mintMacaroon({ rootKey, identifier });
       setKey((key ?? "").trim());
       setMacaroon(result);
+      setMintedIdentifier({
+        paymentHashHex: bytesToHex(paymentHash),
+        tokenIdHex: bytesToHex(tokenId),
+      });
       workbenchMemory?.setMacaroon(result);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setMacaroon(null);
+      setMintedIdentifier(null);
     }
   }
 
@@ -93,6 +106,7 @@ export function GenerateL402Token() {
     setKey(null);
     setInvoice(null);
     setMacaroon(null);
+    setMintedIdentifier(null);
     workbenchMemory?.setMacaroon(null);
     setError(null);
   }
@@ -101,6 +115,9 @@ export function GenerateL402Token() {
   const statusLabel = error ? "error" : macaroon ? "minted" : "idle";
   const keyLiteral = JSON.stringify((key ?? "").trim() || "<64-char hex key>");
   const invoiceLiteral = JSON.stringify((invoice ?? "").trim());
+  const paymentHashLiteral = JSON.stringify(mintedIdentifier?.paymentHashHex ?? "");
+  const tokenIdLiteral = JSON.stringify(mintedIdentifier?.tokenIdHex ?? "");
+  const hasExactMintSnippet = Boolean(macaroon && mintedIdentifier);
 
   return (
     <Cell
@@ -134,6 +151,7 @@ export function GenerateL402Token() {
               onChange={(e) => {
                 setKey(e.target.value);
                 setMacaroon(null);
+                setMintedIdentifier(null);
                 workbenchMemory?.setMacaroon(null);
                 setError(null);
               }}
@@ -164,6 +182,7 @@ export function GenerateL402Token() {
               onChange={(e) => {
                 setInvoice(e.target.value);
                 setMacaroon(null);
+                setMintedIdentifier(null);
                 workbenchMemory?.setMacaroon(null);
                 setError(null);
               }}
@@ -234,10 +253,17 @@ export function GenerateL402Token() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`}
+          contract={hasExactMintSnippet ? "exact" : "recipe"}
+          template={
+            hasExactMintSnippet
+              ? `import { mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`
+              : `import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`
+          }
           values={{
             keyLiteral,
             invoiceLiteral,
+            paymentHashLiteral,
+            tokenIdLiteral,
           }}
         />
       }

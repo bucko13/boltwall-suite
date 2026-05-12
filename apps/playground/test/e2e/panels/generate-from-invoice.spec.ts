@@ -11,9 +11,7 @@ import { BOLT11_SPEC_EXAMPLES } from "@boltwall/test-fixtures";
 
 import { grantClipboard, readClipboard, setTheme } from "../setup";
 
-const invoiceFixture = BOLT11_SPEC_EXAMPLES.find(
-  (f) => f.name === "bolt11-spec-microbtc-mainnet",
-);
+const invoiceFixture = BOLT11_SPEC_EXAMPLES.find((f) => f.name === "bolt11-spec-microbtc-mainnet");
 if (!invoiceFixture) {
   throw new Error("generate-from-invoice: missing bolt11-spec-microbtc-mainnet fixture");
 }
@@ -47,6 +45,21 @@ test.describe("panels / generate-from-invoice", () => {
     // Type a portion of the invoice and check it appears in the snippet.
     await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
     await expect(snippet).toContainText(invoiceFixture.invoice.slice(0, 8), { timeout: 200 });
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "recipe code",
+    );
+  });
+
+  test("minting with invoice switches snippet to exact generated identifier", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
+    await page.click("[data-testid='generate-token-mint']");
+
+    const snippet = page.locator("[data-testid='code-snippet']").first();
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(snippet).toContainText("paymentHash: hexToBytes(");
+    await expect(snippet).toContainText("tokenId: hexToBytes(");
+    await expect(snippet).not.toContainText("decodeBolt11Invoice");
   });
 
   test("copy-URL puts a hydrating URL on the clipboard", async ({ page, context }) => {

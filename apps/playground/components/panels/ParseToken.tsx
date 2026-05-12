@@ -359,6 +359,7 @@ export function ParseToken() {
       code={
         <CodeSnippet
           language="typescript"
+          contract="current-input"
           template={`import { decodeIdentifier } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst id = decodeIdentifier(macaroon);\n// -> { version: 0, paymentHash: Uint8Array, tokenId: Uint8Array }`}
           values={{
             tokenLiteral,

@@ -13,6 +13,10 @@ test.describe("panels / satisfy", () => {
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+      "const satisfiers = []",
+    );
   });
 
   test("add valid-until satisfier against token with caveat shows matched result", async ({
@@ -21,6 +25,9 @@ test.describe("panels / satisfy", () => {
     await page.fill("[data-testid='satisfy-token-input']", FIXTURE_MACAROON_WITH_CAVEAT);
     // valid-until is the default selector; just add it.
     await page.click("[data-testid='satisfy-add-satisfier']");
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+      "validUntilSatisfier()",
+    );
     await page.click("[data-testid='satisfy-run']");
 
     await expect(page.locator("[data-testid='satisfy-output']")).toBeVisible();

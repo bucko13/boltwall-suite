@@ -58,6 +58,7 @@ export function AddExpiration() {
   const status = error ? "fail" : result ? "pass" : "idle";
   const statusLabel = error ? "error" : result ? "ready" : "idle";
   const ttlSecondsLiteral = /^[0-9]+$/.test(seconds ?? "") ? (seconds ?? "") : "3600";
+  const caveatValueLiteral = JSON.stringify(result?.value ?? "");
 
   return (
     <Cell
@@ -182,8 +183,13 @@ export function AddExpiration() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};\n// -> { condition: "valid-until", value: "<iso-timestamp>" }`}
-          values={{ seconds: ttlSecondsLiteral }}
+          contract={result ? "exact" : "recipe"}
+          template={
+            result
+              ? `import type { Caveat } from "@boltwall/l402";\n\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: {{caveatValueLiteral}},\n};`
+              : `import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};`
+          }
+          values={{ seconds: ttlSecondsLiteral, caveatValueLiteral }}
         />
       }
     />

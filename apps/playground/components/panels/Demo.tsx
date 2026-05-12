@@ -188,6 +188,7 @@ export function Demo() {
       code={
         <CodeSnippet
           language="typescript"
+          contract="recipe"
           template={`// WebLN browser extension API\nif (typeof window.webln !== "undefined") {\n  await window.webln.enable();\n  const { node } = await window.webln.getInfo();\n  console.log(node.alias, node.pubkey);\n}`}
           values={{}}
         />

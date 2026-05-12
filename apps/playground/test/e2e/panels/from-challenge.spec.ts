@@ -41,6 +41,9 @@ test.describe("panels / from-challenge", () => {
 
   test("code snippet reflects input value", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "current input code",
+    );
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
       `const header = ${JSON.stringify(FIXTURE_HEADER)}`,
     );

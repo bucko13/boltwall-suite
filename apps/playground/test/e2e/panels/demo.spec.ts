@@ -5,6 +5,9 @@ test.describe("panels / demo", () => {
     await page.goto("/p/demo");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-no-webln']")).toBeVisible();
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "recipe code",
+    );
   });
 
   test("connect button with injected mock webln shows node info", async ({ page }) => {

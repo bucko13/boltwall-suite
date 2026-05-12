@@ -243,6 +243,7 @@ export function FromChallenge() {
       code={
         <CodeSnippet
           language="typescript"
+          contract="current-input"
           template={`import { parseAuthenticateHeader } from "@boltwall/l402";\n\nconst header = {{challengeLiteral}};\nconst challenges = parseAuthenticateHeader(header);\n// -> [{ scheme, macaroon, invoice }, ...]`}
           values={{
             challengeLiteral,

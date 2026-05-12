@@ -41,6 +41,21 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
       `const rootKey = hexToBytes("${FIXTURE_KEY}")`,
     );
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "recipe code",
+    );
+  });
+
+  test("minted code snippet is an exact reproducer without random generation", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+
+    const snippet = page.locator("[data-testid='code-snippet']");
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(snippet).toContainText(`const rootKey = hexToBytes("${FIXTURE_KEY}")`);
+    await expect(snippet).toContainText("paymentHash: hexToBytes(");
+    await expect(snippet).toContainText("tokenId: hexToBytes(");
+    await expect(snippet).not.toContainText("getRandomValues");
   });
 
   test("minted macaroon carries into parse panel", async ({ page }) => {

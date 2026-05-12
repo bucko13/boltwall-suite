@@ -11,23 +11,15 @@ import { CodeSnippet } from "../../components/ui/code-snippet";
 import { CodeStrip } from "../../components/ui/code-strip";
 import { HeaderRow } from "../../components/ui/header-row";
 import { LogoBeaker } from "../../components/ui/logo-beaker";
-import {
-  MacaroonStripe,
-  type MacaroonSegments,
-} from "../../components/ui/macaroon-stripe";
-import {
-  StatusPill,
-  type StatusPillState,
-} from "../../components/ui/status-pill";
+import { MacaroonStripe, type MacaroonSegments } from "../../components/ui/macaroon-stripe";
+import { StatusPill, type StatusPillState } from "../../components/ui/status-pill";
 import { TruncMiddle } from "../../components/ui/trunc-middle";
 import { ViewModeToggle } from "../../components/ui/view-mode-toggle";
 
 const SAMPLE_MACAROON =
   "MDAxYWxvY2F0aW9uIGxzYXQuYm9sdHdhbGwuaW8KMDAyNGlkZW50aWZpZXIgYjEyM2YwMDljYWZlYmFiZTU1NTU2NjY2N2YwMQowMDIzY2lkIGV4cGlyZXM9MjAyNi0wMS0wMVQwMDowMDowMFoKMDAxYWNpZCBpcD0xMC4wLjAuMQowMDJmc2lnbmF0dXJlIDdkOWMxMzMyZmFhZGRlY2FmZTk5OTljYWZlZGVhZGJlZWY1NTY2NzcwMDhkCg";
-const SAMPLE_TOKEN_HASH =
-  "b123f009cafebabe55556666fffeeeeddccc99887766554433221100aabbccdd";
-const SAMPLE_PREIMAGE =
-  "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const SAMPLE_TOKEN_HASH = "b123f009cafebabe55556666fffeeeeddccc99887766554433221100aabbccdd";
+const SAMPLE_PREIMAGE = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
 const sectionLabel: CSSProperties = {
   fontSize: "var(--size-11)",
@@ -145,19 +137,10 @@ const DEMO_SEGMENTS: MacaroonSegments = {
       value: "read",
     },
   ],
-  signature: hexToBytes(
-    "7d9c1332faaddecafe9999cafedeadbeef5566770088aabb1122ccdd33440055",
-  ),
+  signature: hexToBytes("7d9c1332faaddecafe9999cafedeadbeef5566770088aabb1122ccdd33440055"),
 };
 
-const STATUS_STATES: StatusPillState[] = [
-  "idle",
-  "ready",
-  "running",
-  "pass",
-  "fail",
-  "warn",
-];
+const STATUS_STATES: StatusPillState[] = ["idle", "ready", "running", "pass", "fail", "warn"];
 
 export default function DesignPage() {
   return (
@@ -187,8 +170,8 @@ export default function DesignPage() {
             fontSize: "var(--size-13)",
           }}
         >
-          Every primitive in the design system, rendered in the active theme.
-          Toggle theme from the nav.
+          Every primitive in the design system, rendered in the active theme. Toggle theme from the
+          nav.
         </p>
       </header>
 
@@ -267,10 +250,7 @@ export default function DesignPage() {
           ))}
         </PrimitiveRow>
 
-        <PrimitiveRow
-          label="CaveatPill"
-          description="Caveat key=value, three satisfier states."
-        >
+        <PrimitiveRow label="CaveatPill" description="Caveat key=value, three satisfier states.">
           <CaveatPill state="matched">expires=2026-01-01T00:00:00Z</CaveatPill>
           <CaveatPill state="unsatisfied">ip=10.0.0.1</CaveatPill>
           <CaveatPill state="rejected">method=POST</CaveatPill>
@@ -283,45 +263,32 @@ export default function DesignPage() {
           <Chip>scheme=L402</Chip>
         </PrimitiveRow>
 
-        <PrimitiveRow
-          label="ViewModeToggle"
-          description="raw | json | code segmented control."
-        >
+        <PrimitiveRow label="ViewModeToggle" description="raw | json | code segmented control.">
           <ViewModeToggle />
           <ViewModeToggle modes={["raw", "json"]} />
         </PrimitiveRow>
 
-        <PrimitiveRow
-          label="TruncMiddle"
-          description="Fixed-width identifier with hover tooltip."
-        >
+        <PrimitiveRow label="TruncMiddle" description="Fixed-width identifier with hover tooltip.">
           <TruncMiddle value={SAMPLE_TOKEN_HASH} />
           <TruncMiddle value={SAMPLE_PREIMAGE} head={8} tail={8} />
         </PrimitiveRow>
 
-        <PrimitiveRow
-          label="BigBlob"
-          description="Long mono value, copy + wrap toggles."
-        >
+        <PrimitiveRow label="BigBlob" description="Long mono value, copy + wrap toggles.">
           <div style={{ flex: 1, minWidth: 320 }}>
             <BigBlob value={SAMPLE_MACAROON} />
           </div>
         </PrimitiveRow>
 
-        <PrimitiveRow
-          label="CodeStrip"
-          description="Visible when Cell view = code."
-        >
+        <PrimitiveRow label="CodeStrip" description="Visible when Cell view = code.">
           <div style={{ flex: 1, minWidth: 320 }}>
             <CodeStrip>
               <span style={{ color: "var(--color-dim)" }}>
                 {"// rendering preview — real syntax engine is bw-0dw.16"}
               </span>
               {"\n"}
-              <span style={{ color: "var(--color-primary)" }}>const</span>{" "}
-              token = <span style={{ color: "var(--color-accent)" }}>await</span>{" "}
-              client.<span style={{ color: "var(--color-text)" }}>build</span>(
-              {"{"}
+              <span style={{ color: "var(--color-primary)" }}>const</span> token ={" "}
+              <span style={{ color: "var(--color-accent)" }}>await</span> client.
+              <span style={{ color: "var(--color-text)" }}>build</span>({"{"}
               {"\n  "}preimage,{"\n  "}macaroon,{"\n"}
               {"}"});
             </CodeStrip>
@@ -431,8 +398,7 @@ function CodeSnippetDemo() {
               borderRadius: 4,
               fontSize: "var(--size-13)",
               color: "var(--color-text)",
-              fontFamily:
-                "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
+              fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
             }}
           />
         </label>
@@ -449,8 +415,7 @@ function CodeSnippetDemo() {
               borderRadius: 4,
               fontSize: "var(--size-13)",
               color: "var(--color-text)",
-              fontFamily:
-                "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
+              fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', ui-monospace, monospace",
             }}
           />
         </label>
@@ -529,11 +494,23 @@ function ValidateComposite() {
             >
               Checks
             </div>
-            <CheckRow state="pass" label="Signature verified" detail="HMAC-SHA256 over canonical bytes" />
-            <CheckRow state="pass" label="Preimage matches payment hash" detail="sha256(preimage) == payment_hash" />
+            <CheckRow
+              state="pass"
+              label="Signature verified"
+              detail="HMAC-SHA256 over canonical bytes"
+            />
+            <CheckRow
+              state="pass"
+              label="Preimage matches payment hash"
+              detail="sha256(preimage) == payment_hash"
+            />
             <CheckRow state="pass" label="Not expired" detail="expires=2026-01-01T00:00:00Z" />
             <CheckRow state="warn" label="Token size within limit" detail="612 / 1024 bytes" />
-            <CheckRow state="fail" label="All caveats satisfied" detail="1 caveat unsatisfied: ip=10.0.0.1" />
+            <CheckRow
+              state="fail"
+              label="All caveats satisfied"
+              detail="1 caveat unsatisfied: ip=10.0.0.1"
+            />
           </div>
 
           <div
@@ -600,9 +577,7 @@ function FieldStack({
         >
           {label}
         </span>
-        {chips ? (
-          <span style={{ display: "inline-flex", gap: 4 }}>{chips}</span>
-        ) : null}
+        {chips ? <span style={{ display: "inline-flex", gap: 4 }}>{chips}</span> : null}
       </span>
       {hint ? (
         <span
@@ -654,10 +629,8 @@ function ActionButton({
         fontSize: "var(--size-13)",
         fontWeight: 500,
         background: isPrimary ? "var(--color-primary)" : "var(--color-surface)",
-        color: isPrimary ? "#ffffff" : "var(--color-text)",
-        border: isPrimary
-          ? "1px solid var(--color-primary)"
-          : "1px solid var(--color-border)",
+        color: isPrimary ? "var(--color-surface)" : "var(--color-text)",
+        border: isPrimary ? "1px solid var(--color-primary)" : "1px solid var(--color-border)",
       }}
     >
       {children}

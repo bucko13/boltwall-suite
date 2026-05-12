@@ -69,6 +69,9 @@ test.describe("panels / validate — tamper action", () => {
     await expect(snippet).toBeVisible();
 
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
+    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+      "current input code",
+    );
     // The code-snippet renders the current input — it should include the macaroon.
     await expect(snippet).toContainText(FIXTURE_MACAROON.slice(0, 12), { timeout: 200 });
   });

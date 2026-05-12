@@ -91,10 +91,10 @@ export function Caveats() {
   }
 
   const serialized = rows.map((r) => serializeCaveat({ condition: r.condition, value: r.value }));
-  const snippetRows =
-    rows.length > 0
-      ? rows
-      : [{ condition: draft.condition || "services", value: draft.value || "pokedex:0" }];
+  const draftSnippetRows = draft.condition.trim()
+    ? [{ condition: draft.condition.trim(), value: draft.value }]
+    : [];
+  const snippetRows = rows.length > 0 ? rows : draftSnippetRows;
   const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
 
   const status = rows.length > 0 ? "pass" : "idle";
@@ -293,6 +293,7 @@ export function Caveats() {
       code={
         <CodeSnippet
           language="typescript"
+          contract="exact"
           template={`import { serializeCaveat, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst serialized = caveats.map((caveat) => serializeCaveat(caveat));`}
           values={{
             caveatsLiteral,
