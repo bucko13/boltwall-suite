@@ -19,7 +19,7 @@ Map human-language requests to reusable local operations:
 - "Spin up a local Lightning network" -> bootstrap the Docker regtest topology.
 - "Use nodes carol and david" -> bootstrap with `--nodes carol,david`, then
   use those logical names in helper commands.
-- "Fund the nodes" -> use the funding/channel helper once `bw-4vd7.8` lands.
+- "Fund the nodes" -> use `lightning-regtest ready <from> <to>`.
 - "Move funds from one node to another" -> create an invoice on the receiver,
   pay from the sender, and report before/after balances and payment status.
 - "Run lncli" -> use the bundled `lncli-docker` helper, not raw Docker Compose.
@@ -88,6 +88,36 @@ Request this narrow prefix for ad hoc `lncli` commands:
 
 Use direct `docker compose` only when debugging the topology lifecycle itself.
 
+## Funding And Payments
+
+Use `lightning-regtest` for reusable network operations instead of composing raw
+`bitcoin-cli` and `lncli` calls:
+
+```sh
+.agents/skills/local-lnd-testing/scripts/lightning-regtest ready carol david
+.agents/skills/local-lnd-testing/scripts/lightning-regtest move carol david 1000
+.agents/skills/local-lnd-testing/scripts/lightning-regtest balances carol david
+```
+
+`ready <from> <to> [local-sats]` bootstraps the requested logical names, funds
+nodes when needed, connects peers, opens/confirms a channel, and prints
+before/after balances. `move <from> <to> [sats]` creates an invoice on the
+receiver, pays it from the sender, looks up settlement, and prints payment
+status plus before/after balances. `balances [node...]` reports wallet and
+channel liquidity for logical names or internal roles.
+
+Other reusable operations are available when a task needs one step at a time:
+`fund`, `fund-all`, `connect`, and `open-channel`. Report proof from these
+commands directly; it is designed to avoid seeds, certs, macaroons, preimages,
+and env files.
+
+If Docker access is sandbox-blocked, request approval for this narrow command
+prefix:
+
+```json
+[".agents/skills/local-lnd-testing/scripts/lightning-regtest"]
+```
+
 ## Ephemeral LND Env Contract
 
 Use `lnd-env` when adapter, middleware, proxy, or playground code needs to talk
@@ -129,18 +159,14 @@ environment variables.
    to `lnd-alice`, and the second maps to `lnd-bob`.
 4. Use `lnd-env --node <first>` to export adapter env values for the server
    node when code needs `LndAdapterOptions`.
-5. Use `lncli-docker <first> ...` for server-side node checks.
-6. Use `lncli-docker <second> ...` for payer-side checks and payment commands.
-7. For settled-flow proof, record only non-secret facts: command names, invoice
+5. Use `lightning-regtest ready <first> <second>` before tests need spendable
+   channel liquidity.
+6. Use `lightning-regtest move <from> <to> <sats>` for payment proof.
+7. Use `lncli-docker <node> ...` only for ad hoc node inspection that is not
+   covered by the higher-level helper.
+8. For settled-flow proof, record only non-secret facts: command names, invoice
    status transitions, payment hash, and success/failure summaries. Never paste
    certs, macaroons, seeds, or full env files.
-
-## Follow-Up Capabilities
-
-The bootstrap foundation is in place. These beads track the higher-level skill
-operations that human prompts naturally expect:
-
-- `bw-4vd7.8`: funding, channel readiness, balance checks, and moving funds.
 
 ## Diagnostics
 
@@ -149,6 +175,10 @@ operations that human prompts naturally expect:
 - `listchannels` checks channel state and liquidity.
 - `pendingchannels` helps explain why a channel is not usable yet.
 - `payinvoice --force <bolt11>` is the payer-side non-interactive payment path.
+- `lightning-regtest ready` distinguishes funding, peer connection, and channel
+  readiness failures.
+- `lightning-regtest move` distinguishes invoice creation, payment, and settled
+  lookup failures.
 
 When a command fails, include the failing command, node (`alice` or `bob`), and
 the relevant service log tail. Avoid logging bearer credentials.

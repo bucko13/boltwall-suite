@@ -241,7 +241,7 @@ init_wallet() {
         -H "Content-Type: application/json" \
         --data "{\"wallet_password\":\"$password_base64\"}" \
         "https://127.0.0.1:$port/v1/unlockwallet" >/dev/null || {
-        if lnd_ready "$node"; then
+        if wait_for "lnd-$node auto-unlock" 60 1 "lnd_ready $node" "lnd-$node"; then
           echo "lnd-$node wallet was already auto-unlocked."
           return 0
         fi
