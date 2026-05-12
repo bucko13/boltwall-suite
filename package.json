@@ -13,7 +13,9 @@
     "test:e2e": "turbo run test:e2e",
     "package-health": "turbo run package-health",
     "size": "turbo run size",
-    "dev": "turbo run dev --parallel"
+    "dev": "turbo run dev --parallel",
+    "version-packages": "changeset version",
+    "release": "bun run build && changeset publish"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",
