@@ -49,7 +49,7 @@ jobs:
         run: bun install --frozen-lockfile
 
       - name: Install Playwright Chromium
-        run: bunx playwright install --with-deps chromium
+        run: bun run --cwd packages/l402 playwright install --with-deps chromium
 
       - name: Lint
         run: bun run lint
