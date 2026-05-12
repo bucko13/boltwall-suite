@@ -60,10 +60,18 @@ test.describe("panels / signing-key", () => {
 
   test("saved signing key carries into token generation", async ({ page }) => {
     const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("key: empty");
+
     await page.fill("[data-testid='signing-key-input']", key);
     await expect(page.locator("[data-testid='signing-key-input']")).toHaveValue(key);
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
     await page.getByRole("link", { name: "Generate L402 Token" }).click();
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
+
+    await page.click("[data-testid='workbench-memory-key-clear']");
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("key: empty");
   });
 });

@@ -3,6 +3,7 @@ import { expect, test } from "@playwright/test";
 const FIXTURE_MACAROON =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
 const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const URL_KEY = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 const WRONG_PREIMAGE = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 
 test.describe("panels / validate", () => {
@@ -68,16 +69,44 @@ test.describe("panels / validate", () => {
   test("saved token and signing key are restored from earlier panels", async ({ page }) => {
     await page.goto("/p/signing-key");
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
     await page.getByRole("link", { name: "Generate L402 Token" }).click();
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
+    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
+      macaroon?.trim().slice(0, 8) ?? "",
+    );
+
+    await page.getByRole("link", { name: "Parse Token" }).click();
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
+      macaroon?.trim() ?? "",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
+      macaroon?.trim().slice(0, 8) ?? "",
+    );
 
     await page.getByRole("link", { name: "Validate L402" }).click();
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
+
+    await page.click("[data-testid='workbench-memory-token-clear']");
+    await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
+      "token: empty",
+    );
+  });
+
+  test("URL params override remembered values", async ({ page }) => {
+    await page.goto("/p/signing-key");
+    await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
+
+    await page.goto(`/p/validate?validate.key=${URL_KEY}`);
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(URL_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("ffffffff");
   });
 });

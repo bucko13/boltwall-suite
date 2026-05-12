@@ -26,6 +26,7 @@ type WorkbenchMemoryContextValue = {
   macaroon: string;
   setSigningKey: (value: string | null) => void;
   setMacaroon: (value: string | null) => void;
+  clear: () => void;
 };
 
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
@@ -42,14 +43,20 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     setMacaroonState(value || "");
   }, []);
 
+  const clear = useCallback(() => {
+    setSigningKeyState("");
+    setMacaroonState("");
+  }, []);
+
   const contextValue = useMemo<WorkbenchMemoryContextValue>(
     () => ({
       signingKey,
       macaroon,
       setSigningKey,
       setMacaroon,
+      clear,
     }),
-    [macaroon, setMacaroon, setSigningKey, signingKey],
+    [clear, macaroon, setMacaroon, setSigningKey, signingKey],
   );
 
   return createElement(WorkbenchMemoryContext.Provider, { value: contextValue }, children);
