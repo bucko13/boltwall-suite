@@ -42,3 +42,11 @@ jobs:
 
       - name: Build
         run: bun run build
+
+      - name: Bundle secret audit
+        working-directory: apps/playground
+        run: bun run scripts/audit-bundle.ts
+
+      - name: Bundle secret audit self-test
+        working-directory: apps/playground
+        run: bun run scripts/audit-bundle.ts --self-test
