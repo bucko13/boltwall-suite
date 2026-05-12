@@ -46,10 +46,10 @@ jobs:
           bash packages/test-fixtures/aperture-smoke/run-interop.sh --wait-only
 
       - name: Run interop tests
+        working-directory: packages/l402
         env:
-          APERTURE_INTEROP: "1"
           APERTURE_URL: "http://localhost:8081"
-        run: bun test packages/l402/test/interop/aperture-pr.test.ts
+        run: bun run test:interop
 
       - name: Upload artifacts
         if: always()

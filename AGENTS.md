@@ -389,10 +389,25 @@ Always follow links rather than relying on memory.
 
 Write tests that prove behavior. Use focused unit tests for local logic,
 integration tests for package boundaries, and e2e tests for user-visible flows.
-The `test:browser` Playwright Chromium import test is required for cross-runtime
-changes in `@boltwall/l402`.
 
-Read `docs/testing.md` for the validation matrix and good test-shape guidance.
+**`docs/testing.md` is the authoritative reference for every test surface in
+this repo.** Read it before picking up any work that touches tests. Any bead
+that adds a new test type, `test:*` script, runner, or infrastructure
+dependency MUST update `docs/testing.md` as part of its acceptance criteria —
+missing this update means the bead is not complete.
+
+Test surfaces at a glance:
+
+| Script | Surface | Infra required |
+|---|---|---|
+| `bun run test` | Unit tests, all packages | None |
+| `bun run test:browser` | l402 ESM bundle in Chromium (Playwright) | Built l402 bundle |
+| `bun run test:e2e` (from `apps/playground`) | Playground UI flows (Playwright) | Node.js only |
+| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop | Docker + LND regtest |
+
+Do not add infrastructure-dependent tests to the default `bun run test` glob.
+Keep each surface behind its own `test:<surface>` script so normal test runs
+stay clean and the infrastructure requirement is explicit.
 
 ---
 

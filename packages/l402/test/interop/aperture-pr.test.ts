@@ -26,7 +26,17 @@ import {
   parseAuthorizationHeader,
 } from "../../src";
 
-const SKIP = process.env.APERTURE_INTEROP !== "1";
+// Hard guard: this file must only be run via `bun run test:interop`.
+// It is intentionally excluded from the default `bun test` glob so it never
+// appears as a skip in normal test output. If someone runs it directly
+// without the flag, fail loudly rather than silently no-op.
+if (process.env.APERTURE_INTEROP !== "1") {
+  throw new Error(
+    "Run interop tests with: bun run test:interop (from packages/l402)\n" +
+    "Requires Docker + LND regtest. See docs/testing.md §Aperture Interop Tests.",
+  );
+}
+
 const BASE = process.env.APERTURE_URL ?? "http://localhost:8081";
 
 // A valid-looking 32-byte hex preimage. With strictverify=false Aperture
@@ -39,7 +49,7 @@ async function getProtected(path = "/pokemon/1", headers: Record<string, string>
   return fetch(`${BASE}${path}`, { headers });
 }
 
-describe.skipIf(SKIP)("Aperture interop — PR check", () => {
+describe("Aperture interop — PR check", () => {
   // --- Scenario 1 ---
   test("GET protected resource returns 402 with L402 WWW-Authenticate", async () => {
     const res = await getProtected();
