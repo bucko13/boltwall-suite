@@ -1,0 +1,276 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
+STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
+NODE_MAP_FILE="$STATE_DIR/nodes.env"
+
+REQUESTED_NODE="alice"
+MODE="summary"
+TLS_CERT_PATH="/root/.lnd/tls.cert"
+ADMIN_MACAROON_PATH="/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  .agents/skills/local-lnd-testing/scripts/lnd-env [--node <node>] [--summary|--export|--json|--validate]
+
+Derives the local-only LND environment contract for a regtest LND node:
+  LND_SOCKET
+  LND_CERT_BASE64
+  LND_MACAROON_BASE64
+
+The default node is alice, the server role used by LndAdapter. The node can be
+an internal role (alice, bob) or a logical name created by bootstrap-regtest:
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
+
+Modes:
+  --summary   Print a redacted summary for logs. This is the default.
+  --export    Print shell exports with credential values. Local eval only.
+  --json      Print JSON with credential values. Local process handoff only.
+  --validate  Construct @boltwall/adapters/lnd LndAdapter with the derived values.
+
+Run bootstrap first if the topology is not already available:
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest
+
+Do not paste --export or --json output into logs, issues, commits, or chat.
+EOF
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --summary)
+      MODE="summary"
+      ;;
+    --export)
+      MODE="export"
+      ;;
+    --json)
+      MODE="json"
+      ;;
+    --validate)
+      MODE="validate"
+      ;;
+    --node)
+      shift
+      if [ "${1:-}" = "" ]; then
+        echo "--node requires a node name." >&2
+        exit 2
+      fi
+      REQUESTED_NODE="$1"
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+  shift
+done
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required but not found on PATH." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose is required but unavailable." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required for JSON handling but not found on PATH." >&2
+  exit 1
+fi
+
+if [ "$MODE" = "validate" ] && ! command -v bun >/dev/null 2>&1; then
+  echo "bun is required for --validate but not found on PATH." >&2
+  exit 1
+fi
+
+compose() {
+  docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+mapped_name() {
+  key="$1"
+  if [ ! -f "$NODE_MAP_FILE" ]; then
+    return 1
+  fi
+  awk -F= -v key="$key" '$1 == key { print $2; found = 1; exit } END { if (!found) exit 1 }' "$NODE_MAP_FILE"
+}
+
+known_nodes() {
+  alice_name="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  bob_name="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+
+  if [ -n "$alice_name" ] || [ -n "$bob_name" ]; then
+    printf 'alice, bob'
+    [ -z "$alice_name" ] || printf ', %s' "$alice_name"
+    [ -z "$bob_name" ] || printf ', %s' "$bob_name"
+    printf '\n'
+  else
+    printf 'alice or bob\n'
+  fi
+}
+
+resolve_node_role() {
+  requested="$1"
+
+  case "$requested" in
+    alice | bob)
+      printf '%s\n' "$requested"
+      return 0
+      ;;
+  esac
+
+  alice_name="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  bob_name="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+
+  if [ -n "$alice_name" ] && [ "$requested" = "$alice_name" ]; then
+    printf 'alice\n'
+    return 0
+  fi
+
+  if [ -n "$bob_name" ] && [ "$requested" = "$bob_name" ]; then
+    printf 'bob\n'
+    return 0
+  fi
+
+  echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
+  echo "Run bootstrap-regtest --nodes <first>,<second> to set logical names." >&2
+  return 2
+}
+
+display_node_name() {
+  role="$1"
+
+  case "$role" in
+    alice)
+      mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || printf 'alice\n'
+      ;;
+    bob)
+      mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || printf 'bob\n'
+      ;;
+    *)
+      return 2
+      ;;
+  esac
+}
+
+container_file_base64() {
+  service="$1"
+  path="$2"
+
+  compose exec -T "$service" sh -c "test -s '$path' && base64 '$path' | tr -d '\n'"
+}
+
+lnd_socket() {
+  service="$1"
+  port_output="$(compose port "$service" 10009 2>/dev/null || true)"
+  if [ -z "$port_output" ]; then
+    echo "Unable to resolve the $service host port. Is the regtest topology running?" >&2
+    exit 1
+  fi
+
+  PORT_OUTPUT="$port_output" node <<'NODE'
+const first = (process.env.PORT_OUTPUT ?? "").split(/\r?\n/).find(Boolean);
+if (!first) process.exit(1);
+
+const match = first.match(/(?:\[.*\]|[^:]+):(\d+)$/);
+if (!match) {
+  console.error(`Unable to parse docker compose port output: ${first}`);
+  process.exit(1);
+}
+
+process.stdout.write(`127.0.0.1:${match[1]}`);
+NODE
+}
+
+json_string() {
+  VALUE="$1" node -e 'process.stdout.write(JSON.stringify(process.env.VALUE ?? ""));'
+}
+
+redacted() {
+  value="$1"
+  printf '<redacted:%s chars>' "${#value}"
+}
+
+role="$(resolve_node_role "$REQUESTED_NODE")"
+service="lnd-$role"
+node_name="$(display_node_name "$role")"
+socket="$(lnd_socket "$service")"
+cert_base64="$(container_file_base64 "$service" "$TLS_CERT_PATH")"
+macaroon_base64="$(container_file_base64 "$service" "$ADMIN_MACAROON_PATH")"
+
+case "$MODE" in
+  summary)
+    cat <<EOF
+Local LND env contract ($node_name -> $service, redacted)
+LND_SOCKET=$socket
+LND_CERT_BASE64=$(redacted "$cert_base64")
+LND_MACAROON_BASE64=$(redacted "$macaroon_base64")
+
+Downstream consumers:
+  @boltwall/adapters LndAdapterOptions.socket <- LND_SOCKET
+  @boltwall/adapters LndAdapterOptions.cert <- LND_CERT_BASE64
+  @boltwall/adapters LndAdapterOptions.macaroon <- LND_MACAROON_BASE64
+  middleware, proxy, and playground smoke flows should consume these only as ephemeral local env values.
+
+To export credential values in this shell only:
+  eval "\$(.agents/skills/local-lnd-testing/scripts/lnd-env --node $node_name --export)"
+EOF
+    ;;
+  export)
+    cat <<EOF
+# Local-only LND regtest credentials for the current shell.
+# Do not paste this output into logs, issues, commits, or chat.
+export LND_SOCKET='$socket'
+export LND_CERT_BASE64='$cert_base64'
+export LND_MACAROON_BASE64='$macaroon_base64'
+EOF
+    ;;
+  json)
+    printf '{\n'
+    printf '  "LND_SOCKET": %s,\n' "$(json_string "$socket")"
+    printf '  "LND_CERT_BASE64": %s,\n' "$(json_string "$cert_base64")"
+    printf '  "LND_MACAROON_BASE64": %s\n' "$(json_string "$macaroon_base64")"
+    printf '}\n'
+    ;;
+  validate)
+    (
+      cd "$REPO_ROOT"
+      LND_SOCKET="$socket" \
+        LND_CERT_BASE64="$cert_base64" \
+        LND_MACAROON_BASE64="$macaroon_base64" \
+        bun --silent --eval '
+          import { LndAdapter } from "./packages/adapters/src/lnd";
+
+          const socket = process.env.LND_SOCKET;
+          const cert = process.env.LND_CERT_BASE64;
+          const macaroon = process.env.LND_MACAROON_BASE64;
+
+          if (!socket || !cert || !macaroon) {
+            throw new Error("Missing LND env contract value");
+          }
+
+          const adapter = new LndAdapter({ socket, cert, macaroon });
+
+          console.log(
+            JSON.stringify({
+              ok: true,
+              adapter: adapter.constructor.name,
+              socket,
+              credentials: "redacted",
+            }),
+          );
+        '
+    )
+    ;;
+esac

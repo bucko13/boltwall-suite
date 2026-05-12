@@ -88,15 +88,50 @@ Request this narrow prefix for ad hoc `lncli` commands:
 
 Use direct `docker compose` only when debugging the topology lifecycle itself.
 
+## Ephemeral LND Env Contract
+
+Use `lnd-env` when adapter, middleware, proxy, or playground code needs to talk
+to the server LND node from the host process:
+
+```sh
+.agents/skills/local-lnd-testing/scripts/lnd-env
+```
+
+The default mode prints a redacted summary for logs and names the expected
+environment variables:
+
+- `LND_SOCKET` -> `LndAdapterOptions.socket`
+- `LND_CERT_BASE64` -> `LndAdapterOptions.cert`
+- `LND_MACAROON_BASE64` -> `LndAdapterOptions.macaroon`
+
+To export the local-only credential values into the current shell, make the
+credential-bearing mode explicit:
+
+```sh
+eval "$(.agents/skills/local-lnd-testing/scripts/lnd-env --export)"
+```
+
+Use `--node <name>` to target an internal role (`alice`, `bob`) or a logical
+name from `bootstrap-regtest --nodes <first>,<second>`. The default is `alice`,
+the server role intended for `LndAdapter` smoke checks. `--json` is available
+for local process handoff, and `--validate` constructs `LndAdapter` with the
+derived values without printing certs or macaroons.
+
+Never commit exported values, `.env` files, certs, macaroons, or full `--json`
+output. Downstream tests should consume these values only as ephemeral local
+environment variables.
+
 ## Workflow
 
 1. Read `packages/adapters/src/lnd/REGTEST.md` for the operator-facing runbook.
 2. Start the topology with `bootstrap-regtest`.
 3. Use requested logical names in helper commands; the first logical node maps
    to `lnd-alice`, and the second maps to `lnd-bob`.
-4. Use `lncli-docker <first> ...` for the server node that backs `LndAdapter`.
-5. Use `lncli-docker <second> ...` for payer-side checks and payment commands.
-6. For settled-flow proof, record only non-secret facts: command names, invoice
+4. Use `lnd-env --node <first>` to export adapter env values for the server
+   node when code needs `LndAdapterOptions`.
+5. Use `lncli-docker <first> ...` for server-side node checks.
+6. Use `lncli-docker <second> ...` for payer-side checks and payment commands.
+7. For settled-flow proof, record only non-secret facts: command names, invoice
    status transitions, payment hash, and success/failure summaries. Never paste
    certs, macaroons, seeds, or full env files.
 
@@ -106,8 +141,6 @@ The bootstrap foundation is in place. These beads track the higher-level skill
 operations that human prompts naturally expect:
 
 - `bw-4vd7.8`: funding, channel readiness, balance checks, and moving funds.
-- `bw-4vd7.4`: ephemeral LND env export for adapters, middleware, proxy, and
-  playground tests.
 
 ## Diagnostics
 
