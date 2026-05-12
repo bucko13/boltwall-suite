@@ -1,0 +1,62 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  .agents/skills/local-lnd-testing/scripts/lncli-docker <alice|bob> <lncli args...>
+
+Examples:
+  .agents/skills/local-lnd-testing/scripts/lncli-docker alice getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker bob walletbalance
+  .agents/skills/local-lnd-testing/scripts/lncli-docker bob payinvoice --force <bolt11>
+
+Expands to:
+  docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
+    exec -T lnd-<node> lncli --network=regtest <lncli args...>
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+node="${1:-}"
+if [ -z "$node" ]; then
+  usage >&2
+  exit 2
+fi
+shift
+
+case "$node" in
+  alice | bob)
+    service="lnd-$node"
+    ;;
+  *)
+    echo "Unknown LND node '$node'; expected alice or bob." >&2
+    exit 2
+    ;;
+esac
+
+if [ "$#" -eq 0 ]; then
+  echo "Missing lncli command for $service." >&2
+  usage >&2
+  exit 2
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required but not found on PATH." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose is required but unavailable." >&2
+  exit 1
+fi
+
+exec docker compose -f "$COMPOSE_FILE" exec -T "$service" lncli --network=regtest "$@"
