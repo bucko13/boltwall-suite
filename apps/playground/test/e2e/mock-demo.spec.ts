@@ -5,6 +5,6 @@ import { expect, test } from "@playwright/test";
 test("home page renders and links to /design", async ({ page }) => {
   await page.goto("/");
 
-  await expect(page.getByRole("heading", { name: "playground" })).toBeVisible();
-  await expect(page.getByRole("link", { name: "Open /design" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "L402 Workbench" })).toBeVisible();
+  await expect(page.getByRole("link", { name: /signing key/i }).first()).toBeVisible();
 });

@@ -2,7 +2,7 @@
  * Browser-executed L402 API coverage for the playground (bw-0dw.14).
  *
  * Validates that @boltwall/l402 functions imported by the Next.js bundle
- * work correctly in Chromium — confirming no bundler shim or runtime issue
+ * work correctly in Chromium, confirming no bundler shim or runtime issue
  * breaks the APIs that the playground UI depends on.
  *
  * Fixture selection mirrors packages/l402/test/browser/import.spec.ts so
@@ -27,27 +27,23 @@ const challengeFixture = specChallengeFixtures.find(
 const authorizationFixture = multiMacaroonAuthorizationFixtures.find(
   (f) => f.name === "two-macaroons-no-whitespace",
 );
-const identifierFixture = specIdentifierFixtures.find(
-  (f) => f.name === "v0-66-byte-identifier",
-);
+const identifierFixture = specIdentifierFixtures.find((f) => f.name === "v0-66-byte-identifier");
 const malformedIdentifierFixture = malformedIdentifierFixtures.find(
   (f) => f.name === "identifier-65-bytes",
 );
-const invoiceFixture = BOLT11_SPEC_EXAMPLES.find(
-  (f) => f.name === "bolt11-spec-microbtc-mainnet",
-);
-const goodPreimageFixture = specPreimageFixtures.find(
-  (f) => f.name === "zero-preimage-canonical",
-);
-const badPreimageFixture = specPreimageFixtures.find(
-  (f) => f.name === "near-miss-rejects",
-);
+const invoiceFixture = BOLT11_SPEC_EXAMPLES.find((f) => f.name === "bolt11-spec-microbtc-mainnet");
+const goodPreimageFixture = specPreimageFixtures.find((f) => f.name === "zero-preimage-canonical");
+const badPreimageFixture = specPreimageFixtures.find((f) => f.name === "near-miss-rejects");
 
 if (
-  !challengeFixture || challengeFixture.expected.ok !== true ||
-  !authorizationFixture || authorizationFixture.expected.ok !== true ||
-  !identifierFixture || identifierFixture.expected.ok !== true ||
-  !malformedIdentifierFixture || malformedIdentifierFixture.expected.ok !== false ||
+  !challengeFixture ||
+  challengeFixture.expected.ok !== true ||
+  !authorizationFixture ||
+  authorizationFixture.expected.ok !== true ||
+  !identifierFixture ||
+  identifierFixture.expected.ok !== true ||
+  !malformedIdentifierFixture ||
+  malformedIdentifierFixture.expected.ok !== false ||
   !invoiceFixture ||
   !goodPreimageFixture ||
   !badPreimageFixture
@@ -55,7 +51,27 @@ if (
   throw new Error("bw-0dw.14: missing required browser-validation fixtures");
 }
 
-test.describe("L402 browser validation — playground bundle", () => {
+const challengeExpectedFields =
+  challengeFixture.expected.ok === true ? challengeFixture.expected.fields : undefined;
+const authorizationExpectedFields =
+  authorizationFixture.expected.ok === true ? authorizationFixture.expected.fields : undefined;
+const identifierExpectedFields =
+  identifierFixture.expected.ok === true ? identifierFixture.expected.fields : undefined;
+const malformedIdentifierReason =
+  malformedIdentifierFixture.expected.ok === false
+    ? malformedIdentifierFixture.expected.reason
+    : undefined;
+
+if (
+  !challengeExpectedFields ||
+  !authorizationExpectedFields ||
+  !identifierExpectedFields ||
+  !malformedIdentifierReason
+) {
+  throw new Error("bw-0dw.14: unexpected browser-validation fixture shape");
+}
+
+test.describe("L402 browser validation / playground bundle", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/test-l402");
     await expect(page.locator("[data-testid='l402-test-ready']")).toBeVisible();
@@ -66,7 +82,7 @@ test.describe("L402 browser validation — playground bundle", () => {
       return window.__l402!.parseAuthenticateHeader(header);
     }, challengeFixture.header);
 
-    expect(result).toEqual(challengeFixture.expected.fields);
+    expect(result).toEqual(challengeExpectedFields);
   });
 
   test("parseAuthorizationHeader parses multi-macaroon credential", async ({ page }) => {
@@ -75,7 +91,7 @@ test.describe("L402 browser validation — playground bundle", () => {
     }, authorizationFixture.header);
 
     expect(result.macaroons).toHaveLength(2);
-    expect(result).toEqual(authorizationFixture.expected.fields);
+    expect(result).toEqual(authorizationExpectedFields);
   });
 
   test("decodeIdentifier extracts paymentHash and tokenId", async ({ page }) => {
@@ -90,7 +106,7 @@ test.describe("L402 browser validation — playground bundle", () => {
       };
     }, identifierFixture.macaroon);
 
-    expect(result).toEqual(identifierFixture.expected.fields);
+    expect(result).toEqual(identifierExpectedFields);
   });
 
   test("decodeIdentifier throws on malformed input", async ({ page }) => {
@@ -103,7 +119,7 @@ test.describe("L402 browser validation — playground bundle", () => {
       }
     }, malformedIdentifierFixture.macaroon);
 
-    expect(reason).toBe(malformedIdentifierFixture.expected.reason);
+    expect(reason).toBe(malformedIdentifierReason);
   });
 
   test("decodeBolt11Invoice returns bigint amountMsat in browser", async ({ page }) => {
@@ -127,17 +143,37 @@ test.describe("L402 browser validation — playground bundle", () => {
   });
 
   test("verifyPreimage accepts correct preimage, rejects near-miss", async ({ page }) => {
+    const preimageCases: [
+      { paymentHashHex: string; preimageHex: string },
+      { paymentHashHex: string; preimageHex: string },
+    ] = [
+      {
+        paymentHashHex: goodPreimageFixture.paymentHashHex,
+        preimageHex: goodPreimageFixture.preimageHex,
+      },
+      {
+        paymentHashHex: badPreimageFixture.paymentHashHex,
+        preimageHex: badPreimageFixture.preimageHex,
+      },
+    ];
+
     const [ok, rejected] = await page.evaluate(
-      ([good, bad]: [{ paymentHashHex: string; preimageHex: string }, { paymentHashHex: string; preimageHex: string }]) => {
+      ([good, bad]: [
+        { paymentHashHex: string; preimageHex: string },
+        { paymentHashHex: string; preimageHex: string },
+      ]) => {
         return [
-          window.__l402!.verifyPreimage({ paymentHash: good.paymentHashHex, preimage: good.preimageHex }),
-          window.__l402!.verifyPreimage({ paymentHash: bad.paymentHashHex, preimage: bad.preimageHex }),
+          window.__l402!.verifyPreimage({
+            paymentHash: good.paymentHashHex,
+            preimage: good.preimageHex,
+          }),
+          window.__l402!.verifyPreimage({
+            paymentHash: bad.paymentHashHex,
+            preimage: bad.preimageHex,
+          }),
         ];
       },
-      [
-        { paymentHashHex: goodPreimageFixture.paymentHashHex, preimageHex: goodPreimageFixture.preimageHex },
-        { paymentHashHex: badPreimageFixture.paymentHashHex, preimageHex: badPreimageFixture.preimageHex },
-      ],
+      preimageCases,
     );
 
     expect(ok).toBe(true);

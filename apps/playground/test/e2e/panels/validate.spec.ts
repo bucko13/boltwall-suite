@@ -1,0 +1,67 @@
+import { expect, test } from "@playwright/test";
+
+const FIXTURE_MACAROON =
+  "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
+const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+const WRONG_PREIMAGE = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+test.describe("panels / validate", () => {
+  test.beforeEach(async ({ page }) => {
+    await page.goto("/p/validate");
+    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+  });
+
+  test("renders panel with header and idle status", async ({ page }) => {
+    await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
+  });
+
+  test("verify with mismatched preimage shows check results including preimage row", async ({
+    page,
+  }) => {
+    await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
+    await page.click("[data-testid='validate-verify']");
+
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Preimage matches paymentHash",
+    );
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("invalid");
+  });
+
+  test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
+    // Navigate with params pre-set in URL so nuqs state is populated immediately
+    const url =
+      `/p/validate?validate.token=${encodeURIComponent(FIXTURE_MACAROON)}` +
+      `&validate.key=${FIXTURE_KEY}&validate.preimage=${WRONG_PREIMAGE}`;
+    await page.goto(url);
+    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+
+    await page.click("[data-testid='validate-tamper']");
+
+    await expect(page.locator("text=Token tampered")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Macaroon signature valid",
+    );
+  });
+
+  test("empty token shows error", async ({ page }) => {
+    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
+    await page.click("[data-testid='validate-verify']");
+    await expect(page.locator("[data-testid='validate-error']")).toBeVisible();
+  });
+
+  test("reset clears output", async ({ page }) => {
+    await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
+    await page.click("[data-testid='validate-verify']");
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await page.click("[data-testid='validate-reset']");
+    await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
+  });
+});

@@ -8,14 +8,6 @@
     ],
     "allowJs": true
   },
-  "include": [
-    "next-env.d.ts",
-    "**/*.d.ts",
-    "**/*.ts",
-    "**/*.tsx",
-    ".next/types/**/*.ts"
-  ],
-  "exclude": [
-    "node_modules"
-  ]
+  "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+  "exclude": ["node_modules", "scripts"]
 }
