@@ -50,3 +50,9 @@ jobs:
       - name: Bundle secret audit self-test
         working-directory: apps/playground
         run: bun run scripts/audit-bundle.ts --self-test
+
+      - name: Lighthouse a11y
+        working-directory: apps/playground
+        run: bunx @lhci/cli autorun
+        env:
+          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}

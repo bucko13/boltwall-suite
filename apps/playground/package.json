@@ -10,7 +10,8 @@
     "lint": "eslint app components lib",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no unit tests in playground; see test:e2e\"",
-    "test:e2e": "playwright test"
+    "test:e2e": "playwright test",
+    "test:a11y": "playwright test test/e2e/lighthouse.spec.ts"
   },
   "dependencies": {
     "@boltwall/l402": "workspace:*",
@@ -23,6 +24,7 @@
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {
+    "@axe-core/playwright": "^4.10.1",
     "@boltwall/eslint-config": "workspace:*",
     "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",

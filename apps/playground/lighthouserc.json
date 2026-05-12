@@ -1,0 +1,35 @@
+{
+  "ci": {
+    "collect": {
+      "url": [
+        "http://localhost:3000/",
+        "http://localhost:3000/p/signing-key",
+        "http://localhost:3000/p/from-invoice",
+        "http://localhost:3000/p/from-challenge",
+        "http://localhost:3000/p/parse-token",
+        "http://localhost:3000/p/caveats",
+        "http://localhost:3000/p/add-expiration",
+        "http://localhost:3000/p/validate",
+        "http://localhost:3000/p/satisfy",
+        "http://localhost:3000/p/demo",
+        "http://localhost:3000/design"
+      ],
+      "startServerCommand": "bun run start",
+      "startServerReadyPattern": "started server",
+      "numberOfRuns": 1,
+      "settings": {
+        "chromeFlags": "--no-sandbox --disable-dev-shm-usage",
+        "onlyCategories": ["accessibility"]
+      }
+    },
+    "assert": {
+      "preset": "lighthouse:no-pwa",
+      "assertions": {
+        "categories:accessibility": ["error", { "minScore": 0.9 }]
+      }
+    },
+    "upload": {
+      "target": "temporary-public-storage"
+    }
+  }
+}
