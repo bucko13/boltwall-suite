@@ -73,6 +73,9 @@ For shared write surfaces (`bun.lock`, barrels, root config, shared fixture
 indexes, workflow files, generated public API/config surfaces), keep the
 reservation short: reserve, re-read, edit, validate, commit, release.
 
+When `bun.lock` is reserved for a lockfile reconcile, do not edit workspace
+`package.json` files until the reservation is released.
+
 ## Announce
 
 Post a start note in the task thread:

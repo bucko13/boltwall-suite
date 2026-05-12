@@ -187,6 +187,8 @@ Rules:
 
 A designated reconcile task (label `lockfile-reconcile`) is the only thing that commits `bun.lock`. It reserves `bun.lock` briefly, runs one clean `bun install` after a wave of manifest changes has landed, validates that root `bun run typecheck`/`lint`/`build`/`test` all exit 0, and commits the resulting lockfile. Reconcile tasks are short-lived; the reservation only covers the install + commit window.
 
+Frozen-lockfile CI failures are expected during the gap between a manifest wave and its reconcile commit; clear them promptly with the reconcile task. While `bun.lock` is reserved for reconcile, agents must not edit or commit any workspace `package.json` until that reservation is released.
+
 Phase 0's `bw-f4p.24` is the canonical example.
 
 ---
