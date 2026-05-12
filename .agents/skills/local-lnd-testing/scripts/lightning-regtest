@@ -1,0 +1,447 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
+LNCLI="$SCRIPT_DIR/lncli-docker"
+BOOTSTRAP="$SCRIPT_DIR/bootstrap-regtest"
+STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
+NODE_MAP_FILE="$STATE_DIR/nodes.env"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  lightning-regtest balances [node...]
+  lightning-regtest fund <node> [blocks]
+  lightning-regtest fund-all [node node] [blocks]
+  lightning-regtest connect <from> <to>
+  lightning-regtest open-channel <from> <to> [local-sats]
+  lightning-regtest ready <from> <to> [local-sats]
+  lightning-regtest move <from> <to> [sats]
+
+Reusable local regtest operations for the Docker LND harness. Nodes can be
+internal roles (alice, bob) or logical names set by bootstrap-regtest --nodes.
+
+Examples:
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
+  .agents/skills/local-lnd-testing/scripts/lightning-regtest ready carol david
+  .agents/skills/local-lnd-testing/scripts/lightning-regtest move carol david 1000
+  .agents/skills/local-lnd-testing/scripts/lightning-regtest balances carol david
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+command_name="${1:-}"
+if [ -z "$command_name" ]; then
+  usage >&2
+  exit 2
+fi
+shift
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required but not found on PATH." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose is required but unavailable." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required for JSON handling but not found on PATH." >&2
+  exit 1
+fi
+
+compose() {
+  docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+bitcoin() {
+  compose exec -T bitcoind bitcoin-cli \
+    -regtest \
+    -rpcuser=devuser \
+    -rpcpassword=devpass \
+    "$@"
+}
+
+lncli() {
+  "$LNCLI" "$@"
+}
+
+json_read() {
+  key="$1"
+  node -e 'const fs = require("node:fs"); const key = process.argv[1]; const data = JSON.parse(fs.readFileSync(0, "utf8")); let value = data; for (const part of key.split(".")) value = value?.[part]; if (value === undefined || value === null) process.exit(1); process.stdout.write(String(value));' "$key"
+}
+
+json_has_peer() {
+  pubkey="$1"
+  node -e 'const fs = require("node:fs"); const pubkey = process.argv[1]; const data = JSON.parse(fs.readFileSync(0, "utf8")); process.exit((data.peers || []).some((peer) => peer.pub_key === pubkey) ? 0 : 1);' "$pubkey"
+}
+
+json_has_active_channel() {
+  pubkey="$1"
+  node -e 'const fs = require("node:fs"); const pubkey = process.argv[1]; const data = JSON.parse(fs.readFileSync(0, "utf8")); process.exit((data.channels || []).some((channel) => channel.remote_pubkey === pubkey && channel.active) ? 0 : 1);' "$pubkey"
+}
+
+node_alias() {
+  lncli "$1" getinfo | json_read alias
+}
+
+node_pubkey() {
+  lncli "$1" getinfo | json_read identity_pubkey
+}
+
+confirmed_balance() {
+  lncli "$1" walletbalance | json_read confirmed_balance
+}
+
+channel_local_balance() {
+  lncli "$1" channelbalance | json_read local_balance.sat
+}
+
+channel_remote_balance() {
+  lncli "$1" channelbalance | json_read remote_balance.sat
+}
+
+active_channel_count() {
+  lncli "$1" getinfo | json_read num_active_channels
+}
+
+mapped_name() {
+  key="$1"
+  if [ ! -f "$NODE_MAP_FILE" ]; then
+    return 1
+  fi
+  awk -F= -v key="$key" '$1 == key { print $2; found = 1; exit } END { if (!found) exit 1 }' "$NODE_MAP_FILE"
+}
+
+default_nodes() {
+  first="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  second="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+  printf '%s\n' "${first:-alice}"
+  printf '%s\n' "${second:-bob}"
+}
+
+role_for_node() {
+  requested="$1"
+
+  case "$requested" in
+    alice | bob)
+      printf '%s\n' "$requested"
+      return 0
+      ;;
+  esac
+
+  first="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  second="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+
+  if [ -n "$first" ] && [ "$requested" = "$first" ]; then
+    printf 'alice\n'
+    return 0
+  fi
+
+  if [ -n "$second" ] && [ "$requested" = "$second" ]; then
+    printf 'bob\n'
+    return 0
+  fi
+
+  echo "Unknown node '$requested'. Run bootstrap-regtest --nodes <first>,<second> first." >&2
+  return 2
+}
+
+wait_for() {
+  label="$1"
+  attempts="$2"
+  delay="$3"
+  check="$4"
+
+  for _ in $(seq 1 "$attempts"); do
+    if $check; then
+      echo "$label ready."
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  echo "Timed out waiting for $label." >&2
+  return 1
+}
+
+balance_line() {
+  node_name="$1"
+  alias="$(node_alias "$node_name")"
+  wallet="$(confirmed_balance "$node_name")"
+  local="$(channel_local_balance "$node_name")"
+  remote="$(channel_remote_balance "$node_name")"
+  channels="$(active_channel_count "$node_name")"
+
+  printf '%s (%s): wallet_confirmed=%s sat channel_local=%s sat channel_remote=%s sat active_channels=%s\n' \
+    "$alias" "$node_name" "$wallet" "$local" "$remote" "$channels"
+}
+
+balances() {
+  if [ "$#" -eq 0 ]; then
+    set -- $(default_nodes)
+  fi
+
+  for node_name in "$@"; do
+    balance_line "$node_name"
+  done
+}
+
+mine_to_address() {
+  blocks="$1"
+  address="$2"
+  bitcoin generatetoaddress "$blocks" "$address" >/dev/null
+  bitcoin getblockcount
+}
+
+node_new_address() {
+  lncli "$1" newaddress p2wkh | json_read address
+}
+
+fund_node() {
+  node_name="$1"
+  blocks="${2:-101}"
+
+  if [ "$blocks" -lt 1 ]; then
+    echo "Funding block count must be positive." >&2
+    exit 2
+  fi
+
+  alias="$(node_alias "$node_name")"
+  before="$(confirmed_balance "$node_name")"
+  address="$(node_new_address "$node_name")"
+  height="$(mine_to_address "$blocks" "$address")"
+
+  wait_for "$alias wallet funding" 120 1 "confirmed_balance_above $node_name $before"
+  after="$(confirmed_balance "$node_name")"
+
+  printf 'funded %s (%s): wallet_confirmed %s -> %s sat; mined_blocks=%s block_height=%s\n' \
+    "$alias" "$node_name" "$before" "$after" "$blocks" "$height"
+}
+
+confirmed_balance_above() {
+  node_name="$1"
+  before="$2"
+  current="$(confirmed_balance "$node_name")"
+  [ "$current" -gt "$before" ]
+}
+
+peer_connected() {
+  from="$1"
+  to_pubkey="$2"
+  lncli "$from" listpeers | json_has_peer "$to_pubkey"
+}
+
+connect_nodes() {
+  from="$1"
+  to="$2"
+  to_pubkey="$(node_pubkey "$to")"
+  to_role="$(role_for_node "$to")"
+  from_alias="$(node_alias "$from")"
+  to_alias="$(node_alias "$to")"
+
+  if peer_connected "$from" "$to_pubkey"; then
+    echo "peer connection ready: $from_alias -> $to_alias"
+    return 0
+  fi
+
+  if ! lncli "$from" connect "$to_pubkey@lnd-$to_role:9735" >/dev/null; then
+    echo "Peer connection failed: $from_alias could not connect to $to_alias." >&2
+    return 1
+  fi
+
+  wait_for "peer connection $from_alias -> $to_alias" 60 1 "peer_connected $from $to_pubkey"
+}
+
+active_channel() {
+  from="$1"
+  to_pubkey="$2"
+  lncli "$from" listchannels | json_has_active_channel "$to_pubkey"
+}
+
+mine_confirmation_blocks() {
+  node_name="$1"
+  blocks="${2:-6}"
+  address="$(node_new_address "$node_name")"
+  mine_to_address "$blocks" "$address" >/dev/null
+}
+
+open_channel() {
+  from="$1"
+  to="$2"
+  local_sats="${3:-1000000}"
+  to_pubkey="$(node_pubkey "$to")"
+  from_alias="$(node_alias "$from")"
+  to_alias="$(node_alias "$to")"
+
+  if [ "$local_sats" -lt 20000 ]; then
+    echo "Channel amount is too small for reliable regtest use; use at least 20000 sats." >&2
+    exit 2
+  fi
+
+  if active_channel "$from" "$to_pubkey"; then
+    echo "channel already active: $from_alias -> $to_alias"
+    return 0
+  fi
+
+  connect_nodes "$from" "$to"
+
+  wallet="$(confirmed_balance "$from")"
+  if [ "$wallet" -lt "$local_sats" ]; then
+    echo "Funding check failed: $from_alias has $wallet confirmed sats, needs at least $local_sats." >&2
+    return 1
+  fi
+
+  before_local="$(channel_local_balance "$from")"
+  if ! lncli "$from" openchannel --node_key "$to_pubkey" --local_amt "$local_sats" --sat_per_vbyte 1 >/dev/null; then
+    echo "Channel open failed: $from_alias -> $to_alias." >&2
+    return 1
+  fi
+
+  mine_confirmation_blocks "$from" 6
+  wait_for "active channel $from_alias -> $to_alias" 120 1 "active_channel $from $to_pubkey"
+  after_local="$(channel_local_balance "$from")"
+
+  printf 'channel ready: %s -> %s; local_balance %s -> %s sat; capacity=%s sat\n' \
+    "$from_alias" "$to_alias" "$before_local" "$after_local" "$local_sats"
+}
+
+ready_network() {
+  from="$1"
+  to="$2"
+  local_sats="${3:-1000000}"
+
+  echo "Balances before readiness:"
+  balances "$from" "$to"
+
+  from_balance="$(confirmed_balance "$from")"
+  if [ "$from_balance" -lt "$local_sats" ]; then
+    fund_node "$from" 101
+  fi
+
+  to_balance="$(confirmed_balance "$to")"
+  if [ "$to_balance" -eq 0 ]; then
+    fund_node "$to" 101
+  fi
+
+  open_channel "$from" "$to" "$local_sats"
+
+  echo "Balances after readiness:"
+  balances "$from" "$to"
+}
+
+move_funds() {
+  from="$1"
+  to="$2"
+  sats="${3:-1000}"
+
+  if [ "$sats" -lt 1 ]; then
+    echo "Payment amount must be positive." >&2
+    exit 2
+  fi
+
+  from_alias="$(node_alias "$from")"
+  to_alias="$(node_alias "$to")"
+
+  echo "Balances before payment:"
+  balances "$from" "$to"
+
+  invoice_json="$(lncli "$to" addinvoice --amt "$sats" --memo "boltwall local regtest transfer")" || {
+    echo "Invoice creation failed on $to_alias." >&2
+    return 1
+  }
+  payment_request="$(printf '%s' "$invoice_json" | json_read payment_request)"
+  payment_hash="$(printf '%s' "$invoice_json" | json_read r_hash)"
+
+  payment_json="$(lncli "$from" payinvoice --force "$payment_request")" || {
+    echo "Payment failed: $from_alias could not pay $to_alias invoice for $sats sats." >&2
+    return 1
+  }
+  payment_status="$(printf '%s' "$payment_json" | json_read status 2>/dev/null || true)"
+  payment_error="$(printf '%s' "$payment_json" | json_read payment_error 2>/dev/null || true)"
+
+  invoice_state="$(lncli "$to" lookupinvoice "$payment_hash" | json_read state)"
+  if [ -z "$payment_status" ]; then
+    if [ "$invoice_state" = "SETTLED" ]; then
+      payment_status="SUCCEEDED"
+    elif [ -n "$payment_error" ]; then
+      payment_status="FAILED"
+    else
+      payment_status="UNKNOWN"
+    fi
+  fi
+
+  echo "Payment proof:"
+  printf '  from=%s to=%s amount=%s sat payment_hash=%s status=%s invoice_state=%s\n' \
+    "$from_alias" "$to_alias" "$sats" "$payment_hash" "$payment_status" "$invoice_state"
+
+  echo "Balances after payment:"
+  balances "$from" "$to"
+}
+
+case "$command_name" in
+  balances)
+    balances "$@"
+    ;;
+  fund)
+    if [ "$#" -lt 1 ] || [ "$#" -gt 2 ]; then
+      usage >&2
+      exit 2
+    fi
+    fund_node "$@"
+    ;;
+  fund-all)
+    if [ "$#" -eq 0 ]; then
+      set -- $(default_nodes) 101
+    elif [ "$#" -eq 2 ]; then
+      set -- "$1" "$2" 101
+    elif [ "$#" -ne 3 ]; then
+      usage >&2
+      exit 2
+    fi
+    fund_node "$1" "$3"
+    fund_node "$2" "$3"
+    ;;
+  connect)
+    if [ "$#" -ne 2 ]; then
+      usage >&2
+      exit 2
+    fi
+    connect_nodes "$1" "$2"
+    ;;
+  open-channel)
+    if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+      usage >&2
+      exit 2
+    fi
+    open_channel "$@"
+    ;;
+  ready)
+    if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+      usage >&2
+      exit 2
+    fi
+    "$BOOTSTRAP" --nodes "$1,$2" >/dev/null
+    ready_network "$@"
+    ;;
+  move)
+    if [ "$#" -lt 2 ] || [ "$#" -gt 3 ]; then
+      usage >&2
+      exit 2
+    fi
+    "$BOOTSTRAP" --status >/dev/null
+    move_funds "$@"
+    ;;
+  *)
+    usage >&2
+    exit 2
+    ;;
+esac
