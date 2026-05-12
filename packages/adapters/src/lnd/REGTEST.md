@@ -200,29 +200,27 @@ That harness can back both:
 
 ## Minimal Proof Sequence For The Recommended Harness
 
-This is the target command shape for automation work:
+Current repository command shape:
 
 ```bash
-# 1. Start a purpose-built regtest topology.
-docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml up -d
+# 1. Start containers + export LND_* vars.
+packages/adapters/src/lnd/smoke.sh
 
-# 2. Wait for LND gRPC to become reachable and export credentials from mounted volumes.
-export LND_SOCKET="127.0.0.1:10009"
-export LND_CERT_BASE64="$(base64 < tls.cert | tr -d '\n')"
-export LND_MACAROON_BASE64="$(base64 < admin.macaroon | tr -d '\n')"
+# 2. If first run times out waiting for admin.macaroon, initialize wallet once:
+docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml exec lnd-alice lncli --network=regtest create
 
-# 3. Run the adapter smoke.
-bun test packages/adapters/test/lnd-adapter.test.ts
-bun run <future-lnd-smoke-command>
-
-# 4. Pay the created invoice from the payer node CLI/container.
-docker exec <payer-container> lncli payinvoice --force <bolt11>
-
-# 5. Verify settled lookup and optional HODL settle/cancel cases.
+# 3. Re-run the smoke script after wallet creation.
+packages/adapters/src/lnd/smoke.sh
 ```
 
 This proof sequence is intentionally container-first. It avoids depending on
 undocumented Polar app internals and is a better fit for agent execution.
+
+Current limitation:
+
+- The committed harness is a first-cut bootstrap/export path and does not yet
+  fully automate channel open + payer invoice settlement end-to-end. The
+  remaining automation work is tracked in `bw-4vd7`.
 
 ## Risks And Constraints
 
