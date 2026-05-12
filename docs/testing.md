@@ -30,7 +30,6 @@ encoding, crypto, satisfiers, caveats, and all `@boltwall/l402` protocol logic.
 **Location:**
 - `packages/l402/test/*.test.ts` — main unit suite
 - `packages/l402/test/adversarial/` — tamper/edge-case vectors
-- `packages/l402/test/readme/` — README code examples compiled as tests
 - `packages/l402/test/interop/aperture-smoke.test.ts` — Aperture library
   vector tests (static byte comparison against known Aperture output; no live
   server required)
