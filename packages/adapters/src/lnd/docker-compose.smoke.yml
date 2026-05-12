@@ -1,6 +1,6 @@
 services:
   bitcoind:
-    image: ruimarinho/bitcoin-core:26
+    image: ruimarinho/bitcoin-core:24
     command:
       - -regtest=1
       - -server=1
@@ -19,23 +19,33 @@ services:
 
   lnd-alice:
     image: lightninglabs/lnd:v0.18.5-beta
+    entrypoint:
+      - /bin/sh
+      - -c
+    environment:
+      LND_WALLET_PASSWORD: boltwall-regtest-dev-password
     command:
-      - lnd
-      - --noseedbackup
-      - --trickledelay=5000
-      - --bitcoin.active
-      - --bitcoin.regtest
-      - --bitcoin.node=bitcoind
-      - --bitcoind.rpchost=bitcoind
-      - --bitcoind.rpcuser=devuser
-      - --bitcoind.rpcpass=devpass
-      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
-      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
-      - --rpclisten=0.0.0.0:10009
-      - --restlisten=0.0.0.0:8080
-      - --listen=0.0.0.0:9735
-      - --alias=alice
-      - --externalip=lnd-alice:9735
+      - |
+        set -eu
+        printf '%s\n' "$$LND_WALLET_PASSWORD" > /tmp/lnd-wallet-password
+        chmod 600 /tmp/lnd-wallet-password
+        exec lnd \
+          --wallet-unlock-password-file=/tmp/lnd-wallet-password \
+          --wallet-unlock-allow-create \
+          --trickledelay=5000 \
+          --bitcoin.active \
+          --bitcoin.regtest \
+          --bitcoin.node=bitcoind \
+          --bitcoind.rpchost=bitcoind \
+          --bitcoind.rpcuser=devuser \
+          --bitcoind.rpcpass=devpass \
+          --bitcoind.zmqpubrawblock=tcp://bitcoind:28332 \
+          --bitcoind.zmqpubrawtx=tcp://bitcoind:28333 \
+          --rpclisten=0.0.0.0:10009 \
+          --restlisten=0.0.0.0:8080 \
+          --listen=0.0.0.0:9735 \
+          --alias=alice \
+          --externalip=lnd-alice:9735
     depends_on:
       - bitcoind
     ports:
@@ -47,23 +57,33 @@ services:
 
   lnd-bob:
     image: lightninglabs/lnd:v0.18.5-beta
+    entrypoint:
+      - /bin/sh
+      - -c
+    environment:
+      LND_WALLET_PASSWORD: boltwall-regtest-dev-password
     command:
-      - lnd
-      - --noseedbackup
-      - --trickledelay=5000
-      - --bitcoin.active
-      - --bitcoin.regtest
-      - --bitcoin.node=bitcoind
-      - --bitcoind.rpchost=bitcoind
-      - --bitcoind.rpcuser=devuser
-      - --bitcoind.rpcpass=devpass
-      - --bitcoind.zmqpubrawblock=tcp://bitcoind:28332
-      - --bitcoind.zmqpubrawtx=tcp://bitcoind:28333
-      - --rpclisten=0.0.0.0:10009
-      - --restlisten=0.0.0.0:8080
-      - --listen=0.0.0.0:9735
-      - --alias=bob
-      - --externalip=lnd-bob:9735
+      - |
+        set -eu
+        printf '%s\n' "$$LND_WALLET_PASSWORD" > /tmp/lnd-wallet-password
+        chmod 600 /tmp/lnd-wallet-password
+        exec lnd \
+          --wallet-unlock-password-file=/tmp/lnd-wallet-password \
+          --wallet-unlock-allow-create \
+          --trickledelay=5000 \
+          --bitcoin.active \
+          --bitcoin.regtest \
+          --bitcoin.node=bitcoind \
+          --bitcoind.rpchost=bitcoind \
+          --bitcoind.rpcuser=devuser \
+          --bitcoind.rpcpass=devpass \
+          --bitcoind.zmqpubrawblock=tcp://bitcoind:28332 \
+          --bitcoind.zmqpubrawtx=tcp://bitcoind:28333 \
+          --rpclisten=0.0.0.0:10009 \
+          --restlisten=0.0.0.0:8080 \
+          --listen=0.0.0.0:9735 \
+          --alias=bob \
+          --externalip=lnd-bob:9735
     depends_on:
       - bitcoind
     ports:

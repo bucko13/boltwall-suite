@@ -11,6 +11,18 @@ the bead, reserve files before edits, and keep credentials out of commits.
 
 ## Bundled Shortcut
 
+First bootstrap the Docker regtest topology:
+
+```sh
+.agents/skills/local-lnd-testing/scripts/bootstrap-regtest
+```
+
+The bootstrap command starts bitcoind, `lnd-alice`, and `lnd-bob`, waits for
+LND REST, initializes missing wallets through LND REST with generated seeds
+kept out of logs, then verifies both nodes with `lncli getinfo`. The containers
+use a deterministic dev-only password inside the compose harness so agents do
+not need the user to initialize wallets manually.
+
 Use the bundled script instead of hand-writing Docker Compose `lncli` commands:
 
 ```sh
@@ -27,7 +39,13 @@ docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
 ```
 
 If Docker access is sandbox-blocked, request approval for this narrow command
-prefix:
+prefix for bootstrap work:
+
+```json
+[".agents/skills/local-lnd-testing/scripts/bootstrap-regtest"]
+```
+
+Request this narrow prefix for ad hoc `lncli` commands:
 
 ```json
 [".agents/skills/local-lnd-testing/scripts/lncli-docker"]
@@ -38,8 +56,7 @@ Use direct `docker compose` only when debugging the topology lifecycle itself.
 ## Workflow
 
 1. Read `packages/adapters/src/lnd/REGTEST.md` for the operator-facing runbook.
-2. Start the topology with `packages/adapters/src/lnd/smoke.sh` or the compose
-   file documented in `REGTEST.md`.
+2. Start the topology with `bootstrap-regtest`.
 3. Use `lncli-docker alice ...` for the server node that backs `LndAdapter`.
 4. Use `lncli-docker bob ...` for payer-side checks and payment commands.
 5. For settled-flow proof, record only non-secret facts: command names, invoice

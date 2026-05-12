@@ -1,0 +1,212 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
+LNCLI="$SCRIPT_DIR/lncli-docker"
+
+usage() {
+  cat <<'EOF'
+Usage:
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest [--status]
+
+Starts the Boltwall local Bitcoin/LND regtest topology and waits until:
+  - bitcoind answers regtest RPC calls
+  - lnd-alice is initialized, unlocked, and reachable
+  - lnd-bob is initialized, unlocked, and reachable
+
+The LND containers use a deterministic dev-only wallet password through the
+compose harness. Do not use this topology for production funds.
+EOF
+}
+
+if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
+  usage
+  exit 0
+fi
+
+if [ "${1:-}" = "--status" ]; then
+  status_only=1
+else
+  status_only=0
+fi
+
+if [ "$#" -gt 1 ] || { [ "$#" -gt 0 ] && [ "$status_only" -eq 0 ]; }; then
+  usage >&2
+  exit 2
+fi
+
+if ! command -v docker >/dev/null 2>&1; then
+  echo "docker is required but not found on PATH." >&2
+  exit 1
+fi
+
+if ! docker compose version >/dev/null 2>&1; then
+  echo "docker compose is required but unavailable." >&2
+  exit 1
+fi
+
+if ! command -v curl >/dev/null 2>&1; then
+  echo "curl is required but not found on PATH." >&2
+  exit 1
+fi
+
+if ! command -v node >/dev/null 2>&1; then
+  echo "node is required for JSON handling but not found on PATH." >&2
+  exit 1
+fi
+
+compose() {
+  docker compose -f "$COMPOSE_FILE" "$@"
+}
+
+tail_logs() {
+  service="$1"
+  echo "Recent $service logs:" >&2
+  compose logs --tail=80 "$service" >&2 || true
+}
+
+bitcoind_ready() {
+  compose exec -T bitcoind bitcoin-cli \
+    -regtest \
+    -rpcuser=devuser \
+    -rpcpassword=devpass \
+    getblockchaininfo >/dev/null 2>&1
+}
+
+lnd_ready() {
+  node="$1"
+  "$LNCLI" "$node" getinfo >/dev/null 2>&1
+}
+
+lnd_rest_port() {
+  case "$1" in
+    alice)
+      echo "8080"
+      ;;
+    bob)
+      echo "8081"
+      ;;
+    *)
+      echo "Unknown LND node '$1'." >&2
+      return 2
+      ;;
+  esac
+}
+
+lnd_state() {
+  node="$1"
+  port="$(lnd_rest_port "$node")"
+  curl -sk --fail "https://127.0.0.1:$port/v1/state" |
+    node -e 'const fs = require("node:fs"); const state = JSON.parse(fs.readFileSync(0, "utf8")).state; if (!state) process.exit(1); process.stdout.write(state);'
+}
+
+lnd_rest_ready() {
+  node="$1"
+  lnd_state "$node" >/dev/null 2>&1
+}
+
+init_wallet() {
+  node="$1"
+  state="$(lnd_state "$node")"
+  port="$(lnd_rest_port "$node")"
+  password_base64="Ym9sdHdhbGwtcmVndGVzdC1kZXYtcGFzc3dvcmQ="
+
+  case "$state" in
+    SERVER_ACTIVE | RPC_ACTIVE | WAITING_TO_START)
+      echo "lnd-$node wallet state is $state."
+      return 0
+      ;;
+    NON_EXISTING)
+      echo "Initializing lnd-$node dev wallet..."
+      seed_json="$(curl -sk --fail "https://127.0.0.1:$port/v1/genseed")" || {
+        echo "Failed to generate seed for lnd-$node." >&2
+        tail_logs "lnd-$node"
+        return 1
+      }
+      init_payload="$(
+        printf '%s' "$seed_json" |
+          WALLET_PASSWORD_BASE64="$password_base64" node -e 'const fs = require("node:fs"); const seed = JSON.parse(fs.readFileSync(0, "utf8")); process.stdout.write(JSON.stringify({ wallet_password: process.env.WALLET_PASSWORD_BASE64, cipher_seed_mnemonic: seed.cipher_seed_mnemonic }));'
+      )"
+      curl -sk --fail \
+        -H "Content-Type: application/json" \
+        --data "$init_payload" \
+        "https://127.0.0.1:$port/v1/initwallet" >/dev/null || {
+        echo "Failed to initialize lnd-$node wallet." >&2
+        tail_logs "lnd-$node"
+        return 1
+      }
+      return 0
+      ;;
+    LOCKED)
+      echo "Unlocking lnd-$node dev wallet..."
+      curl -sk --fail \
+        -H "Content-Type: application/json" \
+        --data "{\"wallet_password\":\"$password_base64\"}" \
+        "https://127.0.0.1:$port/v1/unlockwallet" >/dev/null || {
+        echo "Failed to unlock lnd-$node wallet." >&2
+        tail_logs "lnd-$node"
+        return 1
+      }
+      return 0
+      ;;
+    *)
+      echo "Unexpected lnd-$node wallet state: $state" >&2
+      tail_logs "lnd-$node"
+      return 1
+      ;;
+  esac
+}
+
+wait_for() {
+  label="$1"
+  attempts="$2"
+  delay="$3"
+  check="$4"
+  service="$5"
+
+  for i in $(seq 1 "$attempts"); do
+    if $check; then
+      echo "$label ready."
+      return 0
+    fi
+    sleep "$delay"
+  done
+
+  echo "Timed out waiting for $label." >&2
+  tail_logs "$service"
+  return 1
+}
+
+if [ "$status_only" -eq 0 ]; then
+  echo "Starting Boltwall regtest topology..."
+  if ! compose up -d; then
+    echo "Docker Compose failed to start the regtest topology." >&2
+    compose ps >&2 || true
+    exit 1
+  fi
+fi
+
+wait_for "bitcoind RPC" 120 1 bitcoind_ready bitcoind
+wait_for "lnd-alice REST" 120 1 "lnd_rest_ready alice" lnd-alice
+wait_for "lnd-bob REST" 120 1 "lnd_rest_ready bob" lnd-bob
+
+init_wallet alice
+init_wallet bob
+
+wait_for "lnd-alice" 180 1 "lnd_ready alice" lnd-alice
+wait_for "lnd-bob" 180 1 "lnd_ready bob" lnd-bob
+
+cat <<EOF
+Regtest Lightning bootstrap is ready.
+
+Useful commands:
+  .agents/skills/local-lnd-testing/scripts/lncli-docker alice getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker bob getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker bob walletbalance
+
+Next beads:
+  bw-4vd7.3 will add funding, channel readiness, and payment proof.
+  bw-4vd7.4 will add ephemeral LND env export for downstream packages.
+EOF
