@@ -4,21 +4,77 @@ set -euo pipefail
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
+STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
+NODE_MAP_FILE="$STATE_DIR/nodes.env"
 
 usage() {
   cat <<'EOF'
 Usage:
-  .agents/skills/local-lnd-testing/scripts/lncli-docker <alice|bob> <lncli args...>
+  .agents/skills/local-lnd-testing/scripts/lncli-docker <node> <lncli args...>
 
 Examples:
   .agents/skills/local-lnd-testing/scripts/lncli-docker alice getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker carol getinfo
   .agents/skills/local-lnd-testing/scripts/lncli-docker bob walletbalance
   .agents/skills/local-lnd-testing/scripts/lncli-docker bob payinvoice --force <bolt11>
 
+The node can be an internal role (alice, bob) or a logical name created by:
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
+
 Expands to:
   docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
-    exec -T lnd-<node> lncli --network=regtest <lncli args...>
+    exec -T lnd-<role> lncli --network=regtest <lncli args...>
 EOF
+}
+
+mapped_name() {
+  key="$1"
+  if [ ! -f "$NODE_MAP_FILE" ]; then
+    return 1
+  fi
+  awk -F= -v key="$key" '$1 == key { print $2; found = 1; exit } END { if (!found) exit 1 }' "$NODE_MAP_FILE"
+}
+
+known_nodes() {
+  alice_name="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  bob_name="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+
+  if [ -n "$alice_name" ] || [ -n "$bob_name" ]; then
+    printf 'alice, bob'
+    [ -z "$alice_name" ] || printf ', %s' "$alice_name"
+    [ -z "$bob_name" ] || printf ', %s' "$bob_name"
+    printf '\n'
+  else
+    printf 'alice or bob\n'
+  fi
+}
+
+resolve_node_role() {
+  requested="$1"
+
+  case "$requested" in
+    alice | bob)
+      printf '%s\n' "$requested"
+      return 0
+      ;;
+  esac
+
+  alice_name="$(mapped_name BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  bob_name="$(mapped_name BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
+
+  if [ -n "$alice_name" ] && [ "$requested" = "$alice_name" ]; then
+    printf 'alice\n'
+    return 0
+  fi
+
+  if [ -n "$bob_name" ] && [ "$requested" = "$bob_name" ]; then
+    printf 'bob\n'
+    return 0
+  fi
+
+  echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
+  echo "Run bootstrap-regtest --nodes <first>,<second> to set logical names." >&2
+  return 2
 }
 
 if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
@@ -33,15 +89,8 @@ if [ -z "$node" ]; then
 fi
 shift
 
-case "$node" in
-  alice | bob)
-    service="lnd-$node"
-    ;;
-  *)
-    echo "Unknown LND node '$node'; expected alice or bob." >&2
-    exit 2
-    ;;
-esac
+role="$(resolve_node_role "$node")"
+service="lnd-$role"
 
 if [ "$#" -eq 0 ]; then
   echo "Missing lncli command for $service." >&2

@@ -24,6 +24,7 @@ services:
       - -c
     environment:
       LND_WALLET_PASSWORD: boltwall-regtest-dev-password
+      LND_NODE_ALIAS: ${BOLTWALL_LND_ALICE_ALIAS:-alice}
     command:
       - |
         set -eu
@@ -44,7 +45,7 @@ services:
           --rpclisten=0.0.0.0:10009 \
           --restlisten=0.0.0.0:8080 \
           --listen=0.0.0.0:9735 \
-          --alias=alice \
+          --alias=$$LND_NODE_ALIAS \
           --externalip=lnd-alice:9735
     depends_on:
       - bitcoind
@@ -62,6 +63,7 @@ services:
       - -c
     environment:
       LND_WALLET_PASSWORD: boltwall-regtest-dev-password
+      LND_NODE_ALIAS: ${BOLTWALL_LND_BOB_ALIAS:-bob}
     command:
       - |
         set -eu
@@ -82,7 +84,7 @@ services:
           --rpclisten=0.0.0.0:10009 \
           --restlisten=0.0.0.0:8080 \
           --listen=0.0.0.0:9735 \
-          --alias=bob \
+          --alias=$$LND_NODE_ALIAS \
           --externalip=lnd-bob:9735
     depends_on:
       - bitcoind

@@ -5,16 +5,23 @@ SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
 LNCLI="$SCRIPT_DIR/lncli-docker"
+STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
+NODE_MAP_FILE="$STATE_DIR/nodes.env"
 
 usage() {
   cat <<'EOF'
 Usage:
-  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest [--status]
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest [--status] [--nodes <first>,<second>]
+  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest [--status] [--nodes <first> <second>]
 
 Starts the Boltwall local Bitcoin/LND regtest topology and waits until:
   - bitcoind answers regtest RPC calls
   - lnd-alice is initialized, unlocked, and reachable
   - lnd-bob is initialized, unlocked, and reachable
+
+Use --nodes to assign logical test-node names while keeping the internal
+two-service Docker topology. For example, --nodes carol,david makes later
+lncli-docker commands accept carol and david as node names.
 
 The LND containers use a deterministic dev-only wallet password through the
 compose harness. Do not use this topology for production funds.
@@ -26,16 +33,105 @@ if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
   exit 0
 fi
 
-if [ "${1:-}" = "--status" ]; then
-  status_only=1
-else
-  status_only=0
+status_only=0
+alice_alias=""
+bob_alias=""
+
+valid_alias() {
+  case "$1" in
+    "" | *[!A-Za-z0-9._-]*)
+      return 1
+      ;;
+    *)
+      [ "${#1}" -le 32 ]
+      ;;
+  esac
+}
+
+set_node_aliases() {
+  first="$1"
+  second="$2"
+
+  if ! valid_alias "$first" || ! valid_alias "$second"; then
+    echo "Node names must be 1-32 characters and use only letters, digits, dot, underscore, or dash." >&2
+    exit 2
+  fi
+
+  if [ "$first" = "$second" ]; then
+    echo "Node names must be distinct." >&2
+    exit 2
+  fi
+
+  alice_alias="$first"
+  bob_alias="$second"
+}
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --status)
+      status_only=1
+      shift
+      ;;
+    --nodes)
+      shift
+      if [ "${1:-}" = "" ]; then
+        echo "--nodes requires <first>,<second> or <first> <second>." >&2
+        exit 2
+      fi
+      if [ "${1#*,}" != "$1" ]; then
+        first="${1%%,*}"
+        second="${1#*,}"
+        shift
+      else
+        first="$1"
+        second="${2:-}"
+        if [ -z "$second" ]; then
+          echo "--nodes requires a second node name." >&2
+          exit 2
+        fi
+        shift 2
+      fi
+      set_node_aliases "$first" "$second"
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+write_node_map() {
+  mkdir -p "$STATE_DIR"
+  {
+    printf 'BOLTWALL_LND_ALICE_ALIAS=%s\n' "$alice_alias"
+    printf 'BOLTWALL_LND_BOB_ALIAS=%s\n' "$bob_alias"
+  } >"$NODE_MAP_FILE"
+}
+
+read_mapped_alias() {
+  key="$1"
+  if [ ! -f "$NODE_MAP_FILE" ]; then
+    return 1
+  fi
+  awk -F= -v key="$key" '$1 == key { print $2; found = 1; exit } END { if (!found) exit 1 }' "$NODE_MAP_FILE"
+}
+
+if [ -z "$alice_alias" ] && [ -z "$bob_alias" ]; then
+  alice_alias="$(read_mapped_alias BOLTWALL_LND_ALICE_ALIAS 2>/dev/null || true)"
+  bob_alias="$(read_mapped_alias BOLTWALL_LND_BOB_ALIAS 2>/dev/null || true)"
 fi
 
-if [ "$#" -gt 1 ] || { [ "$#" -gt 0 ] && [ "$status_only" -eq 0 ]; }; then
-  usage >&2
-  exit 2
+if [ -z "$alice_alias" ]; then
+  alice_alias="alice"
 fi
+
+if [ -z "$bob_alias" ]; then
+  bob_alias="bob"
+fi
+
+write_node_map
+export BOLTWALL_LND_ALICE_ALIAS="$alice_alias"
+export BOLTWALL_LND_BOB_ALIAS="$bob_alias"
 
 if ! command -v docker >/dev/null 2>&1; then
   echo "docker is required but not found on PATH." >&2
@@ -145,6 +241,10 @@ init_wallet() {
         -H "Content-Type: application/json" \
         --data "{\"wallet_password\":\"$password_base64\"}" \
         "https://127.0.0.1:$port/v1/unlockwallet" >/dev/null || {
+        if lnd_ready "$node"; then
+          echo "lnd-$node wallet was already auto-unlocked."
+          return 0
+        fi
         echo "Failed to unlock lnd-$node wallet." >&2
         tail_logs "lnd-$node"
         return 1
@@ -179,8 +279,33 @@ wait_for() {
   return 1
 }
 
+node_alias_from_getinfo() {
+  node="$1"
+  "$LNCLI" "$node" getinfo |
+    node -e 'const fs = require("node:fs"); const info = JSON.parse(fs.readFileSync(0, "utf8")); if (!info.alias) process.exit(1); process.stdout.write(info.alias);'
+}
+
+verify_alias() {
+  node="$1"
+  expected="$2"
+  actual="$(node_alias_from_getinfo "$node")" || {
+    echo "Could not read lnd-$node alias with lncli getinfo." >&2
+    tail_logs "lnd-$node"
+    return 1
+  }
+
+  if [ "$actual" != "$expected" ]; then
+    echo "lnd-$node alias mismatch: expected '$expected', got '$actual'." >&2
+    echo "Try running bootstrap-regtest again; changing existing aliases may require container recreation." >&2
+    tail_logs "lnd-$node"
+    return 1
+  fi
+
+  printf '%s' "$actual"
+}
+
 if [ "$status_only" -eq 0 ]; then
-  echo "Starting Boltwall regtest topology..."
+  echo "Starting Boltwall regtest topology with logical nodes '$alice_alias' and '$bob_alias'..."
   if ! compose up -d; then
     echo "Docker Compose failed to start the regtest topology." >&2
     compose ps >&2 || true
@@ -198,13 +323,20 @@ init_wallet bob
 wait_for "lnd-alice" 180 1 "lnd_ready alice" lnd-alice
 wait_for "lnd-bob" 180 1 "lnd_ready bob" lnd-bob
 
+alice_actual="$(verify_alias alice "$alice_alias")"
+bob_actual="$(verify_alias bob "$bob_alias")"
+
 cat <<EOF
 Regtest Lightning bootstrap is ready.
 
+Logical nodes:
+  $alice_actual -> lnd-alice
+  $bob_actual -> lnd-bob
+
 Useful commands:
-  .agents/skills/local-lnd-testing/scripts/lncli-docker alice getinfo
-  .agents/skills/local-lnd-testing/scripts/lncli-docker bob getinfo
-  .agents/skills/local-lnd-testing/scripts/lncli-docker bob walletbalance
+  .agents/skills/local-lnd-testing/scripts/lncli-docker $alice_actual getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker $bob_actual getinfo
+  .agents/skills/local-lnd-testing/scripts/lncli-docker $bob_actual walletbalance
 
 Next beads:
   bw-4vd7.3 will add funding, channel readiness, and payment proof.
