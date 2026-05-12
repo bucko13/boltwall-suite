@@ -1,16 +1,21 @@
+"use client";
+
+import Link from "next/link";
+import { usePathname } from "next/navigation";
+
 import { LogoBeaker } from "./logo-beaker";
 import { ThemeToggle } from "./theme-toggle";
 
 const PANEL_LINKS = [
-  { label: "signing key", href: "/p/signing-key" },
-  { label: "from invoice", href: "/p/from-invoice" },
-  { label: "from challenge", href: "/p/from-challenge" },
-  { label: "parse token", href: "/p/parse-token" },
-  { label: "caveats", href: "/p/caveats" },
-  { label: "expiration", href: "/p/add-expiration" },
-  { label: "validate", href: "/p/validate" },
-  { label: "satisfy", href: "/p/satisfy" },
-  { label: "demo", href: "/p/demo" },
+  { label: "Signing Key", href: "/p/signing-key" },
+  { label: "Generate L402 Token", href: "/p/from-invoice" },
+  { label: "From Challenge", href: "/p/from-challenge" },
+  { label: "Parse Token", href: "/p/parse-token" },
+  { label: "Caveats", href: "/p/caveats" },
+  { label: "Add Expiration", href: "/p/add-expiration" },
+  { label: "Validate L402", href: "/p/validate" },
+  { label: "Satisfy L402", href: "/p/satisfy" },
+  { label: "Demo", href: "/p/demo" },
 ];
 
 const META_LINKS = [
@@ -20,6 +25,8 @@ const META_LINKS = [
 ];
 
 export function Nav() {
+  const pathname = usePathname();
+
   return (
     <nav
       style={{
@@ -32,8 +39,9 @@ export function Nav() {
       }}
       aria-label="Primary"
     >
-      <a
+      <Link
         href="/"
+        aria-current={pathname === "/" ? "page" : undefined}
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -44,7 +52,7 @@ export function Nav() {
       >
         <LogoBeaker size={22} />
         <span style={{ fontSize: "var(--size-14)", fontWeight: 500 }}>playground</span>
-      </a>
+      </Link>
 
       <ul
         style={{
@@ -61,16 +69,21 @@ export function Nav() {
       >
         {PANEL_LINKS.map((link) => (
           <li key={link.label}>
-            <a
+            <Link
               href={link.href}
+              aria-current={pathname === link.href ? "page" : undefined}
+              data-testid={`nav-link-${link.href.split("/").at(-1)}`}
               style={{
                 fontSize: "var(--size-12)",
-                color: "var(--color-dim)",
+                color: pathname === link.href ? "var(--color-primary)" : "var(--color-dim)",
+                fontWeight: pathname === link.href ? 600 : 400,
                 whiteSpace: "nowrap",
+                textDecoration: pathname === link.href ? "underline" : "none",
+                textUnderlineOffset: 4,
               }}
             >
               {link.label}
-            </a>
+            </Link>
           </li>
         ))}
       </ul>

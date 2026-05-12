@@ -1,22 +1,22 @@
 "use client";
 
 import {
-  decodeIdentifier,
   parseCaveat,
   validUntilSatisfier,
   servicesSatisfier,
-  type Caveat,
   type CaveatSatisfier,
 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
+
+import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "satisfy";
 
@@ -52,10 +52,6 @@ function jsonToRows(raw: string | null): SatisfierRow[] {
     /* ignore */
   }
   return [];
-}
-
-function bytesToHex(b: Uint8Array): string {
-  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
 }
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -171,12 +167,10 @@ async function runSatisfiers(
 }
 
 export function SatisfyL402() {
-  const [token, setToken] = useUrlInput<string>(
-    "token",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [token, setToken] = useRememberedStringInput("token", {
+    panel: PANEL,
+    field: "macaroon",
+  });
 
   const [satisfiersJson, setSatisfiersJson] = useUrlInput<string>(
     "satisfiers",
@@ -242,6 +236,14 @@ export function SatisfyL402() {
     : results
       ? `${Object.values(results).filter((v) => v === "matched").length}/${Object.keys(results).length} matched`
       : "idle";
+  const snippetRows = satisfierRows.length > 0 ? satisfierRows : [{ name: "valid-until" }];
+  const satisfiersSource = snippetRows
+    .map((row) =>
+      row.name === "services"
+        ? `  servicesSatisfier(${JSON.stringify(row.param ?? "")})`
+        : "  validUntilSatisfier()",
+    )
+    .join(",\n");
 
   return (
     <Cell
@@ -280,14 +282,7 @@ export function SatisfyL402() {
               data-testid="satisfy-token-input"
               rows={2}
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-12-5)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                resize: "vertical",
+                ...panelTextareaStyle(Boolean(error)),
               }}
             />
           </label>
@@ -357,12 +352,7 @@ export function SatisfyL402() {
                 }
                 data-testid="satisfy-satisfier-select"
                 style={{
-                  padding: "6px 10px",
-                  background: "var(--color-surface-alt)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-13)",
-                  color: "var(--color-text)",
+                  ...panelInputStyle(),
                 }}
               >
                 {BUILTIN_SATISFIERS.map((s) => (
@@ -390,13 +380,7 @@ export function SatisfyL402() {
                   placeholder="e.g. pokedex"
                   data-testid="satisfy-satisfier-param"
                   style={{
-                    padding: "6px 10px",
-                    background: "var(--color-surface-alt)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-13)",
-                    color: "var(--color-text)",
-                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                    ...panelInputStyle(),
                     width: 160,
                   }}
                 />
@@ -495,8 +479,8 @@ export function SatisfyL402() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n  validUntilSatisfier(),\n  // servicesSatisfier("my-service"),\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`}
-          values={{}}
+          template={`import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`}
+          values={{ satisfiersSource }}
         />
       }
     />

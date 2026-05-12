@@ -16,23 +16,9 @@ import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
 import { TruncMiddle } from "../ui/trunc-middle";
 
-const PANEL = "from-challenge";
+import { panelTextareaStyle } from "./panel-styles";
 
-function tryDecodeStripe(macaroon: string): MacaroonSegments | null {
-  if (!macaroon) return null;
-  try {
-    const id = decodeIdentifier(macaroon);
-    const enc = new TextEncoder();
-    return {
-      identifier: id.paymentHash, // use paymentHash as the identifier bytes for display
-      location: "",
-      caveats: [],
-      signature: id.tokenId,
-    };
-  } catch {
-    return null;
-  }
-}
+const PANEL = "from-challenge";
 
 export function FromChallenge() {
   const [challenge, setChallenge] = useUrlInput<string>(
@@ -78,6 +64,7 @@ export function FromChallenge() {
       : "idle";
 
   const current = fields?.[selectedField] ?? null;
+  const challengeLiteral = JSON.stringify((challenge ?? "").trim() || "<WWW-Authenticate value>");
 
   let stripeSegments: MacaroonSegments | null = null;
   if (current?.macaroon) {
@@ -131,14 +118,7 @@ export function FromChallenge() {
               data-testid="challenge-input"
               rows={3}
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-12-5)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                resize: "vertical",
+                ...panelTextareaStyle(Boolean(error)),
               }}
             />
           </label>
@@ -263,13 +243,9 @@ export function FromChallenge() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { parseAuthenticateHeader } from "@boltwall/l402";\n\nconst header = "{{challenge}}";\nconst challenges = parseAuthenticateHeader(header);\n// -> [{ scheme, macaroon, invoice }, ...]`}
+          template={`import { parseAuthenticateHeader } from "@boltwall/l402";\n\nconst header = {{challengeLiteral}};\nconst challenges = parseAuthenticateHeader(header);\n// -> [{ scheme, macaroon, invoice }, ...]`}
           values={{
-            challenge: challenge
-              ? challenge.length > 80
-                ? challenge.slice(0, 80) + "..."
-                : challenge
-              : "<WWW-Authenticate value>",
+            challengeLiteral,
           }}
         />
       }

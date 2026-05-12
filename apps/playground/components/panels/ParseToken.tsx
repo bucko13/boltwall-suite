@@ -1,14 +1,9 @@
 "use client";
 
-import {
-  decodeIdentifier,
-  parseCaveat,
-  type MacaroonIdentifierV0,
-  type Caveat,
-} from "@boltwall/l402";
+import { decodeIdentifier, parseCaveat, type MacaroonIdentifierV0 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -17,6 +12,8 @@ import { HeaderRow } from "../ui/header-row";
 import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
 import { ViewModeToggle, type ViewMode } from "../ui/view-mode-toggle";
+
+import { panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "parse-token";
 
@@ -124,12 +121,10 @@ function buildStripeSegments(
 }
 
 export function ParseToken() {
-  const [token, setToken] = useUrlInput<string>(
-    "token",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [token, setToken] = useRememberedStringInput("token", {
+    panel: PANEL,
+    field: "macaroon",
+  });
 
   const [viewMode, setViewMode] = useUrlInput<string>(
     "view",
@@ -175,6 +170,7 @@ export function ParseToken() {
   const status = error ? "fail" : parseResult ? "pass" : "idle";
   const statusLabel = error ? "error" : parseResult ? "decoded" : "idle";
   const activeView = (viewMode as ViewModeValue) || "raw";
+  const tokenLiteral = JSON.stringify((token ?? "").trim() || "<base64 macaroon>");
 
   return (
     <Cell
@@ -213,14 +209,7 @@ export function ParseToken() {
               data-testid="parse-token-input"
               rows={3}
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-12-5)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                resize: "vertical",
+                ...panelTextareaStyle(Boolean(error)),
               }}
             />
           </label>
@@ -370,13 +359,9 @@ export function ParseToken() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { decodeIdentifier } from "@boltwall/l402";\n\nconst macaroon = "{{token}}";\nconst id = decodeIdentifier(macaroon);\n// -> { version: 0, paymentHash: Uint8Array, tokenId: Uint8Array }`}
+          template={`import { decodeIdentifier } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst id = decodeIdentifier(macaroon);\n// -> { version: 0, paymentHash: Uint8Array, tokenId: Uint8Array }`}
           values={{
-            token: token
-              ? token.length > 60
-                ? token.slice(0, 60) + "..."
-                : token
-              : "<base64 macaroon>",
+            tokenLiteral,
           }}
         />
       }

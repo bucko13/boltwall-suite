@@ -1,6 +1,6 @@
 "use client";
 
-import { parseCaveat, serializeCaveat, type Caveat } from "@boltwall/l402";
+import { parseCaveat, serializeCaveat } from "@boltwall/l402";
 import { useState } from "react";
 
 import { useUrlInput } from "../../lib/url-state";
@@ -10,6 +10,8 @@ import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
+
+import { panelInputStyle, panelOutputStyle } from "./panel-styles";
 
 const PANEL = "caveats";
 
@@ -89,6 +91,11 @@ export function Caveats() {
   }
 
   const serialized = rows.map((r) => serializeCaveat({ condition: r.condition, value: r.value }));
+  const snippetRows =
+    rows.length > 0
+      ? rows
+      : [{ condition: draft.condition || "services", value: draft.value || "pokedex:0" }];
+  const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
 
   const status = rows.length > 0 ? "pass" : "idle";
   const statusLabel =
@@ -176,13 +183,7 @@ export function Caveats() {
                 placeholder="e.g. services"
                 data-testid="caveat-condition-input"
                 style={{
-                  padding: "6px 10px",
-                  background: "var(--color-surface-alt)",
-                  border: `1px solid ${draftError ? "var(--color-danger)" : "var(--color-border)"}`,
-                  borderRadius: 4,
-                  fontSize: "var(--size-13)",
-                  color: "var(--color-text)",
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                  ...panelInputStyle(Boolean(draftError)),
                   width: 180,
                 }}
               />
@@ -205,13 +206,7 @@ export function Caveats() {
                 placeholder="e.g. pokedex:0"
                 data-testid="caveat-value-input"
                 style={{
-                  padding: "6px 10px",
-                  background: "var(--color-surface-alt)",
-                  border: `1px solid ${draftError ? "var(--color-danger)" : "var(--color-border)"}`,
-                  borderRadius: 4,
-                  fontSize: "var(--size-13)",
-                  color: "var(--color-text)",
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                  ...panelInputStyle(Boolean(draftError)),
                   width: 200,
                 }}
               />
@@ -270,10 +265,7 @@ export function Caveats() {
             <div
               data-testid="caveats-output"
               style={{
-                padding: "10px 12px",
-                background: "var(--color-surface-alt)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 4,
+                ...panelOutputStyle(),
                 fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
                 fontSize: "var(--size-12-5)",
                 color: "var(--color-dim)",
@@ -301,10 +293,9 @@ export function Caveats() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { parseCaveat, serializeCaveat } from "@boltwall/l402";\n\n// Parse a caveat string\nconst caveat = parseCaveat("{{condition}}={{value}}");\n// -> { condition: "{{condition}}", value: "{{value}}" }\n\n// Serialize back\nserializeCaveat(caveat); // "{{condition}}={{value}}"`}
+          template={`import { serializeCaveat, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst serialized = caveats.map((caveat) => serializeCaveat(caveat));`}
           values={{
-            condition: draft.condition || rows[0]?.condition || "services",
-            value: draft.value || rows[0]?.value || "pokedex:0",
+            caveatsLiteral,
           }}
         />
       }

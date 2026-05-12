@@ -10,14 +10,14 @@ import {
 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
-import { CaveatPill } from "../ui/caveat-pill";
+import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
-import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
+
+import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "validate";
 
@@ -44,19 +44,15 @@ type CheckItem = {
 };
 
 export function ValidateL402() {
-  const [token, setToken] = useUrlInput<string>(
-    "token",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [token, setToken] = useRememberedStringInput("token", {
+    panel: PANEL,
+    field: "macaroon",
+  });
 
-  const [rootKeyHex, setRootKeyHex] = useUrlInput<string>(
-    "key",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [rootKeyHex, setRootKeyHex] = useRememberedStringInput("key", {
+    panel: PANEL,
+    field: "signingKey",
+  });
 
   const [preimageHex, setPreimageHex] = useUrlInput<string>(
     "preimage",
@@ -172,6 +168,7 @@ export function ValidateL402() {
       bytes[bytes.length - 1] = (bytes[bytes.length - 1] ?? 0) ^ 0xff;
     }
     const newB64 = btoa(String.fromCharCode(...bytes));
+    setToken(newB64);
     setTamperedToken(newB64);
     setTampered(true);
     setChecks(null);
@@ -191,6 +188,9 @@ export function ValidateL402() {
   const allPass = checks?.every((c) => c.pass) ?? false;
   const status = error ? "fail" : checks ? (allPass ? "pass" : "fail") : "idle";
   const statusLabel = error ? "error" : checks ? (allPass ? "valid" : "invalid") : "idle";
+  const tokenLiteral = JSON.stringify((token ?? "").trim() || "<base64 macaroon>");
+  const rootKeyLiteral = JSON.stringify((rootKeyHex ?? "").trim() || "<64-char hex key>");
+  const preimageLiteral = JSON.stringify((preimageHex ?? "").trim() || "<64-char hex preimage>");
 
   return (
     <Cell
@@ -231,14 +231,9 @@ export function ValidateL402() {
               data-testid="validate-token-input"
               rows={2}
               style={{
-                padding: "6px 10px",
-                background: tampered ? "var(--color-danger-soft)" : "var(--color-surface-alt)",
-                border: `1px solid ${tampered ? "var(--color-danger)" : error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-12-5)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                resize: "vertical",
+                ...panelTextareaStyle(Boolean(error)),
+                background: tampered ? "var(--color-danger-soft)" : "var(--color-surface)",
+                border: `1px solid ${tampered ? "var(--color-danger)" : error ? "var(--color-danger)" : "var(--color-primary)"}`,
               }}
             />
             {tampered ? (
@@ -274,13 +269,7 @@ export function ValidateL402() {
               placeholder="000102030405..."
               data-testid="validate-key-input"
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 4,
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                ...panelInputStyle(Boolean(error)),
               }}
             />
           </label>
@@ -306,13 +295,7 @@ export function ValidateL402() {
               placeholder="0000000000000000..."
               data-testid="validate-preimage-input"
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 4,
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                ...panelInputStyle(Boolean(error)),
               }}
             />
           </label>
@@ -441,14 +424,11 @@ export function ValidateL402() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { verifyMacaroon, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, rootKey);\n\nconst result = await verifyMacaroon({\n  macaroons: ["{{token}}"],\n  preimage: "{{preimage}}",\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
+          template={`import { decodeIdentifier, verifyMacaroon, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst macaroon = {{tokenLiteral}};\nconst rootKey = hexToBytes({{rootKeyLiteral}});\nconst preimage = {{preimageLiteral}};\nconst { tokenId } = decodeIdentifier(macaroon);\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, rootKey);\n\nconst result = await verifyMacaroon({\n  macaroons: [macaroon],\n  preimage,\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
           values={{
-            token: token
-              ? token.length > 30
-                ? token.slice(0, 30) + "..."
-                : token
-              : "<base64 macaroon>",
-            preimage: preimageHex ? (preimageHex ?? "").slice(0, 16) + "..." : "<64-char hex>",
+            tokenLiteral,
+            rootKeyLiteral,
+            preimageLiteral,
           }}
         />
       }

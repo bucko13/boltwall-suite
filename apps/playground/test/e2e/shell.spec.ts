@@ -15,18 +15,27 @@ test.describe("Nav shell", () => {
 
     const nav = page.getByRole("navigation", { name: "Primary" });
     for (const label of [
-      "signing key",
-      "from invoice",
-      "from challenge",
-      "parse token",
-      "caveats",
-      "expiration",
-      "validate",
-      "satisfy",
-      "demo",
+      "Signing Key",
+      "Generate L402 Token",
+      "From Challenge",
+      "Parse Token",
+      "Caveats",
+      "Add Expiration",
+      "Validate L402",
+      "Satisfy L402",
+      "Demo",
     ]) {
       await expect(nav.getByRole("link", { name: label })).toBeVisible();
     }
+  });
+
+  test("active panel link is highlighted", async ({ page }) => {
+    await page.goto("/p/validate");
+
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    const activeLink = nav.getByRole("link", { name: "Validate L402" });
+    await expect(activeLink).toHaveAttribute("aria-current", "page");
+    await expect(activeLink).toHaveCSS("color", /rgb/);
   });
 
   test("theme toggle visible in nav", async ({ page }) => {

@@ -1,21 +1,17 @@
 "use client";
 
-import {
-  decodeBolt11Invoice,
-  mintMacaroon,
-  parseCaveat,
-  type Caveat,
-  type MacaroonIdentifierV0,
-} from "@boltwall/l402";
+import { decodeBolt11Invoice, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
+
+import { panelInputStyle } from "./panel-styles";
 
 const PANEL = "from-invoice";
 
@@ -31,17 +27,12 @@ function hexToBytes(hex: string): Uint8Array {
   return bytes;
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export function GenerateL402Token() {
-  const [key, setKey] = useUrlInput<string>(
-    "key",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const workbenchMemory = useWorkbenchMemory();
+  const [key, setKey] = useRememberedStringInput("key", {
+    panel: PANEL,
+    field: "signingKey",
+  });
 
   const [invoice, setInvoice] = useUrlInput<string>(
     "invoice",
@@ -88,7 +79,9 @@ export function GenerateL402Token() {
       };
 
       const result = mintMacaroon({ rootKey, identifier });
+      setKey((key ?? "").trim());
       setMacaroon(result);
+      workbenchMemory?.setMacaroon(result);
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -100,11 +93,14 @@ export function GenerateL402Token() {
     setKey(null);
     setInvoice(null);
     setMacaroon(null);
+    workbenchMemory?.setMacaroon(null);
     setError(null);
   }
 
   const status = error ? "fail" : macaroon ? "pass" : "idle";
   const statusLabel = error ? "error" : macaroon ? "minted" : "idle";
+  const keyLiteral = JSON.stringify((key ?? "").trim() || "<64-char hex key>");
+  const invoiceLiteral = JSON.stringify((invoice ?? "").trim());
 
   return (
     <Cell
@@ -138,18 +134,13 @@ export function GenerateL402Token() {
               onChange={(e) => {
                 setKey(e.target.value);
                 setMacaroon(null);
+                workbenchMemory?.setMacaroon(null);
                 setError(null);
               }}
               placeholder="000102030405..."
               data-testid="generate-token-key-input"
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                ...panelInputStyle(Boolean(error)),
               }}
             />
           </label>
@@ -173,18 +164,13 @@ export function GenerateL402Token() {
               onChange={(e) => {
                 setInvoice(e.target.value);
                 setMacaroon(null);
+                workbenchMemory?.setMacaroon(null);
                 setError(null);
               }}
               placeholder="lnbc1500n1..."
               data-testid="generate-token-invoice-input"
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                ...panelInputStyle(Boolean(error)),
               }}
             />
           </label>
@@ -248,9 +234,10 @@ export function GenerateL402Token() {
       code={
         <CodeSnippet
           language="typescript"
-          template={`import { mintMacaroon } from "@boltwall/l402";\n\nconst rootKey = hexToBytes("{{key}}");\nconst identifier = {\n  version: 0 as const,\n  paymentHash: /* from invoice */ new Uint8Array(32),\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`}
+          template={`import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`}
           values={{
-            key: key ? (key.length > 40 ? key.slice(0, 40) + "..." : key) : "<64-char hex key>",
+            keyLiteral,
+            invoiceLiteral,
           }}
         />
       }

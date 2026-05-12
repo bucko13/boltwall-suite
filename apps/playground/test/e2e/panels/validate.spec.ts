@@ -64,4 +64,20 @@ test.describe("panels / validate", () => {
     await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
   });
+
+  test("saved token and signing key are restored from earlier panels", async ({ page }) => {
+    await page.goto("/p/signing-key");
+    await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+
+    await page.getByRole("link", { name: "Generate L402 Token" }).click();
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+    const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
+
+    await page.getByRole("link", { name: "Validate L402" }).click();
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
+    await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
+      macaroon?.trim() ?? "",
+    );
+  });
 });

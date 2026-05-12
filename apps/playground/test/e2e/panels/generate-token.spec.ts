@@ -39,7 +39,20 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
   test("code snippet reflects key value", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
-      FIXTURE_KEY.slice(0, 16),
+      `const rootKey = hexToBytes("${FIXTURE_KEY}")`,
+    );
+  });
+
+  test("minted macaroon carries into parse panel", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+    const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
+
+    expect(macaroon).toBeTruthy();
+
+    await page.getByRole("link", { name: "Parse Token" }).click();
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
+      macaroon?.trim() ?? "",
     );
   });
 });

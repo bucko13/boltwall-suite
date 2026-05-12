@@ -2,13 +2,14 @@
 
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
-import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
+
+import { panelInputStyle } from "./panel-styles";
 
 const PANEL = "signing-key";
 
@@ -17,12 +18,10 @@ function bytesToHex(bytes: Uint8Array): string {
 }
 
 export function SigningKey() {
-  const [key, setKey] = useUrlInput<string>(
-    "key",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [key, setKey] = useRememberedStringInput("key", {
+    panel: PANEL,
+    field: "signingKey",
+  });
 
   const [error, setError] = useState<string | null>(null);
 
@@ -122,13 +121,7 @@ export function SigningKey() {
               placeholder="e.g. 000102030405060708..."
               data-testid="signing-key-input"
               style={{
-                padding: "6px 10px",
-                background: "var(--color-surface-alt)",
-                border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                borderRadius: 4,
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                ...panelInputStyle(Boolean(error)),
               }}
             />
           </label>
@@ -151,13 +144,6 @@ export function SigningKey() {
             </div>
           ) : null}
         </div>
-      }
-      code={
-        <CodeSnippet
-          language="typescript"
-          template={`// 32-byte root key (hex)\nconst rootKeyHex = "{{key}}";\nconst rootKey = Uint8Array.from(\n  rootKeyHex.match(/.{2}/g)!.map((b) => parseInt(b, 16))\n);`}
-          values={{ key: hasKey ? (key ?? "") : "<32-byte hex key>" }}
-        />
       }
     />
   );

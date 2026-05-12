@@ -10,6 +10,8 @@ import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
+import { panelInputStyle, panelOutputStyle } from "./panel-styles";
+
 const PANEL = "add-expiration";
 
 export function AddExpiration() {
@@ -55,6 +57,7 @@ export function AddExpiration() {
 
   const status = error ? "fail" : result ? "pass" : "idle";
   const statusLabel = error ? "error" : result ? "ready" : "idle";
+  const ttlSecondsLiteral = /^[0-9]+$/.test(seconds ?? "") ? (seconds ?? "") : "3600";
 
   return (
     <Cell
@@ -95,13 +98,7 @@ export function AddExpiration() {
                 placeholder="e.g. 3600"
                 data-testid="expiration-seconds-input"
                 style={{
-                  padding: "6px 10px",
-                  background: "var(--color-surface-alt)",
-                  border: `1px solid ${error ? "var(--color-danger)" : "var(--color-border)"}`,
-                  borderRadius: 4,
-                  fontSize: "var(--size-13)",
-                  color: "var(--color-text)",
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                  ...panelInputStyle(Boolean(error)),
                   width: 160,
                 }}
               />
@@ -161,10 +158,7 @@ export function AddExpiration() {
                 display: "flex",
                 flexDirection: "column",
                 gap: 8,
-                padding: "10px 12px",
-                background: "var(--color-surface-alt)",
-                border: "1px solid var(--color-border)",
-                borderRadius: 4,
+                ...panelOutputStyle(),
                 fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
                 fontSize: "var(--size-13)",
               }}
@@ -189,7 +183,7 @@ export function AddExpiration() {
         <CodeSnippet
           language="typescript"
           template={`import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};\n// -> { condition: "valid-until", value: "<iso-timestamp>" }`}
-          values={{ seconds: seconds || "3600" }}
+          values={{ seconds: ttlSecondsLiteral }}
         />
       }
     />

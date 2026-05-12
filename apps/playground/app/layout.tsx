@@ -4,10 +4,7 @@ import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
 
 import { Nav } from "../components/ui/nav";
-import {
-  ThemeProvider,
-  themeBootstrapScript,
-} from "../components/ui/theme-provider";
+import { ThemeProvider, themeBootstrapScript } from "../components/ui/theme-provider";
 
 import "./globals.css";
 
@@ -34,11 +31,13 @@ type RootLayoutProps = {
 
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
-    <html lang="en" className={`${geistSans.variable} ${geistMono.variable}`}>
+    <html
+      lang="en"
+      className={`${geistSans.variable} ${geistMono.variable}`}
+      suppressHydrationWarning
+    >
       <head>
-        <script
-          dangerouslySetInnerHTML={{ __html: themeBootstrapScript }}
-        />
+        <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body>
         <NuqsAdapter>
