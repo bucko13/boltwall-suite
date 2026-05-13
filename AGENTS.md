@@ -328,6 +328,9 @@ Prefer `@boltwall/internal` over external dependencies when the functionality fi
 in roughly 200 lines with good unit tests. Every external dependency addition
 must justify why a small internal utility is not the better fit.
 
+Package provenance and attestations are integrity signals, not safety approval;
+dependency review still follows `docs/dependency-policy.md`.
+
 Read `docs/dependency-policy.md` before adding dependencies or shared utilities.
 
 ---
