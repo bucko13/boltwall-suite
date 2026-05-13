@@ -69,6 +69,77 @@ const buildProvenance = [
   },
 ] as const;
 
+type BuildProvenanceItem = (typeof buildProvenance)[number];
+
+function BuildProvenanceFooter({ items }: { items: ReadonlyArray<BuildProvenanceItem> }) {
+  return (
+    <footer
+      aria-label="Build provenance"
+      data-testid="build-provenance"
+      style={{
+        flexShrink: 0,
+        display: "flex",
+        justifyContent: "center",
+        padding: "16px 24px",
+        borderTop: "1px solid var(--color-border)",
+        background: "var(--color-page)",
+        color: "var(--color-dim)",
+      }}
+    >
+      <dl
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          justifyContent: "center",
+          gap: "6px 16px",
+          margin: 0,
+          padding: 0,
+        }}
+      >
+        {items.map((item) => (
+          <div
+            key={item.id}
+            aria-label={`${item.name} version ${item.version} commit ${item.commit}`}
+            data-testid={`provenance-${item.id}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "baseline",
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            <dt
+              style={{
+                fontSize: "var(--size-11)",
+                fontWeight: 500,
+                color: "var(--color-dim)",
+              }}
+            >
+              {item.name}
+            </dt>
+            <dd
+              className="mono"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                margin: 0,
+                fontSize: "var(--size-11)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span data-testid={`provenance-${item.id}-version`}>v{item.version}</span>
+              <span aria-hidden="true">/</span>
+              <span data-testid={`provenance-${item.id}-commit`}>{item.commit}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
+    </footer>
+  );
+}
+
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
@@ -82,8 +153,17 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <NuqsAdapter>
           <ThemeProvider>
-            <Nav provenance={buildProvenance} />
-            {children}
+            <Nav />
+            <div
+              style={{
+                minHeight: "calc(100vh - 49px)",
+                display: "flex",
+                flexDirection: "column",
+              }}
+            >
+              <div style={{ flex: "1 0 auto" }}>{children}</div>
+              <BuildProvenanceFooter items={buildProvenance} />
+            </div>
           </ThemeProvider>
         </NuqsAdapter>
       </body>

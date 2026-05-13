@@ -43,10 +43,15 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='theme-toggle']")).toBeVisible();
   });
 
-  test("renders package-manifest versions and commit fallback provenance", async ({ page }) => {
+  test("renders package-manifest versions and commit fallback provenance in the footer", async ({
+    page,
+  }) => {
     await page.goto("/");
 
-    const provenance = page.getByTestId("build-provenance");
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    await expect(nav.getByTestId("build-provenance")).toHaveCount(0);
+
+    const provenance = page.getByRole("contentinfo", { name: "Build provenance" });
     await expect(provenance).toBeVisible();
     await expect(page.getByTestId("provenance-l402")).toContainText("@boltwall/l402");
     await expect(page.getByTestId("provenance-l402-version")).toHaveText("v0.0.0");
