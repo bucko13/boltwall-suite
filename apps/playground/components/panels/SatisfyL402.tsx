@@ -253,7 +253,9 @@ export function SatisfyL402() {
           subtitle="Register satisfiers and check them against a token's caveats"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

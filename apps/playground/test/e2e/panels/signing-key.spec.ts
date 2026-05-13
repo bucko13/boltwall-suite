@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { grantClipboard, readClipboard } from "../setup";
+
 test.describe("panels / signing-key", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/signing-key");
@@ -27,10 +29,27 @@ test.describe("panels / signing-key", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("ready");
   });
 
-  test("paste invalid key shows error", async ({ page }) => {
+  test("paste invalid key shows error with hover details and copy affordance", async ({
+    page,
+    context,
+  }) => {
+    await grantClipboard(context);
+
     await page.fill("[data-testid='signing-key-input']", "notahexkey");
     await expect(page.locator("[data-testid='signing-key-error']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("error");
+    const statusPill = page.locator("[data-testid='status-pill']");
+    await expect(statusPill).toContainText("error");
+
+    await statusPill.hover();
+    const details = page.locator("[data-testid='status-pill-details']");
+    await expect(details).toBeVisible();
+    await expect(details).toContainText("Key must be exactly 64 hex characters (32 bytes).");
+
+    await page.locator("[data-testid='status-pill-copy']").click();
+    await expect(page.locator("[data-testid='status-pill-copy']")).toContainText("Copied");
+    await expect
+      .poll(() => readClipboard(page))
+      .toContain("Key must be exactly 64 hex characters (32 bytes).");
   });
 
   test("reset clears output", async ({ page }) => {

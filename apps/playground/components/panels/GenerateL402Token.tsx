@@ -127,7 +127,9 @@ export function GenerateL402Token() {
           subtitle="Mint a macaroon from a root key and BOLT 11 invoice"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

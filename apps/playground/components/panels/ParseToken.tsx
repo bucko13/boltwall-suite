@@ -180,7 +180,9 @@ export function ParseToken() {
           subtitle="Decode a base64 macaroon: identifier fields, caveats, signature"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

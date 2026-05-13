@@ -89,7 +89,9 @@ export function FromChallenge() {
           subtitle="Parse a WWW-Authenticate L402 challenge header"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

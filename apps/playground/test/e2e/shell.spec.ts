@@ -43,6 +43,20 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='theme-toggle']")).toBeVisible();
   });
 
+  test("meta links point to the L402 spec and project GitHub", async ({ page }) => {
+    await page.goto("/");
+
+    const nav = page.getByRole("navigation", { name: "Primary" });
+    await expect(nav.getByRole("link", { name: "spec" })).toHaveAttribute(
+      "href",
+      "https://github.com/lightninglabs/L402/blob/master/protocol-specification.md",
+    );
+    await expect(nav.getByRole("link", { name: "github" })).toHaveAttribute(
+      "href",
+      "https://github.com/bucko13/boltwall-suite",
+    );
+  });
+
   test("renders package-manifest versions and commit fallback provenance in the footer", async ({
     page,
   }) => {

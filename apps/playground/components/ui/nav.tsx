@@ -20,8 +20,11 @@ const PANEL_LINKS = [
 
 const META_LINKS = [
   { label: "docs", href: "#" },
-  { label: "spec", href: "#" },
-  { label: "github", href: "#" },
+  {
+    label: "spec",
+    href: "https://github.com/lightninglabs/L402/blob/master/protocol-specification.md",
+  },
+  { label: "github", href: "https://github.com/bucko13/boltwall-suite" },
 ];
 
 export function Nav() {
@@ -102,6 +105,8 @@ export function Nav() {
           <li key={link.label}>
             <a
               href={link.href}
+              target={link.href === "#" ? undefined : "_blank"}
+              rel={link.href === "#" ? undefined : "noreferrer"}
               style={{
                 fontSize: "var(--size-12)",
                 color: "var(--color-dim)",

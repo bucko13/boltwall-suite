@@ -68,7 +68,9 @@ export function AddExpiration() {
           subtitle="Build a valid-until caveat from a TTL in seconds"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

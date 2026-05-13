@@ -68,7 +68,11 @@ export function Demo() {
         <HeaderRow
           title="Demo"
           subtitle="WebLN wallet connect with live Lightning node info"
-          trailing={<StatusPill state={status}>{statusLabel}</StatusPill>}
+          trailing={
+            <StatusPill state={status} details={error}>
+              {statusLabel}
+            </StatusPill>
+          }
         />
       }
       body={

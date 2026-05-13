@@ -59,7 +59,9 @@ export function SigningKey() {
           subtitle="32-byte root key for macaroon HMAC chain"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }

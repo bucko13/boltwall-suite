@@ -200,7 +200,9 @@ export function ValidateL402() {
           subtitle="Full macaroon verification: signature + preimage + caveats"
           trailing={
             <>
-              <StatusPill state={status}>{statusLabel}</StatusPill>
+              <StatusPill state={status} details={error}>
+                {statusLabel}
+              </StatusPill>
               <CopyUrlButton />
             </>
           }
