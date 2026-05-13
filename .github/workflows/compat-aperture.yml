@@ -19,15 +19,17 @@ jobs:
 
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       - name: Set up Bun
-        uses: oven-sh/setup-bun@v2
+        uses: oven-sh/setup-bun@0c5077e51419868618aeaa5fe8019c62421857d6 # v2.2.0
         with:
           bun-version: 1.3.13
 
       - name: Install dependencies
-        run: bun install --frozen-lockfile
+        # --ignore-scripts blocks supply-chain payloads delivered via npm
+        # lifecycle hooks (preinstall/postinstall/prepare).
+        run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build @boltwall/l402
         run: bun run build --filter @boltwall/l402
@@ -53,7 +55,7 @@ jobs:
 
       - name: Upload artifacts
         if: always()
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: aperture-interop-artifacts
           path: |
