@@ -23,7 +23,6 @@
       }
     },
     "assert": {
-      "preset": "lighthouse:no-pwa",
       "assertions": {
         "categories:accessibility": ["error", { "minScore": 0.9 }]
       }
