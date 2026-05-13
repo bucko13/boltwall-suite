@@ -1,22 +1,12 @@
-name: Release
+name: Release Readiness
 
 # Triggered on every merge to main.
 #
 # Behaviour:
-# - If unpublished changesets exist, Changesets action opens/updates a
-#   "Version Packages" release PR.
-# - When that release PR is merged (and all quality gates below pass),
-#   the action publishes to npm — but ONLY if NPM_TOKEN is set in
-#   GitHub secrets.
-#
-# Pre-Phase-9 (before bw-9zp.6 owner stability gate):
-#   Do NOT set NPM_TOKEN in repository secrets. The workflow will run
-#   the quality gates and create release PRs, but the publish step
-#   will skip with a logged message.  This is the intended safe state.
-#
-# Post-Phase-9 (after owner declares v0.1.0-stable):
-#   Add NPM_TOKEN (and optionally NPM_CONFIG_PROVENANCE=true for npm
-#   provenance attestations) as repository secrets to enable real publish.
+# - Runs the release quality gates on main.
+# - Does NOT run Changesets versioning or npm publishing while pre-stable.
+# - Phase 9 bead bw-j5u.5 owns re-enabling Changesets release PRs,
+#   npm publishing, and provenance after the owner declares v0.1.0-stable.
 
 on:
   push:
@@ -24,13 +14,11 @@ on:
   workflow_dispatch:
 
 permissions:
-  contents: write       # push version commits and tags
-  pull-requests: write  # create/update release PRs
-  id-token: write       # npm provenance attestation (OIDC)
+  contents: read
 
 jobs:
   release:
-    name: Release
+    name: Release readiness
     runs-on: ubuntu-latest
 
     steps:
@@ -69,20 +57,7 @@ jobs:
       - name: Package health
         run: bun run package-health
 
-      - name: Create Release PR or Publish
-        uses: changesets/action@v1
-        with:
-          # Bumps versions and updates changelogs inside the release PR.
-          version: bun run version-packages
-          # Publishes to npm after the release PR is merged.
-          # Skips gracefully if NPM_TOKEN is not set (pre-Phase-9 safe state).
-          publish: bun run release
-          title: "chore: version packages"
-          commit: "chore: version packages"
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          # NPM_TOKEN must NOT be set before the bw-9zp.6 owner stability
-          # gate. Once set, real npm publishes happen on every release PR merge.
-          NPM_TOKEN: ${{ secrets.NPM_TOKEN }}
-          # Enable npm provenance attestations when publishing post-Phase-9.
-          NPM_CONFIG_PROVENANCE: "true"
+      - name: Publishing disabled pre-stable
+        run: |
+          echo "Changesets versioning and npm publishing are intentionally disabled before Phase 9."
+          echo "Re-enable them in bw-j5u.5 after the owner declares v0.1.0-stable."
