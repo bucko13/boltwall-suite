@@ -25,6 +25,7 @@ export function panelOutputStyle(): CSSProperties {
     padding: "10px 12px",
     background: "var(--color-surface-alt)",
     border: "1px solid var(--color-border)",
+    boxShadow: "inset 3px 0 0 var(--color-accent)",
     borderRadius: 4,
   };
 }

@@ -13,7 +13,7 @@ import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
 import { ViewModeToggle, type ViewMode } from "../ui/view-mode-toggle";
 
-import { panelTextareaStyle } from "./panel-styles";
+import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "parse-token";
 
@@ -273,7 +273,19 @@ export function ParseToken() {
           ) : null}
 
           {parseResult ? (
-            <div data-testid="parse-token-output">
+            <div
+              data-testid="parse-token-output"
+              style={{ ...panelOutputStyle(), display: "flex", flexDirection: "column", gap: 10 }}
+            >
+              <div
+                style={{
+                  fontSize: "var(--size-11)",
+                  color: "var(--color-dim)",
+                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                }}
+              >
+                Decoded macaroon fields
+              </div>
               {activeView === "raw" && (
                 <div
                   style={{
@@ -317,7 +329,7 @@ export function ParseToken() {
                   style={{
                     margin: 0,
                     padding: "12px",
-                    background: "var(--color-surface-alt)",
+                    background: "var(--color-surface)",
                     border: "1px solid var(--color-border)",
                     borderRadius: 4,
                     fontSize: "var(--size-12-5)",

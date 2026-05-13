@@ -9,10 +9,12 @@ import { useState } from "react";
  */
 export function BigBlob({
   value,
+  label = "Generated value",
   defaultExpanded = true,
   wrapDefault = true,
 }: {
   value: string;
+  label?: string;
   defaultExpanded?: boolean;
   wrapDefault?: boolean;
 }) {
@@ -21,10 +23,7 @@ export function BigBlob({
   const [copied, setCopied] = useState(false);
 
   const tooLong = value.length > 512;
-  const collapsedView =
-    tooLong && !expanded
-      ? `${value.slice(0, 40)}…${value.slice(-8)}`
-      : value;
+  const collapsedView = tooLong && !expanded ? `${value.slice(0, 40)}…${value.slice(-8)}` : value;
 
   async function copy() {
     try {
@@ -37,14 +36,88 @@ export function BigBlob({
   }
 
   return (
-    <div data-testid="big-blob" style={{ position: "relative" }}>
+    <div
+      data-testid="big-blob"
+      role="group"
+      aria-label={label}
+      style={{
+        background: "var(--color-surface-alt)",
+        border: "1px solid var(--color-border)",
+        boxShadow: "inset 3px 0 0 var(--color-accent)",
+        borderRadius: 4,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
+          flexWrap: "wrap",
+          padding: "7px 12px 7px 14px",
+          borderBottom: "1px solid var(--color-border)",
+        }}
+      >
+        <span
+          data-testid="big-blob-label"
+          style={{
+            fontSize: "var(--size-11)",
+            color: "var(--color-dim)",
+            fontFamily:
+              "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+          }}
+        >
+          {label}
+        </span>
+        <div
+          style={{
+            display: "inline-flex",
+            alignItems: "center",
+            gap: 8,
+            fontSize: "var(--size-11)",
+            color: "var(--color-dim)",
+          }}
+        >
+          <span>{value.length} chars</span>
+          {tooLong ? (
+            <button
+              type="button"
+              onClick={() => setExpanded((v) => !v)}
+              style={{ color: "var(--color-dim)", textDecoration: "underline" }}
+            >
+              {expanded ? "collapse" : "show full"}
+            </button>
+          ) : null}
+          <button
+            type="button"
+            onClick={() => setWrap((v) => !v)}
+            style={{ color: "var(--color-dim)", textDecoration: "underline" }}
+          >
+            wrap {wrap ? "on" : "off"}
+          </button>
+          <button
+            type="button"
+            onClick={copy}
+            data-testid="big-blob-copy"
+            aria-label={copied ? "Copied" : `Copy ${label.toLowerCase()}`}
+            style={{
+              padding: "2px 8px",
+              fontSize: "var(--size-11)",
+              background: "var(--color-surface)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
+              color: copied ? "var(--color-accent)" : "var(--color-dim)",
+            }}
+          >
+            {copied ? "copied" : "copy"}
+          </button>
+        </div>
+      </div>
       <pre
         style={{
           margin: 0,
-          padding: "12px 56px 12px 12px",
+          padding: "12px 14px",
           background: "var(--color-surface-alt)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 4,
           fontFamily:
             "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
           fontSize: "var(--size-13-5)",
@@ -59,58 +132,6 @@ export function BigBlob({
       >
         {collapsedView}
       </pre>
-      <div
-        style={{
-          position: "absolute",
-          top: 8,
-          right: 8,
-          display: "inline-flex",
-          gap: 4,
-        }}
-      >
-        <button
-          type="button"
-          onClick={copy}
-          aria-label={copied ? "Copied" : "Copy value"}
-          style={{
-            padding: "2px 8px",
-            fontSize: "var(--size-11)",
-            background: "var(--color-surface)",
-            border: "1px solid var(--color-border)",
-            borderRadius: 4,
-            color: copied ? "var(--color-accent)" : "var(--color-dim)",
-          }}
-        >
-          {copied ? "copied" : "copy"}
-        </button>
-      </div>
-      <div
-        style={{
-          display: "flex",
-          gap: 12,
-          marginTop: 6,
-          fontSize: "var(--size-11)",
-          color: "var(--color-dim)",
-        }}
-      >
-        {tooLong ? (
-          <button
-            type="button"
-            onClick={() => setExpanded((v) => !v)}
-            style={{ color: "var(--color-dim)", textDecoration: "underline" }}
-          >
-            {expanded ? "[collapse]" : "[show full]"}
-          </button>
-        ) : null}
-        <button
-          type="button"
-          onClick={() => setWrap((v) => !v)}
-          style={{ color: "var(--color-dim)", textDecoration: "underline" }}
-        >
-          wrap: {wrap ? "on" : "off"}
-        </button>
-        <span style={{ marginLeft: "auto" }}>{value.length} chars</span>
-      </div>
     </div>
   );
 }

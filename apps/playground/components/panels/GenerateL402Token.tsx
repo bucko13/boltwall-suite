@@ -247,7 +247,7 @@ export function GenerateL402Token() {
 
           {macaroon ? (
             <div data-testid="generate-token-output">
-              <BigBlob value={macaroon} />
+              <BigBlob value={macaroon} label="Generated macaroon" />
             </div>
           ) : null}
         </div>

@@ -20,6 +20,9 @@ test.describe("panels / parse-token", () => {
     await page.click("[data-testid='parse-token-decode']");
 
     await expect(page.locator("[data-testid='parse-token-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='parse-token-output']")).toContainText(
+      "Decoded macaroon fields",
+    );
     await expect(page.locator("[data-testid='parse-token-payment-hash']")).toBeVisible();
     await expect(page.locator("[data-testid='parse-token-token-id']")).toBeVisible();
     await expect(page.locator("[data-testid='status-pill']")).toContainText("decoded");

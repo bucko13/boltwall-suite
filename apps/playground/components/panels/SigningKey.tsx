@@ -142,7 +142,7 @@ export function SigningKey() {
 
           {hasKey ? (
             <div data-testid="signing-key-output">
-              <BigBlob value={key ?? ""} />
+              <BigBlob value={key ?? ""} label="Generated signing key" />
             </div>
           ) : null}
         </div>

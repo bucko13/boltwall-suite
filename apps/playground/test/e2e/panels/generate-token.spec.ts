@@ -18,6 +18,9 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await page.click("[data-testid='generate-token-mint']");
 
     await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
+    await expect(page.getByRole("group", { name: "Generated macaroon" })).toBeVisible();
+    await expect(page.locator("[data-testid='generate-token-output'] input")).toHaveCount(0);
+    await expect(page.locator("[data-testid='generate-token-output'] textarea")).toHaveCount(0);
     await expect(page.locator("[data-testid='status-pill']")).toContainText("minted");
   });
 

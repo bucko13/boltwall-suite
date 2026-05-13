@@ -20,6 +20,9 @@ test.describe("panels / from-challenge", () => {
     await page.click("[data-testid='challenge-parse']");
 
     await expect(page.locator("[data-testid='challenge-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='challenge-output']")).toContainText(
+      "Parsed challenge fields",
+    );
     await expect(page.locator("[data-testid='challenge-scheme']")).toContainText("L402");
     await expect(page.locator("[data-testid='status-pill']")).toContainText("1 challenge");
   });

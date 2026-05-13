@@ -68,6 +68,13 @@ test.describe("panels / signing-key", () => {
   test("input and copyable output have distinct visual treatments", async ({ page }) => {
     const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
     await page.fill("[data-testid='signing-key-input']", key);
+    await expect(page.getByRole("group", { name: "Generated signing key" })).toBeVisible();
+    await expect(page.locator("[data-testid='big-blob-label']")).toContainText(
+      "Generated signing key",
+    );
+    await expect(page.locator("[data-testid='big-blob-copy']")).toBeVisible();
+    await expect(page.locator("[data-testid='signing-key-output'] input")).toHaveCount(0);
+    await expect(page.locator("[data-testid='signing-key-output'] textarea")).toHaveCount(0);
     const inputBackground = await page
       .locator("[data-testid='signing-key-input']")
       .evaluate((el) => getComputedStyle(el).backgroundColor);

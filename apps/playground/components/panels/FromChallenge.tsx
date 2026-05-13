@@ -16,7 +16,7 @@ import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
 import { TruncMiddle } from "../ui/trunc-middle";
 
-import { panelTextareaStyle } from "./panel-styles";
+import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "from-challenge";
 
@@ -203,11 +203,21 @@ export function FromChallenge() {
             <div
               data-testid="challenge-output"
               style={{
+                ...panelOutputStyle(),
                 display: "flex",
                 flexDirection: "column",
                 gap: 10,
               }}
             >
+              <div
+                style={{
+                  fontSize: "var(--size-11)",
+                  color: "var(--color-dim)",
+                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                }}
+              >
+                Parsed challenge fields
+              </div>
               <div
                 style={{
                   display: "grid",
