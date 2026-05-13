@@ -1,3 +1,4 @@
+import { assertBackendSupports, type RequiredBackendCapabilities } from "@boltwall/adapters";
 import { originCaveat, routeCaveat, validUntil } from "@boltwall/l402";
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 
@@ -11,7 +12,8 @@ import "./types.js";
 // Caveat factory re-exports for ergonomic middleware config.
 export { originCaveat, routeCaveat, validUntil };
 
-export type L402ExpressOptions = L402Config;
+/** Express-adapter options extend core L402Config with optional backend capability requirements. */
+export type L402ExpressOptions = L402Config & RequiredBackendCapabilities;
 
 /**
  * Express middleware factory for L402 payment authentication.
@@ -32,6 +34,9 @@ export type L402ExpressOptions = L402Config;
 export function boltwall(
   options: L402ExpressOptions,
 ): (req: ExpressRequest, res: ExpressResponse, next: NextFunction) => void {
+  // Fail at construction time if the backend lacks a required capability.
+  assertBackendSupports(options.backend, options);
+
   const config: L402Config = {
     ...options,
     logger: options.logger ?? defaultLogger,
