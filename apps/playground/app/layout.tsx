@@ -3,8 +3,10 @@ import { Geist, Geist_Mono } from "next/font/google";
 import { NuqsAdapter } from "nuqs/adapters/next/app";
 import type { ReactNode } from "react";
 
+import l402Package from "../../../packages/l402/package.json";
 import { Nav } from "../components/ui/nav";
 import { ThemeProvider, themeBootstrapScript } from "../components/ui/theme-provider";
+import playgroundPackage from "../package.json";
 
 import "./globals.css";
 
@@ -29,6 +31,44 @@ type RootLayoutProps = {
   children: ReactNode;
 };
 
+function shortCommit(value: string | undefined): string {
+  if (!value) {
+    return "local";
+  }
+
+  return value.slice(0, 7);
+}
+
+const deploymentCommit =
+  process.env.NEXT_PUBLIC_VERCEL_GIT_COMMIT_SHA ??
+  process.env.VERCEL_GIT_COMMIT_SHA ??
+  process.env.GITHUB_SHA;
+
+// Provenance contract: versions come from package manifests; commits come from
+// explicit per-surface env vars, then the deployment SHA, then local fallback.
+const buildProvenance = [
+  {
+    id: "l402",
+    name: "@boltwall/l402",
+    version: l402Package.version,
+    commit: shortCommit(
+      process.env.NEXT_PUBLIC_BOLTWALL_L402_COMMIT_SHA ??
+        process.env.BOLTWALL_L402_COMMIT_SHA ??
+        deploymentCommit,
+    ),
+  },
+  {
+    id: "playground",
+    name: "playground",
+    version: playgroundPackage.version,
+    commit: shortCommit(
+      process.env.NEXT_PUBLIC_BOLTWALL_PLAYGROUND_COMMIT_SHA ??
+        process.env.BOLTWALL_PLAYGROUND_COMMIT_SHA ??
+        deploymentCommit,
+    ),
+  },
+] as const;
+
 export default function RootLayout({ children }: RootLayoutProps) {
   return (
     <html
@@ -42,7 +82,7 @@ export default function RootLayout({ children }: RootLayoutProps) {
       <body>
         <NuqsAdapter>
           <ThemeProvider>
-            <Nav />
+            <Nav provenance={buildProvenance} />
             {children}
           </ThemeProvider>
         </NuqsAdapter>

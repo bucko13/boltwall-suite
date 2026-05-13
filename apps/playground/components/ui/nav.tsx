@@ -24,15 +24,28 @@ const META_LINKS = [
   { label: "github", href: "#" },
 ];
 
-export function Nav() {
+type BuildProvenanceItem = {
+  id: string;
+  name: string;
+  version: string;
+  commit: string;
+};
+
+type NavProps = {
+  provenance: ReadonlyArray<BuildProvenanceItem>;
+};
+
+export function Nav({ provenance }: NavProps) {
   const pathname = usePathname();
 
   return (
     <nav
       style={{
-        display: "flex",
+        display: "grid",
+        gridTemplateColumns: "auto minmax(0, 1fr) auto",
         alignItems: "center",
-        gap: 24,
+        columnGap: 24,
+        rowGap: 10,
         padding: "12px 24px",
         borderBottom: "1px solid var(--color-border)",
         background: "var(--color-surface)",
@@ -115,6 +128,61 @@ export function Nav() {
           <ThemeToggle />
         </li>
       </ul>
+
+      <dl
+        aria-label="Build provenance"
+        data-testid="build-provenance"
+        style={{
+          gridColumn: "1 / -1",
+          display: "flex",
+          flexWrap: "wrap",
+          alignItems: "center",
+          gap: "6px 14px",
+          margin: 0,
+          paddingTop: 10,
+          borderTop: "1px solid var(--color-border)",
+          color: "var(--color-dim)",
+        }}
+      >
+        {provenance.map((item) => (
+          <div
+            key={item.id}
+            aria-label={`${item.name} version ${item.version} commit ${item.commit}`}
+            data-testid={`provenance-${item.id}`}
+            style={{
+              display: "inline-flex",
+              alignItems: "baseline",
+              gap: 6,
+              minWidth: 0,
+            }}
+          >
+            <dt
+              style={{
+                fontSize: "var(--size-11)",
+                fontWeight: 500,
+                color: "var(--color-text)",
+              }}
+            >
+              {item.name}
+            </dt>
+            <dd
+              className="mono"
+              style={{
+                display: "inline-flex",
+                alignItems: "center",
+                gap: 6,
+                margin: 0,
+                fontSize: "var(--size-11)",
+                whiteSpace: "nowrap",
+              }}
+            >
+              <span data-testid={`provenance-${item.id}-version`}>v{item.version}</span>
+              <span aria-hidden="true">/</span>
+              <span data-testid={`provenance-${item.id}-commit`}>{item.commit}</span>
+            </dd>
+          </div>
+        ))}
+      </dl>
     </nav>
   );
 }

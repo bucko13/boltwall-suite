@@ -43,6 +43,21 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='theme-toggle']")).toBeVisible();
   });
 
+  test("renders package-manifest versions and commit fallback provenance", async ({ page }) => {
+    await page.goto("/");
+
+    const provenance = page.getByTestId("build-provenance");
+    await expect(provenance).toBeVisible();
+    await expect(page.getByTestId("provenance-l402")).toContainText("@boltwall/l402");
+    await expect(page.getByTestId("provenance-l402-version")).toHaveText("v0.0.0");
+    await expect(page.getByTestId("provenance-l402-commit")).toHaveText(/^([0-9a-f]{7}|local)$/);
+    await expect(page.getByTestId("provenance-playground")).toContainText("playground");
+    await expect(page.getByTestId("provenance-playground-version")).toHaveText("v0.0.0");
+    await expect(page.getByTestId("provenance-playground-commit")).toHaveText(
+      /^([0-9a-f]{7}|local)$/,
+    );
+  });
+
   test("no tagline copy present", async ({ page }) => {
     await page.goto("/");
     await expect(page.getByText("Read, build, break")).not.toBeVisible();
