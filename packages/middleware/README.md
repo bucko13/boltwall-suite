@@ -53,6 +53,68 @@ Imported from `@boltwall/middleware/express` (re-exported from `@boltwall/l402`)
 `hodl: true` with a backend that has `capabilities.hodl === false`, it throws
 `BackendCapabilityError` immediately — fail fast, not at the first payment.
 
+## Web Fetch core (Next.js, Hono, Cloudflare Workers)
+
+The root entrypoint exports `authorizeL402` which operates on the standard Web
+Fetch `Request` / `Response` API. No Express adapter needed — use it directly
+in any framework that speaks Web Fetch.
+
+> These are usage snippets, not first-class adapter packages. Framework-specific
+> adapters (Hono middleware, Next.js helper) may land in later phases if demand
+> warrants a dedicated package.
+
+### Next.js Route Handler (App Router)
+
+```ts
+// app/api/paid/route.ts
+import { authorizeL402 } from "@boltwall/middleware";
+import { backend, rootKeyStore } from "@/lib/boltwall"; // your singleton setup
+
+const config = {
+  service: "my-api",
+  backend,
+  rootKeyStore,
+  price: 100_000n,
+};
+
+export async function GET(request: Request) {
+  const result = await authorizeL402(request, config);
+  if (!result.ok) {
+    // Copy the 402/401/502 response from the gate result
+    return result.response;
+  }
+  return Response.json({ paid: true, paymentHash: result.context.paymentHash });
+}
+```
+
+### Hono
+
+```ts
+import { Hono } from "hono";
+import { authorizeL402 } from "@boltwall/middleware";
+import { backend, rootKeyStore } from "./boltwall"; // your singleton setup
+
+const app = new Hono();
+
+const config = { service: "my-api", backend, rootKeyStore, price: 100_000n };
+
+app.use("/paid/*", async (c, next) => {
+  const result = await authorizeL402(c.req.raw, config);
+  if (!result.ok) {
+    // Copy headers from the gate response
+    result.response.headers.forEach((value, key) => c.header(key, value));
+    return c.body(null, result.response.status as 402 | 401 | 502);
+  }
+  c.set("l402", result.context);
+  await next();
+});
+
+app.get("/paid/data", (c) => {
+  const l402 = c.get("l402");
+  return c.json({ paid: true, paymentHash: l402.paymentHash });
+});
+```
+
 ## Migrating from legacy `boltwall`
 
 See [docs/migration-from-boltwall.md](../../docs/migration-from-boltwall.md).
