@@ -1,6 +1,28 @@
 import pino from "pino";
+import type { DestinationStream } from "pino";
 
 import type { MinimalLogger } from "./core/types.js";
+
+export const REDACTED_PATHS = [
+  "macaroon",
+  "macaroons",
+  "preimage",
+  "rootKey",
+  "*.macaroon",
+  "*.macaroons",
+  "*.preimage",
+  "*.rootKey",
+  "*.paymentRequest",
+  "*.cert",
+  "*.macaroon_base64",
+  "*.secret",
+  "headers.authorization",
+  "headers.Authorization",
+  "config.rootKey",
+  "context.identifier.tokenId",
+  "credential.macaroons",
+  "credential.preimageHex",
+] as const;
 
 /**
  * Default structured logger with redaction for L402 bearer credentials.
@@ -12,23 +34,23 @@ import type { MinimalLogger } from "./core/types.js";
  * Per AGENTS.md security-boundaries: macaroons and preimages must not be
  * logged at info level.
  */
-export const defaultLogger: MinimalLogger = pino({
-  redact: {
-    paths: [
-      "*.macaroon",
-      "*.macaroons",
-      "*.preimage",
-      "*.rootKey",
-      "*.paymentRequest",
-      "*.cert",
-      "*.macaroon_base64",
-      "*.secret",
-      "credential.macaroons",
-      "credential.preimageHex",
-    ],
-    censor: "[REDACTED]",
-  },
-});
+export function createLogger(
+  opts: { level?: string; name?: string; stream?: DestinationStream } = {},
+): MinimalLogger {
+  return pino(
+    {
+      level: opts.level ?? "info",
+      name: opts.name ?? "boltwall",
+      redact: {
+        paths: [...REDACTED_PATHS],
+        censor: "[REDACTED]",
+      },
+    },
+    opts.stream,
+  );
+}
+
+export const defaultLogger: MinimalLogger = createLogger();
 
 /** No-op logger for contexts where logging is explicitly disabled. */
 export const noopLogger: MinimalLogger = {
