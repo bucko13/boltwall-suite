@@ -28,6 +28,52 @@ Report useful proof output: node aliases, regtest network, wallet/channel
 balances, payment hash/status, and command failures. Do not print certs,
 macaroons, seeds, or env files.
 
+## Downstream Package Routing
+
+Use this harness for downstream work when a package needs a real LND-backed
+settled-flow proof instead of pure unit tests:
+
+- `@boltwall/adapters`: use `lnd-adapter-smoke` for `LndAdapter`
+  create/open/pay/settled proof, or `lightning-regtest` when validating only
+  channel readiness and payer liquidity.
+- `@boltwall/middleware`: use `lightning-regtest ready` before middleware tests
+  need a payable invoice path, and use `lnd-env --node <server>` only when a
+  local middleware process must construct `LndAdapterOptions`.
+- `@boltwall/proxy`: use the same `lnd-env` contract for the upstream payment
+  backend, then record proxy-facing status transitions rather than raw
+  credential material.
+- `@boltwall/playground`: use the harness only for local live-payment demos or
+  e2e flows that intentionally depend on Docker LND. Fixture-only browser tests
+  should not require this skill.
+
+For operator background and historical proof, read
+`packages/adapters/src/lnd/REGTEST.md` instead of duplicating the full LND
+runbook in package docs.
+
+## Lifecycle And Evidence
+
+Keep the steps distinct so handoffs are easy to review:
+
+1. Bootstrap: `bootstrap-regtest --nodes <payer>,<server>` starts the topology
+   and verifies aliases.
+2. Env export: `lnd-env --node <server>` prints a redacted summary; use
+   `--export` only inside the local shell that needs credentials.
+3. Payment helper: `lightning-regtest ready` proves channel readiness, and
+   `lightning-regtest move` proves a non-interactive settled invoice.
+4. Adapter smoke: `lnd-adapter-smoke` proves the same settled path through
+   `LndAdapter`.
+5. Diagnostics: use helper output first, then `lncli-docker` for targeted
+   `getinfo`, `walletbalance`, `listchannels`, or `pendingchannels` checks.
+6. Teardown: stop local containers only when no peer task depends on the shared
+   topology. Do not remove Docker volumes, wallet state, env files, copied
+   macaroons, or generated credentials unless the owner explicitly approves the
+   destructive cleanup in the current session.
+
+Record settled-flow evidence as command names, logical node names, status
+transitions, amounts, payment hashes, and before/after balances. Never commit
+or paste certs, macaroons, seeds, preimages, full `lnd-env --json` output,
+`.env` files, or generated wallet artifacts.
+
 ## Bootstrap
 
 First bootstrap the Docker regtest topology:
