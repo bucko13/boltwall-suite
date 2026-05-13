@@ -1,4 +1,4 @@
-import { expirationCaveat } from "@boltwall/l402";
+import { originCaveat, routeCaveat, validUntil } from "@boltwall/l402";
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 
 import { authorizeL402 } from "../core/authorize.js";
@@ -8,8 +8,8 @@ import { defaultLogger } from "../logger.js";
 import { expressRequestToWebRequest } from "./translate.js";
 import "./types.js";
 
-// Common caveat factory re-export.
-export { expirationCaveat as validUntil };
+// Caveat factory re-exports for ergonomic middleware config.
+export { originCaveat, routeCaveat, validUntil };
 
 export type L402ExpressOptions = L402Config;
 

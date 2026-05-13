@@ -12,9 +12,12 @@ export {
 export {
   capabilitiesCaveat,
   constraintCaveat,
+  originCaveat,
   parseCaveat,
+  routeCaveat,
   serializeCaveat,
   servicesCaveat,
+  validUntil,
   type Caveat,
 } from "./caveats";
 

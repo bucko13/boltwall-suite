@@ -85,3 +85,51 @@ export function constraintCaveat(
     value,
   };
 }
+
+type ValidUntilArg = { seconds: number } | { iso: string } | { date: Date };
+
+/**
+ * Build a `valid-until=<ISO-8601>` caveat.
+ *
+ * Matches `validUntilSatisfier()` — condition is `"valid-until"`, value is
+ * an ISO-8601 timestamp string. Accepted forms:
+ * - `{ seconds: n }` — n seconds from now
+ * - `{ iso: "..." }` — exact ISO-8601 string
+ * - `{ date: Date }` — uses `.toISOString()`
+ */
+export function validUntil(args: ValidUntilArg): Caveat {
+  let value: string;
+  if ("seconds" in args) {
+    value = new Date(Date.now() + args.seconds * 1000).toISOString();
+  } else if ("iso" in args) {
+    value = args.iso;
+  } else {
+    value = args.date.toISOString();
+  }
+  return { condition: "valid-until", value };
+}
+
+/**
+ * Build an `origin=<origins>` caveat.
+ *
+ * Matches `originSatisfier()`. Multiple origins are comma-joined.
+ * - `originCaveat("https://example.com")` → `{ condition: "origin", value: "https://example.com" }`
+ * - `originCaveat(["https://a.com", "https://b.com"])` → comma-joined value
+ */
+export function originCaveat(allowed: string | string[]): Caveat {
+  const origins = Array.isArray(allowed) ? allowed : [allowed];
+  return { condition: "origin", value: origins.join(",") };
+}
+
+/**
+ * Build a `route=<patterns>` caveat.
+ *
+ * Matches `routeSatisfier()`. Patterns support `*` globs; multiple patterns
+ * are comma-joined.
+ * - `routeCaveat("/api/*")` → `{ condition: "route", value: "/api/*" }`
+ * - `routeCaveat(["/api/*", "/v1/*"])` → comma-joined value
+ */
+export function routeCaveat(allowed: string | string[]): Caveat {
+  const routes = Array.isArray(allowed) ? allowed : [allowed];
+  return { condition: "route", value: routes.join(",") };
+}
