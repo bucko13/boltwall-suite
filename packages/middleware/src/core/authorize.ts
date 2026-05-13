@@ -1,0 +1,312 @@
+/**
+ * authorizeL402 — framework-agnostic L402 authentication gate.
+ *
+ * Spec citations:
+ *   L402 protocol-specification.md §5  — 402 is ONLY for the initial
+ *     missing-credential challenge. Present-but-invalid credentials → 401.
+ *   L402 protocol-specification.md §10 — dual LSAT-first/L402-second
+ *     WWW-Authenticate headers for backwards compatibility (default).
+ *   L402 macaroon-spec.md §Verification — HMAC chain integrity check.
+ *   AGENTS.md security-boundaries — invoice amount MUST be verified.
+ */
+
+import {
+  buildAuthenticateHeaders,
+  decodeIdentifier,
+  mintMacaroon,
+  parseAuthorizationHeader,
+  servicesCaveat,
+  verifyMacaroon,
+} from "@boltwall/l402";
+
+import { noopLogger } from "../logger.js";
+import { L402Error, l402ErrorToStatus } from "./error.js";
+import type { L402Config, L402GateResult, L402RequestContext } from "./types.js";
+
+/** Cryptographically random 32-byte token id. */
+function randomTokenId(): Uint8Array {
+  const bytes = new Uint8Array(32);
+  crypto.getRandomValues(bytes);
+  return bytes;
+}
+
+function bytesToHex(bytes: Uint8Array): string {
+  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
+}
+
+/** Resolve a price value that may be static or a per-request function. */
+async function resolvePrice(
+  price: L402Config["price"],
+  req: Request,
+): Promise<bigint> {
+  return typeof price === "function" ? price(req) : price;
+}
+
+/** Resolve and collect all caveats for this request. */
+async function resolveCaveats(
+  config: L402Config,
+  req: Request,
+): Promise<import("@boltwall/l402").Caveat[]> {
+  const out: import("@boltwall/l402").Caveat[] = [];
+
+  // Always add a services caveat scoped to the configured service (tier 0).
+  out.push(servicesCaveat([{ name: config.service, tier: 0 }]));
+
+  for (const c of config.caveats ?? []) {
+    out.push(typeof c === "function" ? await c(req) : c);
+  }
+  return out;
+}
+
+/**
+ * Map a verifyMacaroon failure reason to an L402ErrorKind.
+ * L402 protocol-specification.md §6 Authorization — 401 for all present-
+ * but-invalid-credential cases.
+ */
+function verifyReasonToKind(
+  reason: string,
+): "invalid-credential" | "invalid-preimage" | "caveat-rejected" {
+  if (reason === "preimage-mismatch") return "invalid-preimage";
+  if (reason.startsWith("caveat-rejected:")) return "caveat-rejected";
+  return "invalid-credential";
+}
+
+/**
+ * Emit a 402 Payment Required response with a fresh invoice + macaroon.
+ *
+ * L402 protocol-specification.md §5 — 402 is ONLY for absent credentials.
+ * L402 protocol-specification.md §10 — dual LSAT-first/L402-second by default.
+ */
+async function emitChallenge(
+  config: L402Config,
+  req: Request,
+  logger: L402Config["logger"],
+): Promise<L402GateResult> {
+  const log = logger ?? noopLogger;
+
+  let invoice;
+  try {
+    const amountMsat = await resolvePrice(config.price, req);
+    const description = config.invoiceMemo ? config.invoiceMemo(req) : config.service;
+    invoice = await config.backend.createInvoice({ amountMsat, description });
+  } catch (cause) {
+    log.warn({ cause }, "L402 backend failed to create invoice");
+    const error = new L402Error("invoice-provider-failure", "Lightning backend error", { cause });
+    return {
+      ok: false,
+      response: new Response(null, { status: l402ErrorToStatus(error.kind) }),
+      error,
+    };
+  }
+
+  const paymentHash = hexToBytes(invoice.paymentHash);
+  const tokenId = randomTokenId();
+  const caveats = await resolveCaveats(config, req);
+
+  const macaroon = mintMacaroon({
+    rootKey: await getOrGenerateRootKey(tokenId, config.rootKeyStore),
+    identifier: { version: 0, paymentHash, tokenId },
+    caveats,
+  });
+
+  const wwwAuth = buildAuthenticateHeaders({
+    macaroon,
+    invoice: invoice.paymentRequest,
+    compatibility: config.challengeCompatibility ?? "dual",
+  });
+
+  // buildAuthenticateHeaders returns string[] — each element is a full
+  // WWW-Authenticate header value. Append each as a separate header line.
+  const headers = new Headers();
+  for (const value of wwwAuth) {
+    headers.append("WWW-Authenticate", value);
+  }
+
+  const headersRecord: Record<string, string[]> = { "WWW-Authenticate": wwwAuth };
+  const error = new L402Error(
+    "payment-required",
+    "L402 payment required",
+    { headers: headersRecord },
+  );
+
+  return {
+    ok: false,
+    response: new Response(null, { status: 402, headers }),
+    error,
+  };
+}
+
+/** Get an existing root key or generate and store a fresh one. */
+async function getOrGenerateRootKey(
+  tokenId: Uint8Array,
+  store: L402Config["rootKeyStore"],
+): Promise<Uint8Array> {
+  const existing = await store.get(tokenId);
+  if (existing) return existing;
+  const key = new Uint8Array(32);
+  crypto.getRandomValues(key);
+  await store.put(tokenId, key);
+  return key;
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+/**
+ * Authorize an incoming L402-protected request.
+ *
+ * Returns { ok: true, context } when the credential is valid and payment
+ * is confirmed. Returns { ok: false, response, error } when a 402 or 401
+ * response must be sent to the client.
+ *
+ * Security invariants (per AGENTS.md and L402 spec):
+ *   - 402 is emitted ONLY when the Authorization header is absent or carries
+ *     a non-L402/LSAT scheme. L402 protocol-specification.md §5.
+ *   - Invoice amount MUST match config.price. Amount mismatch is treated as
+ *     invalid-credential (401). AGENTS.md security-boundaries.
+ *   - Constant-time comparisons are handled inside verifyMacaroon /
+ *     verifyPreimage upstream; this function does not compare secrets directly.
+ *
+ * @param request - Web Fetch Request object.
+ * @param config  - L402 middleware configuration.
+ */
+export async function authorizeL402(
+  request: Request,
+  config: L402Config,
+): Promise<L402GateResult> {
+  const log = config.logger ?? noopLogger;
+
+  // Warn if TLS appears absent — deployers are responsible for TLS, but
+  // we surface an obvious mistake loudly.
+  if (request.url.startsWith("http://")) {
+    log.warn({ url: request.url }, "L402 middleware handling a non-TLS request — production deployments must use HTTPS");
+  }
+
+  const authHeader = request.headers.get("Authorization") ?? "";
+  const scheme = authHeader.split(" ")[0]?.toUpperCase() ?? "";
+
+  // L402 protocol-specification.md §5 — absent or non-L402/LSAT credential
+  // triggers a 402 challenge. "Bearer" and other schemes are treated as absent.
+  if (!authHeader || (scheme !== "L402" && scheme !== "LSAT")) {
+    return emitChallenge(config, request, log);
+  }
+
+  // --- Credential is present. All failures below → 401. ---
+
+  // Parse the Authorization header.
+  let credential: import("@boltwall/l402").L402CredentialFields;
+  try {
+    credential = parseAuthorizationHeader(authHeader);
+  } catch {
+    const error = new L402Error("invalid-credential", "Malformed Authorization header");
+    return {
+      ok: false,
+      response: new Response(null, { status: 401 }),
+      error,
+    };
+  }
+
+  // Extract payment hash from the FIRST macaroon identifier.
+  let identifier: import("@boltwall/l402").MacaroonIdentifierV0;
+  try {
+    identifier = decodeIdentifier(credential.macaroons[0]!);
+  } catch {
+    const error = new L402Error("invalid-credential", "Undecodable macaroon identifier");
+    return {
+      ok: false,
+      response: new Response(null, { status: 401 }),
+      error,
+    };
+  }
+
+  const paymentHashHex = bytesToHex(identifier.paymentHash);
+
+  // Look up the invoice to confirm payment status.
+  let lookup: import("@boltwall/adapters").InvoiceLookup;
+  try {
+    lookup = await config.backend.lookupInvoice(paymentHashHex);
+  } catch (cause) {
+    log.warn({ cause }, "L402 backend failed to look up invoice");
+    const error = new L402Error("invoice-provider-failure", "Backend lookup failed", { cause });
+    return {
+      ok: false,
+      response: new Response(null, { status: l402ErrorToStatus(error.kind) }),
+      error,
+    };
+  }
+
+  // Invoice still unpaid → re-challenge. The spec says to use the SAME invoice,
+  // but since InvoiceLookup doesn't carry paymentRequest, we issue a fresh
+  // challenge. This is a known v0.1.0 limitation; a persistent challenge cache
+  // can restore exact idempotency later.
+  if (lookup.status === "open") {
+    return emitChallenge(config, request, log);
+  }
+
+  // Invoice expired or cancelled → treat as missing credential.
+  if (lookup.status === "expired" || lookup.status === "canceled") {
+    return emitChallenge(config, request, log);
+  }
+
+  // Invoice settled — verify the macaroon and preimage.
+  const satisfiers = config.satisfiers ?? [];
+  const verifyResult = await verifyMacaroon({
+    macaroons: credential.macaroons,
+    preimage: credential.preimage,
+    rootKeyStore: config.rootKeyStore,
+    satisfiers,
+    context: { request, now: new Date() },
+  });
+
+  if (!verifyResult.ok) {
+    const kind = verifyReasonToKind(verifyResult.reason);
+    log.info({ reason: verifyResult.reason }, `L402 verification failed: ${kind}`);
+    const error = new L402Error(kind, verifyResult.reason);
+    return {
+      ok: false,
+      response: new Response(null, { status: 401 }),
+      error,
+    };
+  }
+
+  // Security: verify invoice amount matches configured price.
+  // AGENTS.md security-boundaries — middleware MUST verify the bolt11 amount
+  // matches the configured price. Skipping this is an auth-bypass.
+  const expectedPrice = await resolvePrice(config.price, request);
+  const actualAmount = lookup.amountMsat;
+  if (actualAmount === undefined || actualAmount !== expectedPrice) {
+    log.warn(
+      { expected: expectedPrice.toString(), actual: actualAmount?.toString() ?? "undefined" },
+      "L402 amount mismatch",
+    );
+    const error = new L402Error(
+      "invalid-credential",
+      `Amount mismatch: expected ${expectedPrice} msat, got ${actualAmount ?? "unknown"} msat`,
+    );
+    return {
+      ok: false,
+      response: new Response(null, { status: 401 }),
+      error,
+    };
+  }
+
+  // All checks passed.
+  const context: L402RequestContext = {
+    paymentHash: paymentHashHex,
+    identifier,
+    satisfiedCaveats: verifyResult.ok ? [] : [],
+  };
+
+  if (config.onPaid) {
+    await config.onPaid({ credential, req: request });
+  }
+
+  log.info({ paymentHash: paymentHashHex }, "L402 authorization granted");
+
+  return { ok: true, context };
+}

@@ -46,6 +46,7 @@
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
+    "@types/express": "^5.0.6",
     "express": "^5.1.0",
     "publint": "^0.3.15",
     "supertest": "^7.1.4",
