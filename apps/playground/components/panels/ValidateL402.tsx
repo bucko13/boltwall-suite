@@ -197,7 +197,7 @@ export function ValidateL402() {
       header={
         <HeaderRow
           title="Validate L402"
-          subtitle="Full macaroon verification: signature + preimage + caveats"
+          subtitle="Verify signature, preimage, and caveats"
           trailing={
             <>
               <StatusPill state={status} details={error}>

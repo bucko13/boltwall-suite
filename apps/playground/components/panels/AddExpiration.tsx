@@ -64,8 +64,8 @@ export function AddExpiration() {
     <Cell
       header={
         <HeaderRow
-          title="Add Expiration"
-          subtitle="Build a valid-until caveat from a TTL in seconds"
+          title="Valid-until Caveat"
+          subtitle="Create a valid-until caveat from a TTL"
           trailing={
             <>
               <StatusPill state={status} details={error}>

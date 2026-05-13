@@ -11,10 +11,10 @@ const PANEL_LINKS = [
   { label: "Generate L402 Token", href: "/p/from-invoice" },
   { label: "From Challenge", href: "/p/from-challenge" },
   { label: "Parse Token", href: "/p/parse-token" },
-  { label: "Caveats", href: "/p/caveats" },
-  { label: "Add Expiration", href: "/p/add-expiration" },
+  { label: "Caveat Builder", href: "/p/caveats" },
+  { label: "Valid-until Caveat", href: "/p/add-expiration" },
   { label: "Validate L402", href: "/p/validate" },
-  { label: "Satisfy L402", href: "/p/satisfy" },
+  { label: "Caveat Satisfiers", href: "/p/satisfy" },
   { label: "Demo", href: "/p/demo" },
 ];
 

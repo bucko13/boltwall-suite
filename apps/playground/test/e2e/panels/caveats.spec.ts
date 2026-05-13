@@ -8,6 +8,10 @@ test.describe("panels / caveats", () => {
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Caveat Builder");
+    await expect(page.locator("[data-testid='header-row']")).toContainText(
+      "Build condition=value caveats",
+    );
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("const caveats = []");
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("pokedex:0");

@@ -8,6 +8,10 @@ test.describe("panels / add-expiration", () => {
 
   test("renders panel with header and idle status", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Valid-until Caveat");
+    await expect(page.locator("[data-testid='header-row']")).toContainText(
+      "Create a valid-until caveat from a TTL",
+    );
     await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
   });
 

@@ -19,10 +19,10 @@ test.describe("Nav shell", () => {
       "Generate L402 Token",
       "From Challenge",
       "Parse Token",
-      "Caveats",
-      "Add Expiration",
+      "Caveat Builder",
+      "Valid-until Caveat",
       "Validate L402",
-      "Satisfy L402",
+      "Caveat Satisfiers",
       "Demo",
     ]) {
       await expect(nav.getByRole("link", { name: label })).toBeVisible();

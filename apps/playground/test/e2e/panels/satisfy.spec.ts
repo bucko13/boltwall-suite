@@ -13,6 +13,10 @@ test.describe("panels / satisfy", () => {
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Caveat Satisfiers");
+    await expect(page.locator("[data-testid='header-row']")).toContainText(
+      "Register satisfiers and test token caveats",
+    );
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
       "const satisfiers = []",

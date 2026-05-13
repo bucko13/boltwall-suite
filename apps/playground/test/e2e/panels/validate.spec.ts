@@ -14,6 +14,10 @@ test.describe("panels / validate", () => {
 
   test("renders panel with header and idle status", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Validate L402");
+    await expect(page.locator("[data-testid='header-row']")).toContainText(
+      "Verify signature, preimage, and caveats",
+    );
     await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
   });
 

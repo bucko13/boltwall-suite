@@ -105,8 +105,8 @@ export function Caveats() {
     <Cell
       header={
         <HeaderRow
-          title="Caveats"
-          subtitle="Build and inspect a caveat list"
+          title="Caveat Builder"
+          subtitle="Build condition=value caveats"
           trailing={
             <>
               <StatusPill state={status}>{statusLabel}</StatusPill>

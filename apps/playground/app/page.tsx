@@ -23,23 +23,23 @@ const PANELS = [
   },
   {
     slug: "caveats",
-    label: "Caveats",
-    description: "Build and inspect a caveat list with condition=value pairs.",
+    label: "Caveat Builder",
+    description: "Build and inspect condition=value caveats.",
   },
   {
     slug: "add-expiration",
-    label: "Add Expiration",
-    description: "Build a valid-until caveat from a TTL in seconds.",
+    label: "Valid-until Caveat",
+    description: "Create a valid-until caveat from a TTL in seconds.",
   },
   {
     slug: "validate",
     label: "Validate L402",
-    description: "Full macaroon verification: signature + preimage + caveat checklist.",
+    description: "Verify signature, payment preimage, and caveats.",
   },
   {
     slug: "satisfy",
-    label: "Satisfy L402",
-    description: "Register satisfiers and check them against a token's caveats.",
+    label: "Caveat Satisfiers",
+    description: "Register satisfiers and test token caveats.",
   },
   {
     slug: "demo",

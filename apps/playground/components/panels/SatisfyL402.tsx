@@ -249,8 +249,8 @@ export function SatisfyL402() {
     <Cell
       header={
         <HeaderRow
-          title="Satisfy L402"
-          subtitle="Register satisfiers and check them against a token's caveats"
+          title="Caveat Satisfiers"
+          subtitle="Register satisfiers and test token caveats"
           trailing={
             <>
               <StatusPill state={status} details={error}>
