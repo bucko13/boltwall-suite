@@ -1,15 +1,14 @@
+import type { LightningBackend } from "@boltwall/adapters";
 import type {
   AuthenticateHeaderCompatibility,
   Caveat,
   CaveatSatisfier,
+  L402CredentialFields,
   MacaroonIdentifierV0,
   RootKeyStore,
 } from "@boltwall/l402";
 
-import type { LightningBackend } from "@boltwall/adapters";
-
 import type { L402Error } from "./error.js";
-import type { L402CredentialFields } from "@boltwall/l402";
 
 export type { AuthenticateHeaderCompatibility };
 

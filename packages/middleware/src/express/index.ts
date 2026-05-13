@@ -1,10 +1,10 @@
-import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
-
 import { expirationCaveat } from "@boltwall/l402";
+import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 
 import { authorizeL402 } from "../core/authorize.js";
 import type { L402Config } from "../core/types.js";
 import { defaultLogger } from "../logger.js";
+
 import { expressRequestToWebRequest } from "./translate.js";
 import "./types.js";
 

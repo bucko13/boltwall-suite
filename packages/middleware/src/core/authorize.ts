@@ -10,7 +10,11 @@
  *   AGENTS.md security-boundaries — invoice amount MUST be verified.
  */
 
+import type { InvoiceLookup } from "@boltwall/adapters";
 import {
+  type Caveat,
+  type L402CredentialFields,
+  type MacaroonIdentifierV0,
   buildAuthenticateHeaders,
   decodeIdentifier,
   mintMacaroon,
@@ -20,6 +24,7 @@ import {
 } from "@boltwall/l402";
 
 import { noopLogger } from "../logger.js";
+
 import { L402Error, l402ErrorToStatus } from "./error.js";
 import type { L402Config, L402GateResult, L402RequestContext } from "./types.js";
 
@@ -46,8 +51,8 @@ async function resolvePrice(
 async function resolveCaveats(
   config: L402Config,
   req: Request,
-): Promise<import("@boltwall/l402").Caveat[]> {
-  const out: import("@boltwall/l402").Caveat[] = [];
+): Promise<Caveat[]> {
+  const out: Caveat[] = [];
 
   // Always add a services caveat scoped to the configured service (tier 0).
   out.push(servicesCaveat([{ name: config.service, tier: 0 }]));
@@ -199,7 +204,7 @@ export async function authorizeL402(
   // --- Credential is present. All failures below → 401. ---
 
   // Parse the Authorization header.
-  let credential: import("@boltwall/l402").L402CredentialFields;
+  let credential: L402CredentialFields;
   try {
     credential = parseAuthorizationHeader(authHeader);
   } catch {
@@ -212,7 +217,7 @@ export async function authorizeL402(
   }
 
   // Extract payment hash from the FIRST macaroon identifier.
-  let identifier: import("@boltwall/l402").MacaroonIdentifierV0;
+  let identifier: MacaroonIdentifierV0;
   try {
     identifier = decodeIdentifier(credential.macaroons[0]!);
   } catch {
@@ -227,7 +232,7 @@ export async function authorizeL402(
   const paymentHashHex = bytesToHex(identifier.paymentHash);
 
   // Look up the invoice to confirm payment status.
-  let lookup: import("@boltwall/adapters").InvoiceLookup;
+  let lookup: InvoiceLookup;
   try {
     lookup = await config.backend.lookupInvoice(paymentHashHex);
   } catch (cause) {
