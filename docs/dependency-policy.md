@@ -71,6 +71,31 @@ I considered building this in @boltwall/internal but <reason>.
 When unsure of a third-party API, look up current documentation rather than
 guessing.
 
+## Install-Time Defenses
+
+Two controls are configured in `bunfig.toml` at the repo root and apply to
+every `bun install` run — local development and CI alike:
+
+**Minimum release age (`install.minimumReleaseAge = 604800`)** — Bun rejects
+any package version published fewer than 7 days ago. Most fast-turnaround
+supply chain attacks (credential theft → poisoned publish) are detected and
+removed by the community within hours; the 7-day gate ensures those versions
+never land. Applies uniformly to all external dependencies across every
+workspace subpackage.
+
+To allow an urgent patch younger than 7 days, add it temporarily:
+```toml
+[install]
+minimumReleaseAgeExcludes = ["vulnerable-package"]
+```
+Remove the exclusion once the version ages past the threshold.
+
+**Lifecycle script blocking (`install.ignoreScripts = true`)** — Bun skips all
+`preinstall` / `install` / `postinstall` / `prepare` hooks for every package.
+This mirrors the `--ignore-scripts` flag already in CI workflows and closes the
+gap for local installs. No workspace package in this repo declares lifecycle
+scripts; platform binaries (esbuild, Playwright) use optional-deps instead.
+
 ## Threat References
 
 - [SLSA Build Provenance](https://slsa.dev/spec/v1.2/build-provenance)

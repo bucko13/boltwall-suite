@@ -1,0 +1,15 @@
+[install]
+# Reject package versions published fewer than 7 days ago.
+# Most fast-turnaround supply chain attacks (credential theft → malicious publish)
+# are detected and pulled within hours. A 7-day gate blocks installs during that
+# window for every package in the tree, including all workspace subpackage deps.
+# Reference: https://daniakash.com/posts/simplest-supply-chain-defense/
+#
+# To allow an urgent patch younger than 7 days, add the package temporarily:
+#   minimumReleaseAgeExcludes = ["package-name"]
+minimumReleaseAge = 604800
+
+# Block lifecycle scripts (preinstall/install/postinstall/prepare) for all
+# packages. Extends the --ignore-scripts flag already present in CI workflows
+# so local `bun install` runs have the same protection.
+ignoreScripts = true
