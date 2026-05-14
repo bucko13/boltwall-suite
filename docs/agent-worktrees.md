@@ -79,6 +79,28 @@ same-task worktree already exists, coordinate in the task thread before creating
 another one. If the exact path or branch already exists, stop and inspect. Do
 not delete, overwrite, force, or reuse another agent's worktree.
 
+## Bootstrap The Worktree
+
+Before editing, make the new worktree usable from its own checkout:
+
+```sh
+cd <worktree-root>/<agent-namespace>/<task-id>
+bun install --frozen-lockfile
+bun run build
+```
+
+This avoids the common failure where a fresh worktree starts task validation
+before workspace dependencies and package build outputs exist. Run task-specific
+tests only after this bootstrap, unless the task is docs-only and never imports
+workspace packages.
+
+If `bun install --frozen-lockfile` fails because the lockfile is stale, do not
+update or commit `bun.lock` from a normal implementation task. Record the
+lockfile-reconcile dependency and use the existing reconcile workflow. If Bun or
+git cannot write the worktree, cache, tempdir, or `.git/worktrees` metadata,
+request permission for the blocked command rather than editing in the canonical
+checkout.
+
 ## Work
 
 In the task worktree:

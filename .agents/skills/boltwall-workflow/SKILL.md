@@ -98,6 +98,9 @@ While working:
 - Stay inside task scope.
 - Keep Beads and Agent Mail operations in the canonical checkout. Keep
   implementation edits and validation in the task worktree.
+- Bootstrap a new task worktree with the sequence in
+  `docs/agent-worktrees.md` before task validation or implementation work, so
+  workspace dependencies and package build outputs exist in that checkout.
 - Re-check inbox after meaningful pauses or before touching shared surfaces.
 - Renew reservations before expiry if still actively editing.
 - On `FILE_RESERVATION_CONFLICT`, do not edit the conflicting path. Coordinate,
