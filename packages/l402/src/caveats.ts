@@ -122,6 +122,23 @@ export function originCaveat(allowed: string | string[]): Caveat {
 }
 
 /**
+ * Build an `ip=<client-ip>` compatibility caveat.
+ *
+ * L402 macaroon-spec.md §Caveat Format defines first-party caveats as
+ * `condition=value` strings. This helper preserves the legacy Boltwall
+ * `ip` caveat shape for deployments that explicitly bind credentials to a
+ * request IP address. The caller is responsible for trusting the request IP
+ * source, such as a configured reverse proxy.
+ */
+export function ipCaveat(ip: string): Caveat {
+  const value = ip.trim();
+  if (value.length === 0) {
+    throw new Error("invalid-ip-caveat");
+  }
+  return { condition: "ip", value };
+}
+
+/**
  * Build a `route=<patterns>` caveat.
  *
  * Matches `routeSatisfier()`. Patterns support `*` globs; multiple patterns

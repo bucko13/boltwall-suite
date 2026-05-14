@@ -1,5 +1,5 @@
 import { assertBackendSupports, type RequiredBackendCapabilities } from "@boltwall/adapters";
-import { originCaveat, routeCaveat, validUntil } from "@boltwall/l402";
+import { ipCaveat, originCaveat, routeCaveat, validUntil } from "@boltwall/l402";
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 
 import { authorizeL402 } from "../core/authorize.js";
@@ -10,7 +10,7 @@ import { expressRequestToWebRequest } from "./translate.js";
 import "./types.js";
 
 // Caveat factory re-exports for ergonomic middleware config.
-export { originCaveat, routeCaveat, validUntil };
+export { ipCaveat, originCaveat, routeCaveat, validUntil };
 
 /** Express-adapter options extend core L402Config with optional backend capability requirements. */
 export type L402ExpressOptions = L402Config & RequiredBackendCapabilities;

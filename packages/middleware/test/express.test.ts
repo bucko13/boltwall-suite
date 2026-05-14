@@ -12,6 +12,8 @@ import supertest from "supertest";
 import {
   InMemoryRootKeyStore,
   buildAuthorizationHeader,
+  ipCaveat,
+  ipSatisfier,
   mintMacaroon,
   parseAuthenticateHeader,
 } from "@boltwall/l402";
@@ -44,10 +46,11 @@ class TestBackend extends MockAdapter {
   }
 }
 
-function makeValidAuthHeader(): string {
+function makeValidAuthHeader(caveats: Parameters<typeof mintMacaroon>[0]["caveats"] = []): string {
   const macaroon = mintMacaroon({
     rootKey: ROOT_KEY,
     identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
+    caveats,
   });
   return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
 }
@@ -160,6 +163,41 @@ describe("Express adapter — GET /paid", () => {
 
     const res = await supertest(app).get("/paid").set("Authorization", makeValidAuthHeader());
     expect(res.status).toBe(401);
+  });
+
+  test("ip caveat accepts matching forwarded IP and rejects a different IP", async () => {
+    const rootKeyStore = new InMemoryRootKeyStore();
+    await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
+    const backend = new TestBackend();
+    await backend.createInvoice({ amountMsat: AMOUNT_MSAT, paymentHash: PAYMENT_HASH_HEX });
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+
+    const app = express();
+    app.use(
+      "/paid",
+      boltwall({
+        service: "test-service",
+        backend,
+        rootKeyStore,
+        price: AMOUNT_MSAT,
+        satisfiers: [ipSatisfier()],
+      }),
+      (_req, res) => res.json({ ok: true }),
+    );
+
+    const authHeader = makeValidAuthHeader([ipCaveat("203.0.113.10")]);
+
+    const accepted = await supertest(app)
+      .get("/paid")
+      .set("Authorization", authHeader)
+      .set("X-Forwarded-For", "203.0.113.10");
+    expect(accepted.status).toBe(200);
+
+    const rejected = await supertest(app)
+      .get("/paid")
+      .set("Authorization", authHeader)
+      .set("X-Forwarded-For", "203.0.113.11");
+    expect(rejected.status).toBe(401);
   });
 
   test("backend createInvoice failure → 502", async () => {

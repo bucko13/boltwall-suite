@@ -22,5 +22,9 @@ export function expressRequestToWebRequest(req: ExpressRequest): Request {
     }
   }
 
+  if (!headers.has("x-forwarded-for") && req.ip !== undefined) {
+    headers.set("x-forwarded-for", req.ip);
+  }
+
   return new Request(url, { method: req.method, headers });
 }

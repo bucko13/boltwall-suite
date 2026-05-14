@@ -8,6 +8,7 @@ import {
 import {
   capabilitiesCaveat,
   constraintCaveat,
+  ipCaveat,
   originCaveat,
   parseCaveat,
   routeCaveat,
@@ -140,6 +141,19 @@ describe("caveats / originCaveat factory", () => {
       headers: { Origin: "https://other.com" },
     });
     expect(satisfier.satisfyFinal(caveat, { request })).toBe(false);
+  });
+});
+
+describe("caveats / ipCaveat factory", () => {
+  test("builds and round-trips the legacy IP binding shape", () => {
+    const caveat = ipCaveat("1.2.3.4");
+
+    expect(caveat).toEqual({ condition: "ip", value: "1.2.3.4" });
+    expect(parseCaveat(serializeCaveat(caveat))).toEqual(caveat);
+  });
+
+  test("rejects empty IP values", () => {
+    expect(() => ipCaveat(" ")).toThrow("invalid-ip-caveat");
   });
 });
 

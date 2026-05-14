@@ -5,10 +5,13 @@ import type { Caveat } from "./caveats";
  *
  * `request` is the Web Fetch API request used by origin and route checks.
  * `now` lets callers inject a deterministic clock for `valid-until`.
+ * `clientIp` lets server adapters pass a trusted client IP from their own
+ * request metadata when it is not represented in Fetch headers.
  */
 export interface CaveatContext {
   request?: Request;
   now?: Date;
+  clientIp?: string;
 }
 
 /**
@@ -137,6 +140,31 @@ export function originSatisfier(
 }
 
 /**
+ * Creates a satisfier for the legacy `ip` caveat.
+ *
+ * L402 macaroon-spec.md §Verification evaluates registered satisfiers for
+ * known caveat conditions. Final verification compares the caveat value with
+ * the first value in the `X-Forwarded-For` request header, falling back to
+ * `context.clientIp`. Attenuation is exact: a later `ip` caveat must repeat the
+ * same IP value.
+ */
+export function ipSatisfier(): CaveatSatisfier {
+  return {
+    condition: "ip",
+    satisfyPrevious(previous, next) {
+      return normalizeIp(next.value) === normalizeIp(previous.value);
+    },
+    satisfyFinal(caveat, context) {
+      const actualIp = forwardedForIp(context.request) ?? context.clientIp;
+      if (actualIp === undefined) {
+        return false;
+      }
+      return normalizeIp(actualIp) === normalizeIp(caveat.value);
+    },
+  };
+}
+
+/**
  * Creates a satisfier for the `route` caveat.
  *
  * Final verification matches the request pathname against both the caveat value
@@ -199,6 +227,19 @@ function parseTimestamp(value: string): number {
     throw new Error("invalid-valid-until");
   }
   return timestamp;
+}
+
+function forwardedForIp(request: Request | undefined): string | undefined {
+  const header = request?.headers.get("x-forwarded-for");
+  return header?.split(",")[0]?.trim();
+}
+
+function normalizeIp(value: string): string {
+  const ip = value.trim();
+  if (ip.length === 0) {
+    throw new Error("invalid-ip-caveat");
+  }
+  return ip;
 }
 
 function isServiceSubset(

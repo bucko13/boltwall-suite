@@ -12,6 +12,7 @@ export {
 export {
   capabilitiesCaveat,
   constraintCaveat,
+  ipCaveat,
   originCaveat,
   parseCaveat,
   routeCaveat,
@@ -49,6 +50,7 @@ export {
 
 export {
   capabilitiesSatisfier,
+  ipSatisfier,
   originSatisfier,
   routeSatisfier,
   servicesSatisfier,

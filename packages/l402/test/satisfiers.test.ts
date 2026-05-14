@@ -5,6 +5,7 @@ import { attenuationChainFixtures } from "@boltwall/test-fixtures";
 import type { CaveatSatisfier } from "../src/satisfiers";
 import {
   capabilitiesSatisfier,
+  ipSatisfier,
   originSatisfier,
   routeSatisfier,
   servicesSatisfier,
@@ -16,6 +17,7 @@ const satisfiersByCondition = new Map<string, CaveatSatisfier>([
   ["pokedex_capabilities", capabilitiesSatisfier("pokedex", "read")],
   ["valid-until", validUntilSatisfier()],
   ["origin", originSatisfier("any")],
+  ["ip", ipSatisfier()],
   ["route", routeSatisfier(["/pokemon/*", "/invoice/*"])],
 ]);
 
@@ -117,9 +119,64 @@ describe("built-in caveat satisfiers / final checks", () => {
       satisfier.satisfyFinal({ condition: "route", value: "/pokemon/*" }, {}),
     ).toBe(false);
   });
+
+  test("ipSatisfier checks clientIp and rejects mismatches or missing IPs", () => {
+    const satisfier = ipSatisfier();
+
+    expect(
+      satisfier.satisfyFinal(
+        { condition: "ip", value: "1.2.3.4" },
+        { clientIp: "1.2.3.4" },
+      ),
+    ).toBe(true);
+    expect(
+      satisfier.satisfyFinal(
+        { condition: "ip", value: "1.2.3.4" },
+        { clientIp: "5.6.7.8" },
+      ),
+    ).toBe(false);
+    expect(satisfier.satisfyFinal({ condition: "ip", value: "1.2.3.4" }, {})).toBe(false);
+  });
+
+  test("ipSatisfier falls back to the first X-Forwarded-For value", () => {
+    const satisfier = ipSatisfier();
+    const request = new Request("https://api.example/pokemon/25", {
+      headers: { "X-Forwarded-For": "1.2.3.4, 5.6.7.8" },
+    });
+
+    expect(
+      satisfier.satisfyFinal(
+        { condition: "ip", value: "1.2.3.4" },
+        { request },
+      ),
+    ).toBe(true);
+    expect(
+      satisfier.satisfyFinal(
+        { condition: "ip", value: "5.6.7.8" },
+        { request },
+      ),
+    ).toBe(false);
+  });
 });
 
 describe("built-in caveat satisfiers / attenuation", () => {
+  test("ipSatisfier only permits exact IP attenuation", () => {
+    const satisfier = ipSatisfier();
+
+    expect(
+      satisfier.satisfyPrevious?.(
+        { condition: "ip", value: "1.2.3.4" },
+        { condition: "ip", value: "1.2.3.4" },
+      ),
+    ).toBe(true);
+    expect(
+      satisfier.satisfyPrevious?.(
+        { condition: "ip", value: "1.2.3.4" },
+        { condition: "ip", value: "5.6.7.8" },
+      ),
+    ).toBe(false);
+  });
+
   for (const fixture of attenuationChainFixtures) {
     test(fixture.name, () => {
       const satisfier = satisfiersByCondition.get(fixture.condition);
