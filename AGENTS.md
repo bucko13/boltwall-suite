@@ -46,6 +46,7 @@ Use local skills when available, but keep this file's mandatory checks in view:
 
 - `.agents/skills/boltwall-workflow/SKILL.md` for startup, task claiming,
   reservations, handoff, close, commit, push, and release sequence.
+- `docs/agent-worktrees.md` for the default per-task worktree workflow.
 - `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
   after reading the relevant live L402 spec sections.
 
@@ -89,6 +90,13 @@ You may NOT delete any file or directory unless the owner explicitly gives the e
 
 Treat "never delete files without permission" as a hard invariant.
 
+Narrow exception: after landing or explicit handoff, an agent may run
+`git worktree remove <path>` for a clean task worktree that the same agent
+created under the configured worktree root, provided the task thread records the
+worktree path, branch, landing commit or handoff state, clean status, and
+cleanup intent. This exception does not allow `rm`, branch deletion, force
+operations, or cleanup of dirty worktrees.
+
 ---
 
 ## RULE 2 – PARALLEL WORK & HANDOFF SAFETY
@@ -120,6 +128,10 @@ The following files are shared write surfaces and must not be held casually:
 - shared test fixture indexes
 - GitHub workflow files
 - generated public API/config surfaces used across packages
+
+Task worktrees isolate Git state, not semantic chokepoints. These files still
+need coordination because parallel commits can conflict, invalidate validation,
+or fragment public API/release decisions.
 
 Build output directories (e.g. `apps/playground/.next`, `packages/*/dist`) are **not** coordination surfaces. They are disposable artifacts. Do not reserve them, do not coordinate writes to them. The playground `build` script clears `.next` before every production build — agents never need to manage it.
 
@@ -189,13 +201,19 @@ A designated reconcile task (label `lockfile-reconcile`) is the only thing that 
 
 Frozen-lockfile CI failures are expected during the gap between a manifest wave and its reconcile commit; clear them promptly with the reconcile task. While `bun.lock` is reserved for reconcile, agents must not edit or commit any workspace `package.json` until that reservation is released.
 
+Worktrees make local installs safer, but `bun.lock` is still a single shared
+derived artifact. Do not stage it outside the reconcile task.
+
 Phase 0's `bw-f4p.24` is the canonical example.
 
 ---
 
 ## Barrel Export Discipline
 
-Barrel files are shared write surfaces governed by RULE 2. Implementation tasks should normally avoid editing public barrels directly.
+Barrel files are shared write surfaces governed by RULE 2. Worktrees do not
+remove this policy: barrels are public API chokepoints, and parallel export
+edits still need ordering, review, and merge coordination. Implementation tasks
+should normally avoid editing public barrels directly.
 
 Rules:
 
@@ -228,7 +246,7 @@ Hard triggers stay in this file. Longer reference material lives in focused docs
 | secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
 | playground UI, visual direction, or demo flow ergonomics | `docs/playground-visual-concepts.md` and `docs/testing.md` |
 | L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
-| startup, reservations, handoff, close, commit, push, or release sequence | `.agents/skills/boltwall-workflow/SKILL.md` |
+| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees | `.agents/skills/boltwall-workflow/SKILL.md` and `docs/agent-worktrees.md` |
 
 Mandatory summaries:
 
@@ -427,7 +445,9 @@ updates, file reservations, and handoffs. The local task graph is managed with
 
 Mandatory workflow:
 
-1. **Session start:** `ensure_project` -> `register_agent` -> `fetch_inbox`.
+1. **Session start in the canonical checkout:** `ensure_project` ->
+   `register_agent` -> `fetch_inbox`. Use the shared canonical Agent Mail
+   project key; do not derive a new project key from a task worktree path.
 2. **Triage:** `bv --robot-triage` or another `bv --robot-*` command. Never run
    bare interactive `bv` in automation.
 3. **Claim:** `br update <id> --claim --actor <agent>`. Do not use
@@ -435,22 +455,30 @@ Mandatory workflow:
 4. **Reserve:** call `file_reservation_paths` for the narrowest exact paths
    before editing.
 5. **Announce:** send a start note with `thread_id="<task-id>"`, claimed task,
-   reserved paths, intended scope, and validation plan.
-6. **Work:** re-read reserved files, stay in scope, check inbox on meaningful
-   pauses, renew reservations when needed, and do not edit conflicting paths.
-7. **Handoff:** if unfinished, post status, changed/reserved files, validation
+   reserved paths, intended scope, validation plan, task worktree path, and
+   branch name.
+6. **Create a task worktree:** follow `docs/agent-worktrees.md`. Keep Beads and
+   Agent Mail in the canonical checkout; implement and validate in the task
+   worktree.
+7. **Work:** re-read reserved files in the task worktree, stay in scope, check
+   inbox on meaningful pauses, renew reservations when needed, and do not edit
+   conflicting paths.
+8. **Handoff:** if unfinished, post status, changed/reserved files, validation
    done, validation still needed, risks/conflicts, and exact next step before
    releasing reservations.
-8. **Update in-progress task state:** if the work is not ready to land, update
+9. **Update in-progress task state:** if the work is not ready to land, update
    task status and post a handoff. Do not close finished work before commit and
    push.
-9. **Land code:** pull/rebase, `br sync --flush-only`, stage reviewed paths,
-   commit, push, verify clean status.
-10. **Close finished task:** after the code push succeeds, close completed work
-    or update any remaining in-progress task state.
-11. **Release and complete:** release reservations only when no reserved file
+10. **Land code:** use the task worktree landing sequence in
+    `docs/agent-worktrees.md`.
+11. **Close finished task:** after the remote push or PR landing succeeds,
+    close completed work or update any remaining in-progress task state.
+12. **Release and complete:** release reservations only when no reserved file
     remains locally modified, then send completion mail with summary,
     validation, commit hash, and released paths.
+
+If an environment cannot create task worktrees, stop and ask the owner for a
+fallback before editing in the canonical checkout.
 
 If Agent Mail tools are unavailable, preserve the outcomes: stable actor
 identity, explicit reservation-equivalent notes, no overlapping edits, clear
@@ -483,7 +511,8 @@ Agent Mail fallback rules:
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session, work is NOT complete until `git push` succeeds.**
+**When ending a work session, work is NOT complete until the commit is visible
+on the required remote branch or the PR-gated workflow has landed it.**
 
 ### Mandatory workflow
 
@@ -498,28 +527,23 @@ Agent Mail fallback rules:
    ```
 4. **Update in-progress task status** — if work is not ready to land, record the
    current state and handoff. Do not close finished work before commit and push.
-5. **PUSH TO REMOTE.** This is mandatory:
-   ```sh
-   git pull --rebase
-   br sync --flush-only                    # local-only task export; nothing to commit
-   git add <staged paths>                  # avoid `git add -A` unless verified clean
-   git commit -m "<subject>"               # body covers exit criteria, tests run, spec citations, dep justification, AGPL note
-   git push
-   git status                              # MUST show "up to date with origin/main"
-   ```
-6. **Close completed task status** — only after `git push` succeeds. If work
-   remains, leave it open with a current handoff note.
+5. **Land remotely.** Follow `docs/agent-worktrees.md`: sync Beads from the
+   canonical checkout, rebase the task worktree, stage reviewed paths, commit,
+   and either push to the integration branch or use the PR-gated flow.
+6. **Close completed task status** — only after the remote push or PR landing
+   succeeds. If work remains, leave it open with a current handoff note.
 7. **Release file reservations (Mail).**
-   - `release_file_reservations(project_key="<repo-root>", agent_name=<you>, paths=[...])`
+   - `release_file_reservations(project_key="<canonical-project-key>", agent_name=<you>, paths=[...])`
 8. **Final Mail reply** in the task thread with summary and commit hash.
 9. **Hand off** if work remains: short note describing remaining work and outstanding blockers.
 
 ### Critical rules
 
-- Work is NOT complete until `git push` succeeds.
-- Never stop before pushing — that leaves work stranded locally and invisible.
-- Never say "ready to push when you are" — you push.
-- If push fails (rejected, hook failure, etc.), investigate the root cause. Do not force-push, do not `--no-verify`, do not amend an already-pushed commit. Fix the underlying issue and create a new commit.
+- Work is NOT complete while it exists only in a local task worktree.
+- Never say "ready to push when you are" — push or open the required PR.
+- If push or PR validation fails, investigate the root cause. Do not force-push,
+  do not `--no-verify`, do not amend an already-pushed commit. Fix the
+  underlying issue and create a new commit.
 
 ---
 
@@ -527,7 +551,8 @@ Agent Mail fallback rules:
 
 If your runtime does not expose exactly the same MCP helper set as Claude Code, follow the same policy outcomes using equivalent tools:
 
-- Use the repository's actual absolute path as the Agent Mail `project_key`.
+- Use the repository's shared canonical Agent Mail project key, not a task
+  worktree path.
 - Keep a stable agent identity for a session and include your agent name in `br --actor`.
 - Treat file reservations and task status as authoritative coordination state.
 - Use `bv --robot-*` outputs for triage and avoid interactive modes that block automation.

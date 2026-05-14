@@ -1,6 +1,6 @@
 ---
 name: boltwall-workflow
-description: Execute Boltwall Suite's mandatory agent workflow from session start through landing. Use when starting or resuming work in /Users/wintermute/repos/boltwall-suite, claiming task work, reserving files through Agent Mail, validating changes, closing tasks, releasing reservations, committing, or pushing.
+description: Execute Boltwall Suite's mandatory agent workflow from session start through landing. Use when starting or resuming work in this repository, claiming task work, reserving files through Agent Mail, validating changes, closing tasks, releasing reservations, committing, or pushing.
 ---
 
 # Boltwall Workflow
@@ -24,17 +24,19 @@ the rule is ambiguous, stop and ask the owner or open a blocker task.
 Run these before task triage, claim, or edits:
 
 1. Read `AGENTS.md` end-to-end before making any change.
-2. Check repo state:
+2. Start in the canonical checkout. Task implementation uses a per-task
+   worktree by default; see `docs/agent-worktrees.md`.
+3. Check repo state:
    ```sh
    git status --short --branch
    git log --oneline -10
    ```
-3. Join Agent Mail with MCP tools or macros:
-   - `ensure_project(human_key="<repo-root>")`
-   - `register_agent(project_key="<repo-root>", ...)`
-   - `fetch_inbox(project_key="<repo-root>", agent_name="<agent>")`
-4. Handle inbox items addressed to you.
-5. Run `bv --robot-triage` or another `bv --robot-*` command. Never run bare
+4. Join Agent Mail with MCP tools or macros using the canonical project key:
+   - `ensure_project(human_key="<canonical-project-key>")`
+   - `register_agent(project_key="<canonical-project-key>", ...)`
+   - `fetch_inbox(project_key="<canonical-project-key>", agent_name="<agent>")`
+5. Handle inbox items addressed to you.
+6. Run `bv --robot-triage` or another `bv --robot-*` command. Never run bare
    interactive `bv` in an automated agent session.
 
 Agent Mail operations use MCP tools, macros, and resources. The Agent Mail CLI is
@@ -59,7 +61,7 @@ Before editing any file, reserve the narrowest exact paths through Agent Mail:
 
 ```text
 file_reservation_paths(
-  project_key="<repo-root>",
+  project_key="<canonical-project-key>",
   agent_name="<agent>",
   paths=["path/one", "path/two"],
   ttl_seconds=3600,
@@ -82,7 +84,8 @@ Post a start note in the task thread:
 
 - `thread_id="<task-id>"`
 - subject prefix: `[<task-id>] Start: <short title>`
-- body: claimed task, reserved paths, intended scope, validation plan.
+- body: claimed task, reserved paths, intended scope, validation plan, task
+  worktree path, and branch name.
 
 If contact policy blocks peer broadcast, send a self-addressed thread note and
 document the fallback. Missing peer delivery is not permission to skip the
@@ -93,6 +96,8 @@ coordination record.
 While working:
 
 - Stay inside task scope.
+- Keep Beads and Agent Mail operations in the canonical checkout. Keep
+  implementation edits and validation in the task worktree.
 - Re-check inbox after meaningful pauses or before touching shared surfaces.
 - Renew reservations before expiry if still actively editing.
 - On `FILE_RESERVATION_CONFLICT`, do not edit the conflicting path. Coordinate,
@@ -139,34 +144,20 @@ When the work is complete:
 2. Review `git status` and the diff for every file you will commit.
 3. If work is not ready to land, update the task and post a handoff. Do not
    close finished work before commit and push.
-4. Pull safely:
-   ```sh
-   git pull --rebase
-   ```
-5. Sync local task export:
-   ```sh
-   br sync --flush-only
-   ```
-6. Stage only reviewed paths:
-   ```sh
-   git add <path>...
-   ```
-7. Commit with the task id and validation summary.
-8. Push:
-   ```sh
-   git push
-   git status --short --branch
-   ```
-9. Close completed work only after the push succeeds:
+4. Follow the landing sequence in `docs/agent-worktrees.md`: sync Beads from the
+   canonical checkout, rebase the task worktree, stage reviewed paths, commit,
+   and push or open/land the required PR.
+5. Close completed work only after the remote push or PR landing succeeds:
    ```sh
    br close <id> --reason "Completed: <summary>"
    ```
-10. Release reservations only after close/handoff conditions are met and no
+6. Release reservations only after close/handoff conditions are met and no
    reserved file remains locally modified.
-11. Send completion mail in the task thread with summary, validation, commit
-    hash, and released paths.
+7. Send completion mail in the task thread with summary, validation, commit
+   hash, and released paths.
 
-Work that changes tracked files is not complete until the push succeeds.
+Work that changes tracked files is not complete while it exists only in a local
+task worktree.
 
 ## Fallbacks
 
@@ -204,16 +195,18 @@ workflow but do not define policy. Run each with `--help` before use.
 
 ```sh
 .agents/skills/boltwall-workflow/scripts/start-session --dry-run
-.agents/skills/boltwall-workflow/scripts/start-task --task <id> --paths <path> --dry-run
+.agents/skills/boltwall-workflow/scripts/start-task --task <id> --paths <path> --worktree <path> --branch <branch> --dry-run
 .agents/skills/boltwall-workflow/scripts/handoff-template --task <id>
-.agents/skills/boltwall-workflow/scripts/landing-checklist --dry-run
+.agents/skills/boltwall-workflow/scripts/landing-checklist --task <id> --dry-run
 .agents/skills/boltwall-workflow/scripts/validate-contract --task <id>
 .agents/skills/boltwall-workflow/scripts/spec-change-check --dry-run
 .agents/skills/boltwall-workflow/scripts/agent-policy-check
 ```
 
-The scripts print required MCP calls as unverified unless the script actually
-has a runtime bridge for that MCP action.
+The scripts are helpers, not policy. If script output conflicts with
+`AGENTS.md` or `docs/agent-worktrees.md`, follow the docs and update the script.
+Scripts print required MCP calls as unverified unless the script actually has a
+runtime bridge for that MCP action.
 
 If a task requires fresh-subagent validation and subagents are unavailable, stop
 and ask the owner before substituting a weaker validation.

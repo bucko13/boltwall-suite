@@ -3,7 +3,7 @@ set -eu
 
 usage() {
   cat <<'USAGE'
-Usage: start-task --task <id> --agent <name> --paths <path[,path...]> [--repo <path>] [--dry-run]
+Usage: start-task --task <id> --agent <name> --paths <path[,path...]> --worktree <path> --branch <name> [--repo <canonical-key>] [--dry-run]
 
 Print the mandatory claim/reserve/announce sequence for a task. This script does
 not call MCP Agent Mail, so reservation and message steps are marked UNVERIFIED.
@@ -12,7 +12,9 @@ Options:
   --task <id>     Task id.
   --agent <name>  Agent name.
   --paths <list>  Comma-separated path list to reserve.
-  --repo <path>   Repository root. Defaults to current directory.
+  --worktree <p>  Planned task worktree path.
+  --branch <name> Planned task branch name.
+  --repo <key>    Canonical Agent Mail project key. Defaults to current directory.
   --dry-run       Print only. This is the only supported mode.
   --help          Show this help.
 USAGE
@@ -22,6 +24,8 @@ repo="$(pwd)"
 task=""
 agent=""
 paths=""
+worktree=""
+branch=""
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
@@ -29,6 +33,8 @@ while [ "$#" -gt 0 ]; do
     --task) task="$2"; shift 2 ;;
     --agent) agent="$2"; shift 2 ;;
     --paths) paths="$2"; shift 2 ;;
+    --worktree) worktree="$2"; shift 2 ;;
+    --branch) branch="$2"; shift 2 ;;
     --repo) repo="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
@@ -38,6 +44,8 @@ done
 [ -n "$task" ] || { echo "--task is required" >&2; usage >&2; exit 2; }
 [ -n "$agent" ] || { echo "--agent is required" >&2; usage >&2; exit 2; }
 [ -n "$paths" ] || { echo "--paths is required" >&2; usage >&2; exit 2; }
+[ -n "$worktree" ] || { echo "--worktree is required" >&2; usage >&2; exit 2; }
+[ -n "$branch" ] || { echo "--branch is required" >&2; usage >&2; exit 2; }
 paths_json="[\"$(printf '%s' "$paths" | sed 's/,/\", \"/g')\"]"
 
 echo "LOCAL CLAIM COMMAND:"
@@ -45,6 +53,9 @@ echo "br update $task --claim --actor $agent"
 echo
 echo "UNVERIFIED MCP REQUIRED before editing:"
 echo "file_reservation_paths(project_key=\"$repo\", agent_name=\"$agent\", paths=$paths_json, ttl_seconds=3600, exclusive=true, reason=\"$task\")"
-echo "send_message(project_key=\"$repo\", sender_name=\"$agent\", thread_id=\"$task\", subject=\"[$task] Start: <summary>\", body_md=\"Claimed $task. Reserved: $paths. Scope: <scope>. Validation: <plan>.\")"
+echo "send_message(project_key=\"$repo\", sender_name=\"$agent\", thread_id=\"$task\", subject=\"[$task] Start: <summary>\", body_md=\"Claimed $task. Reserved: $paths. Worktree: $worktree. Branch: $branch. Scope: <scope>. Validation: <plan>.\")"
 echo
-echo "After the reservation is granted, re-read reserved files before editing."
+echo "BEFORE CREATING THE WORKTREE:"
+echo "git worktree list --porcelain   # check for $task in paths or branches across agent namespaces"
+echo
+echo "After the reservation is granted and the worktree is created, re-read reserved files before editing."

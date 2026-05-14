@@ -27,6 +27,8 @@ bv --robot
 --claim --actor
 file_reservation_paths
 git push
+git worktree
+docs/agent-worktrees.md
 L402 SPEC COMPLIANCE
 owner explicitly gives the exact command
 bun.lock

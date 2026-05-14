@@ -3,7 +3,7 @@ set -eu
 
 usage() {
   cat <<'USAGE'
-Usage: landing-checklist [--dry-run] [--task <id>] [--help]
+Usage: landing-checklist [--dry-run] [--task <id>] [--repo <canonical-checkout>] [--integration-branch <name>] [--help]
 
 Print and partially verify the Boltwall landing sequence. This script does not
 commit, push, close tasks, or release Agent Mail reservations.
@@ -11,11 +11,15 @@ USAGE
 }
 
 task="<task-id>"
+repo="<canonical-checkout>"
+integration_branch="<integration-branch>"
 
 while [ "$#" -gt 0 ]; do
   case "$1" in
     --dry-run) shift ;;
     --task) task="$2"; shift 2 ;;
+    --repo) repo="$2"; shift 2 ;;
+    --integration-branch) integration_branch="$2"; shift 2 ;;
     --help|-h) usage; exit 0 ;;
     *) echo "Unknown argument: $1" >&2; usage >&2; exit 2 ;;
   esac
@@ -27,15 +31,19 @@ echo
 echo "REQUIRED BEFORE PUSH:"
 echo "1. Verify validation contract."
 echo "2. Review every staged path and reserved file."
-echo "3. git pull --rebase"
-echo "4. br sync --flush-only"
-echo "5. git add <reviewed paths>"
-echo "6. git commit -m \"<subject>\""
-echo "7. git push"
-echo "8. git status --short --branch"
+echo "3. In canonical checkout: (cd \"$repo\" && br sync --flush-only)"
+echo "4. In task worktree: git fetch origin"
+echo "5. In task worktree: git rebase origin/$integration_branch"
+echo "6. Re-run validation affected by the rebase."
+echo "7. git add <reviewed paths>"
+echo "8. git commit -m \"<subject>\""
+echo "9. Direct mode: git push origin HEAD:$integration_branch"
+echo "10. PR-gated mode: push task branch, open PR, land after checks/review."
+echo "11. git status --short --branch"
 echo
 echo "REQUIRED AFTER SUCCESSFUL PUSH:"
 echo "br close $task --reason \"Completed: <summary>\""
 echo "Before releasing reservations, verify no reserved file remains locally modified."
 echo "UNVERIFIED MCP: release_file_reservations(...)"
 echo "UNVERIFIED MCP: send_message(thread_id=\"$task\", subject=\"[$task] Completed\", body_md=\"summary + validation + commit hash + released paths\")"
+echo "If complete and clean, log cleanup intent before: git worktree remove <worktree-path>"
