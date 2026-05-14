@@ -49,6 +49,12 @@ export {
 } from "./verify-macaroon";
 
 export {
+  VerificationFailurePrefix,
+  VerificationFailureReason,
+  type VerificationFailureReasonValue,
+} from "./verification-failure";
+
+export {
   capabilitiesSatisfier,
   ipSatisfier,
   originSatisfier,

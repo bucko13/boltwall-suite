@@ -15,6 +15,8 @@ import {
   type Caveat,
   type L402CredentialFields,
   type MacaroonIdentifierV0,
+  VerificationFailurePrefix,
+  VerificationFailureReason,
   buildAuthenticateHeaders,
   decodeIdentifier,
   mintMacaroon,
@@ -100,8 +102,8 @@ function orderValidUntilCaveats(caveats: Caveat[]): Caveat[] {
 function verifyReasonToKind(
   reason: string,
 ): "invalid-credential" | "invalid-preimage" | "caveat-rejected" {
-  if (reason === "preimage-mismatch") return "invalid-preimage";
-  if (reason.startsWith("caveat-rejected:")) return "caveat-rejected";
+  if (reason === VerificationFailureReason.PreimageMismatch) return "invalid-preimage";
+  if (reason.startsWith(VerificationFailurePrefix.CaveatRejected)) return "caveat-rejected";
   return "invalid-credential";
 }
 

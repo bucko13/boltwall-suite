@@ -4,6 +4,11 @@ import { parseCaveat, type Caveat } from "./caveats";
 import { decodeRaw, verifyRawSignature } from "./internal/macaroon";
 import type { RootKeyStore } from "./root-key-store";
 import type { CaveatContext, CaveatSatisfier } from "./satisfiers";
+import {
+  VerificationFailurePrefix,
+  VerificationFailureReason,
+  type VerificationFailureReasonValue,
+} from "./verification-failure";
 import { verifyPreimage } from "./verify-preimage";
 
 const IDENTIFIER_V0_LENGTH = 66;
@@ -41,12 +46,7 @@ export type VerifyMacaroonResult =
   | { ok: true }
   | {
       ok: false;
-      reason:
-        | "signature-invalid"
-        | "unknown-token"
-        | "preimage-mismatch"
-        | `caveat-rejected:${string}`
-        | `unknown-caveat:${string}`;
+      reason: VerificationFailureReasonValue;
     };
 
 /**
@@ -70,29 +70,32 @@ export async function verifyMacaroon(args: VerifyMacaroonArgs): Promise<VerifyMa
   for (const macaroon of args.macaroons) {
     const raw = safeDecodeRaw(macaroon);
     if (raw === null) {
-      return { ok: false, reason: "signature-invalid" };
+      return { ok: false, reason: VerificationFailureReason.SignatureInvalid };
     }
     const identifier = safeDecodeIdentifierBytes(raw.identifier);
     if (identifier === null) {
-      return { ok: false, reason: "signature-invalid" };
+      return { ok: false, reason: VerificationFailureReason.SignatureInvalid };
     }
     firstPaymentHash ??= identifier.paymentHash;
 
     if (!timingSafeEqual(identifier.paymentHash, firstPaymentHash)) {
-      return { ok: false, reason: "preimage-mismatch" };
+      return { ok: false, reason: VerificationFailureReason.PreimageMismatch };
     }
 
     const rootKey = await args.rootKeyStore.get(identifier.tokenId);
     if (rootKey === null) {
-      return { ok: false, reason: "unknown-token" };
+      return { ok: false, reason: VerificationFailureReason.UnknownToken };
     }
     if (!safeVerifyRawSignature({ macaroon: raw, rootKey })) {
-      return { ok: false, reason: "signature-invalid" };
+      return { ok: false, reason: VerificationFailureReason.SignatureInvalid };
     }
 
     const caveats = raw.caveats.map(safeDecodeCaveat);
     if (caveats.some((caveat) => caveat === null)) {
-      return { ok: false, reason: "caveat-rejected:invalid" };
+      return {
+        ok: false,
+        reason: `${VerificationFailurePrefix.CaveatRejected}invalid`,
+      };
     }
     const caveatResult = await verifyCaveats({
       caveats: caveats.filter((caveat): caveat is Caveat => caveat !== null),
@@ -106,14 +109,14 @@ export async function verifyMacaroon(args: VerifyMacaroonArgs): Promise<VerifyMa
   }
 
   if (firstPaymentHash === null) {
-    return { ok: false, reason: "signature-invalid" };
+    return { ok: false, reason: VerificationFailureReason.SignatureInvalid };
   }
   try {
     if (!verifyPreimage({ paymentHash: firstPaymentHash, preimage: args.preimage })) {
-      return { ok: false, reason: "preimage-mismatch" };
+      return { ok: false, reason: VerificationFailureReason.PreimageMismatch };
     }
   } catch {
-    return { ok: false, reason: "preimage-mismatch" };
+    return { ok: false, reason: VerificationFailureReason.PreimageMismatch };
   }
 
   return { ok: true };
@@ -148,7 +151,10 @@ async function verifyCaveats(args: {
     );
     if (satisfier === undefined) {
       if (args.strictUnknownCaveats) {
-        return { ok: false, reason: `unknown-caveat:${caveat.condition}` };
+        return {
+          ok: false,
+          reason: `${VerificationFailurePrefix.UnknownCaveat}${caveat.condition}`,
+        };
       }
       continue;
     }
@@ -175,7 +181,10 @@ async function verifyCaveats(args: {
         next === undefined ||
         !(await safeSatisfyPrevious(satisfier, previous, next))
       ) {
-        return { ok: false, reason: `caveat-rejected:${condition}` };
+        return {
+          ok: false,
+          reason: `${VerificationFailurePrefix.CaveatRejected}${condition}`,
+        };
       }
     }
 

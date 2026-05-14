@@ -6,6 +6,7 @@ import { buildAuthorizationHeader } from "./build-authorization-header";
 import { decodeIdentifier } from "./decode-identifier";
 import { parseAuthenticateHeader } from "./parse-authenticate-header";
 import { parseAuthorizationHeader } from "./parse-authorization-header";
+import { VerificationFailureReason } from "./verification-failure";
 import { verifyPreimage } from "./verify-preimage";
 
 /** Constructor input for the `L402` compatibility facade. */
@@ -163,7 +164,7 @@ export class L402 {
     if (this.paymentHash !== undefined) {
       const ok = verifyPreimage({ paymentHash: this.paymentHash, preimage });
       if (!ok) {
-        throw new Error("preimage-mismatch");
+        throw new Error(VerificationFailureReason.PreimageMismatch);
       }
     }
     this.paymentPreimage = preimage;
