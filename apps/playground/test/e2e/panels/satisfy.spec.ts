@@ -5,17 +5,22 @@ import { expect, test } from "@playwright/test";
 const FIXTURE_MACAROON_WITH_CAVEAT =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAIZdmFsaWQtdW50aWw9OTk5OTk5OTk5OTAwMAAABiAjHO+oY0jzCNj0uSNSma7NrhmXFsiPutNILxobLhOkqA==";
 
-test.describe("panels / satisfy", () => {
+test.describe("panels / caveats — satisfy mode", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/p/satisfy");
+    await page.goto("/p/caveats");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.click("[data-testid='caveats-mode-satisfy']");
   });
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-    await expect(page.locator("[data-testid='header-row']")).toContainText("Caveat Satisfiers");
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Caveats");
     await expect(page.locator("[data-testid='header-row']")).toContainText(
-      "Register satisfiers and test token caveats",
+      "Build caveats, create time limits, and test satisfiers",
+    );
+    await expect(page.locator("[data-testid='caveats-mode-satisfy']")).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(

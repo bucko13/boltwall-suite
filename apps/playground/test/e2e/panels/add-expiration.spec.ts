@@ -1,16 +1,21 @@
 import { expect, test } from "@playwright/test";
 
-test.describe("panels / add-expiration", () => {
+test.describe("panels / caveats — valid-until mode", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/p/add-expiration");
+    await page.goto("/p/caveats");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.click("[data-testid='caveats-mode-valid-until']");
   });
 
   test("renders panel with header and idle status", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-    await expect(page.locator("[data-testid='header-row']")).toContainText("Valid-until Caveat");
+    await expect(page.locator("[data-testid='header-row']")).toContainText("Caveats");
     await expect(page.locator("[data-testid='header-row']")).toContainText(
-      "Create a valid-until caveat from a TTL",
+      "Build caveats, create time limits, and test satisfiers",
+    );
+    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toHaveAttribute(
+      "aria-selected",
+      "true",
     );
     await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
   });
@@ -64,5 +69,17 @@ test.describe("panels / add-expiration", () => {
       `value: "${isoValue}"`,
     );
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("Date.now()");
+  });
+
+  test("built expiration can be added to the shared caveat builder", async ({ page }) => {
+    await page.fill("[data-testid='expiration-seconds-input']", "3600");
+    await page.click("[data-testid='expiration-compute']");
+    await page.click("[data-testid='expiration-add-to-caveats']");
+
+    await expect(page.locator("[data-testid='caveats-mode-build']")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("[data-testid='caveats-output']")).toContainText("valid-until");
   });
 });

@@ -10,7 +10,7 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='beaker-logo']").first()).toBeVisible();
   });
 
-  test("all 9 panel links present", async ({ page }) => {
+  test("all 7 panel links present", async ({ page }) => {
     await page.goto("/");
 
     const nav = page.getByRole("navigation", { name: "Primary" });
@@ -19,14 +19,15 @@ test.describe("Nav shell", () => {
       "Generate L402 Token",
       "From Challenge",
       "Parse Token",
-      "Caveat Builder",
-      "Valid-until Caveat",
+      "Caveats",
       "Validate L402",
-      "Caveat Satisfiers",
       "Demo",
     ]) {
       await expect(nav.getByRole("link", { name: label })).toBeVisible();
     }
+    await expect(nav.getByRole("link", { name: "Caveat Builder" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Valid-until Caveat" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Caveat Satisfiers" })).toHaveCount(0);
   });
 
   test("active panel link is highlighted", async ({ page }) => {

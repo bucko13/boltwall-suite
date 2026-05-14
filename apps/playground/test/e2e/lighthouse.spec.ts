@@ -22,9 +22,7 @@ const PANEL_ROUTES = [
   "/p/from-challenge",
   "/p/parse-token",
   "/p/caveats",
-  "/p/add-expiration",
   "/p/validate",
-  "/p/satisfy",
   "/p/demo",
   "/design",
 ] as const;

@@ -8,9 +8,7 @@
         "http://localhost:3000/p/from-challenge",
         "http://localhost:3000/p/parse-token",
         "http://localhost:3000/p/caveats",
-        "http://localhost:3000/p/add-expiration",
         "http://localhost:3000/p/validate",
-        "http://localhost:3000/p/satisfy",
         "http://localhost:3000/p/demo",
         "http://localhost:3000/design"
       ],
