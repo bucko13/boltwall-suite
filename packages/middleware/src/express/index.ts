@@ -1,5 +1,15 @@
 import { assertBackendSupports, type RequiredBackendCapabilities } from "@boltwall/adapters";
-import { ipCaveat, originCaveat, routeCaveat, validUntil } from "@boltwall/l402";
+import {
+  expirationSatisfier,
+  ipCaveat,
+  ipSatisfier,
+  originCaveat,
+  originSatisfier,
+  routeCaveat,
+  routeSatisfier,
+  validUntil,
+  validUntilSatisfier,
+} from "@boltwall/l402";
 import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 
 import { authorizeL402 } from "../core/authorize.js";
@@ -14,6 +24,56 @@ export { ipCaveat, originCaveat, routeCaveat, validUntil };
 
 /** Express-adapter options extend core L402Config with optional backend capability requirements. */
 export type L402ExpressOptions = L402Config & RequiredBackendCapabilities;
+
+/**
+ * Drop-in time caveat preset for Express middleware.
+ *
+ * Adds a `valid-until` caveat to newly minted challenges at a default rate of
+ * one satoshi per second, and verifies both modern `valid-until` and legacy
+ * `expiration` caveats. L402 macaroon-spec.md §Caveat Format and
+ * §Verification govern the caveat serialization and satisfier checks.
+ */
+export const TIME_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
+  rate: 1,
+  satisfiers: [validUntilSatisfier(), expirationSatisfier()],
+};
+
+/**
+ * Drop-in HTTP Origin caveat preset for Express middleware.
+ *
+ * Binds freshly minted challenges to the incoming `Origin` header and verifies
+ * credentials against that request metadata. Deployments should only rely on
+ * this when their origin policy is meaningful for the protected route.
+ */
+export const ORIGIN_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
+  caveats: [(req) => originCaveat(req.headers.get("origin") ?? "")],
+  satisfiers: [originSatisfier("any")],
+};
+
+/**
+ * Drop-in client IP caveat preset for Express middleware.
+ *
+ * Binds freshly minted challenges to the translated request IP
+ * (`X-Forwarded-For`, populated from `req.ip` when absent) and verifies legacy
+ * `ip=<client-ip>` credentials. Trust this only behind a configured proxy
+ * policy that controls forwarded client IP metadata.
+ */
+export const IP_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
+  caveats: [(req) => ipCaveat(req.headers.get("x-forwarded-for")?.split(",")[0]?.trim() ?? "")],
+  satisfiers: [ipSatisfier()],
+};
+
+/**
+ * Drop-in route caveat preset for Express middleware.
+ *
+ * Binds freshly minted challenges to the current request pathname. The wildcard
+ * route satisfier policy allows the caveat value itself to constrain the
+ * credential to that path.
+ */
+export const ROUTE_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
+  caveats: [(req) => routeCaveat(new URL(req.url).pathname)],
+  satisfiers: [routeSatisfier(["*"])],
+};
 
 /**
  * Express middleware factory for L402 payment authentication.
@@ -49,22 +109,24 @@ export function boltwall(
   ) {
     const webRequest = expressRequestToWebRequest(req);
 
-    authorizeL402(webRequest, config).then((result) => {
-      if (result.ok) {
-        req.l402 = result.context;
-        next();
-        return;
-      }
+    authorizeL402(webRequest, config)
+      .then((result) => {
+        if (result.ok) {
+          req.l402 = result.context;
+          next();
+          return;
+        }
 
-      // Copy status and headers from the Web Response to the Express response.
-      res.status(result.response.status);
-      result.response.headers.forEach((value, key) => {
-        res.append(key, value);
+        // Copy status and headers from the Web Response to the Express response.
+        res.status(result.response.status);
+        result.response.headers.forEach((value, key) => {
+          res.append(key, value);
+        });
+        res.end();
+      })
+      .catch((err: unknown) => {
+        // Forward unexpected errors to Express error handlers (Express 4 compat).
+        next(err instanceof Error ? err : new Error(String(err)));
       });
-      res.end();
-    }).catch((err: unknown) => {
-      // Forward unexpected errors to Express error handlers (Express 4 compat).
-      next(err instanceof Error ? err : new Error(String(err)));
-    });
   };
 }

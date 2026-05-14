@@ -12,15 +12,25 @@ import supertest from "supertest";
 import {
   InMemoryRootKeyStore,
   buildAuthorizationHeader,
+  expirationCaveat,
   ipCaveat,
   ipSatisfier,
   mintMacaroon,
+  originCaveat,
   parseAuthenticateHeader,
+  routeCaveat,
+  validUntil,
 } from "@boltwall/l402";
 import { MockAdapter } from "@boltwall/adapters/testing";
 import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
-import { boltwall } from "../src/express/index";
+import {
+  IP_CAVEAT_CONFIG,
+  ORIGIN_CAVEAT_CONFIG,
+  ROUTE_CAVEAT_CONFIG,
+  TIME_CAVEAT_CONFIG,
+  boltwall,
+} from "../src/express/index";
 
 // --- Fixtures ---
 
@@ -73,6 +83,33 @@ async function buildApp() {
   );
 
   return { app, backend };
+}
+
+async function buildPresetApp(
+  preset: Partial<Parameters<typeof boltwall>[0]>,
+  caveats: Parameters<typeof mintMacaroon>[0]["caveats"],
+) {
+  const rootKeyStore = new InMemoryRootKeyStore();
+  await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
+
+  const backend = new TestBackend();
+  await backend.createInvoice({ amountMsat: AMOUNT_MSAT, paymentHash: PAYMENT_HASH_HEX });
+  backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+
+  const app = express();
+  app.use(
+    "/paid",
+    boltwall({
+      service: "test-service",
+      backend,
+      rootKeyStore,
+      price: AMOUNT_MSAT,
+      ...preset,
+    }),
+    (_req, res) => res.json({ ok: true }),
+  );
+
+  return { app, authHeader: makeValidAuthHeader(caveats) };
 }
 
 // --- Tests ---
@@ -141,7 +178,10 @@ describe("Express adapter — GET /paid", () => {
       rootKey: ROOT_KEY,
       identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
     });
-    const wrongHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: "ff".repeat(32) });
+    const wrongHeader = buildAuthorizationHeader({
+      macaroons: macaroon,
+      preimage: "ff".repeat(32),
+    });
     const res = await supertest(app).get("/paid").set("Authorization", wrongHeader);
     expect(res.status).toBe(401);
   });
@@ -204,22 +244,99 @@ describe("Express adapter — GET /paid", () => {
     const rootKeyStore = new InMemoryRootKeyStore();
     const failingBackend = {
       kind: "mock" as const,
-      capabilities: { hodl: false, cancelInvoice: false, streamingInvoices: false, customDescription: false },
-      createInvoice: async () => { throw new Error("LND down"); },
-      lookupInvoice: async () => { throw new Error("not called"); },
+      capabilities: {
+        hodl: false,
+        cancelInvoice: false,
+        streamingInvoices: false,
+        customDescription: false,
+      },
+      createInvoice: async () => {
+        throw new Error("LND down");
+      },
+      lookupInvoice: async () => {
+        throw new Error("not called");
+      },
       cancelInvoice: async () => {},
       settleHodlInvoice: async () => {},
-      subscribeInvoices: async function* () { return; },
+      subscribeInvoices: async function* () {
+        return;
+      },
     };
 
     const app = express();
     app.use(
       "/paid",
-      boltwall({ service: "test-service", backend: failingBackend, rootKeyStore, price: AMOUNT_MSAT }),
+      boltwall({
+        service: "test-service",
+        backend: failingBackend,
+        rootKeyStore,
+        price: AMOUNT_MSAT,
+      }),
       (_req, res) => res.json({ ok: true }),
     );
 
     const res = await supertest(app).get("/paid");
     expect(res.status).toBe(502);
+  });
+});
+
+describe("Express adapter config presets", () => {
+  test("TIME_CAVEAT_CONFIG supports 402 challenge and legacy expiration credentials", async () => {
+    const { app, authHeader } = await buildPresetApp(TIME_CAVEAT_CONFIG, [
+      expirationCaveat(Date.now() + 60_000),
+    ]);
+
+    const challenged = await supertest(app).get("/paid");
+    expect(challenged.status).toBe(402);
+
+    const paid = await supertest(app).get("/paid").set("Authorization", authHeader);
+    expect(paid.status).toBe(200);
+  });
+
+  test("ORIGIN_CAVEAT_CONFIG supports 402 challenge and origin-bound credentials", async () => {
+    const { app, authHeader } = await buildPresetApp(ORIGIN_CAVEAT_CONFIG, [
+      originCaveat("https://app.example"),
+    ]);
+
+    const challenged = await supertest(app).get("/paid").set("Origin", "https://app.example");
+    expect(challenged.status).toBe(402);
+
+    const paid = await supertest(app)
+      .get("/paid")
+      .set("Authorization", authHeader)
+      .set("Origin", "https://app.example");
+    expect(paid.status).toBe(200);
+  });
+
+  test("IP_CAVEAT_CONFIG supports 402 challenge and IP-bound credentials", async () => {
+    const { app, authHeader } = await buildPresetApp(IP_CAVEAT_CONFIG, [ipCaveat("203.0.113.10")]);
+
+    const challenged = await supertest(app).get("/paid").set("X-Forwarded-For", "203.0.113.10");
+    expect(challenged.status).toBe(402);
+
+    const paid = await supertest(app)
+      .get("/paid")
+      .set("Authorization", authHeader)
+      .set("X-Forwarded-For", "203.0.113.10");
+    expect(paid.status).toBe(200);
+  });
+
+  test("ROUTE_CAVEAT_CONFIG supports 402 challenge and route-bound credentials", async () => {
+    const { app, authHeader } = await buildPresetApp(ROUTE_CAVEAT_CONFIG, [routeCaveat("/paid")]);
+
+    const challenged = await supertest(app).get("/paid");
+    expect(challenged.status).toBe(402);
+
+    const paid = await supertest(app).get("/paid").set("Authorization", authHeader);
+    expect(paid.status).toBe(200);
+  });
+
+  test("TIME_CAVEAT_CONFIG also accepts modern valid-until credentials", async () => {
+    const { app, authHeader } = await buildPresetApp(TIME_CAVEAT_CONFIG, [
+      validUntil({ seconds: 60 }),
+    ]);
+
+    const paid = await supertest(app).get("/paid").set("Authorization", authHeader);
+    expect(paid.status).toBe(200);
   });
 });
