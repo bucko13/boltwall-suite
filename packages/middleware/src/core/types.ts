@@ -61,8 +61,6 @@ export interface L402RequestContext {
   paymentHash: string;
   /** Decoded v0 macaroon identifier. */
   identifier: MacaroonIdentifierV0;
-  /** Caveats that were matched and satisfied by registered satisfiers. */
-  satisfiedCaveats: Caveat[];
 }
 
 export type L402GateResult =

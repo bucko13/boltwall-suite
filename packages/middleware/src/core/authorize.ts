@@ -304,7 +304,6 @@ export async function authorizeL402(
   const context: L402RequestContext = {
     paymentHash: paymentHashHex,
     identifier,
-    satisfiedCaveats: verifyResult.ok ? [] : [],
   };
 
   if (config.onPaid) {
