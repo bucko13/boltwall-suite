@@ -20,6 +20,7 @@ import {
   mintMacaroon,
   parseAuthorizationHeader,
   servicesCaveat,
+  validUntil,
   verifyMacaroon,
 } from "@boltwall/l402";
 
@@ -51,6 +52,7 @@ async function resolvePrice(
 async function resolveCaveats(
   config: L402Config,
   req: Request,
+  amountMsat: bigint,
 ): Promise<Caveat[]> {
   const out: Caveat[] = [];
 
@@ -60,7 +62,34 @@ async function resolveCaveats(
   for (const c of config.caveats ?? []) {
     out.push(typeof c === "function" ? await c(req) : c);
   }
-  return out;
+  if (config.rate !== undefined) {
+    out.push(rateCaveat(amountMsat, config.rate));
+  }
+  return orderValidUntilCaveats(out);
+}
+
+/**
+ * Build a dynamic time caveat from the paid amount.
+ *
+ * L402 macaroon-spec.md §Caveat Format — the generated caveat is serialized as
+ * the standard `valid-until=<ISO>` first-party caveat.
+ */
+function rateCaveat(amountMsat: bigint, rate: number): Caveat {
+  if (!Number.isFinite(rate) || rate <= 0) {
+    throw new Error("invalid-rate");
+  }
+  const sats = Number(amountMsat / 1000n);
+  return validUntil({ seconds: Math.ceil(sats / rate) });
+}
+
+function orderValidUntilCaveats(caveats: Caveat[]): Caveat[] {
+  const sortedValidUntil = caveats
+    .filter((caveat) => caveat.condition === "valid-until")
+    .sort((a, b) => Date.parse(b.value) - Date.parse(a.value));
+
+  return caveats.map((caveat) =>
+    caveat.condition === "valid-until" ? sortedValidUntil.shift()! : caveat,
+  );
 }
 
 /**
@@ -90,8 +119,9 @@ async function emitChallenge(
   const log = logger ?? noopLogger;
 
   let invoice;
+  let amountMsat: bigint;
   try {
-    const amountMsat = await resolvePrice(config.price, req);
+    amountMsat = await resolvePrice(config.price, req);
     const description = config.invoiceMemo ? config.invoiceMemo(req) : config.service;
     invoice = await config.backend.createInvoice({ amountMsat, description });
   } catch (cause) {
@@ -106,7 +136,7 @@ async function emitChallenge(
 
   const paymentHash = hexToBytes(invoice.paymentHash);
   const tokenId = randomTokenId();
-  const caveats = await resolveCaveats(config, req);
+  const caveats = await resolveCaveats(config, req, amountMsat);
 
   const macaroon = mintMacaroon({
     rootKey: await getOrGenerateRootKey(tokenId, config.rootKeyStore),

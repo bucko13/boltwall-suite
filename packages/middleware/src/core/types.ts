@@ -26,6 +26,15 @@ export interface L402Config {
    */
   price: bigint | ((req: Request) => bigint | Promise<bigint>);
   /**
+   * Optional dynamic access rate in sats per second.
+   *
+   * When set, each freshly minted challenge macaroon receives an additional
+   * `valid-until` caveat whose duration is derived from the invoice amount:
+   * `ceil((priceMsat / 1000) / rate)` seconds. L402 macaroon-spec.md
+   * §Caveat Format governs the generated caveat shape.
+   */
+  rate?: number;
+  /**
    * Optional caveats or per-request caveat resolvers appended to every
    * minted macaroon.
    */

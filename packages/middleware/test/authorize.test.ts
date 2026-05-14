@@ -5,6 +5,9 @@ import {
   buildAuthorizationHeader,
   mintMacaroon,
   parseAuthenticateHeader,
+  validUntil,
+  validUntilSatisfier,
+  verifyMacaroon,
 } from "@boltwall/l402";
 import { MockAdapter } from "@boltwall/adapters/testing";
 import type { LightningBackend } from "@boltwall/adapters";
@@ -48,6 +51,12 @@ class TestBackend extends MockAdapter {
   }
 }
 
+class FixedPaymentHashBackend extends TestBackend {
+  override async createInvoice(req: Parameters<MockAdapter["createInvoice"]>[0]) {
+    return super.createInvoice({ ...req, paymentHash: PAYMENT_HASH_HEX });
+  }
+}
+
 async function makeConfig(
   overrides: Partial<L402Config> = {},
 ): Promise<L402Config> {
@@ -82,6 +91,18 @@ function makeRequest(authHeader?: string): Request {
   const headers = new Headers();
   if (authHeader) headers.set("Authorization", authHeader);
   return new Request("https://example.com/test", { headers });
+}
+
+async function challengeMacaroon(config: L402Config): Promise<string> {
+  const result = await authorizeL402(makeRequest(), config);
+  expect(result.ok).toBe(false);
+  if (result.ok) throw new Error("expected challenge");
+  const challenges = parseAuthenticateHeader(
+    result.response.headers.get("WWW-Authenticate")!,
+  );
+  const challenge = challenges.find((entry) => entry.scheme === "L402");
+  expect(challenge?.macaroon).toBeTruthy();
+  return challenge!.macaroon;
 }
 
 /** Minimal backend that throws on createInvoice. */
@@ -167,6 +188,98 @@ describe("authorizeL402 — missing credential (402)", () => {
     if (result.ok) return;
     expect(result.response.status).toBe(502);
     expect(result.error.kind).toBe("invoice-provider-failure");
+  });
+
+  test("rate appends a valid-until caveat proportional to paid sats", async () => {
+    const originalDateNow = Date.now;
+    Date.now = () => Date.UTC(2030, 0, 1, 0, 0, 0);
+    try {
+      const rootKeyStore = new InMemoryRootKeyStore();
+      const config: L402Config = {
+        service: "test-service",
+        backend: new FixedPaymentHashBackend(),
+        rootKeyStore,
+        price: 1_000_000n,
+        rate: 10,
+        satisfiers: [validUntilSatisfier()],
+      };
+
+      const macaroon = await challengeMacaroon(config);
+
+      const immediate = await verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE_HEX,
+        rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: { request: makeRequest(), now: new Date(Date.now()) },
+      });
+      expect(immediate.ok).toBe(true);
+
+      const afterGeneratedWindow = await verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE_HEX,
+        rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: {
+          request: makeRequest(),
+          now: new Date(Date.now() + 200_000),
+        },
+      });
+      expect(afterGeneratedWindow).toEqual({
+        ok: false,
+        reason: "caveat-rejected:valid-until",
+      });
+    } finally {
+      Date.now = originalDateNow;
+    }
+  });
+
+  test("static valid-until caveat and rate-generated valid-until caveat are additive", async () => {
+    const originalDateNow = Date.now;
+    Date.now = () => Date.UTC(2030, 0, 1, 0, 0, 0);
+    try {
+      const rootKeyStore = new InMemoryRootKeyStore();
+      const config: L402Config = {
+        service: "test-service",
+        backend: new FixedPaymentHashBackend(),
+        rootKeyStore,
+        price: 1_000_000n,
+        rate: 10,
+        caveats: [validUntil({ iso: "2030-01-01T00:00:50.000Z" })],
+        satisfiers: [validUntilSatisfier()],
+      };
+
+      const macaroon = await challengeMacaroon(config);
+
+      const beforeStaticExpiry = await verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE_HEX,
+        rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: {
+          request: makeRequest(),
+          now: new Date(Date.now() + 40_000),
+        },
+      });
+      expect(beforeStaticExpiry.ok).toBe(true);
+
+      const afterStaticExpiry = await verifyMacaroon({
+        macaroons: [macaroon],
+        preimage: PREIMAGE_HEX,
+        rootKeyStore,
+        satisfiers: [validUntilSatisfier()],
+        context: {
+          request: makeRequest(),
+          now: new Date(Date.now() + 60_000),
+        },
+      });
+      expect(afterStaticExpiry).toEqual({
+        ok: false,
+        reason: "caveat-rejected:valid-until",
+      });
+    } finally {
+      Date.now = originalDateNow;
+    }
   });
 });
 
