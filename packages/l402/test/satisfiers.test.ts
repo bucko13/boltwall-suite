@@ -72,6 +72,12 @@ describe("built-in caveat satisfiers / final checks", () => {
     expect(() =>
       satisfier.satisfyFinal({ condition: "valid-until", value: "later" }, context),
     ).toThrow("invalid-valid-until");
+    expect(() =>
+      satisfier.satisfyFinal(
+        { condition: "valid-until", value: "9999999999000" },
+        context,
+      ),
+    ).toThrow("invalid-valid-until");
   });
 
   test("originSatisfier requires request Origin to be allowed by policy and caveat", () => {
