@@ -22,6 +22,9 @@ test.describe("panels / caveats — satisfy mode", () => {
       "aria-selected",
       "true",
     );
+    await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
+      "Source: macaroon caveats",
+    );
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText(
       "const satisfiers = []",
@@ -41,6 +44,29 @@ test.describe("panels / caveats — satisfy mode", () => {
 
     await expect(page.locator("[data-testid='satisfy-output']")).toBeVisible();
     await expect(page.locator("[data-testid='satisfy-output']")).toContainText("valid-until");
+  });
+
+  test("checks the shared caveat list without leaving the Caveats panel", async ({ page }) => {
+    await page.click("[data-testid='caveats-mode-valid-until']");
+    await page.fill("[data-testid='expiration-seconds-input']", "3600");
+    await page.click("[data-testid='expiration-compute']");
+    await page.click("[data-testid='expiration-add-to-caveats']");
+
+    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("[data-testid='caveats-output']")).toContainText("valid-until");
+
+    await page.click("[data-testid='caveats-mode-satisfy']");
+    await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
+      "Source: current caveats",
+    );
+    await page.click("[data-testid='satisfy-add-satisfier']");
+    await page.click("[data-testid='satisfy-run']");
+
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("1/1 matched");
+    await expect(page.locator("[data-testid='satisfy-output']")).toContainText("matched");
   });
 
   test("remove satisfier changes result to unsatisfied", async ({ page }) => {

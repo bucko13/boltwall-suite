@@ -76,10 +76,11 @@ test.describe("panels / caveats — valid-until mode", () => {
     await page.click("[data-testid='expiration-compute']");
     await page.click("[data-testid='expiration-add-to-caveats']");
 
-    await expect(page.locator("[data-testid='caveats-mode-build']")).toHaveAttribute(
+    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toHaveAttribute(
       "aria-selected",
       "true",
     );
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toBeVisible();
     await expect(page.locator("[data-testid='caveats-output']")).toContainText("valid-until");
   });
 });

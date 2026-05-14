@@ -298,7 +298,6 @@ export function Caveats() {
   function addExpirationToRows() {
     if (!expirationResult) return;
     saveRows([...rows, { condition: expirationResult.condition, value: expirationResult.value }]);
-    setMode("build");
   }
 
   function resetExpiration() {
@@ -318,13 +317,16 @@ export function Caveats() {
   }
 
   async function runCheck() {
-    if (!(token ?? "").trim()) {
-      setSatisfyError("Paste a base64-encoded macaroon.");
-      setResults(null);
-      return;
-    }
     try {
-      const caveats = extractCaveatsFromMacaroon((token ?? "").trim());
+      const tokenRows = (token ?? "").trim()
+        ? extractCaveatsFromMacaroon((token ?? "").trim())
+        : [];
+      const caveats = rows.length > 0 ? rows : tokenRows;
+      if (caveats.length === 0) {
+        setSatisfyError("Add caveats or paste a base64-encoded macaroon.");
+        setResults(null);
+        return;
+      }
       const res = await runSatisfiers(caveats, satisfierRows);
       setResults(res);
       setSatisfyError(null);
@@ -426,15 +428,14 @@ export function Caveats() {
             ))}
           </div>
 
+          <CurrentCaveats rows={rows} serialized={serialized} removeRow={removeRow} />
+
           {activeMode === "build" ? (
             <BuildMode
-              rows={rows}
               draft={draft}
               draftError={draftError}
-              serialized={serialized}
               setDraft={setDraft}
               addRow={addRow}
-              removeRow={removeRow}
               resetRows={resetRows}
             />
           ) : null}
@@ -457,6 +458,7 @@ export function Caveats() {
 
           {activeMode === "satisfy" ? (
             <SatisfyMode
+              caveatCount={rows.length}
               token={token ?? ""}
               setToken={(value) => {
                 setToken(value);
@@ -488,8 +490,8 @@ export function Caveats() {
                   ? `import type { Caveat } from "@boltwall/l402";\n\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: {{caveatValueLiteral}},\n};`
                   : `import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};`
                 : satisfierRows.length > 0
-                  ? `import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
-                  : `const satisfiers = [];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
+                  ? `import { servicesSatisfier, validUntilSatisfier, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass caveats embedded in a macaroon to verifyMacaroon({ ..., satisfiers }).`
+                  : `import type { Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst satisfiers = [];\n\n// Add satisfiers to check these caveats.`
           }
           values={{
             caveatsLiteral,
@@ -536,59 +538,87 @@ function getStatusLabel(
   return `${Object.values(results).filter((v) => v === "matched").length}/${Object.keys(results).length} matched`;
 }
 
-function BuildMode({
+function CurrentCaveats({
   rows,
-  draft,
-  draftError,
   serialized,
-  setDraft,
-  addRow,
   removeRow,
-  resetRows,
 }: {
   rows: CaveatRow[];
+  serialized: string[];
+  removeRow: (index: number) => void;
+}) {
+  return (
+    <div
+      data-testid="caveats-shared-list"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: 10,
+        border: "1px solid var(--color-border)",
+        background: "var(--color-surface-alt)",
+      }}
+    >
+      <div style={outputLabelStyle}>Current caveats</div>
+      {rows.length > 0 ? (
+        <>
+          <div
+            data-testid="caveats-list"
+            style={{ display: "flex", flexDirection: "column", gap: 6 }}
+          >
+            {rows.map((r, i) => (
+              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+                <CaveatPill state="unsatisfied">
+                  {r.condition}={r.value}
+                </CaveatPill>
+                <button
+                  type="button"
+                  onClick={() => removeRow(i)}
+                  data-testid={`caveat-remove-${i}`}
+                  aria-label={`Remove caveat ${r.condition}`}
+                  style={removeButtonStyle}
+                >
+                  x
+                </button>
+              </div>
+            ))}
+          </div>
+          <div data-testid="caveats-output" style={monoOutputStyle}>
+            <div style={outputLabelStyle}>Serialized caveats</div>
+            {serialized.map((s, i) => (
+              <div key={i} style={{ color: "var(--color-text)" }}>
+                {s}
+              </div>
+            ))}
+          </div>
+        </>
+      ) : (
+        <div
+          data-testid="caveats-empty"
+          style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}
+        >
+          No caveats
+        </div>
+      )}
+    </div>
+  );
+}
+
+function BuildMode({
+  draft,
+  draftError,
+  setDraft,
+  addRow,
+  resetRows,
+}: {
   draft: CaveatRow;
   draftError: string | null;
-  serialized: string[];
   setDraft: (updater: (draft: CaveatRow) => CaveatRow) => void;
   addRow: () => void;
-  removeRow: (index: number) => void;
   resetRows: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      {rows.length > 0 ? (
-        <div
-          data-testid="caveats-list"
-          style={{ display: "flex", flexDirection: "column", gap: 6 }}
-        >
-          {rows.map((r, i) => (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <CaveatPill state="unsatisfied">
-                {r.condition}={r.value}
-              </CaveatPill>
-              <button
-                type="button"
-                onClick={() => removeRow(i)}
-                data-testid={`caveat-remove-${i}`}
-                aria-label={`Remove caveat ${r.condition}`}
-                style={{
-                  padding: "1px 6px",
-                  fontSize: "var(--size-11)",
-                  background: "var(--color-danger-soft)",
-                  color: "var(--color-danger)",
-                  border: "1px solid var(--color-danger)",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                }}
-              >
-                x
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={labelStyle}>
           Condition
@@ -641,17 +671,6 @@ function BuildMode({
           {draftError}
         </div>
       ) : null}
-
-      {serialized.length > 0 ? (
-        <div data-testid="caveats-output" style={monoOutputStyle}>
-          <div style={outputLabelStyle}>Serialized caveats</div>
-          {serialized.map((s, i) => (
-            <div key={i} style={{ color: "var(--color-text)" }}>
-              {s}
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -679,8 +698,9 @@ function ValidUntilMode({
         TTL in seconds
         <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
           <input
-            type="number"
-            min={0}
+            type="text"
+            inputMode="numeric"
+            pattern="[0-9]*"
             value={seconds}
             onChange={(e) => setSeconds(e.target.value)}
             placeholder="e.g. 3600"
@@ -741,7 +761,7 @@ function ValidUntilMode({
             data-testid="expiration-add-to-caveats"
             style={{ ...secondaryButtonStyle, alignSelf: "flex-start" }}
           >
-            Add to builder
+            Add caveat
           </button>
         </div>
       ) : null}
@@ -750,6 +770,7 @@ function ValidUntilMode({
 }
 
 function SatisfyMode({
+  caveatCount,
   token,
   setToken,
   satisfierRows,
@@ -762,6 +783,7 @@ function SatisfyMode({
   error,
   results,
 }: {
+  caveatCount: number;
   token: string;
   setToken: (value: string | null) => void;
   satisfierRows: SatisfierRow[];
@@ -777,7 +799,7 @@ function SatisfyMode({
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <label style={labelStyle}>
-        Macaroon (base64)
+        Macaroon caveats (optional)
         <textarea
           value={token}
           onChange={(e) => setToken(e.target.value)}
@@ -787,6 +809,12 @@ function SatisfyMode({
           style={panelTextareaStyle(Boolean(error))}
         />
       </label>
+      <div
+        data-testid="satisfy-source"
+        style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}
+      >
+        Source: {caveatCount > 0 ? "current caveats" : "macaroon caveats"}
+      </div>
 
       {satisfierRows.length > 0 ? (
         <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
@@ -947,6 +975,16 @@ const secondaryButtonStyle = {
   borderRadius: 4,
   fontSize: "var(--size-13)",
   fontWeight: 500,
+  cursor: "pointer",
+} as const;
+
+const removeButtonStyle = {
+  padding: "1px 6px",
+  fontSize: "var(--size-11)",
+  background: "var(--color-danger-soft)",
+  color: "var(--color-danger)",
+  border: "1px solid var(--color-danger)",
+  borderRadius: 4,
   cursor: "pointer",
 } as const;
 

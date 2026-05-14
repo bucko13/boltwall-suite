@@ -18,6 +18,8 @@ test.describe("panels / caveats", () => {
     );
     await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toBeVisible();
     await expect(page.locator("[data-testid='caveats-mode-satisfy']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveats-empty']")).toContainText("No caveats");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("const caveats = []");
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("pokedex:0");
