@@ -247,6 +247,7 @@ Hard triggers stay in this file. Longer reference material lives in focused docs
 | playground UI, visual direction, or demo flow ergonomics | `docs/playground-visual-concepts.md` and `docs/testing.md` |
 | L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
 | startup, reservations, handoff, close, commit, push, release sequence, or task worktrees | `.agents/skills/boltwall-workflow/SKILL.md` and `docs/agent-worktrees.md` |
+| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags | `docs/github-actions-hygiene.md` |
 
 Mandatory summaries:
 
