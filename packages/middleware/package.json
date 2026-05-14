@@ -30,7 +30,7 @@
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
     "@boltwall/l402": "workspace:*",
-    "pino": "^9.9.4"
+    "pino": "^10.3.1"
   },
   "peerDependencies": {
     "express": "^4 || ^5"
