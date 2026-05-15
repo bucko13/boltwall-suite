@@ -78,8 +78,8 @@ Set:
 - `OPENNODE_BASE_URL` if overriding the provider default.
 
 The template validates these variables, but this repository version does not
-yet include a concrete `OpenNodeAdapter` export. Selecting `LN_BACKEND=opennode`
-fails fast with a redacted startup error until that adapter lands.
+silently persist or print them. Selecting `LN_BACKEND=opennode` constructs
+`@boltwall/adapters/opennode` at startup.
 
 ### BTCPay Server
 
@@ -93,8 +93,9 @@ Set:
   those features in your deployment.
 
 The template validates these variables, but this repository version does not
-yet include a concrete `BtcPayAdapter` export. Selecting `LN_BACKEND=btcpay`
-fails fast with a redacted startup error until that adapter lands.
+silently persist or print them. Selecting `LN_BACKEND=btcpay` constructs
+`@boltwall/adapters/btcpay` at startup. HODL and streaming flags fail fast
+unless the adapter can prove support for the selected deployment.
 
 ## Config File Shape
 

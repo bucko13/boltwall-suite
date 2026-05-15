@@ -1,5 +1,7 @@
 import type { LightningBackend } from "@boltwall/adapters";
+import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
+import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
 import type { ProxyEnvConfig } from "@boltwall/proxy";
 import { z } from "zod";
@@ -139,14 +141,19 @@ export function createBackend(config: BoltwallBackendConfig): LightningBackend {
   }
 
   if (config.kind === "opennode") {
-    throw new BoltwallTemplateEnvError(
-      "LN_BACKEND=opennode selected, but @boltwall/adapters/opennode does not export OpenNodeAdapter in this release.",
-    );
+    return new OpenNodeAdapter({
+      apiKey: config.apiKey,
+      ...(config.baseUrl === undefined ? {} : { baseUrl: config.baseUrl }),
+    });
   }
 
-  throw new BoltwallTemplateEnvError(
-    "LN_BACKEND=btcpay selected, but @boltwall/adapters/btcpay does not export BtcPayAdapter in this release.",
-  );
+  return new BtcPayAdapter({
+    baseUrl: config.baseUrl,
+    apiKey: config.apiKey,
+    storeId: config.storeId,
+    cryptoCode: config.cryptoCode,
+    features: config.features,
+  });
 }
 
 function loadBackendEnv(

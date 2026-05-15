@@ -80,7 +80,7 @@ describe("loadBoltwallEnv", () => {
     }
   });
 
-  test("fails fast for OpenNode and BTCPay until adapters are implemented", () => {
+  test("creates OpenNode and BTCPay backends from template env", () => {
     const openNodeConfig = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
       LN_BACKEND: "opennode",
@@ -94,7 +94,20 @@ describe("loadBoltwallEnv", () => {
       BTCPAY_STORE_ID: "store-id",
     });
 
-    expect(() => createBackend(openNodeConfig.backend)).toThrow(/opennode/u);
-    expect(() => createBackend(btcPayConfig.backend)).toThrow(/btcpay/u);
+    expect(createBackend(openNodeConfig.backend).kind).toBe("opennode");
+    expect(createBackend(btcPayConfig.backend).kind).toBe("btcpay");
+  });
+
+  test("rejects BTCPay deployment feature flags that the adapter cannot prove", () => {
+    const config = loadBoltwallEnv({
+      TARGET_URL: "https://api.example.com",
+      LN_BACKEND: "btcpay",
+      BTCPAY_BASE_URL: "https://btcpay.example.com",
+      BTCPAY_API_KEY: "secret-api-key",
+      BTCPAY_STORE_ID: "store-id",
+      BTCPAY_HODL_INVOICES: "true",
+    });
+
+    expect(() => createBackend(config.backend)).toThrow(/HODL/u);
   });
 });
