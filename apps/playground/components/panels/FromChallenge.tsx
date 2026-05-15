@@ -5,9 +5,10 @@ import {
   parseAuthenticateHeader,
   type L402ChallengeFields,
 } from "@boltwall/l402";
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { useUrlInput } from "../../lib/url-state";
+import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
@@ -21,6 +22,8 @@ import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 const PANEL = "from-challenge";
 
 export function FromChallenge() {
+  const router = useRouter();
+  const workbenchMemory = useWorkbenchMemory();
   const [challenge, setChallenge] = useUrlInput<string>(
     "challenge",
     (raw) => raw ?? "",
@@ -31,6 +34,8 @@ export function FromChallenge() {
   const [fields, setFields] = useState<L402ChallengeFields[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<number>(0);
+  const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
+  const [memoryState, setMemoryState] = useState<"idle" | "stored">("idle");
 
   function parse() {
     if (!(challenge ?? "").trim()) {
@@ -43,6 +48,8 @@ export function FromChallenge() {
       setFields(parsed);
       setSelectedField(0);
       setError(null);
+      setCopyState("idle");
+      setMemoryState("idle");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setFields(null);
@@ -54,6 +61,29 @@ export function FromChallenge() {
     setFields(null);
     setError(null);
     setSelectedField(0);
+    setCopyState("idle");
+    setMemoryState("idle");
+  }
+
+  function rememberMacaroon() {
+    if (!current?.macaroon) return;
+    workbenchMemory?.setMacaroon(current.macaroon);
+    setMemoryState("stored");
+  }
+
+  function useMacaroonInParseToken() {
+    rememberMacaroon();
+    router.push("/p/parse-token");
+  }
+
+  async function copyInvoice() {
+    if (!current?.invoice) return;
+    try {
+      await navigator.clipboard.writeText(current.invoice);
+      setCopyState("copied");
+    } catch {
+      setCopyState("failed");
+    }
   }
 
   const status = error ? "fail" : fields ? "pass" : "idle";
@@ -115,6 +145,8 @@ export function FromChallenge() {
                 setChallenge(e.target.value);
                 setFields(null);
                 setError(null);
+                setCopyState("idle");
+                setMemoryState("idle");
               }}
               placeholder='L402 macaroon="...", invoice="lnbc..."'
               data-testid="challenge-input"
@@ -180,7 +212,11 @@ export function FromChallenge() {
                 <button
                   key={i}
                   type="button"
-                  onClick={() => setSelectedField(i)}
+                  onClick={() => {
+                    setSelectedField(i);
+                    setCopyState("idle");
+                    setMemoryState("idle");
+                  }}
                   style={{
                     padding: "4px 10px",
                     fontSize: "var(--size-12)",
@@ -248,6 +284,106 @@ export function FromChallenge() {
               </div>
 
               {stripeSegments ? <MacaroonStripe segments={stripeSegments} /> : null}
+
+              <div
+                data-testid="challenge-next-actions"
+                style={{
+                  borderTop: "1px solid var(--color-border)",
+                  paddingTop: 10,
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 8,
+                }}
+              >
+                <div
+                  style={{
+                    fontSize: "var(--size-11)",
+                    color: "var(--color-dim)",
+                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                  }}
+                >
+                  Next steps
+                </div>
+                <div
+                  style={{
+                    display: "flex",
+                    flexWrap: "wrap",
+                    gap: 8,
+                  }}
+                >
+                  <button
+                    type="button"
+                    onClick={rememberMacaroon}
+                    disabled={!current.macaroon}
+                    data-testid="challenge-store-macaroon"
+                    title="Save this parsed macaroon in Workbench memory for other panels."
+                    style={{
+                      padding: "6px 10px",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 500,
+                      cursor: current.macaroon ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Store macaroon
+                  </button>
+                  <button
+                    type="button"
+                    onClick={useMacaroonInParseToken}
+                    disabled={!current.macaroon}
+                    data-testid="challenge-use-parse-token"
+                    title="Save this parsed macaroon, then open Parse Token with it prefilled."
+                    style={{
+                      padding: "6px 10px",
+                      background: "var(--color-primary)",
+                      color: "var(--color-surface)",
+                      border: "none",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 600,
+                      cursor: current.macaroon ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Use in Parse Token
+                  </button>
+                  <button
+                    type="button"
+                    onClick={copyInvoice}
+                    disabled={!current.invoice}
+                    data-testid="challenge-copy-invoice"
+                    title="Copy the Lightning invoice from this challenge."
+                    style={{
+                      padding: "6px 10px",
+                      background: "var(--color-surface)",
+                      color: "var(--color-text)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 500,
+                      cursor: current.invoice ? "pointer" : "not-allowed",
+                    }}
+                  >
+                    Copy invoice
+                  </button>
+                </div>
+                <div
+                  data-testid="challenge-next-action-status"
+                  style={{
+                    fontSize: "var(--size-12)",
+                    color:
+                      copyState === "failed" ? "var(--color-danger)" : "var(--color-dim)",
+                  }}
+                >
+                  {memoryState === "stored"
+                    ? "Macaroon stored in Workbench memory for Parse Token and Validate."
+                    : "Store the macaroon to reuse it in Parse Token or Validate."}
+                  {copyState === "copied" ? " Invoice copied." : null}
+                  {copyState === "failed" ? " Invoice copy failed." : null}
+                </div>
+              </div>
             </div>
           ) : null}
         </div>
