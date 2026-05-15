@@ -41,6 +41,9 @@
     "packages/adapters": {
       "name": "@boltwall/adapters",
       "version": "0.0.0",
+      "dependencies": {
+        "@boltwall/l402": "workspace:*",
+      },
       "devDependencies": {
         "@arethetypeswrong/cli": "^0.18.2",
         "@boltwall/eslint-config": "workspace:*",
