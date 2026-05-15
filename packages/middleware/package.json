@@ -29,6 +29,7 @@
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
+    "@boltwall/internal": "workspace:*",
     "@boltwall/l402": "workspace:*",
     "pino": "^10.3.1"
   },
