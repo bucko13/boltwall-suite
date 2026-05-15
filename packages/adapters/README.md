@@ -155,6 +155,79 @@ map. Deployments that must survive restarts should inject a persistent
 `OpenNodeChargeStore`; the provider charge ID still remains hidden from
 middleware and proxy public APIs.
 
+## BTCPay Server
+
+`@boltwall/adapters/btcpay` implements a server-only adapter over BTCPay
+Server's Greenfield store Lightning API. It creates invoices with
+`POST /api/v1/stores/{storeId}/lightning/{cryptoCode}/invoices`, looks them up
+with `GET /api/v1/stores/{storeId}/lightning/{cryptoCode}/invoices/{id}`, and
+keeps BTCPay's opaque invoice `id` inside the adapter. Middleware and proxy code
+continue to use normalized `lookupInvoice(paymentHash)`.
+
+```ts
+import { createBtcPayAdapterFromEnv } from "@boltwall/adapters/btcpay";
+
+const backend = createBtcPayAdapterFromEnv();
+```
+
+Or, with explicit configuration:
+
+```ts
+import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
+
+const backend = new BtcPayAdapter({
+  baseUrl: process.env.BTCPAY_BASE_URL!,
+  apiKey: process.env.BTCPAY_API_KEY!,
+  storeId: process.env.BTCPAY_STORE_ID!,
+});
+```
+
+### Configuration shape
+
+- `BTCPAY_BASE_URL` — BTCPay Server origin, such as
+  `https://btcpay.example`.
+- `BTCPAY_API_KEY` — Greenfield API key sent as
+  `Authorization: token <api-key>`, per the BTCPay eCommerce integration guide.
+- `BTCPAY_STORE_ID` — store id whose Lightning node configuration will create
+  invoices.
+- `BTCPAY_CRYPTO_CODE` — optional Greenfield crypto code. Defaults to `BTC`.
+- `BTCPAY_HODL_INVOICES` and `BTCPAY_STREAMING_INVOICES` — optional boolean
+  feature flags. `true` currently fails at boot because the documented
+  Greenfield store Lightning invoice schema does not expose those adapter
+  behaviors.
+
+The API key needs `btcpay.server.cancreatelightninginvoiceinternalnode` for
+invoice creation and `btcpay.store.canviewlightninginvoice` for lookup.
+
+`loadBtcPayEnv` throws a `BtcPayEnvError` that does not echo API keys or other
+secret values.
+
+### Capability flags
+
+The documented Greenfield store Lightning invoice status enum is `Unpaid`,
+`Paid`, and `Expired`. The adapter maps those to `open`, `settled`, and
+`expired`, with an additional expiry-time check for stale `Unpaid` responses.
+The API docs do not expose HODL settlement, invoice cancellation, or an adapter
+level subscription stream, so the adapter advertises:
+
+| Capability          | Value   | Rationale                                                |
+| ------------------- | ------- | -------------------------------------------------------- |
+| HODL invoices       | `false` | No documented HODL/preimage settlement request shape.    |
+| Invoice cancel      | `false` | No documented store Lightning invoice cancel endpoint.   |
+| Streaming invoices  | `false` | Polling/webhooks exist, but no adapter stream API.       |
+| Custom descriptions | `true`  | `description` is documented in create Lightning invoice. |
+
+`BtcPayAdapter#createInvoice({ hodl: true })` rejects at call time, and
+`assertBackendSupports(adapter, { hodl: true })` rejects at boot time.
+
+### Lookup persistence
+
+BTCPay lookup is provider-invoice-ID centered, while Boltwall lookup is
+payment-hash centered. The default adapter keeps a process-local
+`paymentHash -> invoiceId` map. Deployments that must survive restarts should
+persist that relation outside Boltwall; the BTCPay invoice ID still remains
+hidden from middleware and proxy public APIs.
+
 ## Notes
 
 - There is intentionally no root export for concrete adapter classes. Consumers
@@ -174,11 +247,11 @@ invoice IDs stay inside concrete adapters. Adapters that need those IDs for
 lookup or cancellation must persist their own `paymentHash -> provider id`
 mapping; middleware and proxy code should not branch on provider business terms.
 
-| Provider                 | Current constraint                                                                                                                                                                                                                                                                                                                                                | Adapter implication                                                                                                                                                                                                                                                       |
-| ------------------------ | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LND / Voltage-hosted LND | LND exposes gRPC/REST invoice APIs with millisatoshi fields, HODL invoice settlement/cancel paths, invoice subscription streams, and settled preimages. Voltage-hosted LND is still LND from the adapter boundary. See Lightning Labs `AddInvoice`, `LookupInvoice`, `SubscribeInvoices`, `SettleInvoice`, and `CancelInvoice` RPC docs.                          | `kind: "lnd"` can advertise the full capability surface when configured against an LND node: HODL, cancel, streaming invoices, custom descriptions, millisatoshi-safe amounts, and preimages on settled invoices.                                                         |
-| OpenNode                 | OpenNode's charge API is charge-ID centered and creates Lightning charges with `amount` plus currency, callback/webhook URLs, order metadata, and a returned Lightning invoice. The documented charge lifecycle is provider-state driven rather than HODL/preimage driven. See OpenNode "Creating a charge", "Charge info", "Charge lifecycle", and webhook docs. | `kind: "opennode"` advertises custom descriptions only. HODL, cancellation, and streaming are unsupported unless an official API adds them. The adapter retains the OpenNode charge ID internally so `lookupInvoice(paymentHash)` remains provider-neutral.               |
-| BTCPay Server            | BTCPay Greenfield invoice APIs are store/invoice-ID centered. Lightning payment requests are exposed through payment-method data, and invoice transitions are usually observed by polling or webhooks. HODL settlement and settled preimage exposure are not a portable Greenfield invoice capability. See BTCPay Server Greenfield invoice and webhook docs.     | The BTCPay adapter should mark HODL/cancel/streaming as unsupported unless configured against a backend-specific feature that proves otherwise. It must retain the BTCPay invoice ID internally and map provider statuses to `open`, `settled`, `canceled`, or `expired`. |
+| Provider                 | Current constraint                                                                                                                                                                                                                                                                                                                                                    | Adapter implication                                                                                                                                                                                                                                         |
+| ------------------------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| LND / Voltage-hosted LND | LND exposes gRPC/REST invoice APIs with millisatoshi fields, HODL invoice settlement/cancel paths, invoice subscription streams, and settled preimages. Voltage-hosted LND is still LND from the adapter boundary. See Lightning Labs `AddInvoice`, `LookupInvoice`, `SubscribeInvoices`, `SettleInvoice`, and `CancelInvoice` RPC docs.                              | `kind: "lnd"` can advertise the full capability surface when configured against an LND node: HODL, cancel, streaming invoices, custom descriptions, millisatoshi-safe amounts, and preimages on settled invoices.                                           |
+| OpenNode                 | OpenNode's charge API is charge-ID centered and creates Lightning charges with `amount` plus currency, callback/webhook URLs, order metadata, and a returned Lightning invoice. The documented charge lifecycle is provider-state driven rather than HODL/preimage driven. See OpenNode "Creating a charge", "Charge info", "Charge lifecycle", and webhook docs.     | `kind: "opennode"` advertises custom descriptions only. HODL, cancellation, and streaming are unsupported unless an official API adds them. The adapter retains the OpenNode charge ID internally so `lookupInvoice(paymentHash)` remains provider-neutral. |
+| BTCPay Server            | BTCPay's store Lightning API creates invoices with millisatoshi-string `amount`, returns `BOLT11`, `paymentHash`, and an opaque invoice `id`, and documents `Unpaid`, `Paid`, and `Expired` statuses. HODL settlement, cancellation, and adapter-level streams are not documented for this endpoint. See BTCPay Server Greenfield API and eCommerce integration docs. | `kind: "btcpay"` advertises custom descriptions only. HODL, cancellation, and streaming are unsupported unless an official API adds them. The adapter retains the BTCPay invoice ID internally so `lookupInvoice(paymentHash)` remains provider-neutral.    |
 
 Official references:
 
