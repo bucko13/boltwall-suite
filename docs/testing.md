@@ -17,6 +17,7 @@ the acceptance criteria for that work are not met.**
 | `bun run test:browser`                        | l402 ESM bundle import in Chromium | Built l402 (`bun run build`)      | ✓ every push          |
 | `bun run test:e2e` (from `apps/playground`)   | Playground UI flows end-to-end     | Node.js (dev server auto-started) | Planned Phase 9       |
 | `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop     | Docker + LND regtest node         | ✓ on l402/fixture PRs |
+| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration | Per-adapter env vars (skipped without)    | Planned Phase 8 nightly |
 | `bun run package-health`                      | publint + arethetypeswrong         | Built packages                    | Manual                |
 | `bun run size`                                | @boltwall/l402 bundle size budget  | Built l402                        | Manual                |
 
@@ -182,6 +183,56 @@ docker compose \
 `packages/l402/**`, `packages/test-fixtures/**`, or the workflow file itself,
 and on `workflow_dispatch`. Requires `LND_TLS_CERT` and `LND_MACAROON_DIR`
 configured as GitHub Actions secrets.
+
+---
+
+## Adapter Integration Tests
+
+**What:** Live tests that exercise the OpenNode, BTCPay Server, and
+Voltage-hosted LND adapters against real provider endpoints. Each adapter's
+`describe` block uses `describe.skipIf(...)` against its env-var set, so the
+entire suite is silent when credentials are absent. Tests assert normalized
+adapter behavior (invoice round-trip, status taxonomy) rather than
+provider-specific business names.
+
+These tests are **excluded from `bun run test`**. They live under
+`packages/adapters/test/integration/` and are run only via the dedicated
+script, mirroring the policy applied to Aperture interop.
+
+**Location:**
+
+- `packages/adapters/test/integration/opennode.test.ts`
+- `packages/adapters/test/integration/btcpay.test.ts`
+- `packages/adapters/test/integration/voltage-lnd.test.ts`
+
+**Required env vars** (any one adapter can run independently — missing vars
+skip that adapter's `describe` block, not the whole suite):
+
+- **OpenNode:** `OPENNODE_TEST_API_KEY`; optional `OPENNODE_TEST_BASE_URL`
+  (use `https://dev-api.opennode.com` for the developer-environment endpoint).
+- **BTCPay Server:** `BTCPAY_TEST_BASE_URL`, `BTCPAY_TEST_API_KEY`,
+  `BTCPAY_TEST_STORE_ID`; optional `BTCPAY_TEST_CRYPTO_CODE` (defaults to
+  `BTC`).
+- **Voltage LND:** `VOLTAGE_TEST_LND_BASE_URL`, `VOLTAGE_TEST_LND_MACAROON`,
+  `VOLTAGE_TEST_LND_CERT`.
+
+**Run:**
+
+```sh
+# From repo root:
+bun run --cwd packages/adapters test:integration
+
+# Or from packages/adapters:
+bun run test:integration
+```
+
+**Test deployment policy:** development-environment, testnet, or owner-provided
+staging credentials only. Tests create invoices but never pay them; no mainnet
+sats are spent. The Phase 8 nightly compatibility workflow is the intended
+caller for these tests — GitHub Actions wires the env vars from repository
+secrets.
+
+**CI:** Not yet wired. Planned Phase 8 nightly workflow.
 
 ---
 

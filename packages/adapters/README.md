@@ -228,6 +228,43 @@ payment-hash centered. The default adapter keeps a process-local
 persist that relation outside Boltwall; the BTCPay invoice ID still remains
 hidden from middleware and proxy public APIs.
 
+## Live integration tests
+
+`@boltwall/adapters/test/integration/*.test.ts` exercises the OpenNode, BTCPay
+Server, and Voltage-hosted LND adapters against real provider endpoints. The
+tests are skipped by default and run only when their per-provider env vars are
+set, so the package's regular `bun run test` stays clean and infrastructure-
+free.
+
+```sh
+bun run --cwd packages/adapters test:integration
+```
+
+Without env vars set, every `describe` block is skipped and the suite reports
+`0 fail / 3 skip`. Required env vars per adapter:
+
+- **OpenNode** (`opennode.test.ts`): `OPENNODE_TEST_API_KEY` (required;
+  development-environment key only); `OPENNODE_TEST_BASE_URL` (optional;
+  override to `https://dev-api.opennode.com` for the developer-environment
+  endpoint).
+- **BTCPay Server** (`btcpay.test.ts`): `BTCPAY_TEST_BASE_URL`,
+  `BTCPAY_TEST_API_KEY`, `BTCPAY_TEST_STORE_ID` (all required);
+  `BTCPAY_TEST_CRYPTO_CODE` (optional, defaults to `BTC`).
+- **Voltage LND** (`voltage-lnd.test.ts`): `VOLTAGE_TEST_LND_BASE_URL`,
+  `VOLTAGE_TEST_LND_MACAROON`, `VOLTAGE_TEST_LND_CERT` (all required).
+
+Test deployment policy:
+
+- Use development-environment, testnet, or owner-provided staging credentials
+  only. **Do not** spend mainnet sats — tests create invoices but do not pay
+  them.
+- Tests assert normalized adapter behavior (payment hash round-trip, status
+  taxonomy) rather than provider-specific business names. Provider-specific
+  capability gaps (e.g. no HODL on OpenNode/BTCPay default) are documented in
+  the capability sections above.
+- The Phase 8 nightly compatibility workflow is the intended caller for these
+  tests; GitHub Actions wires the env vars from repository secrets.
+
 ## Notes
 
 - There is intentionally no root export for concrete adapter classes. Consumers
