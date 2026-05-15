@@ -68,7 +68,8 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
 
     expect(macaroon).toBeTruthy();
 
-    await page.getByRole("link", { name: "Parse Token" }).click();
+    await page.getByTestId("nav-link-parse").hover();
+    await page.getByTestId("nav-sublink-parse-token").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );

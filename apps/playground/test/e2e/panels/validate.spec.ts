@@ -75,7 +75,7 @@ test.describe("panels / validate", () => {
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
-    await page.getByRole("link", { name: "Generate L402 Token" }).click();
+    await page.getByRole("link", { name: "Generate" }).click();
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
@@ -83,7 +83,8 @@ test.describe("panels / validate", () => {
       macaroon?.trim().slice(0, 8) ?? "",
     );
 
-    await page.getByRole("link", { name: "Parse Token" }).click();
+    await page.getByTestId("nav-link-parse").hover();
+    await page.getByTestId("nav-sublink-parse-token").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
@@ -91,7 +92,7 @@ test.describe("panels / validate", () => {
       macaroon?.trim().slice(0, 8) ?? "",
     );
 
-    await page.getByRole("link", { name: "Validate L402" }).click();
+    await page.getByRole("link", { name: "Validate" }).click();
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",

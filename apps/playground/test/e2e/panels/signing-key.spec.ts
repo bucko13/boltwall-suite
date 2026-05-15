@@ -92,7 +92,7 @@ test.describe("panels / signing-key", () => {
     await expect(page.locator("[data-testid='signing-key-input']")).toHaveValue(key);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
-    await page.getByRole("link", { name: "Generate L402 Token" }).click();
+    await page.getByRole("link", { name: "Generate" }).click();
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 

@@ -2,18 +2,44 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { useEffect, useRef, useState } from "react";
 
 import { LogoBeaker } from "./logo-beaker";
 import { ThemeToggle } from "./theme-toggle";
 
-const PANEL_LINKS = [
-  { label: "Signing Key", href: "/p/signing-key" },
-  { label: "Generate L402 Token", href: "/p/from-invoice" },
-  { label: "From Challenge", href: "/p/from-challenge" },
-  { label: "Parse Token", href: "/p/parse-token" },
-  { label: "Caveats", href: "/p/caveats" },
-  { label: "Validate L402", href: "/p/validate" },
-  { label: "Demo", href: "/p/demo" },
+type NavItem = {
+  id: string;
+  label: string;
+  href: string;
+  children?: Array<{
+    id: string;
+    label: string;
+    href: string;
+  }>;
+};
+
+const NAV_ITEMS: NavItem[] = [
+  {
+    id: "generate",
+    label: "Generate",
+    href: "/p/from-invoice",
+    children: [
+      { id: "signing-key", label: "Signing Key", href: "/p/signing-key" },
+      { id: "from-invoice", label: "Generate Token", href: "/p/from-invoice" },
+    ],
+  },
+  {
+    id: "parse",
+    label: "Parse",
+    href: "/p/from-challenge",
+    children: [
+      { id: "from-challenge", label: "Challenge Header", href: "/p/from-challenge" },
+      { id: "parse-token", label: "Token", href: "/p/parse-token" },
+    ],
+  },
+  { id: "caveats", label: "Caveats", href: "/p/caveats" },
+  { id: "validate", label: "Validate", href: "/p/validate" },
+  { id: "demo", label: "Demo", href: "/p/demo" },
 ];
 
 const META_LINKS = [
@@ -27,6 +53,30 @@ const META_LINKS = [
 
 export function Nav() {
   const pathname = usePathname();
+  const [mobileOpen, setMobileOpen] = useState(false);
+  const mobileButtonRef = useRef<HTMLButtonElement>(null);
+
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [pathname]);
+
+  useEffect(() => {
+    if (!mobileOpen) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key === "Escape") {
+        setMobileOpen(false);
+        mobileButtonRef.current?.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
+  }, [mobileOpen]);
+
+  function isActive(item: NavItem) {
+    return item.href === pathname || item.children?.some((child) => child.href === pathname);
+  }
 
   return (
     <nav
@@ -57,6 +107,21 @@ export function Nav() {
         <span style={{ fontSize: "var(--size-14)", fontWeight: 500 }}>playground</span>
       </Link>
 
+      <button
+        ref={mobileButtonRef}
+        type="button"
+        className="playground-nav-menu-button"
+        data-testid="mobile-nav-open"
+        aria-label="Open navigation menu"
+        aria-expanded={mobileOpen}
+        aria-controls="playground-mobile-nav"
+        onClick={() => setMobileOpen(true)}
+      >
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+        <span aria-hidden="true" />
+      </button>
+
       <ul
         className="playground-nav-panel-list"
         style={{
@@ -68,27 +133,38 @@ export function Nav() {
           padding: 0,
           flex: 1,
           minWidth: 0,
-          overflow: "hidden",
+          overflow: "visible",
         }}
       >
-        {PANEL_LINKS.map((link) => (
-          <li key={link.label}>
+        {NAV_ITEMS.map((item) => (
+          <li
+            key={item.id}
+            className={item.children ? "playground-nav-group" : undefined}
+            data-active={isActive(item) ? "true" : undefined}
+          >
             <Link
-              href={link.href}
-              aria-current={pathname === link.href ? "page" : undefined}
-              data-testid={`nav-link-${link.href.split("/").at(-1)}`}
+              href={item.href}
+              aria-current={pathname === item.href ? "page" : undefined}
+              data-testid={`nav-link-${item.id}`}
               className="playground-nav-panel-link"
-              style={{
-                fontSize: "var(--size-12)",
-                color: pathname === link.href ? "var(--color-primary)" : "var(--color-dim)",
-                fontWeight: pathname === link.href ? 600 : 400,
-                whiteSpace: "nowrap",
-                textDecoration: pathname === link.href ? "underline" : "none",
-                textUnderlineOffset: 4,
-              }}
             >
-              {link.label}
+              {item.label}
             </Link>
+            {item.children ? (
+              <div className="playground-nav-submenu" aria-label={`${item.label} tools`}>
+                {item.children.map((child) => (
+                  <Link
+                    key={child.id}
+                    href={child.href}
+                    aria-current={pathname === child.href ? "page" : undefined}
+                    data-testid={`nav-sublink-${child.id}`}
+                    className="playground-nav-submenu-link"
+                  >
+                    {child.label}
+                  </Link>
+                ))}
+              </div>
+            ) : null}
           </li>
         ))}
       </ul>
@@ -123,6 +199,81 @@ export function Nav() {
           <ThemeToggle />
         </li>
       </ul>
+
+      {mobileOpen ? (
+        <div
+          className="playground-mobile-nav-overlay"
+          data-testid="mobile-nav-overlay"
+          onClick={() => setMobileOpen(false)}
+        />
+      ) : null}
+      {mobileOpen ? (
+        <div
+          id="playground-mobile-nav"
+          className="playground-mobile-drawer"
+          data-testid="mobile-nav-drawer"
+        >
+          <div className="playground-mobile-drawer-header">
+            <span>Navigation</span>
+            <button
+              type="button"
+              data-testid="mobile-nav-close"
+              aria-label="Close navigation menu"
+              onClick={() => setMobileOpen(false)}
+            >
+              x
+            </button>
+          </div>
+
+          <div className="playground-mobile-nav-groups">
+            {NAV_ITEMS.map((item) => (
+              <div
+                key={item.id}
+                className="playground-mobile-nav-group"
+                data-active={isActive(item) ? "true" : undefined}
+              >
+                <Link
+                  href={item.href}
+                  aria-current={pathname === item.href ? "page" : undefined}
+                  data-testid={`mobile-nav-link-${item.id}`}
+                  className="playground-mobile-nav-link"
+                >
+                  {item.label}
+                </Link>
+                {item.children ? (
+                  <div className="playground-mobile-nav-children">
+                    {item.children.map((child) => (
+                      <Link
+                        key={child.id}
+                        href={child.href}
+                        aria-current={pathname === child.href ? "page" : undefined}
+                        data-testid={`mobile-nav-sublink-${child.id}`}
+                        className="playground-mobile-nav-child-link"
+                      >
+                        {child.label}
+                      </Link>
+                    ))}
+                  </div>
+                ) : null}
+              </div>
+            ))}
+          </div>
+
+          <div className="playground-mobile-nav-meta">
+            {META_LINKS.map((link) => (
+              <a
+                key={link.label}
+                href={link.href}
+                target={link.href === "#" ? undefined : "_blank"}
+                rel={link.href === "#" ? undefined : "noreferrer"}
+              >
+                {link.label}
+              </a>
+            ))}
+            <ThemeToggle />
+          </div>
+        </div>
+      ) : null}
     </nav>
   );
 }

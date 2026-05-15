@@ -8,27 +8,27 @@ const PANELS = [
   },
   {
     slug: "from-invoice",
-    label: "Generate L402 Token",
+    label: "Generate Token",
     description: "Mint a macaroon from a root key and BOLT 11 invoice.",
   },
   {
     slug: "from-challenge",
-    label: "From Challenge",
+    label: "Challenge Header",
     description: "Parse a WWW-Authenticate L402 challenge header.",
   },
   {
     slug: "parse-token",
-    label: "Parse Token",
+    label: "Token",
     description: "Decode a base64 macaroon: identifier fields, caveats, signature.",
   },
   {
     slug: "caveats",
     label: "Caveats",
-    description: "Build caveats, create valid-until limits, and test satisfiers.",
+    description: "Add caveats, create time limits, and check satisfiers.",
   },
   {
     slug: "validate",
-    label: "Validate L402",
+    label: "Validate",
     description: "Verify signature, payment preimage, and caveats.",
   },
   {

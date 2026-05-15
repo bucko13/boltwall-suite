@@ -10,21 +10,23 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='beaker-logo']").first()).toBeVisible();
   });
 
-  test("all 7 panel links present", async ({ page }) => {
+  test("intent-oriented nav groups expose every panel", async ({ page }) => {
     await page.goto("/");
 
     const nav = page.getByRole("navigation", { name: "Primary" });
-    for (const label of [
-      "Signing Key",
-      "Generate L402 Token",
-      "From Challenge",
-      "Parse Token",
-      "Caveats",
-      "Validate L402",
-      "Demo",
-    ]) {
+    for (const label of ["Generate", "Parse", "Caveats", "Validate", "Demo"]) {
       await expect(nav.getByRole("link", { name: label })).toBeVisible();
     }
+    await page.getByTestId("nav-link-generate").hover();
+    await expect(page.getByTestId("nav-sublink-signing-key")).toBeVisible();
+    await expect(page.getByTestId("nav-sublink-from-invoice")).toContainText("Generate Token");
+
+    await page.getByTestId("nav-link-parse").hover();
+    await expect(page.getByTestId("nav-sublink-from-challenge")).toContainText("Challenge Header");
+    await expect(page.getByTestId("nav-sublink-parse-token")).toContainText("Token");
+
+    await expect(nav.getByRole("link", { name: "Generate L402 Token" })).toHaveCount(0);
+    await expect(nav.getByRole("link", { name: "Validate L402" })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Caveat Builder" })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Valid-until Caveat" })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Caveat Satisfiers" })).toHaveCount(0);
@@ -34,7 +36,7 @@ test.describe("Nav shell", () => {
     await page.goto("/p/validate");
 
     const nav = page.getByRole("navigation", { name: "Primary" });
-    const activeLink = nav.getByRole("link", { name: "Validate L402" });
+    const activeLink = nav.getByRole("link", { name: "Validate" });
     await expect(activeLink).toHaveAttribute("aria-current", "page");
     await expect(activeLink).toHaveCSS("color", /rgb/);
   });

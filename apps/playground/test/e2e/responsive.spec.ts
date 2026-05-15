@@ -11,28 +11,40 @@ async function expectNoPageHorizontalOverflow(page: Page) {
 }
 
 test.describe("responsive layout", () => {
-  test("mobile navigation keeps every panel reachable and active state visible", async ({
-    page,
-  }) => {
+  test("mobile navigation uses a drawer and keeps every panel reachable", async ({ page }) => {
     await page.setViewportSize(MOBILE);
     await page.goto("/p/validate");
 
     const nav = page.locator("nav[aria-label='Primary']");
     await expect(nav).toBeVisible();
-    await expect(page.locator("[data-testid='nav-link-validate']")).toHaveAttribute(
+    await expect(page.locator("[data-testid='nav-link-validate']")).not.toBeVisible();
+
+    await page.getByTestId("mobile-nav-open").click();
+    const drawer = page.getByTestId("mobile-nav-drawer");
+    await expect(drawer).toBeVisible();
+    await expect(page.getByTestId("mobile-nav-link-validate")).toHaveAttribute(
       "aria-current",
       "page",
     );
+    for (const testId of [
+      "mobile-nav-sublink-signing-key",
+      "mobile-nav-sublink-from-invoice",
+      "mobile-nav-sublink-from-challenge",
+      "mobile-nav-sublink-parse-token",
+      "mobile-nav-link-caveats",
+      "mobile-nav-link-validate",
+      "mobile-nav-link-demo",
+    ]) {
+      await expect(page.getByTestId(testId)).toBeVisible();
+    }
 
-    const panelList = page.locator(".playground-nav-panel-list");
-    await expect(panelList).toBeVisible();
-    await expect(panelList.locator("a")).toHaveCount(7);
-    await expect(
-      panelList.evaluate((el) => el.scrollWidth > el.clientWidth),
-    ).resolves.toBeTruthy();
+    await page.keyboard.press("Escape");
+    await expect(drawer).not.toBeVisible();
 
-    await page.locator("[data-testid='nav-link-demo']").scrollIntoViewIfNeeded();
-    await expect(page.locator("[data-testid='nav-link-demo']")).toBeVisible();
+    await page.getByTestId("mobile-nav-open").click();
+    await page.getByTestId("mobile-nav-sublink-parse-token").click();
+    await expect(page).toHaveURL(/\/p\/parse-token/);
+    await expect(page.getByTestId("mobile-nav-drawer")).not.toBeVisible();
     await expectNoPageHorizontalOverflow(page);
   });
 
@@ -79,6 +91,7 @@ test.describe("responsive layout", () => {
       "aria-current",
       "page",
     );
+    await expect(page.getByTestId("mobile-nav-open")).not.toBeVisible();
     await expectNoPageHorizontalOverflow(page);
   });
 });
