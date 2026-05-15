@@ -53,8 +53,13 @@ export function CodeSnippet({
   }
 
   return (
-    <div data-testid="code-snippet" style={{ borderTop: "1px solid var(--color-border)" }}>
+    <div
+      data-testid="code-snippet"
+      className="code-snippet"
+      style={{ borderTop: "1px solid var(--color-border)" }}
+    >
       <div
+        className="code-snippet-toolbar"
         style={{
           display: "flex",
           alignItems: "center",
@@ -66,6 +71,7 @@ export function CodeSnippet({
         }}
       >
         <div
+          className="code-snippet-contract-row"
           style={{
             display: "flex",
             alignItems: "center",
@@ -88,6 +94,7 @@ export function CodeSnippet({
           </span>
           <span
             data-testid="code-snippet-contract"
+            className="code-snippet-contract"
             style={{
               fontSize: "var(--size-11)",
               color: "var(--color-dim)",

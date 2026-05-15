@@ -30,6 +30,7 @@ export function Nav() {
 
   return (
     <nav
+      className="playground-nav"
       style={{
         display: "flex",
         alignItems: "center",
@@ -43,6 +44,7 @@ export function Nav() {
       <Link
         href="/"
         aria-current={pathname === "/" ? "page" : undefined}
+        className="playground-nav-home"
         style={{
           display: "inline-flex",
           alignItems: "center",
@@ -56,6 +58,7 @@ export function Nav() {
       </Link>
 
       <ul
+        className="playground-nav-panel-list"
         style={{
           display: "flex",
           alignItems: "center",
@@ -74,6 +77,7 @@ export function Nav() {
               href={link.href}
               aria-current={pathname === link.href ? "page" : undefined}
               data-testid={`nav-link-${link.href.split("/").at(-1)}`}
+              className="playground-nav-panel-link"
               style={{
                 fontSize: "var(--size-12)",
                 color: pathname === link.href ? "var(--color-primary)" : "var(--color-dim)",
@@ -90,6 +94,7 @@ export function Nav() {
       </ul>
 
       <ul
+        className="playground-nav-meta"
         style={{
           display: "flex",
           alignItems: "center",

@@ -12,6 +12,7 @@ export function HeaderRow({
   return (
     <div
       data-testid="header-row"
+      className="panel-header-row"
       style={{
         display: "flex",
         alignItems: "center",
@@ -24,6 +25,7 @@ export function HeaderRow({
       }}
     >
       <div
+        className="panel-header-title-group"
         style={{
           display: "flex",
           alignItems: "baseline",
@@ -32,6 +34,7 @@ export function HeaderRow({
         }}
       >
         <span
+          className="panel-header-title"
           style={{
             fontSize: "var(--size-14)",
             fontWeight: 500,
@@ -42,6 +45,7 @@ export function HeaderRow({
         </span>
         {subtitle ? (
           <span
+            className="panel-header-subtitle"
             style={{
               fontSize: "var(--size-12)",
               color: "var(--color-dim)",
@@ -55,7 +59,10 @@ export function HeaderRow({
         ) : null}
       </div>
       {trailing ? (
-        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+        <div
+          className="panel-header-trailing"
+          style={{ display: "flex", alignItems: "center", gap: 8 }}
+        >
           {trailing}
         </div>
       ) : null}

@@ -41,6 +41,7 @@ const PANELS = [
 export default function HomePage() {
   return (
     <main
+      className="home-main"
       style={{
         maxWidth: 880,
         margin: "0 auto",
@@ -71,6 +72,7 @@ export default function HomePage() {
       </p>
 
       <div
+        className="home-panel-grid"
         style={{
           display: "grid",
           gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
@@ -83,6 +85,7 @@ export default function HomePage() {
             key={p.slug}
             href={`/p/${p.slug}`}
             data-testid={`panel-link-${p.slug}`}
+            className="home-panel-link"
             style={{
               display: "block",
               padding: "20px 22px",

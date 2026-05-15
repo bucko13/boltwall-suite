@@ -45,6 +45,7 @@ export default async function PanelPage({ params }: Props) {
 
   return (
     <main
+      className="panel-main"
       style={{
         maxWidth: 860,
         margin: "0 auto",

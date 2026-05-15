@@ -12,6 +12,7 @@ export function Cell({
   return (
     <section
       data-testid="cell"
+      className="panel-cell"
       style={{
         background: "var(--color-surface)",
         border: "1px solid var(--color-border)",
@@ -19,7 +20,9 @@ export function Cell({
       }}
     >
       {header}
-      <div style={{ padding: "12px 16px" }}>{body}</div>
+      <div className="panel-cell-body" style={{ padding: "12px 16px" }}>
+        {body}
+      </div>
       {code}
     </section>
   );

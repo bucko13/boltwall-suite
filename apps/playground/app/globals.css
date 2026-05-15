@@ -145,3 +145,113 @@ h3 {
   font-size: var(--size-16);
   font-weight: 600;
 }
+
+@media (max-width: 720px) {
+  .playground-nav {
+    flex-wrap: wrap;
+    align-items: flex-start;
+    gap: 10px 14px;
+    padding: 10px 12px;
+  }
+
+  .playground-nav-home {
+    flex: 1 1 auto;
+  }
+
+  .playground-nav-meta {
+    gap: 10px;
+  }
+
+  .playground-nav-panel-list {
+    order: 3;
+    flex: 0 0 100% !important;
+    gap: 8px;
+    overflow-x: auto !important;
+    overflow-y: hidden !important;
+    padding: 2px 0 6px;
+    scrollbar-width: thin;
+    scroll-snap-type: x proximity;
+  }
+
+  .playground-nav-panel-list li {
+    flex: 0 0 auto;
+    scroll-snap-align: start;
+  }
+
+  .playground-nav-panel-link {
+    display: inline-flex;
+    align-items: center;
+    min-height: 32px;
+    padding: 5px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    background: var(--color-surface-alt);
+    text-decoration: none !important;
+  }
+
+  .playground-nav-panel-link[aria-current="page"] {
+    border-color: var(--color-primary);
+    background: var(--color-surface);
+  }
+
+  .panel-main,
+  .home-main {
+    padding: 20px 12px !important;
+  }
+
+  .panel-header-row {
+    min-height: unset !important;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 8px !important;
+    padding: 10px 12px !important;
+  }
+
+  .panel-header-title-group {
+    flex-direction: column;
+    align-items: flex-start !important;
+    gap: 2px !important;
+  }
+
+  .panel-header-title,
+  .panel-header-subtitle {
+    white-space: normal !important;
+  }
+
+  .panel-header-trailing {
+    justify-content: space-between;
+    width: 100%;
+  }
+
+  .panel-cell-body {
+    padding: 12px !important;
+  }
+
+  .code-snippet-toolbar {
+    align-items: flex-start !important;
+    padding: 8px 12px !important;
+  }
+
+  .code-snippet-contract-row {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 2px !important;
+  }
+
+  .code-snippet-contract {
+    white-space: normal !important;
+  }
+
+  .code-snippet pre {
+    padding: 12px !important;
+  }
+
+  .home-panel-grid {
+    grid-template-columns: 1fr !important;
+  }
+
+  .home-panel-link {
+    border-right: 0 !important;
+    padding: 16px !important;
+  }
+}
