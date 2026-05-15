@@ -1,40 +1,63 @@
 import Link from "next/link";
 
-const PANELS = [
+const HOME_GROUPS = [
   {
-    slug: "signing-key",
-    label: "Signing Key",
-    description: "Generate or paste a 32-byte root key used to mint macaroons.",
+    id: "generate",
+    label: "Generate",
+    description: "Create the key material and token used to authorize a paid request.",
+    links: [
+      {
+        slug: "signing-key",
+        label: "Signing Key",
+        description: "Generate or paste a 32-byte root key.",
+      },
+      {
+        slug: "from-invoice",
+        label: "Generate Token",
+        description: "Mint a macaroon from a root key and BOLT 11 invoice.",
+      },
+    ],
   },
   {
-    slug: "from-invoice",
-    label: "Generate Token",
-    description: "Mint a macaroon from a root key and BOLT 11 invoice.",
+    id: "parse",
+    label: "Parse",
+    description: "Inspect incoming protocol material before deciding what to do next.",
+    links: [
+      {
+        slug: "from-challenge",
+        label: "Challenge Header",
+        description: "Read a WWW-Authenticate challenge header.",
+      },
+      {
+        slug: "parse-token",
+        label: "Token",
+        description: "Decode a base64 macaroon identifier, caveats, and signature.",
+      },
+    ],
   },
   {
-    slug: "from-challenge",
-    label: "Challenge Header",
-    description: "Parse a WWW-Authenticate L402 challenge header.",
-  },
-  {
-    slug: "parse-token",
-    label: "Token",
-    description: "Decode a base64 macaroon: identifier fields, caveats, signature.",
-  },
-  {
-    slug: "caveats",
+    id: "caveats",
     label: "Caveats",
     description: "Add caveats, create time limits, and check satisfiers.",
+    links: [{ slug: "caveats", label: "Open Caveats", description: "Build and check caveats." }],
   },
   {
-    slug: "validate",
+    id: "validate",
     label: "Validate",
-    description: "Verify signature, payment preimage, and caveats.",
+    description: "Verify signature, payment preimage, and caveats together.",
+    links: [
+      {
+        slug: "validate",
+        label: "Open Validate",
+        description: "Run a full credential verification.",
+      },
+    ],
   },
   {
-    slug: "demo",
+    id: "demo",
     label: "Demo",
-    description: "WebLN wallet connect with live Lightning node info in-browser.",
+    description: "Try the paid flow against the playground demo surface.",
+    links: [{ slug: "demo", label: "Open Demo", description: "Exercise the browser demo." }],
   },
 ];
 
@@ -75,46 +98,99 @@ export default function HomePage() {
         className="home-panel-grid"
         style={{
           display: "grid",
-          gridTemplateColumns: "repeat(auto-fill, minmax(260px, 1fr))",
+          gridTemplateColumns: "repeat(auto-fit, minmax(260px, 1fr))",
           gap: 1,
           border: "1px solid var(--color-border)",
         }}
       >
-        {PANELS.map((p) => (
-          <Link
-            key={p.slug}
-            href={`/p/${p.slug}`}
-            data-testid={`panel-link-${p.slug}`}
+        {HOME_GROUPS.map((group) => (
+          <section
+            key={group.id}
+            data-testid={`home-group-${group.id}`}
             className="home-panel-link"
             style={{
-              display: "block",
+              display: "flex",
+              flexDirection: "column",
+              gap: 14,
               padding: "20px 22px",
               background: "var(--color-surface)",
               borderRight: "1px solid var(--color-border)",
               borderBottom: "1px solid var(--color-border)",
-              textDecoration: "none",
             }}
           >
             <div
               style={{
-                fontSize: "var(--size-14)",
-                fontWeight: 600,
-                color: "var(--color-text)",
-                marginBottom: 4,
+                display: "flex",
+                flexDirection: "column",
+                gap: 4,
               }}
             >
-              {p.label}
+              <h2
+                style={{
+                  fontSize: "var(--size-16)",
+                  fontWeight: 650,
+                  letterSpacing: 0,
+                  color: "var(--color-text)",
+                }}
+              >
+                {group.label}
+              </h2>
+              <p
+                style={{
+                  fontSize: "var(--size-12)",
+                  color: "var(--color-dim)",
+                  lineHeight: 1.5,
+                }}
+              >
+                {group.description}
+              </p>
             </div>
             <div
               style={{
-                fontSize: "var(--size-12)",
-                color: "var(--color-dim)",
-                lineHeight: 1.5,
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
               }}
             >
-              {p.description}
+              {group.links.map((link) => (
+                <Link
+                  key={link.slug}
+                  href={`/p/${link.slug}`}
+                  data-testid={`panel-link-${link.slug}`}
+                  style={{
+                    display: "block",
+                    padding: "9px 10px",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    background: "var(--color-surface-alt)",
+                    textDecoration: "none",
+                  }}
+                >
+                  <span
+                    style={{
+                      display: "block",
+                      color: "var(--color-text)",
+                      fontSize: "var(--size-13)",
+                      fontWeight: 600,
+                    }}
+                  >
+                    {link.label}
+                  </span>
+                  <span
+                    style={{
+                      display: "block",
+                      color: "var(--color-dim)",
+                      fontSize: "var(--size-12)",
+                      lineHeight: 1.45,
+                      marginTop: 1,
+                    }}
+                  >
+                    {link.description}
+                  </span>
+                </Link>
+              ))}
             </div>
-          </Link>
+          </section>
         ))}
       </div>
 

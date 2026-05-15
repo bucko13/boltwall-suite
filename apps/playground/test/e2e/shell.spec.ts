@@ -32,6 +32,33 @@ test.describe("Nav shell", () => {
     await expect(nav.getByRole("link", { name: "Caveat Satisfiers" })).toHaveCount(0);
   });
 
+  test("homepage follows the same grouped IA as production navigation", async ({ page }) => {
+    await page.goto("/");
+
+    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(5);
+    for (const group of ["generate", "parse", "caveats", "validate", "demo"]) {
+      await expect(page.getByTestId(`home-group-${group}`)).toBeVisible();
+    }
+
+    for (const slug of [
+      "signing-key",
+      "from-invoice",
+      "from-challenge",
+      "parse-token",
+      "caveats",
+      "validate",
+      "demo",
+    ]) {
+      await expect(page.getByTestId(`panel-link-${slug}`)).toBeVisible();
+    }
+
+    await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(7);
+    await expect(page.getByTestId("home-group-signing-key")).toHaveCount(0);
+    await expect(page.getByTestId("home-group-from-invoice")).toHaveCount(0);
+    await expect(page.getByTestId("home-group-from-challenge")).toHaveCount(0);
+    await expect(page.getByTestId("home-group-parse-token")).toHaveCount(0);
+  });
+
   test("active panel link is highlighted", async ({ page }) => {
     await page.goto("/p/validate");
 

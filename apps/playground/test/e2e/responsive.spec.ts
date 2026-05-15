@@ -60,13 +60,14 @@ test.describe("responsive layout", () => {
     }
   });
 
-  test("mobile home cards and code snippets stay readable without page overflow", async ({
+  test("mobile home groups and code snippets stay readable without page overflow", async ({
     page,
   }) => {
     await page.setViewportSize(MOBILE);
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "L402 Workbench" })).toBeVisible();
+    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(5);
     await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(7);
     const homeGridColumns = await page
       .locator(".home-panel-grid")
