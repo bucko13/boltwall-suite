@@ -22,8 +22,8 @@ const SIGNING_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1
 test.describe("panels / generate-from-invoice", () => {
   test.beforeEach(async ({ page }) => {
     await setTheme(page, "light");
-    await page.goto("/p/from-invoice");
-    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.goto("/p/generate");
+    await expect(page.locator("[data-testid='cell']").nth(1)).toBeVisible();
   });
 
   test("minting with fixture invoice produces a base64 macaroon output", async ({ page }) => {
@@ -45,7 +45,7 @@ test.describe("panels / generate-from-invoice", () => {
     // Type a portion of the invoice and check it appears in the snippet.
     await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
     await expect(snippet).toContainText(invoiceFixture.invoice.slice(0, 8), { timeout: 200 });
-    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+    await expect(page.locator("[data-testid='code-snippet-contract']").first()).toContainText(
       "recipe code",
     );
   });
@@ -56,7 +56,9 @@ test.describe("panels / generate-from-invoice", () => {
     await page.click("[data-testid='generate-token-mint']");
 
     const snippet = page.locator("[data-testid='code-snippet']").first();
-    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
+    await expect(page.locator("[data-testid='code-snippet-contract']").first()).toContainText(
+      "exact code",
+    );
     await expect(snippet).toContainText("paymentHash: hexToBytes(");
     await expect(snippet).toContainText("tokenId: hexToBytes(");
     await expect(snippet).not.toContainText("decodeBolt11Invoice");
@@ -71,7 +73,7 @@ test.describe("panels / generate-from-invoice", () => {
     if (await copyBtn.isVisible()) {
       await copyBtn.click();
       const url = await readClipboard(page);
-      expect(url).toContain("/p/from-invoice");
+      expect(url).toContain("/p/generate");
     }
   });
 

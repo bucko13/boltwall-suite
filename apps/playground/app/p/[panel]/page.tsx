@@ -17,10 +17,8 @@ type Props = {
 
 export function generateStaticParams() {
   return [
-    { panel: "signing-key" },
-    { panel: "from-invoice" },
-    { panel: "from-challenge" },
-    { panel: "parse-token" },
+    { panel: "generate" },
+    { panel: "parse" },
     { panel: "caveats" },
     { panel: "validate" },
     { panel: "demo" },
@@ -31,10 +29,18 @@ export default async function PanelPage({ params }: Props) {
   const { panel } = await params;
 
   const panelMap: Record<string, React.ReactNode> = {
-    "signing-key": <SigningKey />,
-    "from-invoice": <GenerateL402Token />,
-    "from-challenge": <FromChallenge />,
-    "parse-token": <ParseToken />,
+    generate: (
+      <>
+        <SigningKey />
+        <GenerateL402Token />
+      </>
+    ),
+    parse: (
+      <>
+        <FromChallenge />
+        <ParseToken />
+      </>
+    ),
     caveats: <Caveats />,
     validate: <ValidateL402 />,
     demo: <Demo />,
@@ -50,6 +56,9 @@ export default async function PanelPage({ params }: Props) {
         maxWidth: 860,
         margin: "0 auto",
         padding: "32px 24px",
+        display: "flex",
+        flexDirection: "column",
+        gap: 16,
       }}
     >
       {component}

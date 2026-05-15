@@ -71,7 +71,7 @@ test.describe("panels / validate", () => {
   });
 
   test("saved token and signing key are restored from earlier panels", async ({ page }) => {
-    await page.goto("/p/signing-key");
+    await page.goto("/p/generate");
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
@@ -83,8 +83,7 @@ test.describe("panels / validate", () => {
       macaroon?.trim().slice(0, 8) ?? "",
     );
 
-    await page.getByTestId("nav-link-parse").hover();
-    await page.getByTestId("nav-sublink-parse-token").click();
+    await page.getByTestId("nav-link-parse").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
@@ -106,7 +105,7 @@ test.describe("panels / validate", () => {
   });
 
   test("URL params override remembered values", async ({ page }) => {
-    await page.goto("/p/signing-key");
+    await page.goto("/p/generate");
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 

@@ -4,13 +4,13 @@ import { grantClipboard, readClipboard } from "../setup";
 
 test.describe("panels / signing-key", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/p/signing-key");
-    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.goto("/p/generate");
+    await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
   });
 
   test("renders panel with header and idle status", async ({ page }) => {
-    await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
+    await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
   });
 
   test("generate button produces a 64-char hex key", async ({ page }) => {
@@ -19,14 +19,14 @@ test.describe("panels / signing-key", () => {
     const input = page.locator("[data-testid='signing-key-input']");
     const value = await input.inputValue();
     expect(value).toMatch(/^[0-9a-f]{64}$/);
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("ready");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("ready");
   });
 
   test("paste a valid 64-char hex key shows output", async ({ page }) => {
     const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
     await page.fill("[data-testid='signing-key-input']", key);
     await expect(page.locator("[data-testid='signing-key-output']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("ready");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("ready");
   });
 
   test("paste invalid key shows error with hover details and copy affordance", async ({
@@ -37,7 +37,7 @@ test.describe("panels / signing-key", () => {
 
     await page.fill("[data-testid='signing-key-input']", "notahexkey");
     await expect(page.locator("[data-testid='signing-key-error']")).toBeVisible();
-    const statusPill = page.locator("[data-testid='status-pill']");
+    const statusPill = page.locator("[data-testid='status-pill']").first();
     await expect(statusPill).toContainText("error");
 
     await statusPill.hover();
@@ -62,7 +62,9 @@ test.describe("panels / signing-key", () => {
   test("does not render a superfluous code snippet", async ({ page }) => {
     const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
     await page.fill("[data-testid='signing-key-input']", key);
-    await expect(page.locator("[data-testid='code-snippet']")).not.toBeVisible();
+    await expect(
+      page.locator("[data-testid='cell']").first().locator("[data-testid='code-snippet']"),
+    ).not.toBeVisible();
   });
 
   test("input and copyable output have distinct visual treatments", async ({ page }) => {

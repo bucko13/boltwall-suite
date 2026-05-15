@@ -9,6 +9,7 @@ import {
   useContext,
   useEffect,
   useMemo,
+  useRef,
   useState,
 } from "react";
 
@@ -30,20 +31,30 @@ type WorkbenchMemoryContextValue = {
 };
 
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
+const WORKBENCH_MEMORY_CLEAR_EVENT = "boltwall:workbench-memory-clear";
+
+function notifyMemoryFieldCleared(field: WorkbenchMemoryField) {
+  if (typeof window === "undefined") return;
+  window.dispatchEvent(new CustomEvent(WORKBENCH_MEMORY_CLEAR_EVENT, { detail: { field } }));
+}
 
 export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const [signingKey, setSigningKeyState] = useState("");
   const [macaroon, setMacaroonState] = useState("");
 
   const setSigningKey = useCallback((value: string | null) => {
+    if (!value) notifyMemoryFieldCleared("signingKey");
     setSigningKeyState(value || "");
   }, []);
 
   const setMacaroon = useCallback((value: string | null) => {
+    if (!value) notifyMemoryFieldCleared("macaroon");
     setMacaroonState(value || "");
   }, []);
 
   const clear = useCallback(() => {
+    notifyMemoryFieldCleared("signingKey");
+    notifyMemoryFieldCleared("macaroon");
     setSigningKeyState("");
     setMacaroonState("");
   }, []);
@@ -122,12 +133,33 @@ export function useRememberedStringInput(
   );
   const memoryValue = getMemoryValue(memory, options.field);
   const value = urlValue ?? memoryValue;
+  const previousMemoryValue = useRef(memoryValue);
 
   useEffect(() => {
-    if (urlValue) {
+    const memoryWasJustCleared = Boolean(previousMemoryValue.current && !memoryValue);
+    if (urlValue && !memoryWasJustCleared) {
       setMemoryValue(memory, options.field, urlValue);
     }
-  }, [memory, options.field, urlValue]);
+  }, [memory, memoryValue, options.field, urlValue]);
+
+  useEffect(() => {
+    if (previousMemoryValue.current && !memoryValue && urlValue) {
+      void setUrlValue(null);
+    }
+    previousMemoryValue.current = memoryValue;
+  }, [memoryValue, setUrlValue, urlValue]);
+
+  useEffect(() => {
+    function onMemoryClear(event: Event) {
+      const detail = (event as CustomEvent<{ field?: WorkbenchMemoryField }>).detail;
+      if (detail?.field === options.field) {
+        void setUrlValue(null);
+      }
+    }
+
+    window.addEventListener(WORKBENCH_MEMORY_CLEAR_EVENT, onMemoryClear);
+    return () => window.removeEventListener(WORKBENCH_MEMORY_CLEAR_EVENT, onMemoryClear);
+  }, [options.field, setUrlValue]);
 
   function setValue(next: string | null) {
     setMemoryValue(memory, options.field, next);

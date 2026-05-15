@@ -3,10 +3,8 @@
     "collect": {
       "url": [
         "http://localhost:3000/",
-        "http://localhost:3000/p/signing-key",
-        "http://localhost:3000/p/from-invoice",
-        "http://localhost:3000/p/from-challenge",
-        "http://localhost:3000/p/parse-token",
+        "http://localhost:3000/p/generate",
+        "http://localhost:3000/p/parse",
         "http://localhost:3000/p/caveats",
         "http://localhost:3000/p/validate",
         "http://localhost:3000/p/demo",

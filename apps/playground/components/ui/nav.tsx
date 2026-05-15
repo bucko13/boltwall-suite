@@ -11,32 +11,11 @@ type NavItem = {
   id: string;
   label: string;
   href: string;
-  children?: Array<{
-    id: string;
-    label: string;
-    href: string;
-  }>;
 };
 
 const NAV_ITEMS: NavItem[] = [
-  {
-    id: "generate",
-    label: "Generate",
-    href: "/p/from-invoice",
-    children: [
-      { id: "signing-key", label: "Signing Key", href: "/p/signing-key" },
-      { id: "from-invoice", label: "Generate Token", href: "/p/from-invoice" },
-    ],
-  },
-  {
-    id: "parse",
-    label: "Parse",
-    href: "/p/from-challenge",
-    children: [
-      { id: "from-challenge", label: "Challenge Header", href: "/p/from-challenge" },
-      { id: "parse-token", label: "Token", href: "/p/parse-token" },
-    ],
-  },
+  { id: "generate", label: "Generate", href: "/p/generate" },
+  { id: "parse", label: "Parse", href: "/p/parse" },
   { id: "caveats", label: "Caveats", href: "/p/caveats" },
   { id: "validate", label: "Validate", href: "/p/validate" },
   { id: "demo", label: "Demo", href: "/p/demo" },
@@ -75,7 +54,7 @@ export function Nav() {
   }, [mobileOpen]);
 
   function isActive(item: NavItem) {
-    return item.href === pathname || item.children?.some((child) => child.href === pathname);
+    return item.href === pathname;
   }
 
   return (
@@ -137,11 +116,7 @@ export function Nav() {
         }}
       >
         {NAV_ITEMS.map((item) => (
-          <li
-            key={item.id}
-            className={item.children ? "playground-nav-group" : undefined}
-            data-active={isActive(item) ? "true" : undefined}
-          >
+          <li key={item.id} data-active={isActive(item) ? "true" : undefined}>
             <Link
               href={item.href}
               aria-current={pathname === item.href ? "page" : undefined}
@@ -150,21 +125,6 @@ export function Nav() {
             >
               {item.label}
             </Link>
-            {item.children ? (
-              <div className="playground-nav-submenu" aria-label={`${item.label} tools`}>
-                {item.children.map((child) => (
-                  <Link
-                    key={child.id}
-                    href={child.href}
-                    aria-current={pathname === child.href ? "page" : undefined}
-                    data-testid={`nav-sublink-${child.id}`}
-                    className="playground-nav-submenu-link"
-                  >
-                    {child.label}
-                  </Link>
-                ))}
-              </div>
-            ) : null}
           </li>
         ))}
       </ul>
@@ -227,11 +187,7 @@ export function Nav() {
 
           <div className="playground-mobile-nav-groups">
             {NAV_ITEMS.map((item) => (
-              <div
-                key={item.id}
-                className="playground-mobile-nav-group"
-                data-active={isActive(item) ? "true" : undefined}
-              >
+              <div key={item.id} data-active={isActive(item) ? "true" : undefined}>
                 <Link
                   href={item.href}
                   aria-current={pathname === item.href ? "page" : undefined}
@@ -240,21 +196,6 @@ export function Nav() {
                 >
                   {item.label}
                 </Link>
-                {item.children ? (
-                  <div className="playground-mobile-nav-children">
-                    {item.children.map((child) => (
-                      <Link
-                        key={child.id}
-                        href={child.href}
-                        aria-current={pathname === child.href ? "page" : undefined}
-                        data-testid={`mobile-nav-sublink-${child.id}`}
-                        className="playground-mobile-nav-child-link"
-                      >
-                        {child.label}
-                      </Link>
-                    ))}
-                  </div>
-                ) : null}
               </div>
             ))}
           </div>

@@ -17,10 +17,8 @@ import { setTheme } from "./setup";
 
 const PANEL_ROUTES = [
   "/",
-  "/p/signing-key",
-  "/p/from-invoice",
-  "/p/from-challenge",
-  "/p/parse-token",
+  "/p/generate",
+  "/p/parse",
   "/p/caveats",
   "/p/validate",
   "/p/demo",

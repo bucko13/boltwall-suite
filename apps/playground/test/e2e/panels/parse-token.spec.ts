@@ -6,13 +6,13 @@ const FIXTURE_MACAROON =
 
 test.describe("panels / parse-token", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/p/parse-token");
-    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='cell']").nth(1)).toBeVisible();
   });
 
   test("renders panel with header and idle status", async ({ page }) => {
-    await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
+    await expect(page.locator("[data-testid='header-row']").nth(1)).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("idle");
   });
 
   test("decode shows identifier fields", async ({ page }) => {
@@ -25,7 +25,7 @@ test.describe("panels / parse-token", () => {
     );
     await expect(page.locator("[data-testid='parse-token-payment-hash']")).toBeVisible();
     await expect(page.locator("[data-testid='parse-token-token-id']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("decoded");
+    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
   });
 
   test("stripe view shows macaroon-stripe primitive", async ({ page }) => {
@@ -56,10 +56,10 @@ test.describe("panels / parse-token", () => {
 
   test("code snippet reflects token value", async ({ page }) => {
     await page.fill("[data-testid='parse-token-input']", FIXTURE_MACAROON);
-    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+    await expect(page.locator("[data-testid='code-snippet-contract']").nth(1)).toContainText(
       "current input code",
     );
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+    await expect(page.locator("[data-testid='code-snippet']").nth(1)).toContainText(
       `const macaroon = "${FIXTURE_MACAROON}"`,
     );
   });

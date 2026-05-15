@@ -10,20 +10,21 @@ test.describe("Nav shell", () => {
     await expect(page.locator("[data-testid='beaker-logo']").first()).toBeVisible();
   });
 
-  test("intent-oriented nav groups expose every panel", async ({ page }) => {
+  test("intent-oriented nav exposes flat top-level pages", async ({ page }) => {
     await page.goto("/");
 
     const nav = page.getByRole("navigation", { name: "Primary" });
-    for (const label of ["Generate", "Parse", "Caveats", "Validate", "Demo"]) {
-      await expect(nav.getByRole("link", { name: label })).toBeVisible();
+    for (const [label, href] of [
+      ["Generate", "/p/generate"],
+      ["Parse", "/p/parse"],
+      ["Caveats", "/p/caveats"],
+      ["Validate", "/p/validate"],
+      ["Demo", "/p/demo"],
+    ] as const) {
+      await expect(nav.getByRole("link", { name: label })).toHaveAttribute("href", href);
     }
-    await page.getByTestId("nav-link-generate").hover();
-    await expect(page.getByTestId("nav-sublink-signing-key")).toBeVisible();
-    await expect(page.getByTestId("nav-sublink-from-invoice")).toContainText("Generate Token");
 
-    await page.getByTestId("nav-link-parse").hover();
-    await expect(page.getByTestId("nav-sublink-from-challenge")).toContainText("Challenge Header");
-    await expect(page.getByTestId("nav-sublink-parse-token")).toContainText("Token");
+    await expect(nav.locator("[data-testid^='nav-sublink-']")).toHaveCount(0);
 
     await expect(nav.getByRole("link", { name: "Generate L402 Token" })).toHaveCount(0);
     await expect(nav.getByRole("link", { name: "Validate L402" })).toHaveCount(0);
@@ -32,31 +33,19 @@ test.describe("Nav shell", () => {
     await expect(nav.getByRole("link", { name: "Caveat Satisfiers" })).toHaveCount(0);
   });
 
-  test("homepage follows the same grouped IA as production navigation", async ({ page }) => {
+  test("homepage follows the same flat IA as production navigation", async ({ page }) => {
     await page.goto("/");
 
-    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(5);
-    for (const group of ["generate", "parse", "caveats", "validate", "demo"]) {
-      await expect(page.getByTestId(`home-group-${group}`)).toBeVisible();
+    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(5);
+    for (const slug of ["generate", "parse", "caveats", "validate", "demo"]) {
+      await expect(page.getByTestId(`panel-link-${slug}`)).toHaveAttribute("href", `/p/${slug}`);
     }
 
-    for (const slug of [
-      "signing-key",
-      "from-invoice",
-      "from-challenge",
-      "parse-token",
-      "caveats",
-      "validate",
-      "demo",
-    ]) {
-      await expect(page.getByTestId(`panel-link-${slug}`)).toBeVisible();
-    }
-
-    await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(7);
-    await expect(page.getByTestId("home-group-signing-key")).toHaveCount(0);
-    await expect(page.getByTestId("home-group-from-invoice")).toHaveCount(0);
-    await expect(page.getByTestId("home-group-from-challenge")).toHaveCount(0);
-    await expect(page.getByTestId("home-group-parse-token")).toHaveCount(0);
+    await expect(page.getByTestId("panel-link-signing-key")).toHaveCount(0);
+    await expect(page.getByTestId("panel-link-from-invoice")).toHaveCount(0);
+    await expect(page.getByTestId("panel-link-from-challenge")).toHaveCount(0);
+    await expect(page.getByTestId("panel-link-parse-token")).toHaveCount(0);
   });
 
   test("active panel link is highlighted", async ({ page }) => {

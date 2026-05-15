@@ -73,7 +73,7 @@ export function FromChallenge() {
 
   function useMacaroonInParseToken() {
     rememberMacaroon();
-    router.push("/p/parse-token");
+    router.push("/p/parse");
   }
 
   async function copyInvoice() {
@@ -335,7 +335,7 @@ export function FromChallenge() {
                     onClick={useMacaroonInParseToken}
                     disabled={!current.macaroon}
                     data-testid="challenge-use-parse-token"
-                    title="Save this parsed macaroon, then open Parse Token with it prefilled."
+                    title="Save this parsed macaroon, then open the token parser with it prefilled."
                     style={{
                       padding: "6px 10px",
                       background: "var(--color-primary)",
@@ -347,7 +347,7 @@ export function FromChallenge() {
                       cursor: current.macaroon ? "pointer" : "not-allowed",
                     }}
                   >
-                    Use in Parse Token
+                    Use in Token parser
                   </button>
                   <button
                     type="button"
@@ -373,13 +373,12 @@ export function FromChallenge() {
                   data-testid="challenge-next-action-status"
                   style={{
                     fontSize: "var(--size-12)",
-                    color:
-                      copyState === "failed" ? "var(--color-danger)" : "var(--color-dim)",
+                    color: copyState === "failed" ? "var(--color-danger)" : "var(--color-dim)",
                   }}
                 >
                   {memoryState === "stored"
-                    ? "Macaroon stored in Workbench memory for Parse Token and Validate."
-                    : "Store the macaroon to reuse it in Parse Token or Validate."}
+                    ? "Macaroon stored in Workbench memory for Token parser and Validate."
+                    : "Store the macaroon to reuse it in Token parser or Validate."}
                   {copyState === "copied" ? " Invoice copied." : null}
                   {copyState === "failed" ? " Invoice copy failed." : null}
                 </div>

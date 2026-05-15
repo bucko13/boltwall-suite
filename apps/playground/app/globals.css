@@ -157,52 +157,11 @@ h3 {
   text-decoration: none;
 }
 
-.playground-nav-panel-link[aria-current="page"],
-.playground-nav-group[data-active="true"] > .playground-nav-panel-link {
+.playground-nav-panel-link[aria-current="page"] {
   color: var(--color-primary);
   font-weight: 650;
   text-decoration: underline;
   text-underline-offset: 4px;
-}
-
-.playground-nav-group {
-  position: relative;
-}
-
-.playground-nav-submenu {
-  position: absolute;
-  z-index: 20;
-  top: calc(100% + 8px);
-  left: 0;
-  display: none;
-  min-width: 156px;
-  padding: 6px;
-  border: 1px solid var(--color-border);
-  background: var(--color-surface);
-  box-shadow: 0 10px 24px color-mix(in srgb, var(--color-text) 10%, transparent);
-}
-
-.playground-nav-group:hover .playground-nav-submenu,
-.playground-nav-group:focus-within .playground-nav-submenu {
-  display: flex;
-  flex-direction: column;
-  gap: 2px;
-}
-
-.playground-nav-submenu-link {
-  display: block;
-  padding: 7px 8px;
-  color: var(--color-dim);
-  font-size: var(--size-12);
-  text-decoration: none;
-  white-space: nowrap;
-}
-
-.playground-nav-submenu-link[aria-current="page"],
-.playground-nav-submenu-link:hover,
-.playground-nav-submenu-link:focus-visible {
-  color: var(--color-primary);
-  background: var(--color-surface-alt);
 }
 
 .playground-nav-menu-button,
@@ -308,12 +267,6 @@ h3 {
     padding: 16px;
   }
 
-  .playground-mobile-nav-group {
-    display: flex;
-    flex-direction: column;
-    gap: 6px;
-  }
-
   .playground-mobile-nav-link {
     display: flex;
     min-height: 36px;
@@ -324,31 +277,8 @@ h3 {
     text-decoration: none;
   }
 
-  .playground-mobile-nav-group[data-active="true"] > .playground-mobile-nav-link,
   .playground-mobile-nav-link[aria-current="page"] {
     color: var(--color-primary);
-  }
-
-  .playground-mobile-nav-children {
-    display: flex;
-    flex-direction: column;
-    gap: 2px;
-    padding-left: 10px;
-    border-left: 1px solid var(--color-border);
-  }
-
-  .playground-mobile-nav-child-link {
-    display: flex;
-    min-height: 32px;
-    align-items: center;
-    color: var(--color-dim);
-    font-size: var(--size-12);
-    text-decoration: none;
-  }
-
-  .playground-mobile-nav-child-link[aria-current="page"] {
-    color: var(--color-primary);
-    font-weight: 650;
   }
 
   .playground-mobile-nav-meta {

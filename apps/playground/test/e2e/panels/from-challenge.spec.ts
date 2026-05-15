@@ -6,13 +6,13 @@ const FIXTURE_HEADER =
 
 test.describe("panels / from-challenge", () => {
   test.beforeEach(async ({ page }) => {
-    await page.goto("/p/from-challenge");
-    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
   });
 
   test("renders panel with header and idle status", async ({ page }) => {
-    await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
+    await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
   });
 
   test("parses L402 challenge header and shows scheme + macaroon", async ({ page }) => {
@@ -24,7 +24,7 @@ test.describe("panels / from-challenge", () => {
       "Parsed challenge fields",
     );
     await expect(page.locator("[data-testid='challenge-scheme']")).toContainText("L402");
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("1 challenge");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("1 challenge");
     await expect(page.locator("[data-testid='challenge-next-actions']")).toContainText(
       "Next steps",
     );
@@ -32,14 +32,14 @@ test.describe("panels / from-challenge", () => {
       "Store macaroon",
     );
     await expect(page.locator("[data-testid='challenge-use-parse-token']")).toContainText(
-      "Use in Parse Token",
+      "Use in Token parser",
     );
     await expect(page.locator("[data-testid='challenge-copy-invoice']")).toContainText(
       "Copy invoice",
     );
   });
 
-  test("stores parsed macaroon and opens Parse Token with it prefilled", async ({ page }) => {
+  test("stores parsed macaroon and opens the token parser with it prefilled", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
     await page.click("[data-testid='challenge-parse']");
 
@@ -51,7 +51,7 @@ test.describe("panels / from-challenge", () => {
     );
 
     await page.click("[data-testid='challenge-use-parse-token']");
-    await expect(page).toHaveURL(/\/p\/parse-token/);
+    await expect(page).toHaveURL(/\/p\/parse/);
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       /AGIAJEemVQUTEyNCR0exk7ek90Cg==/,
     );
@@ -62,7 +62,7 @@ test.describe("panels / from-challenge", () => {
     await page.fill("[data-testid='challenge-input']", "Bearer not-l402");
     await page.click("[data-testid='challenge-parse']");
     await expect(page.locator("[data-testid='challenge-error']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']")).toContainText("error");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("error");
   });
 
   test("reset clears output", async ({ page }) => {
@@ -75,10 +75,10 @@ test.describe("panels / from-challenge", () => {
 
   test("code snippet reflects input value", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
-    await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
+    await expect(page.locator("[data-testid='code-snippet-contract']").first()).toContainText(
       "current input code",
     );
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+    await expect(page.locator("[data-testid='code-snippet']").first()).toContainText(
       `const header = ${JSON.stringify(FIXTURE_HEADER)}`,
     );
   });

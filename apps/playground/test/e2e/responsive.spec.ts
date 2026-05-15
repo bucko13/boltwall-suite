@@ -27,23 +27,22 @@ test.describe("responsive layout", () => {
       "page",
     );
     for (const testId of [
-      "mobile-nav-sublink-signing-key",
-      "mobile-nav-sublink-from-invoice",
-      "mobile-nav-sublink-from-challenge",
-      "mobile-nav-sublink-parse-token",
+      "mobile-nav-link-generate",
+      "mobile-nav-link-parse",
       "mobile-nav-link-caveats",
       "mobile-nav-link-validate",
       "mobile-nav-link-demo",
     ]) {
       await expect(page.getByTestId(testId)).toBeVisible();
     }
+    await expect(drawer.locator("[data-testid^='mobile-nav-sublink-']")).toHaveCount(0);
 
     await page.keyboard.press("Escape");
     await expect(drawer).not.toBeVisible();
 
     await page.getByTestId("mobile-nav-open").click();
-    await page.getByTestId("mobile-nav-sublink-parse-token").click();
-    await expect(page).toHaveURL(/\/p\/parse-token/);
+    await page.getByTestId("mobile-nav-link-parse").click();
+    await expect(page).toHaveURL(/\/p\/parse/);
     await expect(page.getByTestId("mobile-nav-drawer")).not.toBeVisible();
     await expectNoPageHorizontalOverflow(page);
   });
@@ -51,11 +50,11 @@ test.describe("responsive layout", () => {
   test("mobile panel headers reflow controls without clipping content", async ({ page }) => {
     await page.setViewportSize(MOBILE);
 
-    for (const route of ["/p/from-invoice", "/p/validate", "/p/caveats"]) {
+    for (const route of ["/p/generate", "/p/validate", "/p/caveats"]) {
       await page.goto(route);
-      await expect(page.locator("[data-testid='header-row']")).toBeVisible();
-      await expect(page.locator("[data-testid='status-pill']")).toBeVisible();
-      await expect(page.getByRole("button", { name: /copy url/i })).toBeVisible();
+      await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
+      await expect(page.locator("[data-testid='status-pill']").first()).toBeVisible();
+      await expect(page.getByRole("button", { name: /copy url/i }).first()).toBeVisible();
       await expectNoPageHorizontalOverflow(page);
     }
   });
@@ -67,17 +66,17 @@ test.describe("responsive layout", () => {
     await page.goto("/");
 
     await expect(page.getByRole("heading", { name: "L402 Workbench" })).toBeVisible();
-    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(5);
-    await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(7);
+    await expect(page.locator("[data-testid^='home-group-']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='panel-link-']")).toHaveCount(5);
     const homeGridColumns = await page
       .locator(".home-panel-grid")
       .evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(" ").length);
     expect(homeGridColumns).toBe(1);
     await expectNoPageHorizontalOverflow(page);
 
-    await page.goto("/p/from-challenge");
-    await expect(page.locator("[data-testid='code-snippet']")).toBeVisible();
-    await expect(page.locator("[data-testid='code-snippet-copy']")).toBeVisible();
+    await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='code-snippet']").first()).toBeVisible();
+    await expect(page.locator("[data-testid='code-snippet-copy']").first()).toBeVisible();
     await expectNoPageHorizontalOverflow(page);
   });
 
