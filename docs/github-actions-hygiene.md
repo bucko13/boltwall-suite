@@ -2,7 +2,7 @@
 
 These rules harden the suite against supply-chain attacks of the Shai-Hulud / mini Shai-Hulud class (worm-style npm/PyPI compromises, OIDC token theft from Actions runners, `pull_request_target` abuse, install-script payloads). They are enforceable in PR review; cite this doc when blocking a workflow change.
 
-`AGENTS.md` routes workflow-touching tasks here. Read this file before editing anything under `.github/workflows/` or adding a new third-party action.
+Read this file before editing anything under `.github/workflows/` or adding a new third-party action.
 
 ## Hard rules
 
@@ -41,9 +41,11 @@ Lifecycle scripts (`preinstall` / `install` / `postinstall` / `prepare`) are an 
 
 New workflows triggered by `pull_request_target` require explicit owner sign-off in the PR description. The trigger grants write-scoped tokens to untrusted PR code and is a documented exploitation path for the worm-class attacks this doc defends against. Default to `pull_request` (no secrets, read-only token) unless the workflow truly needs a write token, and even then escalate first.
 
-## Coordination
+## Review Discipline
 
-Workflow files are a shared write surface (see `AGENTS.md` RULE 2). Reserve them through Agent Mail with a short critical section — reserve → re-read → edit → commit → release — and do not hold the reservation while the file remains locally modified.
+Workflow files are a shared CI and release surface. Keep changes small, review
+the workflow diff before merging, and avoid mixing workflow edits with unrelated
+code changes.
 
 ## Reference
 

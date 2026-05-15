@@ -46,7 +46,7 @@ Use local skills when available, but keep this file's mandatory checks in view:
 
 - `.agents/skills/boltwall-workflow/SKILL.md` for startup, task claiming,
   reservations, handoff, close, commit, push, and release sequence.
-- `docs/agent-worktrees.md` for the default per-task worktree workflow.
+- `docs/agent-worktrees.md` for generic Git worktree mechanics.
 - `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
   after reading the relevant live L402 spec sections.
 
@@ -227,6 +227,7 @@ Rules:
    ```
 
    If the section doesn't exist yet, the first task to defer creates it (`br update <phase-task> --description-append "..."` or hand-edit + `br sync`).
+
 4. **The phase-complete task batches the reconcile.** Its acceptance work includes a single commit that adds every queued export, runs root `bun run lint`/`typecheck`/`test`/`build`, and clears the section. That commit briefly holds an exclusive reservation on the affected barrels; no other task should be editing them concurrently.
 5. **Do not stall on a held barrel reservation.** If a peer is holding a long-lived reservation on a barrel (against rule 2), defer per rule 3 rather than waiting. Track recurring violations as separate work.
 
@@ -236,18 +237,18 @@ Rules:
 
 Hard triggers stay in this file. Longer reference material lives in focused docs:
 
-| If your task touches... | Read... |
-|---|---|
-| package boundaries, package roles, feature placement, or non-goals | `docs/architecture.md` |
-| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages | `docs/monorepo-conventions.md` |
-| test design, validation commands, browser import checks, or e2e coverage | `docs/testing.md` |
-| public exports, JSDoc, generated docs, or compatibility notes | `docs/api-docs.md` |
-| external dependency additions or shared utility placement | `docs/dependency-policy.md` |
-| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
-| playground UI, visual direction, or demo flow ergonomics | `docs/playground-visual-concepts.md` and `docs/testing.md` |
-| L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
-| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees | `.agents/skills/boltwall-workflow/SKILL.md` and `docs/agent-worktrees.md` |
-| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags | `docs/github-actions-hygiene.md` |
+| If your task touches...                                                                              | Read...                                                                                          |
+| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
+| package boundaries, package roles, feature placement, or non-goals                                   | `docs/architecture.md`                                                                           |
+| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages                  | `docs/monorepo-conventions.md`                                                                   |
+| test design, validation commands, browser import checks, or e2e coverage                             | `docs/testing.md`                                                                                |
+| public exports, JSDoc, generated docs, or compatibility notes                                        | `docs/api-docs.md`                                                                               |
+| external dependency additions or shared utility placement                                            | `docs/dependency-policy.md`                                                                      |
+| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md`                                                                    |
+| playground UI, visual direction, or demo flow ergonomics                                             | `docs/playground-visual-concepts.md` and `docs/testing.md`                                       |
+| L402 wire/header/caveat/macaroon/token behavior                                                      | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow                 |
+| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees             | `.agents/skills/boltwall-workflow/SKILL.md`; `docs/agent-worktrees.md` for generic Git mechanics |
+| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags                 | `docs/github-actions-hygiene.md`                                                                 |
 
 Mandatory summaries:
 
@@ -309,7 +310,7 @@ This rule supersedes velocity. An agent that pauses to flag an incomplete gate h
 
 **Never capitulate to a question as if it were a directive.**
 
-If the owner asks "why X?", "should we do Y?", or "is this right?", treat it as a request for *justification or tradeoff analysis*, not an instruction to reverse course. Before changing a recommendation: (1) state the reason for the original choice, (2) name the real tradeoff, (3) ask whether the owner wants to override the call or just understand it.
+If the owner asks "why X?", "should we do Y?", or "is this right?", treat it as a request for _justification or tradeoff analysis_, not an instruction to reverse course. Before changing a recommendation: (1) state the reason for the original choice, (2) name the real tradeoff, (3) ask whether the owner wants to override the call or just understand it.
 
 If the original choice is genuinely wrong, say so plainly with the corrected reasoning — but do not preemptively reverse based on tone alone. Sycophantic agreement leads to under-informed decisions and is forbidden.
 
@@ -422,12 +423,12 @@ missing this update means the bead is not complete.
 
 Test surfaces at a glance:
 
-| Script | Surface | Infra required |
-|---|---|---|
-| `bun run test` | Unit tests, all packages | None |
-| `bun run test:browser` | l402 ESM bundle in Chromium (Playwright) | Built l402 bundle |
-| `bun run test:e2e` (from `apps/playground`) | Playground UI flows (Playwright) | Node.js only |
-| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop | Docker + LND regtest |
+| Script                                        | Surface                                  | Infra required       |
+| --------------------------------------------- | ---------------------------------------- | -------------------- |
+| `bun run test`                                | Unit tests, all packages                 | None                 |
+| `bun run test:browser`                        | l402 ESM bundle in Chromium (Playwright) | Built l402 bundle    |
+| `bun run test:e2e` (from `apps/playground`)   | Playground UI flows (Playwright)         | Node.js only         |
+| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop           | Docker + LND regtest |
 
 Do not add infrastructure-dependent tests to the default `bun run test` glob.
 Keep each surface behind its own `test:<surface>` script so normal test runs
@@ -458,9 +459,10 @@ Mandatory workflow:
 5. **Announce:** send a start note with `thread_id="<task-id>"`, claimed task,
    reserved paths, intended scope, validation plan, task worktree path, and
    branch name.
-6. **Create a task worktree:** follow `docs/agent-worktrees.md`. Keep Beads and
-   Agent Mail in the canonical checkout; implement and validate in the task
-   worktree.
+6. **Create a task worktree:** follow `.agents/skills/boltwall-workflow/SKILL.md`
+   for agent-specific sequencing and `docs/agent-worktrees.md` for Git mechanics.
+   Keep Beads and Agent Mail in the canonical checkout; implement and validate
+   in the task worktree.
 7. **Work:** re-read reserved files in the task worktree, stay in scope, check
    inbox on meaningful pauses, renew reservations when needed, and do not edit
    conflicting paths.
@@ -471,7 +473,7 @@ Mandatory workflow:
    task status and post a handoff. Do not close finished work before commit and
    push.
 10. **Land code:** use the task worktree landing sequence in
-    `docs/agent-worktrees.md`.
+    `.agents/skills/boltwall-workflow/SKILL.md`.
 11. **Close finished task:** after the remote push or PR landing succeeds,
     close completed work or update any remaining in-progress task state.
 12. **Release and complete:** release reservations only when no reserved file
@@ -528,9 +530,10 @@ on the required remote branch or the PR-gated workflow has landed it.**
    ```
 4. **Update in-progress task status** — if work is not ready to land, record the
    current state and handoff. Do not close finished work before commit and push.
-5. **Land remotely.** Follow `docs/agent-worktrees.md`: sync Beads from the
-   canonical checkout, rebase the task worktree, stage reviewed paths, commit,
-   and either push to the integration branch or use the PR-gated flow.
+5. **Land remotely.** Follow `.agents/skills/boltwall-workflow/SKILL.md`: sync
+   Beads from the canonical checkout, rebase the task worktree, stage reviewed
+   paths, commit, and either push to the integration branch or use the PR-gated
+   flow.
 6. **Close completed task status** — only after the remote push or PR landing
    succeeds. If work remains, leave it open with a current handoff note.
 7. **Release file reservations (Mail).**

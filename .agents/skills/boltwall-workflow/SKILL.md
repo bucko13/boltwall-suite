@@ -91,6 +91,44 @@ If contact policy blocks peer broadcast, send a self-addressed thread note and
 document the fallback. Missing peer delivery is not permission to skip the
 coordination record.
 
+## Task Worktree Mechanics
+
+Create task worktrees only after claim, reservation, and start note.
+
+```sh
+git worktree list --porcelain
+git fetch origin
+git worktree add <worktree-root>/<agent-namespace>/<task-id> \
+  -b <agent-namespace>/<task-id>-<short-topic> origin/<integration-branch>
+```
+
+Before creating the worktree, inspect the existing worktree list for the
+`<task-id>` anywhere in path or branch names, across every agent namespace. If a
+same-task worktree already exists, coordinate in the task thread before creating
+another one. If the exact path or branch already exists, stop and inspect. Do
+not delete, overwrite, force, or reuse another agent's worktree.
+
+Use the canonical checkout for all Beads and Agent Mail operations unless the
+project later documents a single shared Beads database configuration for
+worktrees. Do not run Beads from a task worktree if that would create or update
+a separate `.beads` database copy.
+
+Bootstrap a new task worktree before code validation or implementation work:
+
+```sh
+cd <worktree-root>/<agent-namespace>/<task-id>
+bun install --frozen-lockfile
+bun run build
+```
+
+Docs-only work that never imports workspace packages can skip the package
+bootstrap. If `bun install --frozen-lockfile` fails because the lockfile is
+stale, do not update or commit `bun.lock` from a normal implementation task.
+Record the lockfile-reconcile dependency and use the existing reconcile
+workflow. If Bun or git cannot write the worktree, cache, tempdir, or
+`.git/worktrees` metadata, request permission for the blocked command rather
+than editing in the canonical checkout.
+
 ## Work Loop
 
 While working:
@@ -98,9 +136,8 @@ While working:
 - Stay inside task scope.
 - Keep Beads and Agent Mail operations in the canonical checkout. Keep
   implementation edits and validation in the task worktree.
-- Bootstrap a new task worktree with the sequence in
-  `docs/agent-worktrees.md` before task validation or implementation work, so
-  workspace dependencies and package build outputs exist in that checkout.
+- Bootstrap a new task worktree before task validation or implementation work,
+  so workspace dependencies and package build outputs exist in that checkout.
 - Re-check inbox after meaningful pauses or before touching shared surfaces.
 - Renew reservations before expiry if still actively editing.
 - On `FILE_RESERVATION_CONFLICT`, do not edit the conflicting path. Coordinate,
@@ -147,9 +184,9 @@ When the work is complete:
 2. Review `git status` and the diff for every file you will commit.
 3. If work is not ready to land, update the task and post a handoff. Do not
    close finished work before commit and push.
-4. Follow the landing sequence in `docs/agent-worktrees.md`: sync Beads from the
-   canonical checkout, rebase the task worktree, stage reviewed paths, commit,
-   and push or open/land the required PR.
+4. Follow the landing sequence: sync Beads from the canonical checkout, rebase
+   the task worktree, stage reviewed paths, commit, and push or open/land the
+   required PR.
 5. Close completed work only after the remote push or PR landing succeeds:
    ```sh
    br close <id> --reason "Completed: <summary>"

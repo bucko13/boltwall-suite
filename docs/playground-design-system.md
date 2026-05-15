@@ -1,18 +1,14 @@
 # Playground Design System
 
 Normative specification for the Boltwall playground (Phase 7 local L402
-workbench). Downstream implementation beads (`bw-0dw.1` and the panel beads)
-read this document as the single source of truth. The illustrative HTML
-references in `apps/playground/design/reference/` are visual evidence; this
-document is normative when the two ever disagree.
+workbench). Downstream implementation tasks read this document as the single
+source of truth. The illustrative HTML references in
+`apps/playground/design/reference/` are visual evidence; this document is
+normative when the two ever disagree.
 
 **Supersedes** `docs/playground-visual-concepts.md` (Concept D / Color Grid).
 The visual-concepts doc is retained as historical reference only; see its
 "Superseded" section.
-
-**Tracked by** `bw-0dw.15`.
-
----
 
 ## 1. Principles
 
@@ -58,20 +54,20 @@ inline hex values in component code outside the token layer.
 
 ### 3.1 Light theme
 
-| Token         | Hex       | Usage                                                           |
-|---------------|-----------|-----------------------------------------------------------------|
-| `surface`     | `#ffffff` | Cell background, default page-content surface                   |
-| `surface-alt` | `#f4f4f2` | Page background, recessed wells, code-strip background          |
-| `border`      | `#e7e5e0` | Cell border, header-row underline, divider hairlines            |
-| `text`        | `#0c0c0c` | Primary text, headings, raw data values                         |
-| `dim`         | `#71706a` | Labels, secondary text, dim metadata                            |
-| `primary`     | `#1d6fb8` | Primary action buttons, selected nav, focus ring                |
-| `accent`      | `#198754` | Positive status (valid signature, satisfied caveat)             |
-| `accent-soft` | `#dff4e9` | Background tint for positive status pills and caveat chips      |
-| `warn`        | `#b78107` | Warning status, attention-needed indicator                      |
-| `warn-soft`   | `#fbf0d9` | Background tint for warning pills                               |
-| `danger`      | `#c2362f` | Failed validation, tampered-segment indicator, destructive UI   |
-| `danger-soft` | `#fbe4e2` | Background tint for danger pills and danger chip backgrounds    |
+| Token         | Hex       | Usage                                                         |
+| ------------- | --------- | ------------------------------------------------------------- |
+| `surface`     | `#ffffff` | Cell background, default page-content surface                 |
+| `surface-alt` | `#f4f4f2` | Page background, recessed wells, code-strip background        |
+| `border`      | `#e7e5e0` | Cell border, header-row underline, divider hairlines          |
+| `text`        | `#0c0c0c` | Primary text, headings, raw data values                       |
+| `dim`         | `#71706a` | Labels, secondary text, dim metadata                          |
+| `primary`     | `#1d6fb8` | Primary action buttons, selected nav, focus ring              |
+| `accent`      | `#198754` | Positive status (valid signature, satisfied caveat)           |
+| `accent-soft` | `#dff4e9` | Background tint for positive status pills and caveat chips    |
+| `warn`        | `#b78107` | Warning status, attention-needed indicator                    |
+| `warn-soft`   | `#fbf0d9` | Background tint for warning pills                             |
+| `danger`      | `#c2362f` | Failed validation, tampered-segment indicator, destructive UI |
+| `danger-soft` | `#fbe4e2` | Background tint for danger pills and danger chip backgrounds  |
 
 The top of the light page (the surface visible on first paint) is `#fafaf9` —
 this is the page-frame outermost background and is identical to `surface-alt`
@@ -86,7 +82,7 @@ a stripe-segment color and lives in §6's table.
 ### 3.2 Dark theme
 
 | Token         | Hex       | Usage                                                           |
-|---------------|-----------|-----------------------------------------------------------------|
+| ------------- | --------- | --------------------------------------------------------------- |
 | `surface`     | `#121412` | Cell background                                                 |
 | `surface-alt` | `#171918` | Page background, recessed wells, code-strip background          |
 | `border`      | `#22251f` | Cell border, header-row underline, divider hairlines            |
@@ -130,10 +126,10 @@ theme.
 
 ### 4.1 Families
 
-| Role       | Family                                  | Fallback chain                                          |
-|------------|-----------------------------------------|---------------------------------------------------------|
-| Sans       | `Geist`                                 | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `sans-serif` |
-| Mono       | `Geist Mono`                            | `IBM Plex Mono`, `JetBrains Mono`, `ui-monospace`, `Menlo`, `monospace` |
+| Role | Family       | Fallback chain                                                          |
+| ---- | ------------ | ----------------------------------------------------------------------- |
+| Sans | `Geist`      | `Inter`, `-apple-system`, `BlinkMacSystemFont`, `sans-serif`            |
+| Mono | `Geist Mono` | `IBM Plex Mono`, `JetBrains Mono`, `ui-monospace`, `Menlo`, `monospace` |
 
 - Geist is the primary sans for headings, labels, and prose.
 - Geist Mono is the primary mono for all raw data (macaroons, invoices,
@@ -149,21 +145,21 @@ theme.
 
 The exact size scale is fixed; do not introduce intermediate sizes.
 
-| Token       | Size (px) | Role                                                  |
-|-------------|-----------|-------------------------------------------------------|
-| `--size-10` | 10        | Micro labels (rare, only inside chips)                |
-| `--size-11` | 11        | Sub-label, footnote, status-pill caption              |
-| `--size-12` | 12        | Body label, table column header                       |
-| `--size-12-5` | 12.5    | Inline metadata adjacent to mono code (alignment)     |
-| `--size-13` | 13        | Default body sans                                     |
-| `--size-13-5` | 13.5    | Mono raw values (matches body height when rendered)   |
-| `--size-14` | 14        | Cell header title, primary button label               |
-| `--size-15` | 15        | Larger body, panel intro prose                        |
-| `--size-16` | 16        | Section heading inside a Cell                         |
-| `--size-20` | 20        | Subsection heading                                    |
-| `--size-28` | 28        | Page title                                            |
-| `--size-36` | 36        | Hero numeric / large mono in stripe inspector         |
-| `--size-44` | 44        | Reserved; demo/Hero only                              |
+| Token         | Size (px) | Role                                                |
+| ------------- | --------- | --------------------------------------------------- |
+| `--size-10`   | 10        | Micro labels (rare, only inside chips)              |
+| `--size-11`   | 11        | Sub-label, footnote, status-pill caption            |
+| `--size-12`   | 12        | Body label, table column header                     |
+| `--size-12-5` | 12.5      | Inline metadata adjacent to mono code (alignment)   |
+| `--size-13`   | 13        | Default body sans                                   |
+| `--size-13-5` | 13.5      | Mono raw values (matches body height when rendered) |
+| `--size-14`   | 14        | Cell header title, primary button label             |
+| `--size-15`   | 15        | Larger body, panel intro prose                      |
+| `--size-16`   | 16        | Section heading inside a Cell                       |
+| `--size-20`   | 20        | Subsection heading                                  |
+| `--size-28`   | 28        | Page title                                          |
+| `--size-36`   | 36        | Hero numeric / large mono in stripe inspector       |
+| `--size-44`   | 44        | Reserved; demo/Hero only                            |
 
 ### 4.3 Weights and tracking
 
@@ -256,12 +252,12 @@ stripe is used inside `ParseToken` (as a view-mode option) and inside
 
 Four contiguous segments in this order, left to right:
 
-| Segment ID       | Role                                          | Light fill | Dark fill  |
-|------------------|-----------------------------------------------|------------|------------|
-| `seg-identifier` | macaroon identifier bytes                     | `#1d6fb8`  | `#8ab4f8`  |
-| `seg-location`   | macaroon location string                      | `#198754`  | `#198754`  |
-| `seg-caveat`     | concatenated caveats (variable count)         | `#8a3aa8`  | `#8a3aa8`  |
-| `seg-signature`  | terminating HMAC signature                    | `#b78107`  | `#b78107`  |
+| Segment ID       | Role                                  | Light fill | Dark fill |
+| ---------------- | ------------------------------------- | ---------- | --------- |
+| `seg-identifier` | macaroon identifier bytes             | `#1d6fb8`  | `#8ab4f8` |
+| `seg-location`   | macaroon location string              | `#198754`  | `#198754` |
+| `seg-caveat`     | concatenated caveats (variable count) | `#8a3aa8`  | `#8a3aa8` |
+| `seg-signature`  | terminating HMAC signature            | `#b78107`  | `#b78107` |
 
 The four segment fills are normative. They map to `primary`, `accent`, the
 purple accent `#8a3aa8`, and `warn` respectively in the reference HTML.
@@ -293,11 +289,11 @@ the affected segment only — no width or position animation.
 
 Every Cell that displays a structured value exposes a view-mode toggle:
 
-| Mode  | Definition                                                            |
-|-------|-----------------------------------------------------------------------|
-| `raw` | The byte-faithful rendering of the value. **Source of truth.** For a macaroon, this is the base64 token. For an invoice, this is the bolt11 string. |
-| `json`| A parsed/structured rendering. For a macaroon, the decoded fields. For an invoice, the parsed tagged fields. May reorder for readability; MUST NOT drop fields. |
-| `code`| The code-snippet pane: a runnable code example that produces this exact value with `@boltwall/l402`. The Cell's "Code strip" (§5.3) opens beneath the body. |
+| Mode   | Definition                                                                                                                                                      |
+| ------ | --------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| `raw`  | The byte-faithful rendering of the value. **Source of truth.** For a macaroon, this is the base64 token. For an invoice, this is the bolt11 string.             |
+| `json` | A parsed/structured rendering. For a macaroon, the decoded fields. For an invoice, the parsed tagged fields. May reorder for readability; MUST NOT drop fields. |
+| `code` | The code-snippet pane: a runnable code example that produces this exact value with `@boltwall/l402`. The Cell's "Code strip" (§5.3) opens beneath the body.     |
 
 ### 7.1 Rules
 
@@ -325,12 +321,12 @@ border) but differ in fill rules and copy semantics.
 
 Reports the runtime state of a Cell or operation.
 
-| State        | Light fill                            | Dark fill                                  | Text color    |
-|--------------|---------------------------------------|--------------------------------------------|---------------|
-| `ok`         | `accent-soft`                         | `color-mix(accent 12%, transparent)`       | `accent`      |
-| `pending`    | `surface-alt`                         | `surface-alt`                              | `dim`         |
-| `warn`       | `warn-soft`                           | `color-mix(warn 12%, transparent)`         | `warn`        |
-| `error`      | `danger-soft`                         | `color-mix(danger 12%, transparent)`       | `danger`      |
+| State     | Light fill    | Dark fill                            | Text color |
+| --------- | ------------- | ------------------------------------ | ---------- |
+| `ok`      | `accent-soft` | `color-mix(accent 12%, transparent)` | `accent`   |
+| `pending` | `surface-alt` | `surface-alt`                        | `dim`      |
+| `warn`    | `warn-soft`   | `color-mix(warn 12%, transparent)`   | `warn`     |
+| `error`   | `danger-soft` | `color-mix(danger 12%, transparent)` | `danger`   |
 
 The status pill lives in the Cell header, right of the view-mode toggle.
 
@@ -439,14 +435,14 @@ this is a user-education affordance, not a protocol surface.
 
 ## 11. Panel-to-spec mapping (informative)
 
-The bead epic `bw-0dw` enumerates the workbench's 9 panels. Each panel is a
-Cell composition. Two panels fold-in reference features from the design HTML
-that were originally separate views:
+The workbench is organized as 9 panels. Each panel is a Cell composition. Two
+panels fold-in reference features from the design HTML that were originally
+separate views:
 
 - **ParseToken** absorbs the standalone `Inspect` view as its `json` view mode
   and absorbs the stripe view from `validate.html` as a fourth view-mode (this
   is the one Cell where four view modes are allowed: `raw | json | stripe |
-  code`). The `stripe` mode renders the §6 macaroon stripe.
+code`). The `stripe` mode renders the §6 macaroon stripe.
 - **ValidateL402** absorbs the standalone `Mutate` view as a per-segment
   Tamper action, accessed by clicking a segment in the stripe (§6.3).
 
@@ -460,7 +456,7 @@ top-level. Right-side links `docs / spec / github` are retained.
 
 ## 12. What this spec does NOT cover
 
-To keep the spec narrow and the implementation beads focused:
+To keep the spec narrow and the implementation tasks focused:
 
 - **No Tailwind config.** Token names are defined here. Whether the
   implementation uses Tailwind's `theme.extend.colors`, CSS custom properties,
@@ -468,10 +464,9 @@ To keep the spec narrow and the implementation beads focused:
 - **No `globals.css` content.** Reset, font loading, and base styles live in
   `bw-0dw.1`.
 - **No component prop interfaces.** TypeScript shapes for `<Cell>`,
-  `<StatusPill>`, `<MacaroonStripe>`, etc., live in `bw-0dw.1` and the panel
-  beads.
+  `<StatusPill>`, `<MacaroonStripe>`, etc., live with the implementation tasks.
 - **No package additions.** `nuqs` is named here as a requirement; adding it
-  to `apps/playground/package.json` is `bw-0dw.1`'s work.
+  to `apps/playground/package.json` belongs with the implementation task.
 - **No copy text.** Cell titles, button labels, tooltips, and error messages
   are owner-provided when each panel ships.
 
@@ -486,8 +481,4 @@ To keep the spec narrow and the implementation beads focused:
   Tamper action in §6.3.
 - `docs/playground-visual-concepts.md` — previous direction (Concept D /
   Color Grid). Superseded.
-- Tracking bead: `bw-0dw.15`. Downstream implementation bead: `bw-0dw.1`.
-
----
-
-*Bead `bw-0dw.15` (`requires-owner`). Owner approval required to close.*
+- Tracking reference: playground Cells + Macaroon-stripe design direction.

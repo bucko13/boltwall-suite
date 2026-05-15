@@ -3,8 +3,7 @@
 ## Superseded
 
 The selection captured in this document has been superseded by the revised
-playground design direction tracked in **bead `bw-0dw.15`**. The current
-normative specification for the playground is
+playground design direction. The current normative specification for the playground is
 [`docs/playground-design-system.md`](./playground-design-system.md) — a
 Cells + Macaroon-stripe design system that replaces the Color Grid direction
 described below.

@@ -1,7 +1,6 @@
 # Security Boundaries
 
-The short security rules in `AGENTS.md` are mandatory. This document gives the
-expanded reference behind them.
+This document gives the expanded security reference for contributors.
 
 ## Secrets
 

@@ -4,21 +4,21 @@ Tests prove behavior. Prefer focused unit tests for local logic, integration
 tests for package boundaries, and e2e tests for user-visible flows. This
 document is the authoritative reference for every test surface in the repo.
 **Keep it current: adding a new test surface without updating this doc means
-the acceptance criteria for that bead are not met.**
+the acceptance criteria for that work are not met.**
 
 ---
 
 ## Quick Reference
 
-| Command | What it covers | Prerequisites | Runs in CI? |
-|---|---|---|---|
-| `bun run test` | Unit tests, all packages | None | ✓ every push |
-| `bun run test --filter @boltwall/l402` | l402 unit tests only | None | ✓ |
-| `bun run test:browser` | l402 ESM bundle import in Chromium | Built l402 (`bun run build`) | ✓ every push |
-| `bun run test:e2e` (from `apps/playground`) | Playground UI flows end-to-end | Node.js (dev server auto-started) | Planned Phase 9 |
-| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop | Docker + LND regtest node | ✓ on l402/fixture PRs |
-| `bun run package-health` | publint + arethetypeswrong | Built packages | Manual |
-| `bun run size` | @boltwall/l402 bundle size budget | Built l402 | Manual |
+| Command                                       | What it covers                     | Prerequisites                     | Runs in CI?           |
+| --------------------------------------------- | ---------------------------------- | --------------------------------- | --------------------- |
+| `bun run test`                                | Unit tests, all packages           | None                              | ✓ every push          |
+| `bun run test --filter @boltwall/l402`        | l402 unit tests only               | None                              | ✓                     |
+| `bun run test:browser`                        | l402 ESM bundle import in Chromium | Built l402 (`bun run build`)      | ✓ every push          |
+| `bun run test:e2e` (from `apps/playground`)   | Playground UI flows end-to-end     | Node.js (dev server auto-started) | Planned Phase 9       |
+| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop     | Docker + LND regtest node         | ✓ on l402/fixture PRs |
+| `bun run package-health`                      | publint + arethetypeswrong         | Built packages                    | Manual                |
+| `bun run size`                                | @boltwall/l402 bundle size budget  | Built l402                        | Manual                |
 
 ---
 
@@ -37,6 +37,7 @@ an already-running local server. Playground e2e also accepts
 encoding, crypto, satisfiers, caveats, and all `@boltwall/l402` protocol logic.
 
 **Location:**
+
 - `packages/l402/test/*.test.ts` — main unit suite
 - `packages/l402/test/adversarial/` — tamper/edge-case vectors
 - `packages/l402/test/interop/aperture-smoke.test.ts` — Aperture library
@@ -47,6 +48,7 @@ encoding, crypto, satisfiers, caveats, and all `@boltwall/l402` protocol logic.
 - `packages/middleware/test/` — middleware unit tests
 
 **Run:**
+
 ```sh
 bun run test                             # all packages
 bun run test --filter @boltwall/l402    # single package
@@ -69,6 +71,7 @@ fail to import or silently misbehave in a browser environment.
 **Location:** `packages/l402/test/browser/import.spec.ts`
 
 **Run:**
+
 ```sh
 # From repo root — turbo builds l402 first automatically:
 bun run test:browser --filter @boltwall/l402
@@ -94,13 +97,14 @@ persistence, L402 browser API behavior, and workbench panel flows.
 
 **Location:** `apps/playground/test/e2e/`
 
-| Spec file | What it covers |
-|---|---|
-| `design.spec.ts` | Design system primitives, theme toggle, persistence, focus |
+| Spec file              | What it covers                                                  |
+| ---------------------- | --------------------------------------------------------------- |
+| `design.spec.ts`       | Design system primitives, theme toggle, persistence, focus      |
 | `l402-browser.spec.ts` | L402 API correctness in the browser bundle (using fixture data) |
-| `panels/` | Per-panel fixture-driven interaction specs (bw-0dw.6) |
+| `panels/`              | Per-panel fixture-driven interaction specs (bw-0dw.6)           |
 
 **Run:**
+
 ```sh
 # From repo root:
 bun run test:e2e --filter @boltwall/playground
@@ -131,6 +135,7 @@ and makes the infrastructure requirement explicit.
 **Location:** `packages/l402/test/interop/aperture-pr.test.ts`
 
 **Scenarios:**
+
 1. GET protected resource → 402 with parseable L402 challenge
 2. Challenge macaroon → valid v0 identifier via `decodeIdentifier`
 3. `buildAuthorizationHeader` from challenge → Aperture accepts (strictverify=false)
@@ -139,12 +144,14 @@ and makes the infrastructure requirement explicit.
 6. Multi-macaroon Authorization header → `parseAuthorizationHeader` accepts
 
 **Prerequisites:**
+
 - Docker
 - A running LND regtest node with the following exported:
   - `LND_TLS_CERT` — path to your LND `tls.cert`
   - `LND_MACAROON_DIR` — path to your LND macaroon directory
 
 **Run:**
+
 ```sh
 # Step 1: start the Aperture + backend Docker stack
 LND_TLS_CERT=/path/to/tls.cert \
@@ -164,6 +171,7 @@ packages/test-fixtures/aperture-smoke/run-interop.sh
 ```
 
 **Tear down:**
+
 ```sh
 docker compose \
   -f packages/test-fixtures/aperture-smoke/docker-compose.yml \
@@ -187,6 +195,7 @@ configured as GitHub Actions secrets.
   TypeScript types are correct for all export conditions (ESM, CJS, etc.).
 
 **Run:**
+
 ```sh
 bun run package-health                           # all publishable packages
 bun run package-health --filter @boltwall/l402   # single package
@@ -202,6 +211,7 @@ bun run package-health --filter @boltwall/l402   # single package
 gzipped budget on the `@boltwall/l402` dist bundle.
 
 **Run:**
+
 ```sh
 bun run size --filter @boltwall/l402
 # Or from packages/l402:
@@ -214,24 +224,24 @@ bun run size
 
 ## Expectations By Change Type
 
-| Change type | Required |
-|---|---|
-| Bug fix | Failing regression unit test before the fix, green after |
-| New caveat helper | Positive and negative vectors; attenuation chain where applicable |
-| New backend adapter | Capability flags, mock parity, unsupported capability rejection |
-| New public API | Typed signature, JSDoc, compiling README example |
-| Wire-format change | Spec citation, conformance fixtures, positive and negative round trips |
-| Cross-runtime `@boltwall/l402` change | `bun run test:browser` + ESM bundle review for Node-only leakage |
-| Playground UI change | Playwright e2e for the flow; desktop + mobile smoke |
-| Pricing or invoice change | `bigint` round trip and invoice amount verification |
-| Security boundary | Explicit test that proves the boundary holds |
-| New test surface or runner | Update this document (see below) |
+| Change type                           | Required                                                               |
+| ------------------------------------- | ---------------------------------------------------------------------- |
+| Bug fix                               | Failing regression unit test before the fix, green after               |
+| New caveat helper                     | Positive and negative vectors; attenuation chain where applicable      |
+| New backend adapter                   | Capability flags, mock parity, unsupported capability rejection        |
+| New public API                        | Typed signature, JSDoc, compiling README example                       |
+| Wire-format change                    | Spec citation, conformance fixtures, positive and negative round trips |
+| Cross-runtime `@boltwall/l402` change | `bun run test:browser` + ESM bundle review for Node-only leakage       |
+| Playground UI change                  | Playwright e2e for the flow; desktop + mobile smoke                    |
+| Pricing or invoice change             | `bigint` round trip and invoice amount verification                    |
+| Security boundary                     | Explicit test that proves the boundary holds                           |
+| New test surface or runner            | Update this document (see below)                                       |
 
 ---
 
 ## Adding a New Test Surface
 
-When a bead introduces a new test type, runner, `test:*` script, or
+When a task introduces a new test type, runner, `test:*` script, or
 infrastructure dependency:
 
 1. **Add a `test:<surface>` script** to the relevant `package.json`. Do not
@@ -243,11 +253,11 @@ infrastructure dependency:
    - Add a new section with: what it covers, location, run command,
      prerequisites, and CI status.
    - Update the Expectations By Change Type table if relevant.
-4. **Update `AGENTS.md`'s routing table** if agents should be directed here
-   for specific change types.
+4. **Update contributor guidance** if the new surface changes required
+   validation for specific change types.
 5. **Add a CI job or step** if the surface should run automatically.
 
-Missing this step means the bead's acceptance criteria are not met.
+Missing this step means the task's acceptance criteria are not met.
 
 ---
 

@@ -18,13 +18,13 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 ## Packages
 
-| Package | Status | Purpose |
-|---|---|---|
-| `@boltwall/l402` | Planned/private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
-| `@boltwall/middleware` | Planned/private | Web Fetch core + Express adapter for protecting HTTP endpoints |
-| `@boltwall/adapters` | Planned/private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports |
-| `@boltwall/proxy` | Planned/private | Reverse proxy package + CLI + Vercel deploy template |
-| `@boltwall/playground` | Planned/private | Next.js demo site with Pokedex paid endpoint and proxy/paywall flow |
+| Package                | Status          | Purpose                                                                                                  |
+| ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------- |
+| `@boltwall/l402`       | Planned/private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
+| `@boltwall/middleware` | Planned/private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
+| `@boltwall/adapters`   | Planned/private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
+| `@boltwall/proxy`      | Planned/private | Reverse proxy package + CLI + Vercel deploy template                                                     |
+| `@boltwall/playground` | Planned/private | Next.js demo site with Pokedex paid endpoint and proxy/paywall flow                                      |
 
 Install commands will be added once the API is stable enough to publish.
 
@@ -70,10 +70,6 @@ These projects are referenced for historical context.
 For the Go reference implementation, see [lightninglabs/aperture](https://github.com/lightninglabs/aperture).
 
 `bucko13/boltwall` is AGPL-3.0 and is reference-only for this MIT rewrite. Do not copy AGPL source code, comments, tests, or generated docs into this repository.
-
-## AI Agent Workflow
-
-Agents must read [AGENTS.md](./AGENTS.md) before making changes. That file defines the validation contract, security boundaries, dependency policy, spec-citation expectations, and multi-agent coordination workflow for this repository.
 
 ## License
 

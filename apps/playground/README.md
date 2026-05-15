@@ -39,11 +39,11 @@ legacy playground's core product model — challenge parsing, token construction
 and live protected endpoint interaction — while the real backend endpoint is
 still landing.
 
-Later beads deepen the runtime-backed pieces without changing the primary
+Later tasks deepen the runtime-backed pieces without changing the primary
 learning goal:
 
 - `bw-0dw.3` wires the real Pokedex paid endpoint.
-- Phase 4 middleware beads provide the real 402/authorization state machine.
+- Phase 4 middleware tasks provide the real 402/authorization state machine.
 - Phase 6 proxy work may provide integration targets, but proxy and middleware
   setup are supporting details rather than the playground's main experience.
 - Phase 7 exit-gate work verifies the full playground flow after those pieces

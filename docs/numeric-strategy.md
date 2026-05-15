@@ -2,8 +2,8 @@
 
 Canonical conventions for representing money amounts, payment-hash counters,
 expiry timestamps, and any other numeric values that cross package boundaries
-in Boltwall Suite. This document is the source of truth referenced by AGENTS.md
-"Code Quality Bar" and by every task that adds a numeric public API.
+in Boltwall Suite. This document is the source of truth for every task that adds
+a numeric public API.
 
 ## TL;DR
 
@@ -53,10 +53,9 @@ The two places where non-integer reasoning _might_ sneak in are:
    `bigint` msat without going through `Number`. A 30-line parser in
    `@boltwall/internal` is sufficient. See "Input parsing" below.
 
-Per AGENTS.md "Dependency Policy" (≈200-line threshold), both fall well
-inside the internal-utility band. Adding `bignumber.js`, `big.js`, or
-`decimal.js` for a problem that fits in 50 lines of TypeScript would import a
-maintenance and supply-chain tail we do not need.
+Both fall well inside the internal-utility band. Adding `bignumber.js`,
+`big.js`, or `decimal.js` for a problem that fits in 50 lines of TypeScript
+would import a maintenance and supply-chain tail we do not need.
 
 ## Where helpers live
 
