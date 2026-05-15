@@ -24,7 +24,7 @@ const HOME_PANELS = [
   {
     slug: "demo",
     label: "Demo",
-    description: "Try the paid flow against the playground demo surface.",
+    description: "Fetch a configurable endpoint and inspect any L402 challenge header.",
   },
 ];
 

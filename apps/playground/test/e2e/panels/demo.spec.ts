@@ -1,62 +1,56 @@
 import { expect, test } from "@playwright/test";
 
 test.describe("panels / demo", () => {
-  test("shows WebLN not detected when webln is absent", async ({ page }) => {
+  test("fetches the default unprotected Pokedex endpoint", async ({ page }) => {
+    await page.route("https://pokeapi.co/api/v2/pokemon/1", async (route) => {
+      await route.fulfill({
+        status: 200,
+        headers: {
+          "access-control-allow-origin": "*",
+          "content-type": "application/json",
+        },
+        json: { id: 1, name: "bulbasaur" },
+      });
+    });
+
     await page.goto("/p/demo");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
-    await expect(page.locator("[data-testid='demo-no-webln']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
+      "https://pokeapi.co/api/v2/pokemon/1",
+    );
+    await page.click("[data-testid='demo-fetch']");
+
+    await expect(page.locator("[data-testid='demo-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-status']")).toHaveText("200");
+    await expect(page.locator("[data-testid='demo-authenticate']")).toHaveText("(none)");
+    await expect(page.locator("[data-testid='demo-body']")).toContainText("bulbasaur");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
       "recipe code",
     );
   });
 
-  test("connect button with injected mock webln shows node info", async ({ page }) => {
-    await page.addInitScript(() => {
-      (window as Window & { webln?: unknown }).webln = {
-        enable: async () => {},
-        getInfo: async () => ({
-          node: { pubkey: "03abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab" },
-        }),
-      };
+  test("can point at an externally protected Boltwall endpoint", async ({ page }) => {
+    const endpoint = "https://boltwall.example.test/api/protected/1";
+    await page.route(endpoint, async (route) => {
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
     });
 
     await page.goto("/p/demo");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
-    await page.click("[data-testid='demo-connect']");
+    await page.fill("[data-testid='demo-endpoint-input']", endpoint);
+    await page.click("[data-testid='demo-fetch']");
 
     await expect(page.locator("[data-testid='demo-output']")).toBeVisible();
-    await expect(page.locator("[data-testid='demo-output']")).toContainText("03abcdef");
-  });
-
-  test("sendPayment is never invoked", async ({ page }) => {
-    await page.addInitScript(() => {
-      const win = window as unknown as {
-        webln?: {
-          enable(): Promise<void>;
-          getInfo(): Promise<{ node: { pubkey: string } }>;
-          sendPayment(): void;
-        };
-        __paymentCalled?: boolean;
-      };
-      win.webln = {
-        enable: async () => {},
-        getInfo: async () => ({ node: { pubkey: "03aaa" } }),
-        sendPayment: () => {
-          win.__paymentCalled = true;
-        },
-      };
-    });
-
-    await page.goto("/p/demo");
-    const connectBtn = page.locator("[data-testid='demo-connect']");
-    if (await connectBtn.isEnabled()) {
-      await connectBtn.click();
-      await page.waitForTimeout(300);
-    }
-
-    const paymentCalled = await page.evaluate(
-      () => !!(window as Window & { __paymentCalled?: boolean }).__paymentCalled,
-    );
-    expect(paymentCalled).toBe(false);
+    await expect(page.locator("[data-testid='demo-status']")).toHaveText("402");
+    await expect(page.locator("[data-testid='demo-authenticate']")).toContainText("L402");
   });
 });

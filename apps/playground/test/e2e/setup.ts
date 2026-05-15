@@ -15,36 +15,6 @@ export async function grantClipboard(context: BrowserContext) {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
 }
 
-/**
- * Inject a mock `window.webln` object before the page loads.
- * Tracks whether `sendPayment` was ever called via `window.__paymentCalled`.
- */
-export function injectWebln(
-  page: Page,
-  opts: { pubkey?: string; trackPayment?: boolean } = {},
-) {
-  const pubkey = opts.pubkey ?? "03abcdef1234567890abcdef1234567890abcdef1234567890abcdef1234567890ab";
-  const trackPayment = opts.trackPayment ?? true;
-
-  return page.addInitScript(
-    ({ pubkey, trackPayment }: { pubkey: string; trackPayment: boolean }) => {
-      const win = window as unknown as {
-        webln?: object;
-        __paymentCalled?: boolean;
-      };
-      win.__paymentCalled = false;
-      win.webln = {
-        enable: async () => {},
-        getInfo: async () => ({ node: { pubkey } }),
-        sendPayment: () => {
-          if (trackPayment) win.__paymentCalled = true;
-        },
-      };
-    },
-    { pubkey, trackPayment },
-  );
-}
-
 /** Read clipboard text after a copy action. */
 export async function readClipboard(page: Page): Promise<string> {
   return page.evaluate(() => navigator.clipboard.readText());

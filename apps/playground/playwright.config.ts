@@ -7,7 +7,7 @@ export default defineConfig({
   testDir: "./test/e2e",
   fullyParallel: true,
   webServer: {
-    command: `BOLTWALL_PLAYGROUND_BACKEND=mock BOLTWALL_PLAYGROUND_ENABLE_TEST_PAYMENT=1 BOLTWALL_PLAYGROUND_POKEAPI_MODE=fixture node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`,
+    command: `node node_modules/next/dist/bin/next dev --hostname 127.0.0.1 --port ${port}`,
     url: baseURL,
     reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
     timeout: 60_000,

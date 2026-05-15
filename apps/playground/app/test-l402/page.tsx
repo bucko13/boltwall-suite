@@ -1,7 +1,7 @@
 "use client";
 
-import { useEffect } from "react";
 import * as l402 from "@boltwall/l402";
+import { useEffect } from "react";
 
 // Exposes the @boltwall/l402 module on window.__l402 so Playwright's
 // page.evaluate() can call it with fixture data without needing a global bundle.
