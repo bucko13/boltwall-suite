@@ -1,3 +1,5 @@
+import { bytesToHex, hexToBytes32 } from "@boltwall/internal";
+
 import {
   buildAuthenticateHeaders,
   type AuthenticateHeaderCompatibility,
@@ -48,10 +50,6 @@ function normalizeMacaroons(macaroons: string | string[]): string[] {
     }
   }
   return normalized;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");
 }
 
 function parsePossiblyPendingToken(token: string): {
@@ -280,16 +278,3 @@ export class L402 {
   }
 }
 
-function hexToBytes32(hex: string, label: string): Uint8Array {
-  if (hex.length !== 64) {
-    throw new RangeError(`${label} must be 32 bytes`);
-  }
-  if (!/^[0-9a-fA-F]+$/.test(hex)) {
-    throw new RangeError(`${label} must be hex`);
-  }
-  const out = new Uint8Array(32);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
-}

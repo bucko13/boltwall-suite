@@ -1,9 +1,8 @@
-import { timingSafeEqual } from "@boltwall/internal";
+import { hexToBytes, timingSafeEqual } from "@boltwall/internal";
 import { sha256 } from "@noble/hashes/sha2.js";
 
 const PAYMENT_HASH_LENGTH = 32;
 const PREIMAGE_LENGTH = 32;
-const HEX_RE = /^[0-9a-fA-F]+$/;
 
 /**
  * Either a 32-byte `Uint8Array` or a 64-char hex string. Internal helpers
@@ -16,26 +15,6 @@ export interface VerifyPreimageArgs {
   paymentHash: Bytes32Input;
   /** Lightning payment preimage (32 bytes) revealed after invoice settlement. */
   preimage: Bytes32Input;
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  if (hex.length % 2 !== 0) {
-    throw new RangeError("hex string must have an even number of characters");
-  }
-  if (!HEX_RE.test(hex)) {
-    throw new RangeError("hex string contains non-hex characters");
-  }
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    const hi = hex.charCodeAt(i * 2);
-    const lo = hex.charCodeAt(i * 2 + 1);
-    // Inline hex decode is faster than `parseInt(hex.slice(i*2, i*2+2), 16)`
-    // and avoids allocating substrings for every byte.
-    const hiV = hi <= 57 ? hi - 48 : (hi & 0x0f) + 9;
-    const loV = lo <= 57 ? lo - 48 : (lo & 0x0f) + 9;
-    out[i] = (hiV << 4) | loV;
-  }
-  return out;
 }
 
 function normalizeBytes32(value: Bytes32Input, label: string): Uint8Array {

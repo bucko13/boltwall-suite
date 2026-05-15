@@ -1,3 +1,5 @@
+import { bytesToHex, hexToBytes32 } from "@boltwall/internal";
+
 import type {
   BackendCapabilities,
   BackendKind,
@@ -208,15 +210,11 @@ function normalizeHex(value: string): string {
 }
 
 function hexToBytes(value: string, label: string): Uint8Array {
-  const normalized = normalizeHex(value);
-  if (normalized.length !== HEX_32_BYTES_LENGTH) {
+  try {
+    return hexToBytes32(normalizeHex(value), label);
+  } catch {
     throw new Error(`invalid-${label}`);
   }
-  const out = new Uint8Array(normalized.length / 2);
-  for (let i = 0; i < out.length; i += 1) {
-    out[i] = Number.parseInt(normalized.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
 }
 
 async function sha256Hex(bytes: Uint8Array): Promise<string> {
@@ -234,8 +232,4 @@ function deterministicHex(seed: string): string {
     out[i] = state & 0xff;
   }
   return bytesToHex(out);
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
 }

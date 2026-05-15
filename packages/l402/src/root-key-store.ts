@@ -1,3 +1,5 @@
+import { bytesToHex } from "@boltwall/internal";
+
 /**
  * Storage contract for macaroon root keys indexed by token id.
  *
@@ -44,10 +46,3 @@ export class InMemoryRootKeyStore implements RootKeyStore {
   }
 }
 
-function bytesToHex(bytes: Uint8Array): string {
-  let out = "";
-  for (const byte of bytes) {
-    out += byte.toString(16).padStart(2, "0");
-  }
-  return out;
-}

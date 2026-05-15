@@ -11,6 +11,7 @@
  */
 
 import type { InvoiceLookup } from "@boltwall/adapters";
+import { bytesToHex, hexToBytes } from "@boltwall/internal";
 import {
   type Caveat,
   type L402CredentialFields,
@@ -38,10 +39,6 @@ function randomTokenId(): Uint8Array {
   const bytes = new Uint8Array(32);
   crypto.getRandomValues(bytes);
   return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
 /** Resolve a price value that may be static or a per-request function. */
@@ -310,14 +307,6 @@ async function getOrGenerateRootKey(
   crypto.getRandomValues(key);
   await store.put(tokenId, key);
   return key;
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
 }
 
 /**
