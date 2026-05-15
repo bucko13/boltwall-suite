@@ -22,6 +22,7 @@ assertBackendSupports(backend, { hodl: true });
 ## Adapter entrypoints
 
 - `@boltwall/adapters/lnd`
+- `@boltwall/adapters/voltage-lnd`
 - `@boltwall/adapters/opennode`
 - `@boltwall/adapters/btcpay`
 - `@boltwall/adapters/testing`
@@ -36,6 +37,58 @@ capability surface and lets tests drive invoice state directly with `settle`,
 The mock returns placeholder `mockbolt11_...` payment request strings rather
 than real BOLT 11 invoices. Tests that need real invoice decoding should use
 fixtures from `@boltwall/l402` or a concrete backend adapter.
+
+## Voltage-hosted LND
+
+`@boltwall/adapters/voltage-lnd` is a thin profile/factory over the LND adapter
+for Voltage Cloud hosted nodes. Voltage exposes the full LND gRPC + REST API
+([Voltage LND Node API docs](https://docs.voltage.cloud/lnd-node-api)), so the
+returned adapter is an ordinary `LndAdapter` with the same capability surface
+(`hodl`, `cancelInvoice`, `streamingInvoices`, `customDescription`). No LND
+behavior is duplicated.
+
+```ts
+import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
+
+const backend = createVoltageLndAdapter({
+  baseUrl: process.env.VOLTAGE_LND_BASE_URL!,
+  macaroon: process.env.VOLTAGE_LND_MACAROON!,
+  cert: process.env.VOLTAGE_LND_CERT!,
+});
+```
+
+Or, with the bundled typed env loader:
+
+```ts
+import { createVoltageLndAdapterFromEnv } from "@boltwall/adapters/voltage-lnd";
+
+const backend = createVoltageLndAdapterFromEnv();
+```
+
+### Configuration shape
+
+- `VOLTAGE_LND_BASE_URL` — bare host (`node.m.voltageapp.io`), `host:port`, or
+  full `https://…` URL from the Voltage dashboard's "Node Details" tile. The
+  factory normalizes to `host:10009` for gRPC. The documented REST port
+  ([8080](https://docs.voltage.cloud/rest-api-examples)) is substituted with
+  the gRPC port (`10009`) silently because the underlying adapter speaks gRPC.
+- `VOLTAGE_LND_MACAROON` — admin macaroon as a lowercase hex string from the
+  dashboard's "Admin Macaroon" tile. See
+  [Voltage LND Node API](https://docs.voltage.cloud/lnd-node-api).
+- `VOLTAGE_LND_CERT` — TLS certificate provided by the Voltage dashboard.
+  Both raw base64 and full PEM-with-headers forms are accepted; the
+  underlying `lightning` package normalizes them.
+
+`loadVoltageLndEnv` throws a `VoltageLndEnvError` that does not echo macaroon
+or cert values in error messages.
+
+### Capability flags
+
+Voltage's documentation describes the LND surface as "the full LND API (gRPC and
+REST)" with no capability restrictions vs a self-managed LND node, so this
+profile inherits `LndAdapter.capabilities` unchanged. If a future Voltage tier
+restricts an LND RPC, override the capability surface at the
+`assertBackendSupports` call site rather than forking the LND adapter.
 
 ## Notes
 
@@ -70,6 +123,9 @@ Official references:
 - BTCPay Server Greenfield API: <https://docs.btcpayserver.org/API/Greenfield/v1/>
 - Lightning Labs LND API: <https://api.lightning.community/>
 - Voltage LND node product docs: <https://docs.voltage.cloud/>
+- Voltage LND Node API (ports, connection, admin macaroon): <https://docs.voltage.cloud/lnd-node-api>
+- Voltage REST API examples (URL template, header auth): <https://docs.voltage.cloud/rest-api-examples>
+- Voltage gRPC API examples: <https://docs.voltage.cloud/grpc-api-examples>
 
 Server-only boundary: network/payment-provider adapters are server runtime code.
 Do not import concrete adapters from playground client components or any browser
