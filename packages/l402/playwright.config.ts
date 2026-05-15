@@ -10,7 +10,7 @@ export default defineConfig({
     command: "bun run scripts/serve-bundle.ts",
     port: 31333,
     timeout: 30_000,
-    reuseExistingServer: !process.env.CI,
+    reuseExistingServer: process.env.PLAYWRIGHT_REUSE_SERVER === "1",
   },
   projects: [
     {

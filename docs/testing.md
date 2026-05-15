@@ -22,6 +22,15 @@ the acceptance criteria for that bead are not met.**
 
 ---
 
+## Playwright Server Reuse
+
+Browser and e2e Playwright configs start their own local servers by default.
+Set `PLAYWRIGHT_REUSE_SERVER=1` only when you intentionally want to run against
+an already-running local server. Playground e2e also accepts
+`PLAYWRIGHT_PORT=<port>` to choose a non-default port.
+
+---
+
 ## Unit Tests
 
 **What:** Pure function tests with no external dependencies. Cover parsing,
