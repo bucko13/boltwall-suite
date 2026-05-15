@@ -48,3 +48,34 @@ learning goal:
   setup are supporting details rather than the playground's main experience.
 - Phase 7 exit-gate work verifies the full playground flow after those pieces
   land.
+
+## Paid Pokedex endpoint
+
+`GET /api/pokemon/:id` is protected by the Web Fetch `authorizeL402` core. A
+missing credential returns a dual LSAT-first/L402-second 402 challenge; a valid
+paid retry proxies to `https://pokeapi.co/api/v2/pokemon/:id`.
+
+Production payment config lives in `lib/server/payment-config.ts` and validates
+environment variables with `zod`. Playwright-only mock payments live separately
+in `lib/server/test-payment-config.ts`, and `lib/server/payment-runtime.ts`
+selects that test config only when explicitly enabled outside production.
+Backend credential variables must never use `NEXT_PUBLIC_`.
+
+Supported backend selections:
+
+```sh
+# Local development and Playwright e2e can opt into MockAdapter.
+BOLTWALL_PLAYGROUND_BACKEND=mock
+BOLTWALL_PLAYGROUND_ENABLE_TEST_PAYMENT=1
+
+# LND or Voltage-hosted LND use the same adapter shape.
+BOLTWALL_PLAYGROUND_BACKEND=lnd
+BOLTWALL_PLAYGROUND_BACKEND=voltage-lnd
+LND_SOCKET=127.0.0.1:10009
+LND_CERT_BASE64=<base64 tls cert>
+LND_MACAROON_BASE64=<base64 macaroon>
+```
+
+Production fails closed unless `BOLTWALL_PLAYGROUND_BACKEND` and the required
+backend credentials are present. Error messages name missing variables but do
+not print credential values.
