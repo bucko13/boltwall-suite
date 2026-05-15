@@ -1,0 +1,24 @@
+name: pokedex-proxy
+targetUrl: https://pokeapi.co/api/v2
+backend:
+  kind: voltage-lnd
+  envPrefix: VOLTAGE_LND
+pricing:
+  defaultPriceMsat: "1000"
+routes:
+  - path: /pokemon/*
+    methods:
+      - GET
+    priceMsat: "1000"
+challengeCompatibility: dual
+forwardHeaders:
+  allow:
+    - accept
+    - content-type
+    - x-request-id
+  deny:
+    - cookie
+    - authorization
+deploy:
+  target: vercel
+  projectName: boltwall-pokedex-proxy
