@@ -23,7 +23,7 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 | `@boltwall/l402`       | Planned/private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
 | `@boltwall/middleware` | Planned/private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
 | `@boltwall/adapters`   | Planned/private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
-| `@boltwall/proxy`      | Planned/private | Reverse proxy package + CLI + Vercel deploy template                                                     |
+| `@boltwall/proxy`      | Planned/private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
 | `@boltwall/playground` | Planned/private | Next.js demo site with Pokedex paid endpoint and proxy/paywall flow                                      |
 
 Install commands will be added once the API is stable enough to publish.
