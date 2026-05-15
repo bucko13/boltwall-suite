@@ -18,20 +18,22 @@
     "build": "bunx --bun tsup src/index.ts src/cli.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
     "lint": "eslint src",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"proxy: no tests yet\"",
+    "test": "bun test test/*.test.ts",
     "package-health": "bun run ./scripts/package-health.ts"
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
     "@boltwall/middleware": "workspace:*",
     "express": "^5.1.0",
-    "http-proxy-middleware": "^3.0.5"
+    "http-proxy-middleware": "^3.0.5",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
+    "@types/express": "^5.0.6",
     "publint": "^0.3.15",
     "tsup": "^8.5.0"
   },
