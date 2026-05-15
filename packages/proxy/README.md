@@ -10,6 +10,30 @@ verification are delegated to `@boltwall/middleware`.
 
 ## Usage
 
+For Vercel deployments, use the CLI. It creates or reuses a saved config under
+`~/.config/boltwall/`, validates it, sets the required Vercel environment
+variables, and deploys the generated proxy project:
+
+```sh
+boltwall deploy vercel
+```
+
+Automation can use a checked-in non-secret config:
+
+```sh
+boltwall deploy vercel --config ./boltwall.yaml --yes
+boltwall validate --config ./boltwall.yaml
+boltwall dev --config ./boltwall.yaml
+```
+
+Saved configs store metadata and environment variable names only. Backend
+credentials are read from the current process or prompted interactively, then
+sent to Vercel with `vercel env add --sensitive`; they are not written to the
+config file.
+
+Programmatic usage is still available when embedding the proxy in an existing
+Express app:
+
 ```ts
 import { createProxy } from "@boltwall/proxy";
 
@@ -63,6 +87,38 @@ Supported variables:
 
 Exported environment variables override values from an optional env file. The
 loader reports variable names and validation reasons without echoing values.
+
+## CLI config
+
+`boltwall deploy vercel` can create this shape interactively:
+
+```yaml
+name: pokedex-proxy
+targetUrl: https://pokeapi.co/api/v2
+backend:
+  kind: opennode
+  env:
+    apiKey: OPENNODE_API_KEY
+pricing:
+  defaultPriceMsat: "1000"
+routes:
+  - path: /pokemon/*
+    methods: [GET]
+    priceMsat: "1000"
+challengeCompatibility: dual
+unprotectedPaths:
+  - /healthz
+forwardHeaders:
+  allow: [accept, content-type, x-request-id]
+  deny: [cookie, authorization]
+deploy:
+  target: vercel
+  projectName: boltwall-pokedex-proxy
+```
+
+Supported backend kinds are `lnd`, `voltage-lnd`, `opennode`, and `btcpay`.
+`boltwall validate` constructs the selected adapter, verifies required env vars,
+and checks backend capability flags before serving traffic.
 
 ## Compatibility behavior
 

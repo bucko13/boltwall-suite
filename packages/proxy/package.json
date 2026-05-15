@@ -24,9 +24,11 @@
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
+    "@boltwall/l402": "workspace:*",
     "@boltwall/middleware": "workspace:*",
     "express": "^5.1.0",
     "http-proxy-middleware": "^3.0.5",
+    "yaml": "^2.8.2",
     "zod": "^4.4.3"
   },
   "devDependencies": {
