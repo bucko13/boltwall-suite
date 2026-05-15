@@ -7,6 +7,7 @@
   "scripts": {
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "lint:fix": "turbo run lint:fix",
     "typecheck": "turbo run typecheck",
     "test": "turbo run test",
     "test:browser": "turbo run test:browser",

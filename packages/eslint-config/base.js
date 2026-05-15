@@ -19,7 +19,7 @@ const baseConfig = {
     "@typescript-eslint/consistent-type-imports": "error",
     "@typescript-eslint/no-explicit-any": "error",
     "import/order": [
-      "warn",
+      "error",
       {
         "newlines-between": "always",
         alphabetize: { order: "asc", caseInsensitive: true },

@@ -20,6 +20,13 @@ the acceptance criteria for that work are not met.**
 | `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration | Per-adapter env vars (skipped without)    | Planned Phase 8 nightly |
 | `bun run package-health`                      | publint + arethetypeswrong         | Built packages                    | Manual                |
 | `bun run size`                                | @boltwall/l402 bundle size budget  | Built l402                        | Manual                |
+| `bun run lint`                                | ESLint check-mode across all packages | None                           | ✓ every push          |
+| `bun run lint:fix`                            | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None | ✗ never              |
+
+`bun run lint` is the gate. `bun run lint:fix` is the local autofix helper —
+run it when ESLint reports `... potentially fixable with the --fix option`,
+then re-run `bun run lint` to confirm clean. CI deliberately only runs the
+check-mode `lint` so an accidental fix-mode mutation can never land via CI.
 
 ---
 

@@ -6,6 +6,7 @@
   "scripts": {
     "build": "bun run typecheck",
     "lint": "eslint api",
+    "lint:fix": "eslint api --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test api/*.test.ts"
   },

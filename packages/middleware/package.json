@@ -23,6 +23,7 @@
   "scripts": {
     "build": "tsup src/core/index.ts src/express/index.ts --format esm --dts --clean --sourcemap",
     "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "package-health": "publint && sh -c 'tmp=${TMPDIR:-/tmp}/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'"

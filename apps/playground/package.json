@@ -8,6 +8,7 @@
     "build": "rm -rf .next && next build",
     "start": "next start",
     "lint": "eslint app components lib",
+    "lint:fix": "eslint app components lib --fix",
     "typecheck": "tsc --noEmit",
     "test": "echo \"no unit tests in playground; see test:e2e\"",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",

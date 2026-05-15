@@ -17,6 +17,7 @@
   "scripts": {
     "build": "tsup",
     "lint": "eslint src",
+    "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test test/*.test.ts test/adversarial test/interop/aperture-smoke.test.ts",
     "test:browser": "playwright test --project=chromium-import",
