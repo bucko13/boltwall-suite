@@ -21,9 +21,11 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle, panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "caveats";
-const MODES = ["build", "valid-until", "satisfy"] as const;
+const MODES = ["add", "check"] as const;
+const ADD_KINDS = ["custom", "time-limit"] as const;
 
 type CaveatMode = (typeof MODES)[number];
+type AddKind = (typeof ADD_KINDS)[number];
 type CaveatRow = { condition: string; value: string };
 type SatisfierRow = {
   name: BuiltinSatisfier | string;
@@ -87,7 +89,11 @@ function jsonToSatisfiers(raw: string | null): SatisfierRow[] {
 }
 
 function parseMode(raw: string | null): CaveatMode {
-  return MODES.includes(raw as CaveatMode) ? (raw as CaveatMode) : "build";
+  return MODES.includes(raw as CaveatMode) ? (raw as CaveatMode) : "add";
+}
+
+function parseAddKind(raw: string | null): AddKind {
+  return ADD_KINDS.includes(raw as AddKind) ? (raw as AddKind) : "custom";
 }
 
 function base64ToBytes(b64: string): Uint8Array {
@@ -193,14 +199,20 @@ async function runSatisfiers(
 }
 
 function modeLabel(mode: CaveatMode) {
-  if (mode === "build") return "Build";
-  if (mode === "valid-until") return "Valid-until";
-  return "Satisfy";
+  return mode === "add" ? "Add" : "Check";
+}
+
+function addKindLabel(kind: AddKind) {
+  return kind === "custom" ? "Custom" : "Time limit";
 }
 
 export function Caveats() {
   const [mode, setMode] = useUrlInput<CaveatMode>("mode", parseMode, (v) => v, { panel: PANEL });
-  const activeMode = mode ?? "build";
+  const activeMode = mode ?? "add";
+  const [addKind, setAddKind] = useUrlInput<AddKind>("kind", parseAddKind, (v) => v, {
+    panel: PANEL,
+  });
+  const activeAddKind = addKind ?? "custom";
 
   const [caveatsJson, setCaveatsJson] = useUrlInput<string>(
     "caveats",
@@ -275,7 +287,7 @@ export function Caveats() {
     setDraftError(null);
   }
 
-  function computeExpiration() {
+  function addTimeLimit() {
     const n = parseInt(seconds ?? "", 10);
     if (isNaN(n) || n < 0) {
       setExpirationError("Enter a positive number of seconds.");
@@ -292,12 +304,8 @@ export function Caveats() {
       value: caveat.value,
       serialized: `${caveat.condition}=${caveat.value}`,
     });
+    saveRows([...rows, { condition: caveat.condition, value: caveat.value }]);
     setExpirationError(null);
-  }
-
-  function addExpirationToRows() {
-    if (!expirationResult) return;
-    saveRows([...rows, { condition: expirationResult.condition, value: expirationResult.value }]);
   }
 
   function resetExpiration() {
@@ -362,18 +370,18 @@ export function Caveats() {
   const status = getStatus(
     activeMode,
     rows.length,
-    expirationResult,
     expirationError,
     results,
     satisfyError,
+    draftError,
   );
   const statusLabel = getStatusLabel(
     activeMode,
     rows.length,
-    expirationResult,
     expirationError,
     results,
     satisfyError,
+    draftError,
   );
 
   return (
@@ -381,7 +389,7 @@ export function Caveats() {
       header={
         <HeaderRow
           title="Caveats"
-          subtitle="Build caveats, create time limits, and test satisfiers"
+          subtitle="Add caveats, create time limits, and check satisfiers"
           trailing={
             <>
               <StatusPill state={status} details={expirationError ?? satisfyError ?? draftError}>
@@ -415,7 +423,7 @@ export function Caveats() {
                 style={{
                   padding: "6px 10px",
                   border: "none",
-                  borderRight: m === "satisfy" ? "none" : "1px solid var(--color-border)",
+                  borderRight: m === "check" ? "none" : "1px solid var(--color-border)",
                   background: activeMode === m ? "var(--color-primary)" : "transparent",
                   color: activeMode === m ? "var(--color-surface)" : "var(--color-dim)",
                   cursor: "pointer",
@@ -430,34 +438,69 @@ export function Caveats() {
 
           <CurrentCaveats rows={rows} serialized={serialized} removeRow={removeRow} />
 
-          {activeMode === "build" ? (
-            <BuildMode
-              draft={draft}
-              draftError={draftError}
-              setDraft={setDraft}
-              addRow={addRow}
-              resetRows={resetRows}
-            />
+          {activeMode === "add" ? (
+            <>
+              <div
+                role="tablist"
+                aria-label="Caveat add options"
+                style={{
+                  display: "inline-flex",
+                  alignSelf: "flex-start",
+                  border: "1px solid var(--color-border)",
+                  background: "var(--color-surface-alt)",
+                }}
+              >
+                {ADD_KINDS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    role="tab"
+                    aria-selected={activeAddKind === kind}
+                    onClick={() => setAddKind(kind)}
+                    data-testid={`caveats-add-kind-${kind}`}
+                    style={{
+                      padding: "6px 10px",
+                      border: "none",
+                      borderRight: kind === "time-limit" ? "none" : "1px solid var(--color-border)",
+                      background: activeAddKind === kind ? "var(--color-primary)" : "transparent",
+                      color: activeAddKind === kind ? "var(--color-surface)" : "var(--color-dim)",
+                      cursor: "pointer",
+                      fontSize: "var(--size-12)",
+                      fontWeight: activeAddKind === kind ? 600 : 500,
+                    }}
+                  >
+                    {addKindLabel(kind)}
+                  </button>
+                ))}
+              </div>
+
+              {activeAddKind === "custom" ? (
+                <BuildMode
+                  draft={draft}
+                  draftError={draftError}
+                  setDraft={setDraft}
+                  addRow={addRow}
+                  resetRows={resetRows}
+                />
+              ) : (
+                <TimeLimitMode
+                  seconds={seconds ?? ""}
+                  result={expirationResult}
+                  error={expirationError}
+                  setSeconds={(value) => {
+                    setSeconds(value);
+                    setExpirationResult(null);
+                    setExpirationError(null);
+                  }}
+                  addTimeLimit={addTimeLimit}
+                  reset={resetExpiration}
+                />
+              )}
+            </>
           ) : null}
 
-          {activeMode === "valid-until" ? (
-            <ValidUntilMode
-              seconds={seconds ?? ""}
-              result={expirationResult}
-              error={expirationError}
-              setSeconds={(value) => {
-                setSeconds(value);
-                setExpirationResult(null);
-                setExpirationError(null);
-              }}
-              compute={computeExpiration}
-              addToRows={addExpirationToRows}
-              reset={resetExpiration}
-            />
-          ) : null}
-
-          {activeMode === "satisfy" ? (
-            <SatisfyMode
+          {activeMode === "check" ? (
+            <CheckMode
               caveatCount={rows.length}
               token={token ?? ""}
               setToken={(value) => {
@@ -481,11 +524,15 @@ export function Caveats() {
       code={
         <CodeSnippet
           language="typescript"
-          contract={activeMode === "valid-until" && !expirationResult ? "recipe" : "exact"}
+          contract={
+            activeMode === "add" && activeAddKind === "time-limit" && !expirationResult
+              ? "recipe"
+              : "exact"
+          }
           template={
-            activeMode === "build"
+            activeMode === "add" && activeAddKind === "custom"
               ? `import { serializeCaveat, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst serialized = caveats.map((caveat) => serializeCaveat(caveat));`
-              : activeMode === "valid-until"
+              : activeMode === "add" && activeAddKind === "time-limit"
                 ? expirationResult
                   ? `import type { Caveat } from "@boltwall/l402";\n\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: {{caveatValueLiteral}},\n};`
                   : `import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};`
@@ -508,13 +555,13 @@ export function Caveats() {
 function getStatus(
   mode: CaveatMode,
   rowCount: number,
-  expirationResult: { serialized: string } | null,
   expirationError: string | null,
   results: Record<string, "matched" | "unsatisfied"> | null,
   satisfyError: string | null,
+  draftError: string | null,
 ) {
-  if (mode === "build") return rowCount > 0 ? "pass" : "idle";
-  if (mode === "valid-until") return expirationError ? "fail" : expirationResult ? "pass" : "idle";
+  if (mode === "add")
+    return draftError || expirationError ? "fail" : rowCount > 0 ? "pass" : "idle";
   if (satisfyError) return "fail";
   if (!results) return "idle";
   return Object.values(results).every((v) => v === "matched") ? "pass" : "warn";
@@ -523,16 +570,15 @@ function getStatus(
 function getStatusLabel(
   mode: CaveatMode,
   rowCount: number,
-  expirationResult: { serialized: string } | null,
   expirationError: string | null,
   results: Record<string, "matched" | "unsatisfied"> | null,
   satisfyError: string | null,
+  draftError: string | null,
 ) {
-  if (mode === "build") {
+  if (mode === "add") {
+    if (draftError || expirationError) return "error";
     return rowCount > 0 ? `${rowCount} caveat${rowCount > 1 ? "s" : ""}` : "idle";
   }
-  if (mode === "valid-until")
-    return expirationError ? "error" : expirationResult ? "ready" : "idle";
   if (satisfyError) return "error";
   if (!results) return "idle";
   return `${Object.values(results).filter((v) => v === "matched").length}/${Object.keys(results).length} matched`;
@@ -675,28 +721,26 @@ function BuildMode({
   );
 }
 
-function ValidUntilMode({
+function TimeLimitMode({
   seconds,
   result,
   error,
   setSeconds,
-  compute,
-  addToRows,
+  addTimeLimit,
   reset,
 }: {
   seconds: string;
   result: { condition: string; value: string; serialized: string } | null;
   error: string | null;
   setSeconds: (value: string | null) => void;
-  compute: () => void;
-  addToRows: () => void;
+  addTimeLimit: () => void;
   reset: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label style={labelStyle}>
-        TTL in seconds
-        <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
+        <label style={labelStyle}>
+          TTL in seconds
           <input
             type="text"
             inputMode="numeric"
@@ -710,24 +754,24 @@ function ValidUntilMode({
               width: 160,
             }}
           />
-          <button
-            type="button"
-            onClick={compute}
-            data-testid="expiration-compute"
-            style={primaryButtonStyle}
-          >
-            Build Caveat
-          </button>
-          <button
-            type="button"
-            onClick={reset}
-            data-testid="expiration-reset"
-            style={secondaryButtonStyle}
-          >
-            Reset
-          </button>
-        </div>
-      </label>
+        </label>
+        <button
+          type="button"
+          onClick={addTimeLimit}
+          data-testid="expiration-compute"
+          style={primaryButtonStyle}
+        >
+          Add time limit
+        </button>
+        <button
+          type="button"
+          onClick={reset}
+          data-testid="expiration-reset"
+          style={secondaryButtonStyle}
+        >
+          Reset
+        </button>
+      </div>
 
       {error ? (
         <div
@@ -743,6 +787,7 @@ function ValidUntilMode({
           data-testid="expiration-output"
           style={{ display: "flex", flexDirection: "column", gap: 8, ...monoOutputStyle }}
         >
+          <div style={outputLabelStyle}>Last added time limit</div>
           <div>
             <span style={{ color: "var(--color-dim)" }}>condition: </span>
             <span style={{ color: "var(--color-accent)" }}>{result.condition}</span>
@@ -755,21 +800,13 @@ function ValidUntilMode({
             <span style={{ color: "var(--color-dim)" }}>serialized: </span>
             <span style={{ color: "var(--color-text)" }}>{result.serialized}</span>
           </div>
-          <button
-            type="button"
-            onClick={addToRows}
-            data-testid="expiration-add-to-caveats"
-            style={{ ...secondaryButtonStyle, alignSelf: "flex-start" }}
-          >
-            Add caveat
-          </button>
         </div>
       ) : null}
     </div>
   );
 }
 
-function SatisfyMode({
+function CheckMode({
   caveatCount,
   token,
   setToken,

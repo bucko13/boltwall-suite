@@ -5,20 +5,20 @@ import { expect, test } from "@playwright/test";
 const FIXTURE_MACAROON_WITH_CAVEAT =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAIkdmFsaWQtdW50aWw9MjAzMC0wMS0wMVQwMDowMDowMC4wMDBaAAAGIOKb5vesTeSIiXaALw5a1fSW1MGVPtqj1LjPCYQ/3ff/";
 
-test.describe("panels / caveats — satisfy mode", () => {
+test.describe("panels / caveats — check mode", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/caveats");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
-    await page.click("[data-testid='caveats-mode-satisfy']");
+    await page.click("[data-testid='caveats-mode-check']");
   });
 
   test("renders panel with header", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
     await expect(page.locator("[data-testid='header-row']")).toContainText("Caveats");
     await expect(page.locator("[data-testid='header-row']")).toContainText(
-      "Build caveats, create time limits, and test satisfiers",
+      "Add caveats, create time limits, and check satisfiers",
     );
-    await expect(page.locator("[data-testid='caveats-mode-satisfy']")).toHaveAttribute(
+    await expect(page.locator("[data-testid='caveats-mode-check']")).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -49,18 +49,18 @@ test.describe("panels / caveats — satisfy mode", () => {
   });
 
   test("checks the shared caveat list without leaving the Caveats panel", async ({ page }) => {
-    await page.click("[data-testid='caveats-mode-valid-until']");
+    await page.click("[data-testid='caveats-mode-add']");
+    await page.click("[data-testid='caveats-add-kind-time-limit']");
     await page.fill("[data-testid='expiration-seconds-input']", "3600");
     await page.click("[data-testid='expiration-compute']");
-    await page.click("[data-testid='expiration-add-to-caveats']");
 
-    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toHaveAttribute(
+    await expect(page.locator("[data-testid='caveats-mode-add']")).toHaveAttribute(
       "aria-selected",
       "true",
     );
     await expect(page.locator("[data-testid='caveats-output']")).toContainText("valid-until");
 
-    await page.click("[data-testid='caveats-mode-satisfy']");
+    await page.click("[data-testid='caveats-mode-check']");
     await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
       "Source: current caveats",
     );

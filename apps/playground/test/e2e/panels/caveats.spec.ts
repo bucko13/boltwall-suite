@@ -10,14 +10,19 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='header-row']")).toBeVisible();
     await expect(page.locator("[data-testid='header-row']")).toContainText("Caveats");
     await expect(page.locator("[data-testid='header-row']")).toContainText(
-      "Build caveats, create time limits, and test satisfiers",
+      "Add caveats, create time limits, and check satisfiers",
     );
-    await expect(page.locator("[data-testid='caveats-mode-build']")).toHaveAttribute(
+    await expect(page.locator("[data-testid='caveats-mode-add']")).toHaveAttribute(
       "aria-selected",
       "true",
     );
-    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toBeVisible();
-    await expect(page.locator("[data-testid='caveats-mode-satisfy']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveats-mode-check']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveats-mode-valid-until']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='caveats-add-kind-custom']")).toHaveAttribute(
+      "aria-selected",
+      "true",
+    );
+    await expect(page.locator("[data-testid='caveats-add-kind-time-limit']")).toBeVisible();
     await expect(page.locator("[data-testid='caveats-shared-list']")).toBeVisible();
     await expect(page.locator("[data-testid='caveats-empty']")).toContainText("No caveats");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
