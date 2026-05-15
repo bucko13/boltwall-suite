@@ -115,6 +115,36 @@ describe("LndAdapter", () => {
     });
   });
 
+  test("maps held HODL invoices before settlement", async () => {
+    const adapter = new LndAdapter(lndOptions(), {
+      ...stubApi(),
+      async getInvoice() {
+        return {
+          cltv_delta: 40,
+          created_at: new Date(0).toISOString(),
+          description: "held",
+          expires_at: new Date(Date.now() + 60_000).toISOString(),
+          features: [],
+          id: PAYMENT_HASH,
+          is_confirmed: false,
+          is_held: true,
+          is_private: false,
+          payments: [],
+          received: 2,
+          received_mtokens: "2000",
+          secret: PREIMAGE,
+          tokens: 2,
+        } as never;
+      },
+    });
+
+    await expect(adapter.lookupInvoice(PAYMENT_HASH)).resolves.toMatchObject({
+      status: "held",
+      paymentHash: PAYMENT_HASH,
+      amountMsat: 2_000n,
+    });
+  });
+
   test("wraps cancel, settle, and connection errors with actionable kinds", async () => {
     const adapter = new LndAdapter(lndOptions(), {
       ...stubApi(),

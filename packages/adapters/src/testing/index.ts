@@ -127,6 +127,13 @@ export class MockAdapter implements LightningBackend {
   }
 
   /**
+   * Test helper that marks a HODL invoice held after the payer's HTLC is accepted.
+   */
+  hold(paymentHash: string): void {
+    this.#transition(paymentHash, { status: "held" });
+  }
+
+  /**
    * Test helper that marks an invoice expired.
    */
   expire(paymentHash: string): void {

@@ -72,7 +72,7 @@ export interface CreatedInvoice {
   expiresAt?: Date;
 }
 
-export type InvoiceStatus = "open" | "settled" | "canceled" | "expired";
+export type InvoiceStatus = "open" | "held" | "settled" | "canceled" | "expired";
 
 /**
  * Current invoice state returned by lookup and subscription streams.

@@ -86,6 +86,31 @@ describe("verifyMacaroon", () => {
     ).resolves.toEqual({ ok: false, reason: "preimage-mismatch" });
   });
 
+  test("requires preimage by default but can verify HODL macaroon state", async () => {
+    const fixture = await createFixture({
+      caveats: [{ condition: "services", value: "pokedex:0" }],
+    });
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [fixture.macaroon],
+        rootKeyStore: fixture.rootKeyStore,
+        satisfiers: [servicesSatisfier("pokedex")],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: false, reason: "preimage-mismatch" });
+
+    await expect(
+      verifyMacaroon({
+        macaroons: [fixture.macaroon],
+        rootKeyStore: fixture.rootKeyStore,
+        satisfiers: [servicesSatisfier("pokedex")],
+        context: {},
+        requirePreimage: false,
+      }),
+    ).resolves.toEqual({ ok: true });
+  });
+
   test("rejects unknown token ids", async () => {
     const fixture = await createFixture();
 

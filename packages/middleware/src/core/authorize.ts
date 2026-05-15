@@ -28,8 +28,10 @@ import {
 
 import { noopLogger } from "../logger.js";
 
-import { L402Error, l402ErrorToStatus } from "./error.js";
+import { L402Error, l402ErrorToStatus, type L402ErrorKind } from "./error.js";
 import type { L402Config, L402GateResult, L402RequestContext } from "./types.js";
+
+const PAYMENT_HASH_HEX_RE = /^[0-9a-fA-F]{64}$/;
 
 /** Cryptographically random 32-byte token id. */
 function randomTokenId(): Uint8Array {
@@ -107,6 +109,117 @@ function verifyReasonToKind(
   return "invalid-credential";
 }
 
+function errorResult(kind: L402ErrorKind, message: string): L402GateResult {
+  const error = new L402Error(kind, message);
+  return {
+    ok: false,
+    response: new Response(null, { status: l402ErrorToStatus(error.kind) }),
+    error,
+  };
+}
+
+function normalizePaymentHash(value: string): string | undefined {
+  return PAYMENT_HASH_HEX_RE.test(value) ? value.toLowerCase() : undefined;
+}
+
+async function extractHodlPaymentHash(req: Request): Promise<string | undefined> {
+  const fromQuery = new URL(req.url).searchParams.get("paymentHash");
+  if (fromQuery !== null) {
+    return normalizePaymentHash(fromQuery);
+  }
+
+  if (req.method === "GET" || req.method === "HEAD" || req.body === null) {
+    return undefined;
+  }
+
+  const contentType = req.headers.get("content-type") ?? "";
+  if (!contentType.toLowerCase().includes("application/json")) {
+    return undefined;
+  }
+
+  let body: unknown;
+  try {
+    body = await req.clone().json();
+  } catch {
+    return undefined;
+  }
+
+  if (typeof body !== "object" || body === null || !("paymentHash" in body)) {
+    return undefined;
+  }
+
+  const paymentHash = (body as { paymentHash?: unknown }).paymentHash;
+  return typeof paymentHash === "string" ? normalizePaymentHash(paymentHash) : undefined;
+}
+
+async function requireAmountMatch(
+  config: L402Config,
+  request: Request,
+  lookup: InvoiceLookup,
+  logger: L402Config["logger"],
+): Promise<L402GateResult | undefined> {
+  const expectedPrice = await resolvePrice(config.price, request);
+  const actualAmount = lookup.amountMsat;
+  if (actualAmount === undefined || actualAmount !== expectedPrice) {
+    logger?.warn(
+      { expected: expectedPrice.toString(), actual: actualAmount?.toString() ?? "undefined" },
+      "L402 amount mismatch",
+    );
+    return errorResult(
+      "invalid-credential",
+      `Amount mismatch: expected ${expectedPrice} msat, got ${actualAmount ?? "unknown"} msat`,
+    );
+  }
+  return undefined;
+}
+
+async function verifyCredential(
+  config: L402Config,
+  request: Request,
+  credential: L402CredentialFields,
+  requirePreimage: boolean,
+  logger: L402Config["logger"],
+): Promise<L402GateResult | undefined> {
+  const preimage = credential.preimage.length === 0 ? undefined : credential.preimage;
+  const verifyResult = await verifyMacaroon({
+    macaroons: credential.macaroons,
+    rootKeyStore: config.rootKeyStore,
+    satisfiers: config.satisfiers ?? [],
+    context: { request, now: new Date() },
+    requirePreimage,
+    ...(preimage === undefined ? {} : { preimage }),
+  });
+
+  if (!verifyResult.ok) {
+    const kind = verifyReasonToKind(verifyResult.reason);
+    logger?.info({ reason: verifyResult.reason }, `L402 verification failed: ${kind}`);
+    return errorResult(kind, verifyResult.reason);
+  }
+  return undefined;
+}
+
+async function authorizeSuccess(
+  config: L402Config,
+  request: Request,
+  credential: L402CredentialFields,
+  paymentHashHex: string,
+  identifier: MacaroonIdentifierV0,
+  logger: L402Config["logger"],
+): Promise<L402GateResult> {
+  const context: L402RequestContext = {
+    paymentHash: paymentHashHex,
+    identifier,
+  };
+
+  if (config.onPaid) {
+    await config.onPaid({ credential, req: request });
+  }
+
+  logger?.info({ paymentHash: paymentHashHex }, "L402 authorization granted");
+
+  return { ok: true, context };
+}
+
 /**
  * Emit a 402 Payment Required response with a fresh invoice + macaroon.
  *
@@ -125,7 +238,20 @@ async function emitChallenge(
   try {
     amountMsat = await resolvePrice(config.price, req);
     const description = config.invoiceMemo ? config.invoiceMemo(req) : config.service;
-    invoice = await config.backend.createInvoice({ amountMsat, description });
+    if (config.hodl === true) {
+      const paymentHash = await extractHodlPaymentHash(req);
+      if (paymentHash === undefined) {
+        return errorResult("bad-request", "HODL requests must include a 32-byte hex paymentHash");
+      }
+      invoice = await config.backend.createInvoice({
+        amountMsat,
+        description,
+        hodl: true,
+        paymentHash,
+      });
+    } else {
+      invoice = await config.backend.createInvoice({ amountMsat, description });
+    }
   } catch (cause) {
     log.warn({ cause }, "L402 backend failed to create invoice");
     const error = new L402Error("invoice-provider-failure", "Lightning backend error", { cause });
@@ -238,7 +364,9 @@ export async function authorizeL402(
   // Parse the Authorization header.
   let credential: L402CredentialFields;
   try {
-    credential = parseAuthorizationHeader(authHeader);
+    credential = parseAuthorizationHeader(authHeader, {
+      allowEmptyPreimage: config.hodl === true,
+    });
   } catch {
     const error = new L402Error("invalid-credential", "Malformed Authorization header");
     return {
@@ -290,59 +418,57 @@ export async function authorizeL402(
     return emitChallenge(config, request, log);
   }
 
-  // Invoice settled — verify the macaroon and preimage.
-  const satisfiers = config.satisfiers ?? [];
-  const verifyResult = await verifyMacaroon({
-    macaroons: credential.macaroons,
-    preimage: credential.preimage,
-    rootKeyStore: config.rootKeyStore,
-    satisfiers,
-    context: { request, now: new Date() },
-  });
+  if (lookup.status === "held") {
+    if (config.hodl !== true) {
+      return emitChallenge(config, request, log);
+    }
 
-  if (!verifyResult.ok) {
-    const kind = verifyReasonToKind(verifyResult.reason);
-    log.info({ reason: verifyResult.reason }, `L402 verification failed: ${kind}`);
-    const error = new L402Error(kind, verifyResult.reason);
-    return {
-      ok: false,
-      response: new Response(null, { status: 401 }),
-      error,
-    };
+    const amountError = await requireAmountMatch(config, request, lookup, log);
+    if (amountError !== undefined) return amountError;
+
+    const hasPreimage = credential.preimage.length > 0;
+    const verifyError = await verifyCredential(config, request, credential, hasPreimage, log);
+    if (verifyError !== undefined) return verifyError;
+
+    if (hasPreimage) {
+      if (config.backend.settleHodlInvoice === undefined) {
+        return errorResult("invoice-provider-failure", "Lightning backend cannot settle HODL invoices");
+      }
+      try {
+        await config.backend.settleHodlInvoice(credential.preimage);
+      } catch (cause) {
+        log.warn({ cause }, "L402 backend failed to settle HODL invoice");
+        const error = new L402Error("invoice-provider-failure", "Backend HODL settlement failed", { cause });
+        return {
+          ok: false,
+          response: new Response(null, { status: l402ErrorToStatus(error.kind) }),
+          error,
+        };
+      }
+    }
+
+    return authorizeSuccess(config, request, credential, paymentHashHex, identifier, log);
   }
+
+  if (lookup.status === "settled" && config.hodl === true) {
+    return errorResult("invalid-credential", "HODL credential expired after settlement");
+  }
+
+  const verifyError = await verifyCredential(config, request, credential, true, log);
+  if (verifyError !== undefined) return verifyError;
 
   // Security: verify invoice amount matches configured price.
   // AGENTS.md security-boundaries — middleware MUST verify the bolt11 amount
   // matches the configured price. Skipping this is an auth-bypass.
-  const expectedPrice = await resolvePrice(config.price, request);
-  const actualAmount = lookup.amountMsat;
-  if (actualAmount === undefined || actualAmount !== expectedPrice) {
-    log.warn(
-      { expected: expectedPrice.toString(), actual: actualAmount?.toString() ?? "undefined" },
-      "L402 amount mismatch",
-    );
-    const error = new L402Error(
-      "invalid-credential",
-      `Amount mismatch: expected ${expectedPrice} msat, got ${actualAmount ?? "unknown"} msat`,
-    );
-    return {
-      ok: false,
-      response: new Response(null, { status: 401 }),
-      error,
-    };
-  }
+  const amountError = await requireAmountMatch(config, request, lookup, log);
+  if (amountError !== undefined) return amountError;
 
-  // All checks passed.
-  const context: L402RequestContext = {
-    paymentHash: paymentHashHex,
+  return authorizeSuccess(
+    config,
+    request,
+    credential,
+    paymentHashHex,
     identifier,
-  };
-
-  if (config.onPaid) {
-    await config.onPaid({ credential, req: request });
-  }
-
-  log.info({ paymentHash: paymentHashHex }, "L402 authorization granted");
-
-  return { ok: true, context };
+    log,
+  );
 }

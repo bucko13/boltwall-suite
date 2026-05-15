@@ -22,7 +22,7 @@ export interface VerifyMacaroonArgs {
   /** One or more base64-encoded L402 macaroons from an Authorization header. */
   macaroons: string[];
   /** 32-byte Lightning payment preimage as hex or raw bytes. */
-  preimage: string | Uint8Array;
+  preimage?: string | Uint8Array;
   /** Server-side root key store indexed by v0 token id. */
   rootKeyStore: RootKeyStore;
   /** Caveat satisfiers the caller explicitly opts into for this verifier. */
@@ -37,6 +37,14 @@ export interface VerifyMacaroonArgs {
    * depends on explicitly instead of relying on fail-closed unknown behavior.
    */
   strictUnknownCaveats?: boolean;
+  /**
+   * Require the L402 preimage proof after signature and caveat checks.
+   *
+   * Defaults to `true` per L402 protocol-specification.md §6.1. Only set this
+   * to `false` for stateful HODL invoice flows that verify a held payment via
+   * a trusted Lightning backend before authorizing access.
+   */
+  requirePreimage?: boolean;
 }
 
 /**
@@ -110,6 +118,11 @@ export async function verifyMacaroon(args: VerifyMacaroonArgs): Promise<VerifyMa
 
   if (firstPaymentHash === null) {
     return { ok: false, reason: VerificationFailureReason.SignatureInvalid };
+  }
+  if (args.preimage === undefined) {
+    return args.requirePreimage === false
+      ? { ok: true }
+      : { ok: false, reason: VerificationFailureReason.PreimageMismatch };
   }
   try {
     if (!verifyPreimage({ paymentHash: firstPaymentHash, preimage: args.preimage })) {

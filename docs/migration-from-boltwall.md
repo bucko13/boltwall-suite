@@ -8,7 +8,8 @@ This document covers the migration path from the legacy AGPL-3.0
 source is copied here. If you forked legacy `boltwall`, your fork is still
 AGPL — do not merge it into a project that uses `@boltwall/middleware` without
 legal review. The compatibility behavior described below is re-implemented from
-the L402 specs and the MIT `lsat-js` compatibility audit.
+the L402 specs, the MIT `lsat-js` compatibility audit, and product behavior
+documented in the old `boltwall` README.
 
 ---
 
@@ -58,6 +59,39 @@ const mw = boltwall({ hodl: true, backend: new LndAdapter(...), ... });
 
 **Migration action:** Add the capability flags you rely on to `boltwall()`
 options so misconfigurations surface at server start, not during payment.
+
+## HODL invoices
+
+HODL invoices are first-class Boltwall behavior. In HODL mode the client
+generates a preimage and sends the corresponding 32-byte hex `paymentHash` when
+requesting the initial challenge:
+
+```ts
+app.post(
+  "/paid",
+  express.json(),
+  boltwall({
+    hodl: true,
+    service: "my-api",
+    backend,
+    rootKeyStore,
+    price: 100_000n,
+  }),
+);
+```
+
+The first request returns a normal 402 challenge, but the backend invoice is a
+HODL invoice bound to the supplied `paymentHash`. After the payer's HTLC is
+accepted, the invoice is `held`; at that point `Authorization: L402 <macaroon>:`
+or `Authorization: LSAT <macaroon>:` is enough to authorize access. If the
+client also sends the preimage, Boltwall calls `settleHodlInvoice(preimage)`
+once and then authorizes the request. After settlement, the same HODL
+credential is expired and returns 401.
+
+Standard L402 credentials still require `macaroon:preimage` as described by
+L402 protocol-specification.md §5.2/§5.3. The empty-preimage HODL credential is
+only accepted when `hodl: true` is configured and the backend reports the
+invoice as `held`.
 
 ---
 

@@ -35,6 +35,15 @@ export interface L402Config {
    */
   rate?: number;
   /**
+   * Enable HODL invoice authorization.
+   *
+   * Missing-credential requests must supply a 32-byte hex `paymentHash` in the
+   * request body or query string. Held HODL invoices authorize access before
+   * settlement; once settled, the HODL credential is expired. Standard L402 and
+   * LSAT credentials still follow L402 protocol-specification.md §5.2/§5.3.
+   */
+  hodl?: true;
+  /**
    * Optional caveats or per-request caveat resolvers appended to every
    * minted macaroon.
    */

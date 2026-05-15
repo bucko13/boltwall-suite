@@ -43,9 +43,16 @@ const TOKEN_ID = new Uint8Array(32).fill(0x42);
  * 2. Always pin to PAYMENT_HASH_HEX so tests can pre-settle and build credentials.
  */
 class IntegrationBackend extends MockAdapter {
+  settleHodlInvoiceCalls = 0;
+
   override async createInvoice(req: Parameters<MockAdapter["createInvoice"]>[0]) {
     const result = await super.createInvoice({ ...req, paymentHash: PAYMENT_HASH_HEX });
     return { ...result, paymentRequest: `lnbcrt${result.amountMsat}n1${result.paymentHash}` };
+  }
+
+  override async settleHodlInvoice(preimage: string): Promise<void> {
+    this.settleHodlInvoiceCalls += 1;
+    return super.settleHodlInvoice(preimage);
   }
 }
 
@@ -54,6 +61,7 @@ class IntegrationBackend extends MockAdapter {
 interface AppOptions {
   challengeCompatibility?: "dual" | "l402-only" | "lsat-only";
   satisfiers?: ReturnType<typeof validUntilSatisfier>[];
+  hodl?: true;
 }
 
 export async function buildIntegrationApp(options: AppOptions = {}) {
@@ -62,6 +70,7 @@ export async function buildIntegrationApp(options: AppOptions = {}) {
   await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
 
   const app = express();
+  app.use(express.json());
   let capturedL402: unknown;
   app.use(
     "/paid",
@@ -84,6 +93,14 @@ export async function buildIntegrationApp(options: AppOptions = {}) {
 /** Build a valid L402 credential from the captured macaroon + known preimage. */
 function credentialFromMacaroon(macaroonB64: string, scheme: "L402" | "LSAT" = "L402"): string {
   return `${scheme} ${macaroonB64}:${PREIMAGE_HEX}`;
+}
+
+function hodlCredentialFromMacaroon(
+  macaroonB64: string,
+  preimage = "",
+  scheme: "L402" | "LSAT" = "L402",
+): string {
+  return `${scheme} ${macaroonB64}:${preimage}`;
 }
 
 /** Mint a macaroon with known keys (for testing caveat scenarios). */
@@ -170,6 +187,87 @@ export function defineIntegrationSuite(
 
       const res = await supertest(app).get("/paid").set("Authorization", lsatHeader);
       expect(res.status).toBe(200);
+    });
+
+    test("HODL missing credential with body paymentHash → 402 challenge", async () => {
+      const { app, backend } = await makeApp({ hodl: true });
+
+      const res = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
+
+      expect(res.status).toBe(402);
+      const challenges = parseAuthenticateHeader(res.headers["www-authenticate"] as string);
+      expect(challenges[0]?.macaroon).toBeTruthy();
+      await expect(backend.lookupInvoice(PAYMENT_HASH_HEX)).resolves.toMatchObject({
+        status: "open",
+        amountMsat: AMOUNT_MSAT,
+      });
+    });
+
+    test("HODL held invoice with no preimage → 200", async () => {
+      const { app, backend } = await makeApp({ hodl: true });
+
+      const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
+      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
+      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      backend.hold(PAYMENT_HASH_HEX);
+
+      const res = await supertest(app)
+        .get("/paid")
+        .set("Authorization", hodlCredentialFromMacaroon(macaroon));
+
+      expect(res.status).toBe(200);
+      expect(res.body.paymentHash).toBe(PAYMENT_HASH_HEX);
+      expect(backend.settleHodlInvoiceCalls).toBe(0);
+    });
+
+    test("HODL held invoice with preimage → settles once and returns 200", async () => {
+      const { app, backend } = await makeApp({ hodl: true });
+
+      const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
+      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
+      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      backend.hold(PAYMENT_HASH_HEX);
+
+      const res = await supertest(app)
+        .get("/paid")
+        .set("Authorization", hodlCredentialFromMacaroon(macaroon, PREIMAGE_HEX));
+
+      expect(res.status).toBe(200);
+      expect(backend.settleHodlInvoiceCalls).toBe(1);
+      await expect(backend.lookupInvoice(PAYMENT_HASH_HEX)).resolves.toMatchObject({
+        status: "settled",
+      });
+    });
+
+    test("HODL settled invoice credential → 401", async () => {
+      const { app, backend } = await makeApp({ hodl: true });
+
+      const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
+      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
+      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+
+      const res = await supertest(app)
+        .get("/paid")
+        .set("Authorization", hodlCredentialFromMacaroon(macaroon, PREIMAGE_HEX));
+
+      expect(res.status).toBe(401);
+      expect(backend.settleHodlInvoiceCalls).toBe(0);
+    });
+
+    test("non-HODL config with held invoice → 402 re-challenge", async () => {
+      const { app, backend } = await makeApp();
+
+      const challenge = await supertest(app).get("/paid");
+      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
+      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      backend.hold(PAYMENT_HASH_HEX);
+
+      const res = await supertest(app)
+        .get("/paid")
+        .set("Authorization", hodlCredentialFromMacaroon(macaroon, PREIMAGE_HEX));
+
+      expect(res.status).toBe(402);
     });
 
     // Scenario 5 — invalid credential (parse failure)

@@ -57,6 +57,15 @@ class FixedPaymentHashBackend extends TestBackend {
   }
 }
 
+class CountingHodlBackend extends TestBackend {
+  settleHodlInvoiceCalls = 0;
+
+  override async settleHodlInvoice(preimage: string): Promise<void> {
+    this.settleHodlInvoiceCalls += 1;
+    return super.settleHodlInvoice(preimage);
+  }
+}
+
 async function makeConfig(
   overrides: Partial<L402Config> = {},
 ): Promise<L402Config> {
@@ -78,6 +87,36 @@ async function makeConfig(
   };
 }
 
+async function makeHodlConfig(
+  status: "open" | "held" | "settled" = "held",
+): Promise<{ config: L402Config; backend: CountingHodlBackend }> {
+  const rootKeyStore = new InMemoryRootKeyStore();
+  await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
+
+  const backend = new CountingHodlBackend();
+  await backend.createInvoice({
+    amountMsat: AMOUNT_MSAT,
+    hodl: true,
+    paymentHash: PAYMENT_HASH_HEX,
+  });
+  if (status === "held") {
+    backend.hold(PAYMENT_HASH_HEX);
+  } else if (status === "settled") {
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+  }
+
+  return {
+    backend,
+    config: {
+      service: "test-service",
+      backend,
+      rootKeyStore,
+      price: AMOUNT_MSAT,
+      hodl: true,
+    },
+  };
+}
+
 /** Build a valid L402 Authorization header for the fixture credential. */
 function makeValidAuthHeader(): string {
   const macaroon = mintMacaroon({
@@ -87,10 +126,29 @@ function makeValidAuthHeader(): string {
   return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
 }
 
-function makeRequest(authHeader?: string): Request {
+function makeHodlAuthHeader(preimage: string = "", scheme: "L402" | "LSAT" = "L402"): string {
+  const macaroon = mintMacaroon({
+    rootKey: ROOT_KEY,
+    identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
+  });
+  return `${scheme} ${macaroon}:${preimage}`;
+}
+
+function makeRequest(
+  authHeader?: string,
+  init: { method?: string; body?: unknown; url?: string } = {},
+): Request {
   const headers = new Headers();
   if (authHeader) headers.set("Authorization", authHeader);
-  return new Request("https://example.com/test", { headers });
+  const requestInit: RequestInit = {
+    method: init.method ?? "GET",
+    headers,
+  };
+  if (init.body !== undefined) {
+    headers.set("content-type", "application/json");
+    requestInit.body = JSON.stringify(init.body);
+  }
+  return new Request(init.url ?? "https://example.com/test", requestInit);
 }
 
 async function challengeMacaroon(config: L402Config): Promise<string> {
@@ -309,6 +367,98 @@ describe("authorizeL402 — valid credential (200)", () => {
     const result = await authorizeL402(makeRequest(makeValidAuthHeader()), config);
     expect(result.ok).toBe(true);
     expect(called).toBe(true);
+  });
+});
+
+describe("authorizeL402 — HODL flow", () => {
+  test("hodl:true missing paymentHash → 400 bad-request", async () => {
+    const { config } = await makeHodlConfig("open");
+    const result = await authorizeL402(makeRequest(undefined, { method: "POST", body: {} }), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(400);
+    expect(result.error.kind).toBe("bad-request");
+  });
+
+  test("hodl:true missing credential with body paymentHash → 402 HODL challenge", async () => {
+    const rootKeyStore = new InMemoryRootKeyStore();
+    const backend = new TestBackend();
+    const config: L402Config = {
+      service: "test-service",
+      backend,
+      rootKeyStore,
+      price: AMOUNT_MSAT,
+      hodl: true,
+    };
+
+    const result = await authorizeL402(
+      makeRequest(undefined, { method: "POST", body: { paymentHash: PAYMENT_HASH_HEX } }),
+      config,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(402);
+    const lookup = await backend.lookupInvoice(PAYMENT_HASH_HEX);
+    expect(lookup.status).toBe("open");
+    expect(lookup.amountMsat).toBe(AMOUNT_MSAT);
+  });
+
+  test("hodl:true held invoice + no preimage → authorized", async () => {
+    const { config } = await makeHodlConfig("held");
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader("")), config);
+
+    expect(result.ok).toBe(true);
+    if (!result.ok) return;
+    expect(result.context.paymentHash).toBe(PAYMENT_HASH_HEX);
+  });
+
+  test("hodl:true held invoice + valid preimage → settles once and authorizes", async () => {
+    const { config, backend } = await makeHodlConfig("held");
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
+
+    expect(result.ok).toBe(true);
+    expect(backend.settleHodlInvoiceCalls).toBe(1);
+    await expect(backend.lookupInvoice(PAYMENT_HASH_HEX)).resolves.toMatchObject({
+      status: "settled",
+    });
+  });
+
+  test("hodl:true settled invoice → 401 expired credential", async () => {
+    const { config, backend } = await makeHodlConfig("settled");
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(401);
+    expect(result.error.kind).toBe("invalid-credential");
+    expect(backend.settleHodlInvoiceCalls).toBe(0);
+  });
+
+  test("hodl:false held invoice → 402 re-challenge, not paid", async () => {
+    const rootKeyStore = new InMemoryRootKeyStore();
+    await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
+    const backend = new TestBackend();
+    await backend.createInvoice({
+      amountMsat: AMOUNT_MSAT,
+      hodl: true,
+      paymentHash: PAYMENT_HASH_HEX,
+    });
+    backend.hold(PAYMENT_HASH_HEX);
+
+    const config: L402Config = {
+      service: "test-service",
+      backend,
+      rootKeyStore,
+      price: AMOUNT_MSAT,
+    };
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(402);
+    expect(result.error.kind).toBe("payment-required");
   });
 });
 

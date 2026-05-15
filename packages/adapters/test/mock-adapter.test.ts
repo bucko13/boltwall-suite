@@ -44,6 +44,21 @@ describe("MockAdapter", () => {
     expect(lookup.preimage).toBe(ZERO_PREIMAGE);
   });
 
+  test("hold marks a HODL invoice held before settlement", async () => {
+    const adapter = new MockAdapter();
+    const created = await adapter.createInvoice({
+      amountMsat: 2_500n,
+      hodl: true,
+      paymentHash: ZERO_PREIMAGE_HASH,
+    });
+
+    adapter.hold(created.paymentHash);
+    const lookup = await adapter.lookupInvoice(created.paymentHash);
+
+    expect(lookup.status).toBe("held");
+    expect(lookup.preimage).toBeUndefined();
+  });
+
   test("expire and cancel transition invoice state", async () => {
     const adapter = new MockAdapter();
     const expired = await adapter.createInvoice({ amountMsat: 3_000n });

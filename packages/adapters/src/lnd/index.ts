@@ -75,6 +75,8 @@ interface LndApi {
   subscribeToInvoices(args: { lnd: AuthenticatedLnd }): EventEmitter;
 }
 
+type HtlcInvoice = GetInvoiceResult & { is_held?: boolean };
+
 const defaultLndApi: LndApi = {
   authenticatedLndGrpc,
   cancelHodlInvoice,
@@ -276,6 +278,9 @@ function invoiceStatus(
   }
   if (invoice.is_confirmed) {
     return "settled";
+  }
+  if ((invoice as HtlcInvoice).is_held === true) {
+    return "held";
   }
   if (Date.parse(invoice.expires_at) <= Date.now()) {
     return "expired";

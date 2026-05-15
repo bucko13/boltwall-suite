@@ -64,6 +64,28 @@ describe("parseAuthorizationHeader / always-array shape", () => {
   });
 });
 
+describe("parseAuthorizationHeader / HODL empty preimage", () => {
+  test("rejects an empty preimage by default", () => {
+    expect(() => parseAuthorizationHeader(`LSAT ${SPEC_EXAMPLE_MACAROON}:`)).toThrow(
+      "invalid-preimage-length",
+    );
+  });
+
+  for (const scheme of ["LSAT", "L402"] as const) {
+    test(`accepts an empty preimage for ${scheme} when explicitly enabled`, () => {
+      const got = parseAuthorizationHeader(`${scheme} ${SPEC_EXAMPLE_MACAROON}:`, {
+        allowEmptyPreimage: true,
+      });
+
+      expect(got).toEqual({
+        scheme,
+        macaroons: [SPEC_EXAMPLE_MACAROON],
+        preimage: "",
+      });
+    });
+  }
+});
+
 describe("parseAuthorizationHeader / case-insensitive scheme tokens", () => {
   for (const variant of ["L402", "l402", "L402".toLowerCase(), "L402".toUpperCase()]) {
     test(`accepts \`${variant}\` (normalizes to L402)`, () => {

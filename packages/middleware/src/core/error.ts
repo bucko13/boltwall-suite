@@ -19,7 +19,9 @@ export type L402ErrorKind =
   /** A satisfier rejected a caveat — 401. */
   | "caveat-rejected"
   /** Lightning backend returned an error during invoice ops — 502. */
-  | "invoice-provider-failure";
+  | "invoice-provider-failure"
+  /** Request cannot create a valid L402 challenge — 400. */
+  | "bad-request";
 
 export interface L402ErrorOptions {
   cause?: unknown;
@@ -60,5 +62,7 @@ export function l402ErrorToStatus(kind: L402ErrorKind): number {
       return 401;
     case "invoice-provider-failure":
       return 502;
+    case "bad-request":
+      return 400;
   }
 }

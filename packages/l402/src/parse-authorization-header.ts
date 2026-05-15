@@ -17,8 +17,19 @@ export interface L402CredentialFields {
   scheme: L402Scheme;
   /** One or more base64-encoded macaroons in source order. Length ≥ 1. */
   macaroons: string[];
-  /** 64-char hex-encoded payment preimage (32 bytes). */
+  /** 64-char hex-encoded payment preimage (32 bytes), or `""` for HODL pending settlement. */
   preimage: string;
+}
+
+export interface ParseAuthorizationHeaderOptions {
+  /**
+   * Accept the HODL pending-settlement token shape `LSAT/L402 <macaroon>:`
+   * while the invoice is held and the client has not disclosed the preimage.
+   *
+   * Defaults to `false`; L402 protocol-specification.md §5.2/§5.3 requires a
+   * 32-byte preimage for standard L402/LSAT authorization.
+   */
+  allowEmptyPreimage?: boolean;
 }
 
 const SCHEME_RE = /^(L402|LSAT)$/i;
@@ -46,6 +57,7 @@ const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/;
  */
 export function parseAuthorizationHeader(
   header: string,
+  options: ParseAuthorizationHeaderOptions = {},
 ): L402CredentialFields {
   if (header.trim().length === 0) {
     throw new Error("empty-header");
@@ -96,6 +108,9 @@ export function parseAuthorizationHeader(
     }
   }
 
+  if (preimagePart.length === 0 && options.allowEmptyPreimage === true) {
+    return { scheme, macaroons, preimage: "" };
+  }
   if (preimagePart.length !== 64) {
     throw new Error("invalid-preimage-length");
   }
