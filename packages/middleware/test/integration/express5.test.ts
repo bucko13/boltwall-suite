@@ -1,5 +1,5 @@
 /**
- * Express 5 integration suite (bw-zxk.6).
+ * Express 5 integration suite.
  *
  * Express 5 natively supports async middleware (Promise-returning handlers).
  * The boltwall middleware is compatible with both patterns; this file runs the

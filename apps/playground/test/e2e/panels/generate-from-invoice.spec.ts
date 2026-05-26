@@ -1,5 +1,5 @@
 /**
- * GenerateL402Token panel — fixture-driven e2es (bw-0dw.6).
+ * GenerateL402Token panel — fixture-driven e2es.
  *
  * Uses BOLT 11 invoice from @boltwall/test-fixtures. Fills the panel with a
  * fixture invoice + a known signing key, mints, and asserts the output macaroon

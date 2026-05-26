@@ -1,5 +1,5 @@
 /**
- * Express adapter integration tests (bw-zxk.3).
+ * Express adapter integration tests.
  *
  * Uses supertest against a real Express app with MockAdapter. Tests cover
  * both Express 4 and Express 5 (same middleware, both handled by the promise

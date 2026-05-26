@@ -1,5 +1,5 @@
 /**
- * Aperture interop tests for PR checks (bw-9zp.1).
+ * Aperture interop tests for PR checks.
  *
  * Guards: only runs when APERTURE_INTEROP=1 is set. Expects Aperture to be
  * reachable at APERTURE_URL (default http://localhost:8081) with the

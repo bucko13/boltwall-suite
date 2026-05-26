@@ -6,8 +6,8 @@ import {
 } from "./spec-examples";
 
 // Adversarial vectors hand-authored against L402 protocol-specification.md
-// §5. Every parser failure mode listed in the bw-b63.4 description is
-// covered by at least one entry here.
+// §5. Parser failure modes are covered here so conformance checks can assert
+// stable error categories.
 export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   {
     name: "missing-scheme",

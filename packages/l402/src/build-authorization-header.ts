@@ -39,8 +39,8 @@ function normalizeMacaroons(macaroons: string | string[]): string[] {
  * L402 protocol-specification.md §5.2 / §5.3 defines credentials as
  * `<scheme> <macaroon[,macaroon...]>:<preimage-hex>`. This helper emits
  * `L402` by default for new clients. Passing `legacy: true` emits `LSAT`,
- * matching the legacy `Lsat#toToken()` scheme keyword so the Phase 1
- * compatibility facade can preserve that migration path.
+ * matching the legacy `Lsat#toToken()` scheme keyword so the compatibility
+ * facade can preserve that migration path.
  */
 export function buildAuthorizationHeader(
   args: BuildAuthorizationHeaderArgs,

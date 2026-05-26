@@ -6,7 +6,7 @@ import type { PrismTheme } from "prism-react-renderer";
  *
  * Dependency justified: prism-react-renderer provides production-quality
  * tokenizers for TypeScript/JS/JSON/shell — well beyond 200 lines to replicate
- * internally (bw-0dw.16).
+ * internally.
  */
 export const designTheme: PrismTheme = {
   plain: {

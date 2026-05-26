@@ -1,5 +1,5 @@
 /**
- * Shared e2e test helpers for the L402 workbench (bw-0dw.6).
+ * Shared e2e test helpers for the L402 workbench.
  */
 import type { BrowserContext, Page } from "@playwright/test";
 

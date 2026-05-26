@@ -1,5 +1,5 @@
 /**
- * ValidateL402 panel — Tamper action e2es (bw-0dw.6).
+ * ValidateL402 panel — Tamper action e2es.
  *
  * Uses a static macaroon generated from @boltwall/test-fixtures'
  * zero-preimage-canonical fixture and a known root key. Keeping the macaroon

@@ -5,8 +5,8 @@ name: Release Readiness
 # Behaviour:
 # - Runs the release quality gates on main.
 # - Does NOT run Changesets versioning or npm publishing while pre-stable.
-# - Phase 9 bead bw-j5u.5 owns re-enabling Changesets release PRs,
-#   npm publishing, and provenance after the owner declares v0.1.0-stable.
+# - Re-enable Changesets release PRs, npm publishing, and provenance once the
+#   public API is stable enough for the first npm release.
 
 on:
   push:
@@ -61,5 +61,5 @@ jobs:
 
       - name: Publishing disabled pre-stable
         run: |
-          echo "Changesets versioning and npm publishing are intentionally disabled before Phase 9."
-          echo "Re-enable them in bw-j5u.5 after the owner declares v0.1.0-stable."
+          echo "Changesets versioning and npm publishing are intentionally disabled before the first stable package release."
+          echo "Re-enable them once the public API is stable enough for npm publication."

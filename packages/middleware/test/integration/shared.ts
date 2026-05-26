@@ -1,5 +1,5 @@
 /**
- * Shared integration scenario suite for bw-zxk.6.
+ * Shared middleware integration scenarios.
  *
  * Both express4.test.ts and express5.test.ts import `defineIntegrationSuite`
  * so the scenario set stays in sync across Express versions.

@@ -1,5 +1,5 @@
 /**
- * README quick-start mirror test (bw-zxk.9).
+ * README quick-start mirror test.
  *
  * This file mirrors the Express quick-start example in packages/middleware/README.md
  * exactly (minus app.listen). If this test fails, the README example is broken.

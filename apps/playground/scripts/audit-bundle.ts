@@ -1,6 +1,6 @@
 #!/usr/bin/env bun
 /**
- * Client-bundle secret audit (bw-0dw.8 / security-boundaries §Bearer-credential-handling).
+ * Client-bundle secret audit.
  *
  * Scans .next/static/**\/*.js for:
  *   1. Literal values of known secret env vars (if set in the environment).

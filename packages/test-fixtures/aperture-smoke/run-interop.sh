@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# run-interop.sh — orchestrates the Aperture interop stack (bw-9zp.1).
+# run-interop.sh — orchestrates the Aperture interop stack.
 #
 # Usage:
 #   ./run-interop.sh            Run full interop: wait, test, capture artifacts.

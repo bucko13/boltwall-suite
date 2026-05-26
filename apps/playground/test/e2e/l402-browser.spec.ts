@@ -1,5 +1,5 @@
 /**
- * Browser-executed L402 API coverage for the playground (bw-0dw.14).
+ * Browser-executed L402 API coverage for the playground.
  *
  * Validates that @boltwall/l402 functions imported by the Next.js bundle
  * work correctly in Chromium, confirming no bundler shim or runtime issue
@@ -48,7 +48,7 @@ if (
   !goodPreimageFixture ||
   !badPreimageFixture
 ) {
-  throw new Error("bw-0dw.14: missing required browser-validation fixtures");
+  throw new Error("missing required browser-validation fixtures");
 }
 
 const challengeExpectedFields =
@@ -68,7 +68,7 @@ if (
   !identifierExpectedFields ||
   !malformedIdentifierReason
 ) {
-  throw new Error("bw-0dw.14: unexpected browser-validation fixture shape");
+  throw new Error("unexpected browser-validation fixture shape");
 }
 
 test.describe("L402 browser validation / playground bundle", () => {

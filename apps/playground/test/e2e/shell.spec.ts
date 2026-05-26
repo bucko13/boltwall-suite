@@ -1,6 +1,6 @@
 import { expect, test } from "@playwright/test";
 
-// Panel routing assertions deferred to bw-0dw.2 (routes don't exist until panels land).
+// Panel routing assertions live with the panel-level specs.
 test.describe("Nav shell", () => {
   test("beaker logo present on every route", async ({ page }) => {
     await page.goto("/");

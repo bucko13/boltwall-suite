@@ -3,8 +3,8 @@ import type { ReactNode } from "react";
 /**
  * Code strip — visible only when a Cell's view mode is `code` (§ 5.3).
  * For the visual demo we accept a `children` slot of pre-rendered HTML or
- * text. No syntax highlighting library — keep this purely visual until
- * bw-0dw.16 wires a real engine.
+ * text. This component stays purely visual; production syntax highlighting
+ * lives in the Prism-backed renderer.
  */
 export function CodeStrip({ children }: { children: ReactNode }) {
   return (

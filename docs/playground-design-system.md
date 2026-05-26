@@ -1,8 +1,8 @@
 # Playground Design System
 
-Normative specification for the Boltwall playground (Phase 7 local L402
-workbench). Downstream implementation tasks read this document as the single
-source of truth. The illustrative HTML references in
+Normative specification for the Boltwall playground local L402 workbench.
+Downstream implementation work reads this document as the single source of
+truth. The illustrative HTML references in
 `apps/playground/design/reference/` are visual evidence; this document is
 normative when the two ever disagree.
 
@@ -460,9 +460,9 @@ To keep the spec narrow and the implementation tasks focused:
 
 - **No Tailwind config.** Token names are defined here. Whether the
   implementation uses Tailwind's `theme.extend.colors`, CSS custom properties,
-  or both is decided in `bw-0dw.1`.
+  or both belongs with the application styling implementation.
 - **No `globals.css` content.** Reset, font loading, and base styles live in
-  `bw-0dw.1`.
+  the app stylesheet.
 - **No component prop interfaces.** TypeScript shapes for `<Cell>`,
   `<StatusPill>`, `<MacaroonStripe>`, etc., live with the implementation tasks.
 - **No package additions.** `nuqs` is named here as a requirement; adding it

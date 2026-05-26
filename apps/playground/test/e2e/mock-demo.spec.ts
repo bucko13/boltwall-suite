@@ -1,7 +1,7 @@
 import { expect, test } from "@playwright/test";
 
-// Home page is now the design-system landing page (bw-0dw.1).
-// Full workbench panels land in bw-0dw.2+.
+// Home page currently routes through the design-system landing page.
+// Full workbench panels are covered by dedicated panel specs.
 test("home page renders and links to /design", async ({ page }) => {
   await page.goto("/");
 

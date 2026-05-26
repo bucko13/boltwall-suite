@@ -110,9 +110,9 @@ Rules:
 
 The single exception: BOLT 11 invoices encode amount inside the bech32
 payload itself; the BOLT 11 decoder is responsible for handing back
-`bigint` msat regardless of how the underlying decoder library represents
-it. Choice of decoder is the work of `bw-f4p.17`; this document binds the
-return type to `bigint`.
+`bigint` msat regardless of how the underlying decoder library represents it.
+The decoder choice can change, but this document binds the return type to
+`bigint`.
 
 ## Display formatting
 
@@ -163,17 +163,16 @@ Every new public function or type that takes or returns a money amount must:
 3. If the function crosses a JSON / HTTP boundary, document the serialized
    type in the type definition and add a round-trip test.
 
-## Open follow-up work
+## Open Implementation Work
 
 Track implementation work that follows from this decision in the project task
 system:
 
-- `@boltwall/internal/numeric` skeleton with `parseAmount`, `formatSats`,
-  `formatBtc`, sats↔msats helpers (will be created in Phase 0 alongside the
-  `@boltwall/internal` package skeleton, `bw-f4p.5`).
+- `@boltwall/internal/numeric` helpers with `parseAmount`, `formatSats`,
+  `formatBtc`, and sats↔msats conversion.
 - Workspace-only `sats` / `msats` / `btc` helpers in
   `@boltwall/internal/numeric`.
-- BOLT 11 decoder return-type binding to `bigint` msat (`bw-f4p.17` spike).
+- BOLT 11 decoder return-type binding to `bigint` msat.
 
 Spec references:
 

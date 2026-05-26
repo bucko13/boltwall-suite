@@ -1,5 +1,5 @@
 /**
- * Accessibility validation for the L402 workbench (bw-0dw.7).
+ * Accessibility validation for the L402 workbench.
  *
  * Uses @axe-core/playwright to run axe accessibility checks against all
  * primary routes in both light and dark themes. Fails on WCAG AA critical

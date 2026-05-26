@@ -283,7 +283,7 @@ export default function DesignPage() {
           <div style={{ flex: 1, minWidth: 320 }}>
             <CodeStrip>
               <span style={{ color: "var(--color-dim)" }}>
-                {"// rendering preview — real syntax engine is bw-0dw.16"}
+                {"// rendering preview — production highlighting uses Prism"}
               </span>
               {"\n"}
               <span style={{ color: "var(--color-primary)" }}>const</span> token ={" "}

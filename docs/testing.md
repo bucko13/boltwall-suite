@@ -14,11 +14,11 @@ the acceptance criteria for that work are not met.**
 | ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | ----------------------- |
 | `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push            |
 | `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                       |
-| `bun run test:coverage`                               | Package unit coverage with Phase 8 informational thresholds             | Built packages                         | ✓ every push            |
+| `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push            |
 | `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push            |
-| `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned Phase 9         |
+| `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate |
 | `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs   |
-| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned Phase 8 nightly |
+| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow |
 | `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | Manual                  |
 | `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | Manual                  |
 | `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push            |
@@ -73,10 +73,9 @@ bun run test --filter @boltwall/l402    # single package
 `@boltwall/adapters` and `@boltwall/proxy`, and 90/90/90/85 for
 `@boltwall/internal`.
 
-Phase 8 treats these thresholds as informational. Codecov reports package
-status contexts and PR comments, but coverage below the configured target does
-not fail CI. Phase 9 is expected to convert the same targets into a blocking
-gate.
+Coverage thresholds are currently informational. Codecov reports package status
+contexts and PR comments, but coverage below the configured target does not
+fail CI. The same targets can become blocking once the public API is stable.
 
 **Run:**
 
@@ -134,7 +133,7 @@ persistence, L402 browser API behavior, and workbench panel flows.
 | ---------------------- | --------------------------------------------------------------- |
 | `design.spec.ts`       | Design system primitives, theme toggle, persistence, focus      |
 | `l402-browser.spec.ts` | L402 API correctness in the browser bundle (using fixture data) |
-| `panels/`              | Per-panel fixture-driven interaction specs (bw-0dw.6)           |
+| `panels/`              | Per-panel fixture-driven interaction specs                      |
 
 **Run:**
 
@@ -148,7 +147,7 @@ bun run test:e2e
 
 **Prerequisites:** None — Playwright config starts the Next.js dev server automatically.
 
-**CI:** Planned for Phase 9 stabilization gate. Not yet in `ci.yml`.
+**CI:** Planned for the stabilization gate. Not yet in `ci.yml`.
 
 ---
 
@@ -260,11 +259,10 @@ bun run test:integration
 
 **Test deployment policy:** development-environment, testnet, or owner-provided
 staging credentials only. Tests create invoices but never pay them; no mainnet
-sats are spent. The Phase 8 nightly compatibility workflow is the intended
-caller for these tests — GitHub Actions wires the env vars from repository
-secrets.
+sats are spent. A nightly compatibility workflow is the intended caller for
+these tests — GitHub Actions wires the env vars from repository secrets.
 
-**CI:** Not yet wired. Planned Phase 8 nightly workflow.
+**CI:** Not yet wired. Planned nightly workflow.
 
 ---
 

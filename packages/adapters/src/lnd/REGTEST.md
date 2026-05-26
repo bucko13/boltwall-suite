@@ -220,8 +220,7 @@ undocumented Polar app internals and is a better fit for agent execution.
 Current limitation:
 
 - The committed harness is a first-cut bootstrap/export path and does not yet
-  fully automate channel open + payer invoice settlement end-to-end. The
-  remaining automation work is tracked in `bw-4vd7`.
+  fully automate channel open + payer invoice settlement end-to-end.
 
 ## Risks And Constraints
 

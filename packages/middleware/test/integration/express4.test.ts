@@ -1,5 +1,5 @@
 /**
- * Express 4-compatible integration suite (bw-zxk.6).
+ * Express 4-compatible integration suite.
  *
  * The boltwall middleware uses a .then().catch(next) pattern rather than
  * returning a Promise directly, making it safe with Express 4's synchronous
