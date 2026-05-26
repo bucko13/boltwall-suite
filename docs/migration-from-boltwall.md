@@ -110,7 +110,7 @@ Legacy credentials using `expiration=<unix-ms>` can still be verified during
 migration via the deprecated helpers:
 
 ```ts
-import { expirationCaveat, expirationSatisfier } from "@boltwall/l402/legacy";
+import { expirationCaveat, expirationSatisfier } from "@boltwall/l402";
 ```
 
 New code should use `validUntil` exclusively. The legacy helpers exist only for
@@ -228,4 +228,4 @@ is the long-term recommendation.
 | `oauth` integration | Removed | Open a feature request; out of v1 scope |
 | `masterRoute` / `allowSubroutes` config | Removed | Use Express mounting: `app.use("/path", boltwall(...))` |
 | Env-var-first config (auto-loaded from process.env) | Removed from core | Use `loadBackendFromEnv()` or explicit adapter construction |
-| Free-form `expiration=<ms>` caveat (minting) | Deprecated (satisfier still ships in `/legacy`) | Migrate to `valid-until=<ISO>` + `validUntil()` factory |
+| Free-form `expiration=<ms>` caveat (minting) | Deprecated (compatibility helpers are exported from `@boltwall/l402`) | Migrate to `valid-until=<ISO>` + `validUntil()` factory |
