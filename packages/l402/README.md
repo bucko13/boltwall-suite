@@ -245,8 +245,8 @@ broad `@boltwall/l402/legacy` public subpath.
 
 ### BOLT 11 invoice decoder: `light-bolt11-decoder`
 
-**Decision (bw-f4p.17):** the L402 macaroon's identifier embeds the Lightning
-`payment_hash`; the credential carries the matching `preimage`. The
+**Decision:** the L402 macaroon's identifier embeds the Lightning
+`payment_hash`, and the credential carries the matching `preimage`. The
 challenge header carries the BOLT 11 `invoice` itself. We therefore need a
 BOLT 11 decoder for amount, payment-hash, expiry, description, and (later)
 description-hash extraction. We do **not** need encode capability —
@@ -292,9 +292,9 @@ into the bundle (orders-of-magnitude heavier than our `size-limit`
 budget for `dist/index.js`), (2) it uses Node `Buffer` in its public API, which
 is forbidden in browser-facing package code, and (3) it ships encode/sign
 capabilities we will never use. The
-upgrade path is `decodeBolt11Invoice` (the wrapped public API in
-`bw-b63.6`) shielding consumers from the underlying choice; if a future
-maintenance event ever forces another swap, only the wrapper changes.
+upgrade path is `decodeBolt11Invoice`, the wrapped public API that shields
+consumers from the underlying choice; if a future maintenance event ever
+forces another swap, only the wrapper changes.
 
 **Spec citation:** [BOLT 11 — Lightning Invoice
 Encoding](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
