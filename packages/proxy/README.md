@@ -62,9 +62,15 @@ From zero to a paid request:
 4. Open the deployment URL printed by the CLI, or request a protected resource
    with `curl`. The first protected request returns `402 Payment Required` with
    L402/LSAT challenges.
-5. Pay the invoice with a wallet or paste the resulting L402 token into the
-   playground Demo panel, then retry the protected request and receive the
-   upstream `200` response.
+5. Pay the invoice with a wallet, combine the challenge macaroon with the
+   resulting preimage, then retry the protected request with an L402/LSAT
+   `Authorization` header and receive the upstream `200` response.
+
+For full repo-level workflows that combine the proxy with local regtest LND,
+Voltage, Vercel, and the playground, start with:
+
+- [Local regtest proxy and playground](../../docs/local-regtest-proxy-playground.md)
+- [Vercel Voltage Pokedex demo](../../docs/vercel-voltage-pokedex-demo.md)
 
 Direct Vercel Deploy Button templates are not the v1 primary path. Boltwall
 needs backend-specific prompting, secret redaction, config validation, and

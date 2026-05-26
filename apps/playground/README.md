@@ -56,3 +56,9 @@ browser demo at a Boltwall-protected endpoint. Protected endpoints that are
 hosted on another origin need CORS headers that allow the playground origin and
 expose `WWW-Authenticate`, otherwise the browser cannot read the challenge
 header.
+
+For the umbrella workflows that wire the playground to a local regtest proxy or
+a Vercel/Voltage proxy, see:
+
+- [Local regtest proxy and playground](../../docs/local-regtest-proxy-playground.md)
+- [Vercel Voltage Pokedex demo](../../docs/vercel-voltage-pokedex-demo.md)
