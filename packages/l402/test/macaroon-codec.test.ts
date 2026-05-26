@@ -49,6 +49,38 @@ describe("MacaroonCodec / raw mint, encode, decode, verify", () => {
     expect(verifyRawSignature({ macaroon: attenuated, rootKey })).toBe(true);
   });
 
+  test("encodes Aperture-compatible V2 field tags for first-party caveats", () => {
+    const fixture = macaroonCodecFixtures[1];
+    if (fixture === undefined) {
+      throw new Error("missing-macaroon-fixture");
+    }
+    const caveats = fixture.caveatHexes.map(hexToBytes);
+    const raw = mintRaw({
+      rootKey: hexToBytes(fixture.rootKeyHex),
+      identifier: hexToBytes(fixture.identifierHex),
+      caveats,
+    });
+    const bytes = base64ToBytes(encodeRaw(raw));
+
+    let offset = 0;
+    expect(bytes[offset]).toBe(0x02);
+    offset++;
+    offset = expectField(bytes, offset, 0x02, raw.identifier);
+    expect(bytes[offset]).toBe(0x00);
+    offset++;
+
+    for (const caveat of caveats) {
+      offset = expectField(bytes, offset, 0x02, caveat);
+      expect(bytes[offset]).toBe(0x00);
+      offset++;
+    }
+
+    expect(bytes[offset]).toBe(0x00);
+    offset++;
+    offset = expectField(bytes, offset, 0x06, raw.signature);
+    expect(offset).toBe(bytes.length);
+  });
+
   test("tampering vectors reject modified identifier, caveat, signature, and root key", () => {
     const fixture = macaroonCodecFixtures[1];
     if (fixture === undefined) {
@@ -61,18 +93,10 @@ describe("MacaroonCodec / raw mint, encode, decode, verify", () => {
       caveats: fixture.caveatHexes.map(hexToBytes),
     });
 
-    expect(
-      verifyRawSignature({ macaroon: flipByte(raw, "identifier"), rootKey }),
-    ).toBe(false);
-    expect(
-      verifyRawSignature({ macaroon: flipByte(raw, "caveat"), rootKey }),
-    ).toBe(false);
-    expect(
-      verifyRawSignature({ macaroon: flipByte(raw, "signature"), rootKey }),
-    ).toBe(false);
-    expect(
-      verifyRawSignature({ macaroon: raw, rootKey: flipFirstByte(rootKey) }),
-    ).toBe(false);
+    expect(verifyRawSignature({ macaroon: flipByte(raw, "identifier"), rootKey })).toBe(false);
+    expect(verifyRawSignature({ macaroon: flipByte(raw, "caveat"), rootKey })).toBe(false);
+    expect(verifyRawSignature({ macaroon: flipByte(raw, "signature"), rootKey })).toBe(false);
+    expect(verifyRawSignature({ macaroon: raw, rootKey: flipFirstByte(rootKey) })).toBe(false);
   });
 
   test("input validation rejects malformed raw boundaries", () => {
@@ -138,6 +162,29 @@ function hexToBytes(hex: string): Uint8Array {
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes, (byte) => byte.toString(16).padStart(2, "0")).join("");
+}
+
+function expectField(
+  bytes: Uint8Array,
+  offset: number,
+  tag: number,
+  expectedPayload: Uint8Array,
+): number {
+  expect(bytes[offset]).toBe(tag);
+  expect(bytes[offset + 1]).toBe(expectedPayload.length);
+  const payloadStart = offset + 2;
+  const payloadEnd = payloadStart + expectedPayload.length;
+  expect(bytesToHex(bytes.slice(payloadStart, payloadEnd))).toBe(bytesToHex(expectedPayload));
+  return payloadEnd;
+}
+
+function base64ToBytes(input: string): Uint8Array {
+  const binary = atob(input);
+  const out = new Uint8Array(binary.length);
+  for (let i = 0; i < binary.length; i++) {
+    out[i] = binary.charCodeAt(i);
+  }
+  return out;
 }
 
 function utf8ToBytes(value: string): Uint8Array {

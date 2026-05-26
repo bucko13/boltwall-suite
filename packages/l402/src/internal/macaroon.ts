@@ -113,8 +113,10 @@ function signNext(previousSignature: Uint8Array, caveat: Uint8Array): Uint8Array
 function encodeBinaryV2(raw: RawMacaroon): Uint8Array {
   const writer = new BinaryWriter(binaryV2Length(raw));
   // L402 macaroon-spec.md §Serialization Formats / Macaroon V2 Binary Format:
-  // L402 uses V2 binary macaroons. The upstream macaroon library encodes the
-  // caveat id using the same identifier field tag used by gopkg.in/macaroon.v2.
+  // L402 uses V2 binary macaroons. The current spec table conflicts with
+  // Aperture's gopkg.in/macaroon.v2 dependency for caveat id/vid tags, so this
+  // private codec targets the Aperture/go-macaroon layout documented in
+  // docs/protocol-compatibility.md.
   writer.byte(2);
   writer.field(FIELD_IDENTIFIER, raw.identifier);
   writer.byte(FIELD_EOS);

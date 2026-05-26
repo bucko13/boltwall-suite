@@ -82,6 +82,13 @@ serialization, and signature verification required by `mintMacaroon`,
 `@boltwall/l402/internal/*`, not moved to `@boltwall/internal`, and not a
 standalone public package before v0.1.0.
 
+The private V2 codec targets the byte layout emitted and parsed by Aperture's
+`gopkg.in/macaroon.v2` dependency. That matters because the current L402
+macaroon-spec.md §Serialization Formats / Macaroon V2 Binary Format table
+describes caveat identifier and verification-id tags differently from the Go
+reference codec. See `docs/protocol-compatibility.md` for the compatibility
+note and fixture impact.
+
 Consumers should use `mintMacaroon` and `verifyMacaroon` instead of depending
 on raw macaroon internals or the wrapped `macaroon@3.0.4` library shape. If a
 future release exposes a raw codec, that surface needs its own JSDoc, fixtures,

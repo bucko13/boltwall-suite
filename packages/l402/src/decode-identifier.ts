@@ -68,6 +68,9 @@ function base64ToBytes(input: string): Uint8Array {
 }
 
 function extractV2Identifier(bytes: Uint8Array): Uint8Array {
+  // L402 macaroon-spec.md §Serialization Formats / Macaroon V2 Binary Format:
+  // the leading byte is the V2 version and the header identifier uses tag
+  // 0x02 in Aperture's go-macaroon codec; see docs/protocol-compatibility.md.
   if (bytes[0] !== V2_MARKER) {
     throw new Error("invalid-macaroon-v2");
   }
@@ -99,10 +102,7 @@ function extractV2Identifier(bytes: Uint8Array): Uint8Array {
   throw new Error("missing-identifier");
 }
 
-function readVarint(
-  bytes: Uint8Array,
-  offset: number,
-): { value: number; nextOffset: number } {
+function readVarint(bytes: Uint8Array, offset: number): { value: number; nextOffset: number } {
   let value = 0;
   let shift = 0;
   let i = offset;

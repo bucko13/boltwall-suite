@@ -120,6 +120,41 @@ scope for the HTTP middleware.)
 macaroons through its private codec (`packages/l402/src/internal/macaroon.ts`),
 keeping `Uint8Array` end-to-end with no `Buffer` on any public surface.
 
+### V2 tag table compatibility note
+
+The live L402 macaroon-spec.md §Serialization Formats / Macaroon V2 Binary
+Format currently mixes V2 field tags and first-party caveat shape in a way that
+does not match the Go macaroon implementation used by Aperture. The spec table
+says header location is tag `0x06`, caveat location is tag `0x05`, caveat
+identifier is tag `0x01`, and first-party caveats carry an empty verification-id
+field tagged `0x02`.
+
+Aperture's `go.mod` depends on `gopkg.in/macaroon.v2`. That implementation's
+V2 codec defines EOS `0`, location `1`, identifier `2`, verification id `4`,
+and signature `6` (`github.com/go-macaroon/macaroon/packet-v2.go`). Its binary
+marshaller treats the first byte as the V2 version, uses field tag `2` for both
+the header identifier and caveat identifier, and omits the verification-id field
+entirely for first-party caveats whose verification id is empty
+(`github.com/go-macaroon/macaroon/marshal-v2.go`).
+
+Boltwall therefore targets the Aperture/go-macaroon V2 byte layout for
+interoperability while documenting this as a spec-table inconsistency, not a
+new local format:
+
+| Segment                   | Boltwall / go-macaroon bytes | Current spec table/example conflict |
+| ------------------------- | ---------------------------- | ----------------------------------- |
+| Version                   | version byte `0x02`          | no compatibility conflict           |
+| Header identifier         | tag `0x02`                   | matches spec table                  |
+| First-party caveat id     | tag `0x02`                   | spec table/example say tag `0x01`   |
+| Empty first-party VID     | omitted                      | spec example emits `0x02 0x00`      |
+| Non-empty third-party VID | tag `0x04`                   | spec table says tag `0x02`          |
+| Signature                 | tag `0x06`                   | matches spec table                  |
+
+No fixture change is required for this note because existing V2 fixtures already
+encode the Aperture/go-macaroon layout. `packages/l402/test/macaroon-codec.test.ts`
+locks that byte layout explicitly so a future cleanup does not accidentally
+switch the private codec to the inconsistent table.
+
 ### Identifier version dispatch
 
 We decode version 0 only. A non-zero version throws
