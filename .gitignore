@@ -12,6 +12,7 @@ out/
 .turbo/
 .next/
 .vercel/
+docs-site/
 
 # Test / coverage
 coverage/

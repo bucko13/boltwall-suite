@@ -1,0 +1,14 @@
+{
+  "$schema": "https://typedoc.org/schema.json",
+  "entryPointStrategy": "packages",
+  "entryPoints": [
+    "packages/l402",
+    "packages/middleware",
+    "packages/adapters",
+    "packages/proxy"
+  ],
+  "out": "docs-site",
+  "name": "Boltwall Suite API Reference",
+  "readme": "none",
+  "treatWarningsAsErrors": true
+}

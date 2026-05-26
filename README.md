@@ -28,6 +28,16 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 Install commands will be added once the API is stable enough to publish.
 
+## API Reference
+
+Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of `@boltwall/l402`, `@boltwall/middleware`, `@boltwall/adapters`, and `@boltwall/proxy`. Build it locally:
+
+```sh
+bun run docs:api   # outputs a static HTML site to docs-site/
+```
+
+The hosted reference publishes to GitHub Pages from `main` via the [Docs workflow](./.github/workflows/docs.yml). It serves from <https://bucko13.github.io/boltwall-suite/> once GitHub Pages is enabled for the repository (Settings → Pages → Source: "GitHub Actions").
+
 ## L402 / LSAT compatibility
 
 The current spec name is `L402`. For backward compatibility:

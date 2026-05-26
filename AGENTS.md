@@ -274,6 +274,7 @@ bun run test:browser                     # Playwright Chromium import test for @
 bun run test:e2e                         # Playwright e2e for playground
 bun run build                            # tsup builds, all packages
 bun run package-health                   # publint + arethetypeswrong
+bun run docs:api                         # generate TypeDoc API reference (validates public JSDoc)
 bun run size                             # size-limit budget on @boltwall/l402
 bunx changeset                           # create a changeset
 ```
