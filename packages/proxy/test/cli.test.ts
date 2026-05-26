@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
 
@@ -206,7 +207,11 @@ class MockRunner implements CommandRunner {
   readonly commands: { command: string; args: string[]; stdin?: string }[] = [];
 
   async run(command: string, args: string[], options?: { stdin?: string }): Promise<CommandResult> {
-    this.commands.push({ command, args, ...(options?.stdin === undefined ? {} : { stdin: options.stdin }) });
+    this.commands.push({
+      command,
+      args,
+      ...(options?.stdin === undefined ? {} : { stdin: options.stdin }),
+    });
     return {
       code: 0,
       stdout: args[0] === "deploy" ? "https://boltwall-preview.vercel.app\n" : "",
@@ -275,7 +280,7 @@ function yamlConfig(options: { requireHodl?: boolean } = {}): string {
 
 async function fixtureDir(label: string): Promise<string> {
   const dir = join(
-    "/private/tmp",
+    tmpdir(),
     `boltwall-cli-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   );
   await mkdir(dir, { recursive: true });

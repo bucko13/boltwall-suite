@@ -185,8 +185,11 @@ When the work is complete:
 3. If work is not ready to land, update the task and post a handoff. Do not
    close finished work before commit and push.
 4. Follow the landing sequence: sync Beads from the canonical checkout, rebase
-   the task worktree, stage reviewed paths, commit, and push or open/land the
-   required PR.
+   the task worktree, stage reviewed paths, commit, and land using the active
+   integration mode. Boltwall Suite is currently in direct-integration mode:
+   push the validated commit to `main`. Do not substitute a draft PR for
+   landing unless the owner has explicitly switched the repository to PR-gated
+   mode.
 5. Close completed work only after the remote push or PR landing succeeds:
    ```sh
    br close <id> --reason "Completed: <summary>"

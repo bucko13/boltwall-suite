@@ -532,8 +532,9 @@ on the required remote branch or the PR-gated workflow has landed it.**
    current state and handoff. Do not close finished work before commit and push.
 5. **Land remotely.** Follow `.agents/skills/boltwall-workflow/SKILL.md`: sync
    Beads from the canonical checkout, rebase the task worktree, stage reviewed
-   paths, commit, and either push to the integration branch or use the PR-gated
-   flow.
+   paths, commit, and use the active integration mode. This repository is in
+   direct-integration mode until the owner flips it to PR-gated mode for
+   production; direct-integration work pushes the validated commit to `main`.
 6. **Close completed task status** — only after the remote push or PR landing
    succeeds. If work remains, leave it open with a current handoff note.
 7. **Release file reservations (Mail).**

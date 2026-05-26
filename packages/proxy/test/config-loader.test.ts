@@ -1,4 +1,5 @@
 import { mkdir, writeFile } from "node:fs/promises";
+import { tmpdir } from "node:os";
 import { join } from "node:path";
 
 import { describe, expect, test } from "bun:test";
@@ -34,9 +35,9 @@ describe("boltwall config loading", () => {
   });
 
   test("reports missing config paths without leaking values", async () => {
-    await expect(loadBoltwallConfig("/private/tmp/boltwall-missing-secret-token.yaml")).rejects.toThrow(
-      /Config not found/,
-    );
+    await expect(
+      loadBoltwallConfig("/private/tmp/boltwall-missing-secret-token.yaml"),
+    ).rejects.toThrow(/Config not found/);
   });
 
   test("discovers saved configs under the config directory", async () => {
@@ -64,7 +65,7 @@ function validConfig(name: string): unknown {
 
 async function fixtureDir(label: string): Promise<string> {
   const dir = join(
-    "/private/tmp",
+    tmpdir(),
     `boltwall-proxy-${label}-${Date.now()}-${Math.random().toString(16).slice(2)}`,
   );
   await mkdir(dir, { recursive: true });

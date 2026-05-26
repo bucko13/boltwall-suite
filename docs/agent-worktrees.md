@@ -92,8 +92,10 @@ When work is ready:
    ```
 4. Re-run validation affected by the rebase.
 5. Stage only reviewed paths and commit with a clear summary.
-6. Land according to the active integration mode:
-   - **Direct integration mode:** push the commit to the integration branch.
+6. Land according to the active integration mode. Boltwall Suite is currently
+   in **direct integration mode** until the owner flips the project to
+   PR-gated mode for production:
+   - **Direct integration mode:** push the validated commit to `main`.
    - **PR-gated mode:** push the task branch, open a PR, and land only after
      required checks and review pass.
 7. Verify the landed commit is visible on the remote.
