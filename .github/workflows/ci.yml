@@ -99,9 +99,8 @@ jobs:
         run: bun run build
 
       - name: Package health (publint + arethetypeswrong)
-        # Informational in Phase 8 so a publint/attw finding is visible in logs
-        # without failing the build. Phase 9 / bw-j5u.1 removes
-        # continue-on-error to make this a blocking gate once the owner
-        # declares the API v0.1.0-stable.
+        # Reported but non-blocking: publint/attw findings show up in the logs
+        # without failing the build. Remove continue-on-error to make this a
+        # required check once the published API is stable.
         run: bun run package-health
         continue-on-error: true
