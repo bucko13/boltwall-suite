@@ -1,6 +1,6 @@
 # Aperture Interop Notes
 
-Phase 2 interop smoke is vector-only. It uses deterministic vectors from the
+The default interop smoke is vector-only. It uses deterministic vectors from the
 Lightning Labs Aperture `l402` library tests and source, so it runs in default
 package tests without Docker, LND, live invoices, or secret root-key extraction.
 
@@ -21,9 +21,9 @@ It covers:
 
 ## Live Server Fixture
 
-The Docker files in this directory are not a Phase 2 gate. They are retained as
-a draft for the later live-server compatibility pass, when end-to-end validation
-can run against real Aperture, Docker, and regtest LND together.
+The Docker files in this directory are retained as a draft for the live-server
+compatibility pass, when end-to-end validation can run against real Aperture,
+Docker, and regtest LND together.
 
 1. Start or reuse a regtest LND whose RPC port is reachable from Docker as
    `host.docker.internal:10009`.

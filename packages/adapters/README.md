@@ -262,8 +262,8 @@ Test deployment policy:
   taxonomy) rather than provider-specific business names. Provider-specific
   capability gaps (e.g. no HODL on OpenNode/BTCPay default) are documented in
   the capability sections above.
-- The Phase 8 nightly compatibility workflow is the intended caller for these
-  tests; GitHub Actions wires the env vars from repository secrets.
+- A nightly compatibility workflow is the intended caller for these tests;
+  GitHub Actions wires the env vars from repository secrets.
 
 ## Notes
 
