@@ -20,6 +20,7 @@
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test test/*.test.ts",
+    "test:coverage": "bun test --coverage --coverage-reporter lcov test/*.test.ts",
     "package-health": "bun run ./scripts/package-health.ts"
   },
   "dependencies": {

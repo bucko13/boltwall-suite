@@ -1,0 +1,44 @@
+# Keep package targets in sync with coverage-thresholds.json.
+coverage:
+  precision: 2
+  round: down
+  status:
+    project:
+      default: off
+      l402:
+        target: 85%
+        threshold: 0%
+        informational: true
+        paths:
+          - packages/l402/src
+      middleware:
+        target: 80%
+        threshold: 0%
+        informational: true
+        paths:
+          - packages/middleware/src
+      adapters:
+        target: 70%
+        threshold: 0%
+        informational: true
+        paths:
+          - packages/adapters/src
+      proxy:
+        target: 70%
+        threshold: 0%
+        informational: true
+        paths:
+          - packages/proxy/src
+      internal:
+        target: 90%
+        threshold: 0%
+        informational: true
+        paths:
+          - packages/internal/src
+    patch:
+      default: off
+
+comment:
+  layout: "diff, files"
+  behavior: default
+  require_changes: false

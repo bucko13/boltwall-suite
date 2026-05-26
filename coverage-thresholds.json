@@ -1,0 +1,32 @@
+{
+  "@boltwall/l402": {
+    "lines": 85,
+    "statements": 85,
+    "functions": 85,
+    "branches": 80
+  },
+  "@boltwall/middleware": {
+    "lines": 80,
+    "statements": 80,
+    "functions": 80,
+    "branches": 75
+  },
+  "@boltwall/adapters": {
+    "lines": 70,
+    "statements": 70,
+    "functions": 70,
+    "branches": 65
+  },
+  "@boltwall/proxy": {
+    "lines": 70,
+    "statements": 70,
+    "functions": 70,
+    "branches": 65
+  },
+  "@boltwall/internal": {
+    "lines": 90,
+    "statements": 90,
+    "functions": 90,
+    "branches": 85
+  }
+}

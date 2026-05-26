@@ -10,18 +10,19 @@ the acceptance criteria for that work are not met.**
 
 ## Quick Reference
 
-| Command                                       | What it covers                     | Prerequisites                     | Runs in CI?           |
-| --------------------------------------------- | ---------------------------------- | --------------------------------- | --------------------- |
-| `bun run test`                                | Unit tests, all packages           | None                              | ✓ every push          |
-| `bun run test --filter @boltwall/l402`        | l402 unit tests only               | None                              | ✓                     |
-| `bun run test:browser`                        | l402 ESM bundle import in Chromium | Built l402 (`bun run build`)      | ✓ every push          |
-| `bun run test:e2e` (from `apps/playground`)   | Playground UI flows end-to-end     | Node.js (dev server auto-started) | Planned Phase 9       |
-| `bun run test:interop` (from `packages/l402`) | Aperture live protocol interop     | Docker + LND regtest node         | ✓ on l402/fixture PRs |
-| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration | Per-adapter env vars (skipped without)    | Planned Phase 8 nightly |
-| `bun run package-health`                      | publint + arethetypeswrong         | Built packages                    | Manual                |
-| `bun run size`                                | @boltwall/l402 bundle size budget  | Built l402                        | Manual                |
-| `bun run lint`                                | ESLint check-mode across all packages | None                           | ✓ every push          |
-| `bun run lint:fix`                            | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None | ✗ never              |
+| Command                                               | What it covers                                                          | Prerequisites                          | Runs in CI?             |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | ----------------------- |
+| `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push            |
+| `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                       |
+| `bun run test:coverage`                               | Package unit coverage with Phase 8 informational thresholds             | Built packages                         | ✓ every push            |
+| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push            |
+| `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned Phase 9         |
+| `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs   |
+| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned Phase 8 nightly |
+| `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | Manual                  |
+| `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | Manual                  |
+| `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push            |
+| `bun run lint:fix`                                    | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None                                   | ✗ never                 |
 
 `bun run lint` is the gate. `bun run lint:fix` is the local autofix helper —
 run it when ESLint reports `... potentially fixable with the --fix option`,
@@ -63,6 +64,30 @@ bun run test --filter @boltwall/l402    # single package
 ```
 
 **CI:** Runs on every push as the `Test` step in `.github/workflows/ci.yml`.
+
+## Coverage Reporting
+
+**What:** Runs unit coverage for the package surfaces tracked in
+`coverage-thresholds.json`: 85% lines/statements/functions and 80% branches for
+`@boltwall/l402`, 80/80/80/75 for `@boltwall/middleware`, 70/70/70/65 for
+`@boltwall/adapters` and `@boltwall/proxy`, and 90/90/90/85 for
+`@boltwall/internal`.
+
+Phase 8 treats these thresholds as informational. Codecov reports package
+status contexts and PR comments, but coverage below the configured target does
+not fail CI. Phase 9 is expected to convert the same targets into a blocking
+gate.
+
+**Run:**
+
+```sh
+bun run test:coverage
+bun run test:coverage --filter @boltwall/l402
+```
+
+**CI:** Runs on every push as the `Coverage` job in `.github/workflows/ci.yml`.
+The upload step reads Codecov configuration from `codecov.yml` and uses the
+optional `CODECOV_TOKEN` repository secret when configured.
 
 ---
 

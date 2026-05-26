@@ -28,7 +28,8 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
-    "test": "bun test"
+    "test": "bun test",
+    "test:coverage": "bun test --coverage --coverage-reporter lcov"
   },
   "devDependencies": {
     "@boltwall/eslint-config": "workspace:*",
