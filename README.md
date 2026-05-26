@@ -18,13 +18,13 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 ## Packages
 
-| Package                | Status          | Purpose                                                                                                  |
-| ---------------------- | --------------- | -------------------------------------------------------------------------------------------------------- |
-| `@boltwall/l402`       | Planned/private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
-| `@boltwall/middleware` | Planned/private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
-| `@boltwall/adapters`   | Planned/private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
-| `@boltwall/proxy`      | Planned/private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
-| `@boltwall/playground` | Planned/private | Next.js demo site with Pokedex paid endpoint and proxy/paywall flow                                      |
+| Package                | Status  | Purpose                                                                                                  |
+| ---------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| `@boltwall/l402`       | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
+| `@boltwall/middleware` | Private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
+| `@boltwall/adapters`   | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
+| `@boltwall/proxy`      | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
+| `@boltwall/playground` | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
 
 Install commands will be added once the API is stable enough to publish.
 
@@ -36,19 +36,38 @@ The current spec name is `L402`. For backward compatibility:
 - Servers should emit dual `WWW-Authenticate` challenges by default, with `LSAT` first and `L402` second, per Lightning Labs L402 spec §10.
 - Library serializers can be configured to emit `L402`-only output for explicit greenfield or test scenarios.
 
-## Planned Quick Starts
+## Start Here
 
-The first docs will cover:
+For an end-to-end view, start with the workflows that cross packages:
 
-- Parsing an L402 challenge and building an authorization header with `@boltwall/l402`.
-- Protecting an Express route with `@boltwall/middleware`.
-- Configuring LND, BTCPay Server, or OpenNode through `@boltwall/adapters`.
-- Deploying a Vercel-hosted proxy with `@boltwall/proxy`.
-- Running the playground against mainnet with WebLN/manual invoice payment.
+- [Local regtest proxy and playground workflow](./docs/local-regtest-proxy-playground.md):
+  bootstrap a two-node Bitcoin/LND regtest topology, run the proxy against
+  PokeAPI, point the local playground at the protected Pokemon resource, inspect
+  the 402 challenge, pay from the second node, and retry with the L402
+  credential.
+- [Vercel + Voltage Pokedex proxy workflow](./docs/vercel-voltage-pokedex-demo.md):
+  deploy a `boltwall` proxy to Vercel with a Voltage LND backend, configure the
+  production playground to use that proxy endpoint, and verify the live
+  challenge/payment/retry path.
+
+Package-specific details live in package READMEs:
+
+- [`@boltwall/proxy`](./packages/proxy/README.md) for CLI config, local proxy
+  dev, Vercel deploys, header forwarding, and backend env names.
+- [`@boltwall/playground`](./apps/playground/README.md) for the configurable
+  demo endpoint and browser CORS requirements.
+- [`@boltwall/adapters`](./packages/adapters/README.md) for Lightning backend
+  setup, including Voltage LND env handling.
 
 ## Playground
 
-The playground will be a Next.js/Vercel app for inspecting L402 headers, caveats, invoices, credentials, and payment flows. The paid demo endpoint will proxy Pokedex data, and the UI will also demonstrate the existing-server proxy/paywall flow.
+The playground is a Next.js/Vercel app for inspecting L402 headers, caveats,
+invoices, credentials, and payment flows. Today the normal Demo panel consumes a
+configured protected endpoint and displays the response status plus any
+`WWW-Authenticate` challenge. The playground does not currently host the
+production paid Pokedex resource itself; the proxy owns that runtime. The
+end-to-end docs above call out the current manual retry step and the deployed
+proxy path explicitly.
 
 ## Security
 
