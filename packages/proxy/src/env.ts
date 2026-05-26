@@ -17,14 +17,20 @@ const envSchema = z
     BOLTWALL_PROXY_UNPROTECTED_PATHS: z.string().optional(),
     BOLTWALL_PROXY_FORWARD_ALLOW: z.string().optional(),
     BOLTWALL_PROXY_FORWARD_DENY: z.string().optional(),
+    BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: z.string().optional(),
+    BOLTWALL_PROXY_CORS_EXPOSE_HEADERS: z.string().optional(),
+    BOLTWALL_PROXY_CORS_ALLOW_HEADERS: z.string().optional(),
+    BOLTWALL_PROXY_CORS_ALLOW_METHODS: z.string().optional(),
+    BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS: z
+      .string()
+      .regex(/^\d+$/u, "must be a non-negative integer second duration")
+      .optional(),
     BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: z
       .string()
       .regex(/^\d+$/u, "must be a positive integer millisecond timeout")
       .refine((value) => Number(value) > 0, "must be a positive integer millisecond timeout")
       .optional(),
-    BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: z
-      .enum(["dual", "l402-only", "lsat-only"])
-      .optional(),
+    BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: z.enum(["dual", "l402-only", "lsat-only"]).optional(),
   })
   .passthrough();
 
@@ -38,6 +44,7 @@ export type ProxyEnvConfig = Pick<
   | "defaultPrice"
   | "unprotectedPaths"
   | "forwardHeaders"
+  | "cors"
   | "upstreamTimeoutMs"
   | "challengeCompatibility"
 >;
@@ -70,6 +77,7 @@ export function loadProxyEnv(options: LoadProxyEnvOptions = {}): ProxyEnvConfig 
 
 function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
   const forwardHeaders = parseForwardHeaders(fields);
+  const cors = parseCors(fields);
   return {
     targetUrl: fields.BOLTWALL_PROXY_TARGET_URL,
     ...(fields.BOLTWALL_PROXY_SERVICE === undefined
@@ -82,6 +90,7 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
       ? {}
       : { unprotectedPaths: splitList(fields.BOLTWALL_PROXY_UNPROTECTED_PATHS) }),
     ...(forwardHeaders === undefined ? {} : { forwardHeaders }),
+    ...(cors === undefined ? {} : { cors }),
     ...(fields.BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS === undefined
       ? {}
       : { upstreamTimeoutMs: Number(fields.BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS) }),
@@ -89,6 +98,42 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
       ? {}
       : { challengeCompatibility: fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY }),
   };
+}
+
+function parseCors(fields: ProxyEnvFields): ProxyEnvConfig["cors"] | undefined {
+  if (fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS === undefined) return undefined;
+
+  return {
+    allowOrigins: normalizeOrigins(splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS)),
+    ...(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS === undefined
+      ? {}
+      : { exposeHeaders: splitList(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS) }),
+    ...(fields.BOLTWALL_PROXY_CORS_ALLOW_HEADERS === undefined
+      ? {}
+      : { allowHeaders: splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_HEADERS) }),
+    ...(fields.BOLTWALL_PROXY_CORS_ALLOW_METHODS === undefined
+      ? {}
+      : { allowMethods: splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_METHODS) }),
+    ...(fields.BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS === undefined
+      ? {}
+      : { maxAgeSeconds: Number(fields.BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS) }),
+  };
+}
+
+function normalizeOrigins(values: string[]): string[] {
+  if (values.length === 0) {
+    throw new Error(
+      "Invalid Boltwall proxy environment: BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: must contain at least one origin",
+    );
+  }
+
+  try {
+    return values.map((origin) => new URL(origin).origin);
+  } catch {
+    throw new Error(
+      "Invalid Boltwall proxy environment: BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: must contain valid URL origins",
+    );
+  }
 }
 
 function parseForwardHeaders(fields: ProxyEnvFields): ForwardHeadersPolicy | undefined {

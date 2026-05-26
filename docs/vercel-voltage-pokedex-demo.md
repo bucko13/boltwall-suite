@@ -10,11 +10,9 @@ The intended production playground is:
 https://boltwall-suite-playground.vercel.app/
 ```
 
-Current browser limitation: the generated proxy does not yet expose a CORS
-configuration surface for `WWW-Authenticate`. `curl` can verify a deployed 402
-challenge today. The hosted playground can read that challenge only after the
-proxy deployment allows the playground origin and exposes the header. The
-implementation work is tracked as `bw-hff1.5`.
+The generated proxy config below opts into CORS for the hosted playground origin
+and exposes `WWW-Authenticate`, which lets the browser Demo panel read the L402
+challenge from the cross-origin proxy response.
 
 ## Roles And Prerequisites
 
@@ -98,6 +96,12 @@ unprotectedPaths:
 forwardHeaders:
   allow: [accept, content-type, x-request-id]
   deny: [authorization, cookie]
+cors:
+  allowOrigins:
+    - https://boltwall-suite-playground.vercel.app
+  allowMethods: [GET, OPTIONS]
+  allowHeaders: [Authorization, Content-Type]
+  maxAgeSeconds: 600
 upstreamTimeoutMs: 10000
 deploy:
   target: vercel
@@ -213,10 +217,9 @@ Open the playground Demo panel and fetch the configured endpoint.
 
 Expected first request:
 
-- if the proxy has CORS configured: status is `402`, the challenge field shows
-  `WWW-Authenticate`, and browser devtools does not show a CORS error,
-- with the current generated proxy defaults: `curl` can still verify the
-  challenge, but the browser may not be able to read it cross-origin.
+- status is `402`,
+- the challenge field shows `WWW-Authenticate`,
+- browser devtools does not show a CORS error.
 
 If the browser cannot read the challenge, configure the proxy deployment to
 allow the playground origin and expose `WWW-Authenticate`. `curl` seeing the

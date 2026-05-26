@@ -13,17 +13,20 @@ import { z } from "zod";
 import type { ForwardHeadersPolicy } from "./header-policy.js";
 import type { ProxyHttpMethod, ProxyRoute } from "./route-matching.js";
 
-import type { ProxyConfig } from "./index.js";
+import type { ProxyConfig, ProxyCorsConfig } from "./index.js";
 
 const backendKindSchema = z.enum(["lnd", "voltage-lnd", "opennode", "btcpay"]);
 const challengeCompatibilitySchema = z.enum(["dual", "l402-only", "lsat-only"]);
 const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
+const corsMethodSchema = z.enum(["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]);
 const msatStringSchema = z
   .string()
   .regex(/^\d+$/u, "must be a non-negative integer millisatoshi amount");
 const envNameSchema = z
   .string()
   .regex(/^[A-Z_][A-Z0-9_]*$/u, "must be an uppercase environment variable name");
+const corsOriginSchema = z.url().transform((value) => new URL(value).origin);
+const headerNameSchema = z.string().min(1);
 
 const backendEnvSchema = z
   .object({
@@ -84,6 +87,16 @@ const configSchema = z
       })
       .strict()
       .optional(),
+    cors: z
+      .object({
+        allowOrigins: z.array(corsOriginSchema).min(1),
+        exposeHeaders: z.array(headerNameSchema).min(1).optional(),
+        allowHeaders: z.array(headerNameSchema).min(1).optional(),
+        allowMethods: z.array(corsMethodSchema).min(1).optional(),
+        maxAgeSeconds: z.number().int().nonnegative().optional(),
+      })
+      .strict()
+      .optional(),
     upstreamTimeoutMs: z.number().int().positive().optional(),
     deploy: z
       .object({
@@ -139,6 +152,7 @@ export function toProxyConfig(config: BoltwallConfig, backend: LightningBackend)
       : { routes: toProxyRoutes(config.routes, config.pricing.defaultPriceMsat) }),
     ...(config.unprotectedPaths === undefined ? {} : { unprotectedPaths: config.unprotectedPaths }),
     ...forwardHeadersPolicy(config.forwardHeaders),
+    ...(config.cors === undefined ? {} : { cors: corsPolicy(config.cors) }),
     ...(config.upstreamTimeoutMs === undefined
       ? {}
       : { upstreamTimeoutMs: config.upstreamTimeoutMs }),
@@ -273,12 +287,28 @@ export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string>
   };
 
   if (config.service !== undefined) base.SERVICE = config.service;
-  if (config.unprotectedPaths !== undefined) base.UNPROTECTED_PATHS = config.unprotectedPaths.join(",");
+  if (config.unprotectedPaths !== undefined)
+    base.UNPROTECTED_PATHS = config.unprotectedPaths.join(",");
   if (config.forwardHeaders?.allow !== undefined) {
     base.FORWARD_ALLOW = config.forwardHeaders.allow.join(",");
   }
   if (config.forwardHeaders?.deny !== undefined) {
     base.FORWARD_DENY = config.forwardHeaders.deny.join(",");
+  }
+  if (config.cors !== undefined) {
+    base.CORS_ALLOW_ORIGINS = config.cors.allowOrigins.join(",");
+    if (config.cors.exposeHeaders !== undefined) {
+      base.CORS_EXPOSE_HEADERS = config.cors.exposeHeaders.join(",");
+    }
+    if (config.cors.allowHeaders !== undefined) {
+      base.CORS_ALLOW_HEADERS = config.cors.allowHeaders.join(",");
+    }
+    if (config.cors.allowMethods !== undefined) {
+      base.CORS_ALLOW_METHODS = config.cors.allowMethods.join(",");
+    }
+    if (config.cors.maxAgeSeconds !== undefined) {
+      base.CORS_MAX_AGE_SECONDS = String(config.cors.maxAgeSeconds);
+    }
   }
   if (config.upstreamTimeoutMs !== undefined) {
     base.UPSTREAM_TIMEOUT_MS = String(config.upstreamTimeoutMs);
@@ -295,6 +325,7 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
     defaultPriceMsat: config.pricing.defaultPriceMsat,
     routes: config.routes?.length ?? 0,
     challengeCompatibility: config.challengeCompatibility,
+    corsOrigins: config.cors?.allowOrigins.length ?? 0,
     deployTarget: config.deploy.target,
     production: config.deploy.production,
   };
@@ -317,6 +348,16 @@ function forwardHeadersPolicy(
     ...(policy.deny === undefined ? {} : { deny: policy.deny }),
   };
   return { forwardHeaders };
+}
+
+function corsPolicy(policy: NonNullable<BoltwallConfig["cors"]>): ProxyCorsConfig {
+  return {
+    allowOrigins: policy.allowOrigins,
+    ...(policy.exposeHeaders === undefined ? {} : { exposeHeaders: policy.exposeHeaders }),
+    ...(policy.allowHeaders === undefined ? {} : { allowHeaders: policy.allowHeaders }),
+    ...(policy.allowMethods === undefined ? {} : { allowMethods: policy.allowMethods }),
+    ...(policy.maxAgeSeconds === undefined ? {} : { maxAgeSeconds: policy.maxAgeSeconds }),
+  };
 }
 
 function globalRequirements(config: BoltwallConfig): RequiredBackendCapabilities {
@@ -384,9 +425,7 @@ function fillEnvNames(
     cryptoCode: overrides.cryptoCode ?? defaults.cryptoCode ?? "UNUSED_CRYPTO_CODE",
     hodlInvoices: overrides.hodlInvoices ?? defaults.hodlInvoices ?? "UNUSED_HODL_INVOICES",
     streamingInvoices:
-      overrides.streamingInvoices ??
-      defaults.streamingInvoices ??
-      "UNUSED_STREAMING_INVOICES",
+      overrides.streamingInvoices ?? defaults.streamingInvoices ?? "UNUSED_STREAMING_INVOICES",
   };
 }
 

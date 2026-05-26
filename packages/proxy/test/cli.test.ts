@@ -98,6 +98,19 @@ describe("boltwall CLI", () => {
         join(dir, "deployments", "pokedex") +
         " --sensitive",
     );
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "CORS_ALLOW_ORIGINS",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+      ],
+      stdin: "http://127.0.0.1:3000,https://boltwall-suite-playground.vercel.app\n",
+    });
     expect(runner.commands.at(-1)?.args).toEqual([
       "deploy",
       "--cwd",
@@ -275,6 +288,13 @@ function yamlConfig(options: { requireHodl?: boolean } = {}): string {
     "    methods: [GET]",
     '    priceMsat: "1000"',
     ...(options.requireHodl === true ? ["    requires:", "      hodl: true"] : []),
+    "cors:",
+    "  allowOrigins:",
+    "    - http://127.0.0.1:3000",
+    "    - https://boltwall-suite-playground.vercel.app",
+    "  allowMethods: [GET, OPTIONS]",
+    "  allowHeaders: [Authorization, Content-Type]",
+    "  maxAgeSeconds: 600",
   ].join("\n");
 }
 

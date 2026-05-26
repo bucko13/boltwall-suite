@@ -55,7 +55,9 @@ Set `NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT` at build time to point the
 browser demo at a Boltwall-protected endpoint. Protected endpoints that are
 hosted on another origin need CORS headers that allow the playground origin and
 expose `WWW-Authenticate`, otherwise the browser cannot read the challenge
-header.
+header. `@boltwall/proxy` supports this with `cors.allowOrigins`; configure the
+local playground origin or hosted playground URL on the proxy deployment, not in
+client-side secrets.
 
 For the umbrella workflows that wire the playground to a local regtest proxy or
 a Vercel/Voltage proxy, see:

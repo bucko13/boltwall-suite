@@ -21,11 +21,9 @@ does not yet host a real `/api/pokemon/:id` route, and the full pay-and-retry
 React component is still test-only and unlinked from navigation. Complete the
 payment retry from your terminal with `lncli-docker` and `curl`.
 
-There is one more browser limitation today: the proxy does not yet have a CORS
-configuration surface that exposes `WWW-Authenticate` to another origin. A
-local playground at `http://127.0.0.1:3000` fetching a proxy at
-`http://127.0.0.1:4010` may therefore fail in the browser even though `curl`
-sees the challenge. The implementation work is tracked as `bw-hff1.5`.
+Because the playground dev server and proxy run on different ports, the proxy
+config below opts into CORS for the local playground origin and exposes
+`WWW-Authenticate` so browser JavaScript can read the L402 challenge.
 
 ## Prerequisites
 
@@ -116,6 +114,13 @@ unprotectedPaths:
 forwardHeaders:
   allow: [accept, content-type, x-request-id]
   deny: [authorization, cookie]
+cors:
+  allowOrigins:
+    - http://127.0.0.1:3000
+    - http://localhost:3000
+  allowMethods: [GET, OPTIONS]
+  allowHeaders: [Authorization, Content-Type]
+  maxAgeSeconds: 600
 upstreamTimeoutMs: 10000
 deploy:
   target: vercel
@@ -182,10 +187,9 @@ http://127.0.0.1:3000/p/demo
 
 Click **Fetch Endpoint**. Expected result:
 
-- if CORS is configured or the endpoint is same-origin: status `402` and the
-  challenge field contains the `WWW-Authenticate` value,
-- with the current local proxy defaults: the browser may report a CORS failure
-  or show no readable challenge even though `curl` can see it.
+- status `402`,
+- the challenge field contains the `WWW-Authenticate` value,
+- browser devtools does not show a CORS error.
 
 If the challenge field is empty while `curl` can see the header, the proxy
 origin is not exposing `WWW-Authenticate` to the browser. For cross-origin
@@ -238,7 +242,7 @@ If you copied the legacy challenge instead, use `Authorization: LSAT
 ## Validation Notes
 
 The proxy payment flow can be fully validated with Docker plus the terminal
-commands above. The browser challenge-inspection step also requires same-origin
-serving or the CORS work tracked in `bw-hff1.5`. Steps that print
-credential-bearing values are intentionally local shell operations only; do not
-record their raw output in commits or task notes.
+commands above. The browser challenge-inspection step requires the CORS
+allowlist shown in the config when the playground and proxy are on different
+origins. Steps that print credential-bearing values are intentionally local
+shell operations only; do not record their raw output in commits or task notes.

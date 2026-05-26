@@ -178,6 +178,93 @@ describe("createProxy", () => {
     });
   });
 
+  test("configured CORS exposes L402 challenge headers on 402 responses", async () => {
+    const upstream = await buildUpstream();
+    const { app } = buildProxy(upstream.url, {
+      cors: { allowOrigins: ["https://playground.example"] },
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: { origin: "https://playground.example" },
+    });
+
+    expect(res.status).toBe(402);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://playground.example");
+    expect(res.headers.get("access-control-expose-headers")).toBe("WWW-Authenticate");
+    expect(res.headers.get("www-authenticate")).toContain("L402 macaroon=");
+  });
+
+  test("configured CORS is present on paid retry responses", async () => {
+    const upstream = await buildUpstream();
+    const { app, backend } = buildProxy(upstream.url, {
+      routes: [{ path: "/paid", methods: ["GET"], price: AMOUNT_MSAT }],
+      cors: { allowOrigins: ["https://playground.example"] },
+    });
+    const proxy = await listen(app);
+
+    const challenge = await fetch(`${proxy.url}/paid`, {
+      headers: { origin: "https://playground.example" },
+    });
+    const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: {
+        origin: "https://playground.example",
+        authorization: `L402 ${macaroon}:${PREIMAGE_HEX}`,
+      },
+    });
+
+    expect(res.status).toBe(200);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://playground.example");
+    expect(await res.json()).toMatchObject({ ok: true, path: "/paid" });
+  });
+
+  test("configured CORS answers preflight without creating an invoice", async () => {
+    const upstream = await buildUpstream();
+    const { app, backend } = buildProxy(upstream.url, {
+      cors: {
+        allowOrigins: ["https://playground.example"],
+        allowHeaders: ["Authorization"],
+        allowMethods: ["GET", "OPTIONS"],
+        maxAgeSeconds: 600,
+      },
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      method: "OPTIONS",
+      headers: {
+        origin: "https://playground.example",
+        "access-control-request-method": "GET",
+      },
+    });
+
+    expect(res.status).toBe(204);
+    expect(res.headers.get("access-control-allow-origin")).toBe("https://playground.example");
+    expect(res.headers.get("access-control-allow-methods")).toBe("GET, OPTIONS");
+    expect(res.headers.get("access-control-allow-headers")).toBe("Authorization");
+    expect(res.headers.get("access-control-max-age")).toBe("600");
+    expect(backend.lastCreateInvoice).toBeUndefined();
+  });
+
+  test("configured CORS does not allow unlisted origins", async () => {
+    const upstream = await buildUpstream();
+    const { app } = buildProxy(upstream.url, {
+      cors: { allowOrigins: ["https://playground.example"] },
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: { origin: "https://evil.example" },
+    });
+
+    expect(res.status).toBe(402);
+    expect(res.headers.get("access-control-allow-origin")).toBeNull();
+    expect(res.headers.get("access-control-expose-headers")).toBeNull();
+  });
+
   test("legacy LSAT credential proxies through the same paid path", async () => {
     const upstream = await buildUpstream();
     const { app, backend } = buildProxy(upstream.url, {

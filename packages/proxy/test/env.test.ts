@@ -12,6 +12,12 @@ describe("loadProxyEnv", () => {
         BOLTWALL_PROXY_UNPROTECTED_PATHS: "/healthz, /public/*",
         BOLTWALL_PROXY_FORWARD_ALLOW: "x-request-id,x-custom-*",
         BOLTWALL_PROXY_FORWARD_DENY: "x-secret-*",
+        BOLTWALL_PROXY_CORS_ALLOW_ORIGINS:
+          "http://127.0.0.1:3000, https://boltwall-suite-playground.vercel.app",
+        BOLTWALL_PROXY_CORS_EXPOSE_HEADERS: "WWW-Authenticate",
+        BOLTWALL_PROXY_CORS_ALLOW_HEADERS: "Authorization, Content-Type",
+        BOLTWALL_PROXY_CORS_ALLOW_METHODS: "GET, OPTIONS",
+        BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS: "600",
         BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: "5000",
         BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: "l402-only",
       },
@@ -25,6 +31,13 @@ describe("loadProxyEnv", () => {
       forwardHeaders: {
         allow: ["x-request-id", "x-custom-*"],
         deny: ["x-secret-*"],
+      },
+      cors: {
+        allowOrigins: ["http://127.0.0.1:3000", "https://boltwall-suite-playground.vercel.app"],
+        exposeHeaders: ["WWW-Authenticate"],
+        allowHeaders: ["Authorization", "Content-Type"],
+        allowMethods: ["GET", "OPTIONS"],
+        maxAgeSeconds: 600,
       },
       upstreamTimeoutMs: 5000,
       challengeCompatibility: "l402-only",

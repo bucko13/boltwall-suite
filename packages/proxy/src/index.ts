@@ -21,18 +21,31 @@ export type { ForwardHeadersPolicy } from "./header-policy.js";
 export { loadProxyEnv, type LoadProxyEnvOptions, type ProxyEnvConfig } from "./env.js";
 export type { ProxyRoute } from "./route-matching.js";
 
+/** Opt-in CORS policy for browser clients that need to inspect L402 challenges. */
+export interface ProxyCorsConfig {
+  /** Exact browser origins allowed to read proxy responses. Wildcards are intentionally unsupported. */
+  allowOrigins: string[];
+  /** Response headers exposed to browser JavaScript. Defaults to `WWW-Authenticate`. */
+  exposeHeaders?: string[];
+  /** Request headers allowed on CORS preflight. Defaults to common L402 demo headers. */
+  allowHeaders?: string[];
+  /** Methods allowed on CORS preflight. Defaults to `GET`, `HEAD`, and `OPTIONS`. */
+  allowMethods?: string[];
+  /** Optional `Access-Control-Max-Age` value in seconds for preflight caching. */
+  maxAgeSeconds?: number;
+}
+
 /** Runtime configuration for the Express-based Boltwall reverse proxy. */
-export interface ProxyConfig
-  extends Pick<
-    L402ExpressOptions,
-    | "rate"
-    | "satisfiers"
-    | "onPaid"
-    | "hodl"
-    | "cancelInvoice"
-    | "streamingInvoices"
-    | "customDescription"
-  > {
+export interface ProxyConfig extends Pick<
+  L402ExpressOptions,
+  | "rate"
+  | "satisfiers"
+  | "onPaid"
+  | "hodl"
+  | "cancelInvoice"
+  | "streamingInvoices"
+  | "customDescription"
+> {
   /** Upstream HTTP origin receiving requests after L402 authorization. */
   targetUrl: string;
   /** Lightning backend used by the underlying L402 middleware. */
@@ -53,6 +66,8 @@ export interface ProxyConfig
   unprotectedPaths?: (string | RegExp)[];
   /** Header forwarding policy. Credentials and cookies are denied by default. */
   forwardHeaders?: ForwardHeadersPolicy;
+  /** Optional CORS policy for browser clients. Disabled by default. */
+  cors?: ProxyCorsConfig;
   /** Timeout applied to upstream proxy requests. */
   upstreamTimeoutMs?: number;
   /**
@@ -100,6 +115,12 @@ export function createProxy(config: ProxyConfig): Express {
   }
 
   app.use((req, res, next) => {
+    const corsAllowed = applyCorsHeaders(req, res, config.cors);
+    if (config.cors !== undefined && req.method === "OPTIONS") {
+      res.status(corsAllowed ? 204 : 403).end();
+      return;
+    }
+
     if (isUnprotected(req, config.unprotectedPaths)) {
       void passthroughUpstream(req, res, next);
       return;
@@ -148,6 +169,48 @@ export function createProxy(config: ProxyConfig): Express {
   });
 
   return app;
+}
+
+const DEFAULT_CORS_EXPOSE_HEADERS = ["WWW-Authenticate"] as const;
+const DEFAULT_CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "Accept"] as const;
+const DEFAULT_CORS_ALLOW_METHODS = ["GET", "HEAD", "OPTIONS"] as const;
+
+function applyCorsHeaders(
+  req: ExpressRequest,
+  res: ExpressResponse,
+  cors: ProxyCorsConfig | undefined,
+): boolean {
+  if (cors === undefined) return false;
+
+  const origin = req.get("origin");
+  if (origin === undefined || !cors.allowOrigins.includes(origin)) return false;
+
+  res.vary("Origin");
+  res.setHeader("Access-Control-Allow-Origin", origin);
+  res.setHeader(
+    "Access-Control-Expose-Headers",
+    listHeader(cors.exposeHeaders ?? DEFAULT_CORS_EXPOSE_HEADERS),
+  );
+
+  if (req.method === "OPTIONS") {
+    res.setHeader(
+      "Access-Control-Allow-Methods",
+      listHeader(cors.allowMethods ?? DEFAULT_CORS_ALLOW_METHODS),
+    );
+    res.setHeader(
+      "Access-Control-Allow-Headers",
+      listHeader(cors.allowHeaders ?? DEFAULT_CORS_ALLOW_HEADERS),
+    );
+    if (cors.maxAgeSeconds !== undefined) {
+      res.setHeader("Access-Control-Max-Age", String(cors.maxAgeSeconds));
+    }
+  }
+
+  return true;
+}
+
+function listHeader(values: readonly string[]): string {
+  return values.join(", ");
 }
 
 function isUnprotected(req: ExpressRequest, patterns: (string | RegExp)[] = []): boolean {

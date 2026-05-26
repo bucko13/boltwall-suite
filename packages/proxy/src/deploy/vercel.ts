@@ -145,7 +145,14 @@ async function setVercelEnvironment(options: {
         `Missing ${sourceName}. Set it in the current environment or run interactive deploy so Boltwall can add it to Vercel.`,
       );
     }
-    await addVercelEnv(options.runner, options.projectDir, options.environment, targetName, value, true);
+    await addVercelEnv(
+      options.runner,
+      options.projectDir,
+      options.environment,
+      targetName,
+      value,
+      true,
+    );
   }
 }
 
@@ -264,6 +271,7 @@ const app = createProxy({
     ...(optionalEnv("FORWARD_ALLOW") === undefined ? {} : { allow: splitList(requireEnv("FORWARD_ALLOW")) }),
     ...(optionalEnv("FORWARD_DENY") === undefined ? {} : { deny: splitList(requireEnv("FORWARD_DENY")) }),
   },
+  ...(optionalEnv("CORS_ALLOW_ORIGINS") === undefined ? {} : { cors: corsConfig() }),
   ...(optionalEnv("UPSTREAM_TIMEOUT_MS") === undefined ? {} : { upstreamTimeoutMs: Number(optionalEnv("UPSTREAM_TIMEOUT_MS")) }),
 });
 
@@ -284,6 +292,30 @@ function optionalEnv(name: string): string | undefined {
 
 function splitList(value: string): string[] {
   return value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
+function corsConfig() {
+  return {
+    allowOrigins: corsOrigins(),
+    ...(optionalEnv("CORS_EXPOSE_HEADERS") === undefined ? {} : { exposeHeaders: splitList(requireEnv("CORS_EXPOSE_HEADERS")) }),
+    ...(optionalEnv("CORS_ALLOW_HEADERS") === undefined ? {} : { allowHeaders: splitList(requireEnv("CORS_ALLOW_HEADERS")) }),
+    ...(optionalEnv("CORS_ALLOW_METHODS") === undefined ? {} : { allowMethods: splitList(requireEnv("CORS_ALLOW_METHODS")) }),
+    ...(optionalEnv("CORS_MAX_AGE_SECONDS") === undefined ? {} : { maxAgeSeconds: positiveIntegerEnv("CORS_MAX_AGE_SECONDS") }),
+  };
+}
+
+function corsOrigins(): string[] {
+  const origins = splitList(requireEnv("CORS_ALLOW_ORIGINS"));
+  if (origins.length === 0) throw new Error("CORS_ALLOW_ORIGINS must include at least one origin");
+  return origins.map((origin) => new URL(origin).origin);
+}
+
+function positiveIntegerEnv(name: string): number {
+  const value = Number(requireEnv(name));
+  if (!Number.isInteger(value) || value < 0) {
+    throw new Error(\`\${name} must be a non-negative integer\`);
+  }
+  return value;
 }
 
 function challengeCompatibility(): "dual" | "l402-only" | "lsat-only" {

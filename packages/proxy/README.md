@@ -96,6 +96,9 @@ const app = createProxy({
   ],
   unprotectedPaths: ["/healthz"],
   forwardHeaders: { allow: ["x-request-id", "x-forwarded-*"] },
+  cors: {
+    allowOrigins: ["https://playground.example.com"],
+  },
 });
 ```
 
@@ -127,6 +130,11 @@ Supported variables:
 - `BOLTWALL_PROXY_UNPROTECTED_PATHS`
 - `BOLTWALL_PROXY_FORWARD_ALLOW`
 - `BOLTWALL_PROXY_FORWARD_DENY`
+- `BOLTWALL_PROXY_CORS_ALLOW_ORIGINS`
+- `BOLTWALL_PROXY_CORS_EXPOSE_HEADERS`
+- `BOLTWALL_PROXY_CORS_ALLOW_HEADERS`
+- `BOLTWALL_PROXY_CORS_ALLOW_METHODS`
+- `BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS`
 - `BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS`
 - `BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY`
 
@@ -156,6 +164,12 @@ unprotectedPaths:
 forwardHeaders:
   allow: [accept, content-type, x-request-id]
   deny: [cookie, authorization]
+cors:
+  allowOrigins:
+    - https://boltwall-suite-playground.vercel.app
+  allowMethods: [GET, OPTIONS]
+  allowHeaders: [Authorization, Content-Type]
+  maxAgeSeconds: 600
 deploy:
   target: vercel
   projectName: boltwall-pokedex-proxy
@@ -187,6 +201,12 @@ The same config may be written as JSON:
   "forwardHeaders": {
     "allow": ["accept", "content-type", "x-request-id"],
     "deny": ["cookie", "authorization"]
+  },
+  "cors": {
+    "allowOrigins": ["https://boltwall-suite-playground.vercel.app"],
+    "allowMethods": ["GET", "OPTIONS"],
+    "allowHeaders": ["Authorization", "Content-Type"],
+    "maxAgeSeconds": 600
   },
   "deploy": {
     "target": "vercel",
@@ -221,10 +241,14 @@ names are provided, Boltwall uses these defaults:
 During `boltwall deploy vercel`, config values become generated runtime
 environment variables such as `TARGET_URL`, `LN_BACKEND`,
 `DEFAULT_PRICE_MSAT`, `CHALLENGE_COMPATIBILITY`, `UNPROTECTED_PATHS`,
-`FORWARD_ALLOW`, `FORWARD_DENY`, and `UPSTREAM_TIMEOUT_MS`. Backend secret
-references map to the canonical Vercel-side names above. For example, a local
-config may read `MY_OPENNODE_SECRET`, while the deployed project receives
-`OPENNODE_API_KEY`.
+`FORWARD_ALLOW`, `FORWARD_DENY`, `CORS_ALLOW_ORIGINS`,
+`CORS_EXPOSE_HEADERS`, `CORS_ALLOW_HEADERS`, `CORS_ALLOW_METHODS`,
+`CORS_MAX_AGE_SECONDS`, and `UPSTREAM_TIMEOUT_MS`. When `cors` is configured,
+the runtime allows only the listed exact origins and exposes
+`WWW-Authenticate` by default so browser clients can read L402 challenges.
+Backend secret references map to the canonical Vercel-side names above. For
+example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
+project receives `OPENNODE_API_KEY`.
 
 Do not put backend credentials, macaroons, API keys, TLS certificates,
 preimages, bearer tokens, or `.env` files in client-side code or committed
@@ -251,6 +275,10 @@ credential-like output from failed Vercel commands.
   legacy `Authorization: LSAT <macaroon>:<preimage>` form.
 - Route prices can be static millisatoshis or resolved per Express request.
 - Route caveats can be static or resolved per Express request.
+- Browser CORS is disabled by default. When `cors.allowOrigins` is configured,
+  matching origins receive `Access-Control-Allow-Origin`,
+  `Access-Control-Expose-Headers: WWW-Authenticate`, and preflight responses
+  for the configured methods and headers.
 - Middleware behaviors used by the legacy proxy flow remain available through
   proxy config: `rate`, `capabilities`, `invoiceMemo`, `satisfiers`, `onPaid`,
   and backend capability requirements such as `hodl`.
