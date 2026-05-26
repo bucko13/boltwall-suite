@@ -15,11 +15,15 @@ state, macaroons, certs, or deterministic dev wallet password for production.
 
 ## Current Product Boundary
 
-The playground Demo panel can fetch a configured protected endpoint and show the
-response status, body, and `WWW-Authenticate` challenge. The normal playground
-does not yet host a real `/api/pokemon/:id` route, and the full pay-and-retry
-React component is still test-only and unlinked from navigation. Complete the
-payment retry from your terminal with `lncli-docker` and `curl`.
+The playground Demo panel is the visible browser flow. With no proxy configured
+it fetches a random Pokemon from public PokeAPI and reports that no L402
+challenge was returned. When pointed at a protected endpoint, it requests a
+random Pokemon, shows the returned L402 challenge, lets the user pay with WebLN
+or paste a paid preimage manually, retries with the credential, and renders the
+Pokemon response.
+
+The normal playground still does not host a real `/api/pokemon/:id` route. It
+consumes public PokeAPI or a configured external proxy endpoint.
 
 Because the playground dev server and proxy run on different ports, the proxy
 config below opts into CORS for the local playground origin and exposes
@@ -175,8 +179,8 @@ Copy the invoice and macaroon from the `WWW-Authenticate` header. Prefer the
 In a new shell:
 
 ```sh
-NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT=http://127.0.0.1:4010/pokemon/1 \
-  bun run --cwd apps/playground dev
+NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT=http://127.0.0.1:4010/pokemon/{id} \
+  bun run dev
 ```
 
 Open the local playground and go to the Demo panel:
@@ -185,10 +189,11 @@ Open the local playground and go to the Demo panel:
 http://127.0.0.1:3000/p/demo
 ```
 
-Click **Fetch Endpoint**. Expected result:
+Click **Get Random Pokemon**. Expected result:
 
-- status `402`,
-- the challenge field contains the `WWW-Authenticate` value,
+- status `payment`,
+- the Demo shows the L402 challenge scheme, invoice, and macaroon,
+- WebLN and manual preimage payment options are visible,
 - browser devtools does not show a CORS error.
 
 If the challenge field is empty while `curl` can see the header, the proxy
@@ -198,19 +203,23 @@ expose the `WWW-Authenticate` response header.
 
 ## 6. Pay From The Payer Node
 
-Pay the invoice copied from the challenge:
+If WebLN is not connected to the local payer node, pay the invoice from the
+challenge with `lncli`:
 
 ```sh
 .agents/skills/local-lnd-testing/scripts/lncli-docker payer payinvoice --force <bolt11-invoice>
 ```
 
-Copy the 64-character hex payment preimage from the `lncli` output. Do not
-commit or publish real preimages; they are bearer-credential material when
-paired with the macaroon.
+Copy the 64-character hex payment preimage from the `lncli` output, paste it
+into the Demo panel, and submit it to retry the request. Do not commit or
+publish real preimages; they are bearer-credential material when paired with the
+macaroon.
 
-## 7. Retry With The L402 Credential
+## 7. Optional Terminal Retry
 
-Use the macaroon from the chosen challenge and the preimage from the payment:
+The browser Demo performs the retry after WebLN payment or manual preimage
+submit. To verify the same credential from a terminal, use the macaroon from
+the chosen challenge and the preimage from the payment:
 
 ```sh
 curl -i \

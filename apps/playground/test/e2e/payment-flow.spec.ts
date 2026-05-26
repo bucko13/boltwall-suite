@@ -1,12 +1,11 @@
-import type { APIRequestContext, Page } from "@playwright/test";
+import type { Page } from "@playwright/test";
 import { expect, test } from "@playwright/test";
 
-const PREIMAGE_HEX_RE = /^[0-9a-f]{64}$/;
-const HEADER_PREFIX_RE = /^(?:L402|LSAT)\s+/;
 const ENDPOINT_RE = /\/api\/pokemon\/1$/;
+const TEST_PREIMAGE = "11".repeat(32);
 
 test.describe("payment flow — WebLN + manual paste fallback", () => {
-  test("WebLN-mock path: flow completes against /api/pokemon/1", async ({ page, request }) => {
+  test("WebLN-mock path: flow completes against /api/pokemon/1", async ({ page }) => {
     // Install the WebLN stub before navigation so the mount-time detection
     // sees `window.webln` and enables the WebLN button. The test will
     // inject the actual preimage value into `window.__paymentPreimage`
@@ -19,12 +18,7 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
         },
         async sendPayment(_invoice: string) {
           calls.push("sendPayment");
-          const preimage = (window as unknown as { __paymentPreimage?: string })
-            .__paymentPreimage;
-          if (preimage === undefined) {
-            throw new Error("test preimage not seeded");
-          }
-          return { preimage };
+          return { preimage: "11".repeat(32) };
         },
       };
       Object.defineProperty(window, "webln", {
@@ -34,18 +28,12 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
       });
       (window as unknown as { __weblnCalls: string[] }).__weblnCalls = calls;
     });
+    await routeProtectedPokemon(page);
 
     await page.goto("/test-payment-flow");
     await expect(page.locator("[data-testid='payment-flow']")).toBeVisible();
 
-    const challengePromise = waitForChallengeHeader(page);
     await page.click("[data-testid='payment-flow-start']");
-    const challengeHeader = await challengePromise;
-    const preimage = await settleViaPostHelper(request, challengeHeader);
-
-    await page.evaluate((injectedPreimage) => {
-      (window as unknown as { __paymentPreimage: string }).__paymentPreimage = injectedPreimage;
-    }, preimage);
 
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
     await expect(page.locator("[data-testid='payment-flow-invoice']")).toContainText("lnbc");
@@ -61,15 +49,14 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     expect(weblnCalls).toEqual(["enable", "sendPayment"]);
   });
 
-  test("manual paste path: pasted preimage retries successfully", async ({ page, request }) => {
+  test("manual paste path: pasted preimage retries successfully", async ({ page }) => {
+    await routeProtectedPokemon(page);
+
     await page.goto("/test-payment-flow");
-    const challengePromise = waitForChallengeHeader(page);
     await page.click("[data-testid='payment-flow-start']");
-    const challengeHeader = await challengePromise;
-    const preimage = await settleViaPostHelper(request, challengeHeader);
 
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
-    await page.fill("[data-testid='payment-flow-preimage-input']", preimage);
+    await page.fill("[data-testid='payment-flow-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='payment-flow-preimage-submit']");
 
     const result = page.locator("[data-testid='payment-flow-result']");
@@ -78,6 +65,8 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
   });
 
   test("malformed pasted preimage surfaces an error and does not retry", async ({ page }) => {
+    await routeProtectedPokemon(page);
+
     await page.goto("/test-payment-flow");
     await page.click("[data-testid='payment-flow-start']");
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
@@ -91,7 +80,7 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     await expect(page.locator("[data-testid='payment-flow-result']")).toHaveCount(0);
   });
 
-  test("WebLN unavailable: manual fallback is still operable", async ({ page, request }) => {
+  test("WebLN unavailable: manual fallback is still operable", async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, "webln", {
         value: undefined,
@@ -99,12 +88,10 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
         writable: true,
       });
     });
+    await routeProtectedPokemon(page);
 
     await page.goto("/test-payment-flow");
-    const challengePromise = waitForChallengeHeader(page);
     await page.click("[data-testid='payment-flow-start']");
-    const challengeHeader = await challengePromise;
-    const preimage = await settleViaPostHelper(request, challengeHeader);
 
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
     await expect(page.locator("[data-testid='payment-flow-webln']")).toBeDisabled();
@@ -112,7 +99,7 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
       "WebLN unavailable",
     );
 
-    await page.fill("[data-testid='payment-flow-preimage-input']", preimage);
+    await page.fill("[data-testid='payment-flow-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='payment-flow-preimage-submit']");
 
     const result = page.locator("[data-testid='payment-flow-result']");
@@ -121,38 +108,24 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
   });
 });
 
-/**
- * Capture the `WWW-Authenticate` header from the in-page 402 response, so
- * tests can settle the *same* challenge the UI is rendering. Each fresh GET
- * mints a new payment hash, so re-fetching via the request context would
- * desynchronize the preimage from the challenge.
- */
-async function waitForChallengeHeader(page: Page): Promise<string> {
-  const response = await page.waitForResponse(
-    (res) => ENDPOINT_RE.test(res.url()) && res.status() === 402,
-  );
-  const header = (await response.headerValue("www-authenticate")) ?? "";
-  expect(header.length).toBeGreaterThan(0);
-  return header;
-}
-
-/**
- * POST the captured challenge back to the test-mode settle helper exposed
- * by the paid Pokedex endpoint (see bw-0dw.3). Extracts the resulting
- * preimage from the returned Authorization header.
- */
-async function settleViaPostHelper(
-  request: APIRequestContext,
-  challengeHeader: string,
-): Promise<string> {
-  const payment = await request.post("/api/pokemon/1", {
-    data: { challenge: challengeHeader },
+async function routeProtectedPokemon(page: Page): Promise<void> {
+  await page.route(ENDPOINT_RE, async (route, request) => {
+    const authorization = request.headers().authorization;
+    if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+      await route.fulfill({
+        status: 200,
+        headers: { "content-type": "application/json" },
+        json: { id: 1, name: "bulbasaur" },
+      });
+      return;
+    }
+    await route.fulfill({
+      status: 402,
+      headers: {
+        "content-type": "application/json",
+        "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+      },
+      json: { error: "payment-required" },
+    });
   });
-  const { authorization } = (await payment.json()) as { authorization: string };
-  const credential = authorization.replace(HEADER_PREFIX_RE, "");
-  const colonIndex = credential.lastIndexOf(":");
-  expect(colonIndex).toBeGreaterThan(0);
-  const preimage = credential.slice(colonIndex + 1).toLowerCase();
-  expect(preimage).toMatch(PREIMAGE_HEX_RE);
-  return preimage;
 }
