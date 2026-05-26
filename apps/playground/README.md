@@ -10,7 +10,7 @@ This app will become the interactive workbench for learning L402 by doing:
 - constructing and inspecting L402 credentials
 - trying those credentials against a live L402-protected endpoint
 
-Phase 0 only scaffolds the app shell and local toolchain wiring.
+The current app scaffolds the shell and local toolchain wiring.
 
 ## Workspace integration
 
