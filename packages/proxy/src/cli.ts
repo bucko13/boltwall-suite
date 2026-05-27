@@ -493,10 +493,19 @@ function validateConfig(config: BoltwallConfig, env: Record<string, string | und
 function writeValidationSummary(
   stdout: Writable,
   config: BoltwallConfig,
-  secondSummary: unknown,
+  backendCapabilities: unknown,
 ): void {
-  write(stdout, `${JSON.stringify(configSummary(config), null, 2)}\n`);
-  write(stdout, `${JSON.stringify(secondSummary, null, 2)}\n`);
+  write(
+    stdout,
+    `${JSON.stringify(
+      {
+        config: configSummary(config),
+        backendCapabilities,
+      },
+      null,
+      2,
+    )}\n`,
+  );
 }
 
 function requiredEnvNameSummary(config: BoltwallConfig): Record<string, unknown> {

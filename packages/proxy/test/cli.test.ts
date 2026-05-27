@@ -43,6 +43,8 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
+    expect(stdout.text()).toContain('"paywallMode": "standard-invoice"');
+    expect(stdout.text()).toContain('"backendCapabilities"');
     expect(stdout.text()).toContain('"hodl": false');
   });
 
@@ -95,6 +97,7 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
+    expect(stdout.text()).toContain('"backendCapabilities"');
   });
 
   test("validate fails on backend capability mismatch", async () => {

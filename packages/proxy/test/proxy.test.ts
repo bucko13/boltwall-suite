@@ -122,7 +122,7 @@ describe("createProxy", () => {
 
   test("missing credential returns default dual LSAT-first/L402-second challenge", async () => {
     const upstream = await buildUpstream();
-    const { app } = buildProxy(upstream.url);
+    const { app, backend } = buildProxy(upstream.url);
     const proxy = await listen(app);
 
     const res = await fetch(`${proxy.url}/paid`);
@@ -132,6 +132,7 @@ describe("createProxy", () => {
     expect(challenge).toContain("LSAT macaroon=");
     expect(challenge).toContain("L402 macaroon=");
     expect(challenge.indexOf("LSAT")).toBeLessThan(challenge.indexOf("L402"));
+    expect(backend.lastCreateInvoice?.hodl).toBeUndefined();
   });
 
   test("l402-only challenge mode emits only L402", async () => {

@@ -352,6 +352,7 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
     name: config.name ?? "(unnamed)",
     targetUrl: config.targetUrl,
     backend: config.backend.kind,
+    paywallMode: "standard-invoice",
     defaultPriceMsat: config.pricing.defaultPriceMsat,
     routes: config.routes?.length ?? 0,
     challengeCompatibility: config.challengeCompatibility,
