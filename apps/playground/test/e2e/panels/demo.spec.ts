@@ -330,7 +330,6 @@ test.describe("panels / demo", () => {
     await page.fill("[data-testid='challenge-input']", fixtureHeader);
     await page.click("[data-testid='challenge-parse']");
     await page.click("[data-testid='challenge-store-macaroon']");
-    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText("abc");
 
     await page.getByTestId("nav-link-demo").click();
     await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();

@@ -107,20 +107,26 @@ export function WorkbenchMemoryStrip() {
             Workbench memory
           </span>
           <MemoryChip
-            label="key"
+            label="signing key"
             value={memory.signingKey}
             onClear={() => memory.setSigningKey(null)}
             testId="workbench-memory-key"
           />
           <MemoryChip
-            label="token"
-            value={memory.macaroon}
-            onClear={() => memory.setMacaroon(null)}
-            testId="workbench-memory-token"
+            label="challenge"
+            value={memory.challenge}
+            onClear={() => memory.setChallenge(null)}
+            testId="workbench-memory-challenge"
+          />
+          <MemoryChip
+            label="credential"
+            value={memory.credential}
+            onClear={() => memory.setCredential(null)}
+            testId="workbench-memory-credential"
           />
         </div>
 
-        {memory.signingKey || memory.macaroon ? (
+        {memory.signingKey || memory.challenge || memory.credential ? (
           <button
             type="button"
             onClick={memory.clear}

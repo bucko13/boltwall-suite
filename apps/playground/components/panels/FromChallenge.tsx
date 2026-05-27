@@ -8,7 +8,7 @@ import {
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
-import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useRememberedStringInput, useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
@@ -24,12 +24,10 @@ const PANEL = "from-challenge";
 export function FromChallenge() {
   const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
-  const [challenge, setChallenge] = useUrlInput<string>(
-    "challenge",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  const [challenge, setChallenge] = useRememberedStringInput("challenge", {
+    panel: PANEL,
+    field: "challenge",
+  });
 
   const [fields, setFields] = useState<L402ChallengeFields[] | null>(null);
   const [error, setError] = useState<string | null>(null);

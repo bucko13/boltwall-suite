@@ -79,16 +79,10 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
-    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
-      macaroon?.trim().slice(0, 8) ?? "",
-    );
 
     await page.getByTestId("nav-link-parse").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
-      macaroon?.trim().slice(0, 8) ?? "",
     );
 
     await page.getByRole("link", { name: "Validate" }).click();
@@ -97,11 +91,8 @@ test.describe("panels / validate", () => {
       macaroon?.trim() ?? "",
     );
 
-    await page.click("[data-testid='workbench-memory-token-clear']");
+    await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText(
-      "token: empty",
-    );
   });
 
   test("URL params override remembered values", async ({ page }) => {

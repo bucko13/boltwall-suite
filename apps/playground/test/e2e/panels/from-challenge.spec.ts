@@ -17,6 +17,7 @@ test.describe("panels / from-challenge", () => {
 
   test("parses L402 challenge header and shows scheme + macaroon", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await page.click("[data-testid='challenge-parse']");
 
     await expect(page.locator("[data-testid='challenge-output']")).toBeVisible();
@@ -45,7 +46,6 @@ test.describe("panels / from-challenge", () => {
 
     const macaroon = await page.locator("[data-testid='challenge-macaroon']").textContent();
     await page.click("[data-testid='challenge-store-macaroon']");
-    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText("AGIA");
     await expect(page.locator("[data-testid='challenge-next-action-status']")).toContainText(
       "Macaroon stored",
     );
@@ -71,6 +71,9 @@ test.describe("panels / from-challenge", () => {
     await expect(page.locator("[data-testid='challenge-output']")).toBeVisible();
     await page.click("[data-testid='challenge-reset']");
     await expect(page.locator("[data-testid='challenge-output']")).not.toBeVisible();
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText(
+      "challenge: empty",
+    );
   });
 
   test("code snippet reflects input value", async ({ page }) => {

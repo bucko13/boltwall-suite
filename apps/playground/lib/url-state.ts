@@ -20,13 +20,17 @@ export type UrlInputOptions = {
   panel?: string;
 };
 
-export type WorkbenchMemoryField = "signingKey" | "macaroon";
+export type WorkbenchMemoryField = "signingKey" | "macaroon" | "challenge" | "credential";
 
 type WorkbenchMemoryContextValue = {
   signingKey: string;
   macaroon: string;
+  challenge: string;
+  credential: string;
   setSigningKey: (value: string | null) => void;
   setMacaroon: (value: string | null) => void;
+  setChallenge: (value: string | null) => void;
+  setCredential: (value: string | null) => void;
   clear: () => void;
 };
 
@@ -41,6 +45,8 @@ function notifyMemoryFieldCleared(field: WorkbenchMemoryField) {
 export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const [signingKey, setSigningKeyState] = useState("");
   const [macaroon, setMacaroonState] = useState("");
+  const [challenge, setChallengeState] = useState("");
+  const [credential, setCredentialState] = useState("");
 
   const setSigningKey = useCallback((value: string | null) => {
     if (!value) notifyMemoryFieldCleared("signingKey");
@@ -52,22 +58,50 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     setMacaroonState(value || "");
   }, []);
 
+  const setChallenge = useCallback((value: string | null) => {
+    if (!value) notifyMemoryFieldCleared("challenge");
+    setChallengeState(value || "");
+  }, []);
+
+  const setCredential = useCallback((value: string | null) => {
+    if (!value) notifyMemoryFieldCleared("credential");
+    setCredentialState(value || "");
+  }, []);
+
   const clear = useCallback(() => {
     notifyMemoryFieldCleared("signingKey");
     notifyMemoryFieldCleared("macaroon");
+    notifyMemoryFieldCleared("challenge");
+    notifyMemoryFieldCleared("credential");
     setSigningKeyState("");
     setMacaroonState("");
+    setChallengeState("");
+    setCredentialState("");
   }, []);
 
   const contextValue = useMemo<WorkbenchMemoryContextValue>(
     () => ({
       signingKey,
       macaroon,
+      challenge,
+      credential,
       setSigningKey,
       setMacaroon,
+      setChallenge,
+      setCredential,
       clear,
     }),
-    [clear, macaroon, setMacaroon, setSigningKey, signingKey],
+    [
+      challenge,
+      clear,
+      credential,
+      macaroon,
+      setChallenge,
+      setCredential,
+      setMacaroon,
+      setSigningKey,
+      signingKey,
+    ],
   );
 
   return createElement(WorkbenchMemoryContext.Provider, { value: contextValue }, children);
@@ -79,7 +113,10 @@ export function useWorkbenchMemory() {
 
 function getMemoryValue(memory: WorkbenchMemoryContextValue | null, field: WorkbenchMemoryField) {
   if (!memory) return "";
-  return field === "signingKey" ? memory.signingKey : memory.macaroon;
+  if (field === "signingKey") return memory.signingKey;
+  if (field === "challenge") return memory.challenge;
+  if (field === "credential") return memory.credential;
+  return memory.macaroon;
 }
 
 function setMemoryValue(
@@ -90,6 +127,14 @@ function setMemoryValue(
   if (!memory) return;
   if (field === "signingKey") {
     memory.setSigningKey(value);
+    return;
+  }
+  if (field === "challenge") {
+    memory.setChallenge(value);
+    return;
+  }
+  if (field === "credential") {
+    memory.setCredential(value);
     return;
   }
   memory.setMacaroon(value);
