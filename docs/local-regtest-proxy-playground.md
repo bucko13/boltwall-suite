@@ -52,7 +52,7 @@ bun run infra -- lightning move payer server 1
 In the shell that will run the proxy, export the server node connection values:
 
 ```sh
-eval "$(bun --silent run infra -- lnd-env --node server --export)"
+eval "$(bun run --silent infra -- lnd-env --node server --export)"
 ```
 
 The helper exports the canonical local LND backend variables:
@@ -186,7 +186,7 @@ If you copied the legacy challenge instead, use `Authorization: LSAT
 ## Troubleshooting
 
 - `Missing required environment variable`: re-run
-  `eval "$(bun --silent run infra -- lnd-env --node server --export)"` in the
+  `eval "$(bun run --silent infra -- lnd-env --node server --export)"` in the
   same shell that starts the proxy.
 - `402` after retry: make sure the macaroon and preimage came from the same
   challenge/invoice. A fresh first request creates a fresh invoice.

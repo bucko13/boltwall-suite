@@ -204,7 +204,7 @@ To export the local-only credential values into the current shell, make the
 credential-bearing mode explicit:
 
 ```sh
-eval "$(bun --silent run infra -- lnd-env --export)"
+eval "$(bun run --silent infra -- lnd-env --export)"
 ```
 
 Use `--node <name>` to target an internal role (`alice`, `bob`) or a logical
