@@ -151,6 +151,7 @@
       },
       "dependencies": {
         "@boltwall/adapters": "workspace:*",
+        "@boltwall/internal": "workspace:*",
         "@boltwall/l402": "workspace:*",
         "@boltwall/middleware": "workspace:*",
         "express": "^5.1.0",
