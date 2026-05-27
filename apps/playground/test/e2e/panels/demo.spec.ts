@@ -35,10 +35,7 @@ test.describe("panels / demo", () => {
     );
     await expect(page.locator("[data-testid='demo-l402-details']")).toHaveCount(0);
     await expect(page.locator("[data-testid='status-pill']")).toHaveText("unprotected");
-    await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute(
-      "data-state",
-      "warn",
-    );
+    await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute("data-state", "warn");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
       "recipe code",
     );
@@ -82,10 +79,7 @@ test.describe("panels / demo", () => {
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='status-pill']")).toHaveText("loaded");
-    await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute(
-      "data-state",
-      "pass",
-    );
+    await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute("data-state", "pass");
     await expect(page.locator("[data-testid='demo-pokemon-image']")).toHaveAttribute(
       "src",
       "https://img.example.test/pikachu.png",
@@ -106,6 +100,60 @@ test.describe("panels / demo", () => {
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='demo-pokemon-type']")).toContainText("electric");
+  });
+
+  test("request failures show endpoint and origin diagnostics", async ({ page }) => {
+    await page.route(PROTECTED_RE, async (route) => {
+      await route.abort("failed");
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
+      "could not read a response",
+    );
+    await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
+      "Endpoint: https://boltwall.example.test/pokemon/",
+    );
+    await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
+      "Playground origin:",
+    );
+    await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
+      "CORS policy allows this playground origin",
+    );
+    await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
+      "WWW-Authenticate",
+    );
+    await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+  });
+
+  test("402 without readable challenge explains header exposure", async ({ page }) => {
+    await page.route(PROTECTED_RE, async (route) => {
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "content-type": "application/json",
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
+      "no readable L402 challenge",
+    );
+    await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
+      "WWW-Authenticate",
+    );
+    await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
   });
 
   test("malformed pasted preimage surfaces an error and does not retry", async ({ page }) => {
@@ -140,9 +188,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pay-webln']")).toBeDisabled();
-    await expect(page.locator("[data-testid='demo-pay-webln']")).toContainText(
-      "WebLN unavailable",
-    );
+    await expect(page.locator("[data-testid='demo-pay-webln']")).toContainText("WebLN unavailable");
     await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-preimage-submit']");
 

@@ -45,6 +45,33 @@ export type FetchPaidResult =
   | { status: "challenge"; challenge: L402ChallengeFields }
   | { status: "error"; response: Response };
 
+export type FetchPaidDiagnostic =
+  | {
+      kind: "request-failed-before-readable-response";
+      message: string;
+    }
+  | {
+      kind: "payment-challenge-missing";
+      status: 402;
+    }
+  | {
+      kind: "payment-challenge-invalid";
+      status: 402;
+      message: string;
+    };
+
+export class FetchPaidResourceError extends Error {
+  readonly diagnostic: FetchPaidDiagnostic;
+  override readonly cause?: unknown;
+
+  constructor(diagnostic: FetchPaidDiagnostic, options: { cause?: unknown } = {}) {
+    super(diagnostic.kind);
+    this.name = "FetchPaidResourceError";
+    this.diagnostic = diagnostic;
+    this.cause = options.cause;
+  }
+}
+
 /**
  * Outcome of `retryWithCredential`.
  *
@@ -68,7 +95,18 @@ export async function fetchPaidResource(
   init: RequestInit = {},
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<FetchPaidResult> {
-  const response = await fetchImpl(url, init);
+  let response: Response;
+  try {
+    response = await fetchImpl(url, init);
+  } catch (error) {
+    throw new FetchPaidResourceError(
+      {
+        kind: "request-failed-before-readable-response",
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { cause: error },
+    );
+  }
   if (response.status !== 402) {
     return response.ok ? { status: "ok", response } : { status: "error", response };
   }
@@ -101,9 +139,7 @@ export async function retryWithCredential(
   const headers = new Headers(init.headers);
   headers.set("Authorization", authorization);
   const response = await fetchImpl(url, { ...init, headers });
-  return response.ok
-    ? { status: "paid", response }
-    : { status: "rejected", response };
+  return response.ok ? { status: "paid", response } : { status: "rejected", response };
 }
 
 /**
@@ -124,14 +160,33 @@ export function parsePastedPreimage(input: string): string {
 function pickChallenge(headers: Headers): L402ChallengeFields {
   const raw = headers.get("www-authenticate");
   if (raw === null || raw.trim() === "") {
-    throw new Error("missing-www-authenticate");
+    throw new FetchPaidResourceError({
+      kind: "payment-challenge-missing",
+      status: 402,
+    });
   }
-  const challenges = parseAuthenticateHeader(raw);
+  let challenges: L402ChallengeFields[];
+  try {
+    challenges = parseAuthenticateHeader(raw);
+  } catch (error) {
+    throw new FetchPaidResourceError(
+      {
+        kind: "payment-challenge-invalid",
+        status: 402,
+        message: error instanceof Error ? error.message : String(error),
+      },
+      { cause: error },
+    );
+  }
   // Per L402 spec §10: prefer L402 over LSAT when both are advertised.
   const l402 = challenges.find((c) => c.scheme === "L402");
   const chosen = l402 ?? challenges[0];
   if (chosen === undefined) {
-    throw new Error("empty-challenge-set");
+    throw new FetchPaidResourceError({
+      kind: "payment-challenge-invalid",
+      status: 402,
+      message: "empty-challenge-set",
+    });
   }
   return chosen;
 }

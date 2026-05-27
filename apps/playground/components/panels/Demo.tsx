@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from "react";
 
 import {
+  FetchPaidResourceError,
   fetchPaidResource,
   parsePastedPreimage,
   retryWithCredential,
@@ -13,8 +14,7 @@ import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
 const PUBLIC_POKEMON_ENDPOINT_TEMPLATE = "https://pokeapi.co/api/v2/pokemon/{id}";
-const CONFIGURED_DEMO_ENDPOINT =
-  process.env.NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT ?? "";
+const CONFIGURED_DEMO_ENDPOINT = process.env.NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT ?? "";
 const MAX_POKEMON_ID = 1025;
 
 interface WebLnHandle {
@@ -43,7 +43,12 @@ type DemoStatus =
   | { kind: "awaiting-payment"; id: number; challenge: ChallengeState }
   | { kind: "paying"; id: number }
   | { kind: "ok"; pokemon: Pokemon; l402Protected: boolean }
-  | { kind: "error"; message: string };
+  | { kind: "error"; error: DemoError };
+
+type DemoError = {
+  title: string;
+  details: string[];
+};
 
 function getWebLn(): WebLnHandle | null {
   if (typeof window === "undefined") return null;
@@ -95,9 +100,7 @@ function parsePokemon(text: string): Pokemon {
   };
   const name = value.name;
   const image =
-    value.sprites?.front_default ??
-    value.sprites?.other?.["official-artwork"]?.front_default ??
-    "";
+    value.sprites?.front_default ?? value.sprites?.other?.["official-artwork"]?.front_default ?? "";
   const type = value.types?.[0]?.type?.name ?? "";
   if (name === undefined || name === "" || image === "" || type === "") {
     throw new Error("invalid-pokemon-response");
@@ -109,6 +112,46 @@ function parsePokemon(text: string): Pokemon {
     image,
     raw: JSON.stringify(value, null, 2),
   };
+}
+
+function currentOrigin(): string {
+  if (typeof window === "undefined") return "unknown origin";
+  return window.location.origin;
+}
+
+function messageError(message: string): DemoError {
+  return { title: message, details: [] };
+}
+
+function describeInitialFetchError(endpoint: string, error: unknown): DemoError {
+  if (error instanceof FetchPaidResourceError) {
+    const commonDetails = [`Endpoint: ${endpoint}`, `Playground origin: ${currentOrigin()}`];
+    if (error.diagnostic.kind === "request-failed-before-readable-response") {
+      return {
+        title: "The playground could not read a response from the endpoint.",
+        details: [
+          ...commonDetails,
+          "Check that the endpoint is reachable from the browser and that its CORS policy allows this playground origin.",
+          "For L402 challenges, the response must also expose WWW-Authenticate so the invoice and macaroon can be shown.",
+          `Fetch detail: ${error.diagnostic.message}`,
+        ],
+      };
+    }
+    if (error.diagnostic.kind === "payment-challenge-missing") {
+      return {
+        title: "The endpoint returned HTTP 402, but no readable L402 challenge was present.",
+        details: [
+          ...commonDetails,
+          "Return a WWW-Authenticate header and expose it to this playground origin.",
+        ],
+      };
+    }
+    return {
+      title: "The endpoint returned HTTP 402, but the L402 challenge could not be parsed.",
+      details: [...commonDetails, `Parser detail: ${error.diagnostic.message}`],
+    };
+  }
+  return messageError(error instanceof Error ? error.message : String(error));
 }
 
 export function Demo() {
@@ -125,8 +168,7 @@ export function Demo() {
     () => pickEndpointTemplate(endpointOverride),
     [endpointOverride],
   );
-  const usingConfiguredEndpoint =
-    endpointOverride.trim() !== "" || CONFIGURED_DEMO_ENDPOINT !== "";
+  const usingConfiguredEndpoint = endpointOverride.trim() !== "" || CONFIGURED_DEMO_ENDPOINT !== "";
 
   async function getPokemon() {
     const id = randomPokemonId();
@@ -151,7 +193,7 @@ export function Demo() {
         const text = await result.response.text();
         setStatus({
           kind: "error",
-          message: `request failed ${String(result.response.status)}: ${text}`,
+          error: messageError(`request failed ${String(result.response.status)}: ${text}`),
         });
         return;
       }
@@ -169,7 +211,7 @@ export function Demo() {
     } catch (error) {
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : String(error),
+        error: describeInitialFetchError(endpoint, error),
       });
     }
   }
@@ -178,7 +220,7 @@ export function Demo() {
     if (status.kind !== "awaiting-payment") return;
     const webln = getWebLn();
     if (webln === null) {
-      setStatus({ kind: "error", message: "WebLN not detected" });
+      setStatus({ kind: "error", error: messageError("WebLN not detected") });
       return;
     }
     const { id, challenge } = status;
@@ -190,7 +232,7 @@ export function Demo() {
     } catch (error) {
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : String(error),
+        error: messageError(error instanceof Error ? error.message : String(error)),
       });
     }
   }
@@ -203,7 +245,7 @@ export function Demo() {
     } catch (error) {
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : String(error),
+        error: messageError(error instanceof Error ? error.message : String(error)),
       });
       return;
     }
@@ -214,16 +256,12 @@ export function Demo() {
     } catch (error) {
       setStatus({
         kind: "error",
-        message: error instanceof Error ? error.message : String(error),
+        error: messageError(error instanceof Error ? error.message : String(error)),
       });
     }
   }
 
-  async function retryAndRender(
-    id: number,
-    challenge: ChallengeState,
-    preimage: string,
-  ) {
+  async function retryAndRender(id: number, challenge: ChallengeState, preimage: string) {
     const result = await retryWithCredential(
       challenge.endpoint,
       { headers: { accept: "application/json" }, cache: "no-store" },
@@ -242,7 +280,7 @@ export function Demo() {
     const text = await result.response.text();
     setStatus({
       kind: "error",
-      message: `retry returned ${String(result.response.status)}: ${text}`,
+      error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
     });
   }
 
@@ -271,10 +309,8 @@ export function Demo() {
                 ? "loaded"
                 : "unprotected"
               : "error";
-  const challenge =
-    status.kind === "awaiting-payment" ? status.challenge : undefined;
-  const challengePokemonId =
-    status.kind === "awaiting-payment" ? status.id : undefined;
+  const challenge = status.kind === "awaiting-payment" ? status.challenge : undefined;
+  const challengePokemonId = status.kind === "awaiting-payment" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
   const weblnDisabled = webLnDetected === false || busy;
 
@@ -287,7 +323,7 @@ export function Demo() {
           trailing={
             <StatusPill
               state={statusState}
-              details={status.kind === "error" ? status.message : null}
+              details={status.kind === "error" ? status.error.title : null}
             >
               {statusLabel}
             </StatusPill>
@@ -342,10 +378,7 @@ export function Demo() {
               <input
                 type="url"
                 value={endpointOverride}
-                placeholder={
-                  CONFIGURED_DEMO_ENDPOINT ||
-                  PUBLIC_POKEMON_ENDPOINT_TEMPLATE
-                }
+                placeholder={CONFIGURED_DEMO_ENDPOINT || PUBLIC_POKEMON_ENDPOINT_TEMPLATE}
                 onChange={(event) => setEndpointOverride(event.target.value)}
                 data-testid="demo-endpoint-input"
                 style={{
@@ -416,12 +449,8 @@ export function Demo() {
                   data-testid="demo-pay-webln"
                   style={{
                     padding: "8px 16px",
-                    background: weblnDisabled
-                      ? "var(--color-surface-alt)"
-                      : "var(--color-primary)",
-                    color: weblnDisabled
-                      ? "var(--color-dim)"
-                      : "var(--color-surface)",
+                    background: weblnDisabled ? "var(--color-surface-alt)" : "var(--color-primary)",
+                    color: weblnDisabled ? "var(--color-dim)" : "var(--color-surface)",
                     border: "none",
                     borderRadius: 4,
                     fontSize: "var(--size-13)",
@@ -457,12 +486,8 @@ export function Demo() {
                   data-testid="demo-preimage-submit"
                   style={{
                     padding: "8px 16px",
-                    background: pasteDisabled
-                      ? "var(--color-surface-alt)"
-                      : "var(--color-primary)",
-                    color: pasteDisabled
-                      ? "var(--color-dim)"
-                      : "var(--color-surface)",
+                    background: pasteDisabled ? "var(--color-surface-alt)" : "var(--color-primary)",
+                    color: pasteDisabled ? "var(--color-dim)" : "var(--color-surface)",
                     border: "none",
                     borderRadius: 4,
                     fontSize: "var(--size-13)",
@@ -480,6 +505,9 @@ export function Demo() {
             <div
               data-testid="demo-error"
               style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 6,
                 fontSize: "var(--size-13)",
                 color: "var(--color-danger)",
                 padding: "8px 12px",
@@ -488,7 +516,23 @@ export function Demo() {
                 borderRadius: 4,
               }}
             >
-              {status.message}
+              <strong data-testid="demo-error-title">{status.error.title}</strong>
+              {status.error.details.length > 0 ? (
+                <ul
+                  data-testid="demo-error-details"
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 4,
+                    margin: 0,
+                    paddingLeft: 18,
+                  }}
+                >
+                  {status.error.details.map((detail) => (
+                    <li key={detail}>{detail}</li>
+                  ))}
+                </ul>
+              ) : null}
             </div>
           ) : null}
 
