@@ -44,8 +44,65 @@ describe("boltwall CLI", () => {
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
     expect(stdout.text()).toContain('"paywallMode": "standard-invoice"');
-    expect(stdout.text()).toContain('"backendCapabilities"');
-    expect(stdout.text()).toContain('"hodl": false');
+    expect(stdout.text()).not.toContain('"configuredRequirements"');
+    expect(stdout.text()).not.toContain('"hodl"');
+    expect(stdout.text()).not.toContain('"backendCapabilities"');
+  });
+
+  test("validate hides LND capabilities from the happy path", async () => {
+    const dir = await fixtureDir("validate-lnd-summary");
+    await writeFile(
+      join(dir, "local-dev.yaml"),
+      [
+        "name: local-dev",
+        "targetUrl: https://pokeapi.co/api/v2",
+        "backend:",
+        "  kind: lnd",
+        "pricing:",
+        '  defaultPriceMsat: "1000"',
+        "routes:",
+        "  - path: /pokemon/*",
+        "    methods: [GET]",
+        '    priceMsat: "1000"',
+      ].join("\n"),
+    );
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate", "--config", "local-dev"],
+      stdout,
+      configDir: dir,
+      env: {
+        LND_SOCKET: "localhost:10009",
+        LND_TLS_CERT: "cert",
+        LND_MACAROON: "macaroon",
+      },
+    });
+
+    expect(code).toBe(0);
+    const output = JSON.parse(stdout.text()) as {
+      config: { paywallMode: string };
+    };
+    expect(output.config.paywallMode).toBe("standard-invoice");
+    expect(stdout.text()).not.toContain("configuredRequirements");
+    expect(stdout.text()).not.toContain("backendCapabilities");
+    expect(stdout.text()).not.toContain('"hodl"');
+  });
+
+  test("config show labels required env separately from backend capabilities", async () => {
+    const dir = await fixtureDir("show-env-labels");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["config", "show", "pokedex"],
+      stdout,
+      configDir: dir,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain('"requiredEnv"');
+    expect(stdout.text()).not.toContain('"backendCapabilities"');
   });
 
   test("validate requires --config when multiple saved configs exist", async () => {
@@ -97,7 +154,7 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
-    expect(stdout.text()).toContain('"backendCapabilities"');
+    expect(stdout.text()).not.toContain('"backendCapabilities"');
   });
 
   test("validate fails on backend capability mismatch", async () => {
@@ -172,6 +229,38 @@ describe("boltwall CLI", () => {
     expect(saved).not.toContain("UNUSED_");
     expect(saved).not.toContain("socket:");
     expect(saved).not.toContain("macaroon:");
+  });
+
+  test("interactive config creation defaults to LND backend", async () => {
+    const dir = await fixtureDir("create-default-lnd");
+    const prompt = new ScriptedPrompt({
+      input: [
+        "local-dev",
+        "https://pokeapi.co/api/v2",
+        "pokedex",
+        "1000",
+        "/pokemon/*",
+        "1000",
+        "/healthz",
+      ],
+      select: [],
+      confirm: [false],
+      secret: [],
+    });
+
+    const code = await runCli({
+      argv: ["config", "create"],
+      configDir: dir,
+      prompt,
+    });
+
+    expect(code).toBe(0);
+    const saved = await readFile(join(dir, "local-dev.yaml"), "utf8");
+    expect(saved).toContain("kind: lnd");
+    expect(saved).toContain("socket: LND_SOCKET");
+    expect(saved).toContain("cert: LND_TLS_CERT");
+    expect(saved).toContain("macaroon: LND_MACAROON");
+    expect(saved).not.toContain("UNUSED_");
   });
 
   test("deploy --config --yes validates before setting Vercel env vars", async () => {

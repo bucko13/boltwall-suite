@@ -152,8 +152,8 @@ async function deployCommand(
   const config = await ensureDeployMetadata(loaded, options.prompt, options.stdout, !yes);
   const secretValues = await promptForSecrets(config, options.prompt, options.env);
   const validationEnv = { ...options.env, ...secretValues };
-  const backend = validateConfig(config, validationEnv);
-  writeValidationSummary(options.stdout, config, backend.capabilities);
+  validateConfig(config, validationEnv);
+  writeValidationSummary(options.stdout, config);
 
   if (!yes) {
     const environment = production ? "production" : "preview";
@@ -197,8 +197,8 @@ async function validateCommand(
     flags.values.config === undefined
       ? await loadSingleSavedConfig(options.configDir)
       : await loadConfigReference(flags.values.config, options.configDir);
-  const backend = validateConfig(loaded.config, options.env);
-  writeValidationSummary(options.stdout, loaded.config, backend.capabilities);
+  validateConfig(loaded.config, options.env);
+  writeValidationSummary(options.stdout, loaded.config);
   return 0;
 }
 
@@ -227,7 +227,7 @@ async function devCommand(
   const secretValues = await promptForSecrets(loaded.config, options.prompt, options.env);
   const validationEnv = { ...options.env, ...secretValues };
   const backend = validateConfig(loaded.config, validationEnv);
-  writeValidationSummary(options.stdout, loaded.config, backend.capabilities);
+  writeValidationSummary(options.stdout, loaded.config);
   const app = createProxy(toProxyConfig(loaded.config, backend));
   if (!options.startServer) {
     write(options.stdout, `boltwall proxy validated for http://127.0.0.1:${port}\n`);
@@ -260,7 +260,7 @@ async function configCommand(
     if (reference === undefined) throw new Error("config show requires a config name or path");
     const loaded = await loadConfigReference(reference, options.configDir);
     write(options.stdout, `Path: ${loaded.path}\n`);
-    writeValidationSummary(options.stdout, loaded.config, requiredEnvNameSummary(loaded.config));
+    writeConfigSummary(options.stdout, loaded.config);
     return 0;
   }
 
@@ -372,7 +372,7 @@ async function promptForConfig(
   const backendKind = (await prompt.select(
     "Lightning backend",
     ["voltage-lnd", "lnd", "opennode", "btcpay"],
-    existing?.backend.kind ?? "voltage-lnd",
+    existing?.backend.kind ?? "lnd",
   )) as BoltwallBackendKind;
   const defaultNames = backendEnvNames(backendKind);
   const allowBrowser = await prompt.confirm(
@@ -490,17 +490,26 @@ function validateConfig(config: BoltwallConfig, env: Record<string, string | und
   return backend;
 }
 
-function writeValidationSummary(
-  stdout: Writable,
-  config: BoltwallConfig,
-  backendCapabilities: unknown,
-): void {
+function writeValidationSummary(stdout: Writable, config: BoltwallConfig): void {
   write(
     stdout,
     `${JSON.stringify(
       {
         config: configSummary(config),
-        backendCapabilities,
+      },
+      null,
+      2,
+    )}\n`,
+  );
+}
+
+function writeConfigSummary(stdout: Writable, config: BoltwallConfig): void {
+  write(
+    stdout,
+    `${JSON.stringify(
+      {
+        config: configSummary(config),
+        requiredEnv: requiredEnvNameSummary(config),
       },
       null,
       2,
