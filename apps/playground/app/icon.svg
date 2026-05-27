@@ -1,0 +1,47 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 32 32">
+  <style>
+    :root {
+      color-scheme: light dark;
+    }
+
+    .frame {
+      fill: #ffffff;
+      stroke: #e7e5e0;
+    }
+
+    .mark {
+      fill: none;
+      stroke: #1d6fb8;
+    }
+
+    .liquid,
+    .bubble {
+      fill: #198754;
+    }
+
+    @media (prefers-color-scheme: dark) {
+      .frame {
+        fill: #121412;
+        stroke: #22251f;
+      }
+
+      .mark {
+        stroke: #8ab4f8;
+      }
+    }
+  </style>
+  <rect class="frame" x="2.5" y="2.5" width="27" height="27" rx="6" />
+  <path
+    class="mark"
+    d="M12.75 7.5h6.5M13.9 7.5v6.9l-5.1 9.9a2.15 2.15 0 0 0 1.9 3.15h10.6a2.15 2.15 0 0 0 1.9-3.15l-5.1-9.9V7.5"
+    stroke-width="1.9"
+    stroke-linecap="round"
+    stroke-linejoin="round"
+  />
+  <path
+    class="liquid"
+    d="M10.2 21.6h11.6l1.3 2.55a1.5 1.5 0 0 1-1.34 2.18H10.24a1.5 1.5 0 0 1-1.34-2.18l1.3-2.55Z"
+  />
+  <circle class="bubble" cx="14.9" cy="24.4" r="0.85" />
+  <circle class="bubble" cx="18.1" cy="25.15" r="0.65" />
+</svg>
