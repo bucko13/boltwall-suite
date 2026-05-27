@@ -401,7 +401,7 @@ async function promptForConfig(
     service: optionalInput(await prompt.input("Service name", existing?.service ?? "")),
     backend: {
       kind: backendKind,
-      env: existing?.backend.env ?? defaultNames,
+      env: configBackendEnvNames(backendKind, existing?.backend.env),
     },
     pricing: {
       defaultPriceMsat: await prompt.input(
@@ -516,6 +516,45 @@ function requiredEnvNameSummary(config: BoltwallConfig): Record<string, unknown>
       { env: name, expected: backendEnvDescription(config.backend.kind, key) },
     ]),
   );
+}
+
+function configBackendEnvNames(
+  kind: BoltwallBackendKind,
+  existing: BoltwallConfig["backend"]["env"] | undefined,
+): BoltwallConfigInput["backend"]["env"] {
+  const defaults = backendEnvNames(kind);
+
+  if (kind === "lnd") {
+    return {
+      socket: existing?.socket ?? defaults.socket,
+      cert: existing?.cert ?? defaults.cert,
+      macaroon: existing?.macaroon ?? defaults.macaroon,
+    };
+  }
+
+  if (kind === "voltage-lnd") {
+    return {
+      baseUrl: existing?.baseUrl ?? defaults.baseUrl,
+      cert: existing?.cert ?? defaults.cert,
+      macaroon: existing?.macaroon ?? defaults.macaroon,
+    };
+  }
+
+  if (kind === "opennode") {
+    return {
+      apiKey: existing?.apiKey ?? defaults.apiKey,
+      baseUrl: existing?.baseUrl ?? defaults.baseUrl,
+    };
+  }
+
+  return {
+    baseUrl: existing?.baseUrl ?? defaults.baseUrl,
+    apiKey: existing?.apiKey ?? defaults.apiKey,
+    storeId: existing?.storeId ?? defaults.storeId,
+    cryptoCode: existing?.cryptoCode ?? defaults.cryptoCode,
+    hodlInvoices: existing?.hodlInvoices ?? defaults.hodlInvoices,
+    streamingInvoices: existing?.streamingInvoices ?? defaults.streamingInvoices,
+  };
 }
 
 function requiredEnvEntries(

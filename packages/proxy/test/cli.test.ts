@@ -1,4 +1,4 @@
-import { mkdir, writeFile } from "node:fs/promises";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Writable } from "node:stream";
@@ -166,6 +166,12 @@ describe("boltwall CLI", () => {
     );
     expect(stdout.text()).toContain("Saved config:");
     expect(stdout.text()).toContain("boltwall proxy validated for http://127.0.0.1:4010");
+    const saved = await readFile(join(dir, "local-pokedex.yaml"), "utf8");
+    expect(saved).toContain("apiKey: OPENNODE_API_KEY");
+    expect(saved).toContain("baseUrl: OPENNODE_BASE_URL");
+    expect(saved).not.toContain("UNUSED_");
+    expect(saved).not.toContain("socket:");
+    expect(saved).not.toContain("macaroon:");
   });
 
   test("deploy --config --yes validates before setting Vercel env vars", async () => {
