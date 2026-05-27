@@ -14,6 +14,7 @@ describe("boltwall CLI", () => {
     await expect(runCli({ argv: ["--help"], stdout })).resolves.toBe(0);
     expect(stdout.text()).toContain("deploy [--config <name-or-path>]");
     expect(stdout.text()).not.toContain("deploy vercel");
+    expect(stdout.text()).toContain("config allow-origin <name-or-path> <origin...>");
   });
 
   test("validate reports missing config names and paths", async () => {
@@ -44,9 +45,14 @@ describe("boltwall CLI", () => {
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
     expect(stdout.text()).toContain('"paywallMode": "standard-invoice"');
+    expect(stdout.text()).toContain('"allowOrigins"');
+    expect(stdout.text()).toContain('"http://127.0.0.1:3000"');
+    expect(stdout.text()).toContain('"https://boltwall-suite-playground.vercel.app"');
     expect(stdout.text()).not.toContain('"configuredRequirements"');
     expect(stdout.text()).not.toContain('"hodl"');
     expect(stdout.text()).not.toContain('"backendCapabilities"');
+    expect(stdout.text()).not.toContain('"deployTarget"');
+    expect(stdout.text()).not.toContain('"deployProjectName"');
   });
 
   test("validate hides LND capabilities from the happy path", async () => {
@@ -102,6 +108,8 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"requiredEnv"');
+    expect(stdout.text()).toContain('"allowOrigins"');
+    expect(stdout.text()).toContain('"https://boltwall-suite-playground.vercel.app"');
     expect(stdout.text()).not.toContain('"backendCapabilities"');
   });
 
@@ -224,8 +232,11 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).toContain("Saved config:");
     expect(stdout.text()).toContain("boltwall proxy validated for http://127.0.0.1:4010");
     const saved = await readFile(join(dir, "local-pokedex.yaml"), "utf8");
+    expect(saved).toContain("http://127.0.0.1:3000");
+    expect(saved).toContain("http://localhost:3000");
     expect(saved).toContain("apiKey: OPENNODE_API_KEY");
     expect(saved).toContain("baseUrl: OPENNODE_BASE_URL");
+    expect(saved).not.toContain("deploy:");
     expect(saved).not.toContain("UNUSED_");
     expect(saved).not.toContain("socket:");
     expect(saved).not.toContain("macaroon:");
@@ -260,6 +271,7 @@ describe("boltwall CLI", () => {
     expect(saved).toContain("socket: LND_SOCKET");
     expect(saved).toContain("cert: LND_TLS_CERT");
     expect(saved).toContain("macaroon: LND_MACAROON");
+    expect(saved).not.toContain("deploy:");
     expect(saved).not.toContain("UNUSED_");
   });
 
@@ -410,8 +422,56 @@ describe("boltwall CLI", () => {
     expect(code).toBe(0);
     expect(stdout.text()).toContain("Path:");
     expect(stdout.text()).toContain('"targetUrl": "https://pokeapi.co/api/v2"');
+    expect(stdout.text()).toContain('"allowOrigins"');
     expect(stdout.text()).toContain('"apiKey"');
     expect(stdout.text()).toContain('"env": "OPENNODE_API_KEY"');
+  });
+
+  test("config allow-origin updates a saved config without hand-editing YAML", async () => {
+    const dir = await fixtureDir("allow-origin");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["config", "allow-origin", "pokedex", "http://localhost:3001"],
+      stdout,
+      configDir: dir,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain("Saved config:");
+    expect(stdout.text()).toContain('"http://localhost:3001"');
+    const saved = await readFile(join(dir, "pokedex.yaml"), "utf8");
+    expect(saved).toContain("http://127.0.0.1:3000");
+    expect(saved).toContain("http://localhost:3001");
+  });
+
+  test("config allow-origin creates CORS config when one is not present", async () => {
+    const dir = await fixtureDir("allow-origin-create-cors");
+    await writeFile(
+      join(dir, "local-dev.yaml"),
+      [
+        "name: local-dev",
+        "targetUrl: https://pokeapi.co/api/v2",
+        "backend:",
+        "  kind: lnd",
+        "pricing:",
+        '  defaultPriceMsat: "1000"',
+      ].join("\n"),
+    );
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["config", "allow-origin", "local-dev", "http://localhost:3001"],
+      stdout,
+      configDir: dir,
+    });
+
+    expect(code).toBe(0);
+    const saved = await readFile(join(dir, "local-dev.yaml"), "utf8");
+    expect(saved).toContain("cors:");
+    expect(saved).toContain("http://localhost:3001");
+    expect(saved).toContain("WWW-Authenticate");
   });
 });
 

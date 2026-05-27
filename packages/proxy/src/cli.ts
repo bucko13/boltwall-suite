@@ -41,6 +41,7 @@ Commands:
   config create                                   Create a saved config
   config list                                     List saved configs
   config show <name-or-path>                      Show a saved config summary
+  config allow-origin <name-or-path> <origin...>  Add browser origins to CORS
   --help                                          Show this help
 `;
 
@@ -264,6 +265,19 @@ async function configCommand(
     return 0;
   }
 
+  if (subcommand === "allow-origin") {
+    const [reference, ...origins] = rest;
+    if (reference === undefined)
+      throw new Error("config allow-origin requires a config name or path");
+    if (origins.length === 0) throw new Error("config allow-origin requires at least one origin");
+    const loaded = await loadConfigReference(reference, options.configDir);
+    const config = addCorsOrigins(loaded.config, origins);
+    await saveConfig(config, loaded.path);
+    write(options.stdout, `Saved config: ${loaded.path}\n`);
+    writeConfigSummary(options.stdout, config);
+    return 0;
+  }
+
   if (subcommand === "create") {
     await promptForConfig(options.prompt, undefined, "create", options.configDir, options.stdout);
     return 0;
@@ -376,14 +390,14 @@ async function promptForConfig(
   )) as BoltwallBackendKind;
   const defaultNames = backendEnvNames(backendKind);
   const allowBrowser = await prompt.confirm(
-    "Allow browser JavaScript clients",
+    "Allow browser apps to call this proxy",
     existing?.cors !== undefined || mode === "dev",
   );
   const cors = allowBrowser
     ? {
         allowOrigins: splitListRequired(
           await prompt.input(
-            "Allowed browser origins (comma separated)",
+            "Browser origins allowed to call this proxy (comma separated)",
             existing?.cors?.allowOrigins.join(",") ??
               (mode === "dev" ? "http://127.0.0.1:3000,http://localhost:3000" : ""),
           ),
@@ -439,6 +453,27 @@ async function promptForConfig(
   const path = await saveConfig(config, configPathForName(config.name ?? "default", configDir));
   write(stdout, `Saved config: ${path}\n`);
   return { config, path };
+}
+
+function addCorsOrigins(config: BoltwallConfig, origins: string[]): BoltwallConfig {
+  const existing = config.cors;
+  const allowOrigins = [
+    ...(existing?.allowOrigins ?? []),
+    ...origins.map((origin) => origin.trim()).filter((origin) => origin.length > 0),
+  ];
+  if (allowOrigins.length === 0)
+    throw new Error("config allow-origin requires at least one origin");
+
+  return parseBoltwallConfig({
+    ...config,
+    cors: {
+      allowOrigins: Array.from(new Set(allowOrigins)),
+      exposeHeaders: existing?.exposeHeaders ?? ["WWW-Authenticate"],
+      allowMethods: existing?.allowMethods ?? ["GET", "OPTIONS"],
+      allowHeaders: existing?.allowHeaders ?? ["Authorization", "Content-Type"],
+      maxAgeSeconds: existing?.maxAgeSeconds ?? 600,
+    },
+  });
 }
 
 async function ensureDeployMetadata(

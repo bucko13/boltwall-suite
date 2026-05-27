@@ -80,18 +80,18 @@ bun run boltwall -- dev --port 4010
 If you have no saved configs yet, the CLI creates one under
 `~/.config/boltwall/`. Use these answers for the PokeAPI playground demo:
 
-| Prompt                                                 | Answer                      |
-| ------------------------------------------------------ | --------------------------- |
-| Config name                                            | `local-regtest-pokedex`     |
-| Lightning backend                                      | `lnd`                       |
-| Allow browser JavaScript clients                       | `yes`                       |
-| Allowed browser origins                                | accept the local defaults   |
-| Upstream target URL                                    | `https://pokeapi.co/api/v2` |
-| Service name                                           | `pokedex`                   |
-| Default price for protected requests, in millisatoshis | `1000`                      |
-| Protected path                                         | `/pokemon/*`                |
-| Price for this protected path, in millisatoshis        | `1000`                      |
-| Unprotected paths                                      | `/healthz`                  |
+| Prompt                                                 | Answer                                        |
+| ------------------------------------------------------ | --------------------------------------------- |
+| Config name                                            | `local-regtest-pokedex`                       |
+| Lightning backend                                      | `lnd`                                         |
+| Allow browser apps to call this proxy                  | `yes`                                         |
+| Browser origins allowed to call this proxy             | `http://127.0.0.1:3000,http://localhost:3000` |
+| Upstream target URL                                    | `https://pokeapi.co/api/v2`                   |
+| Service name                                           | `pokedex`                                     |
+| Default price for protected requests, in millisatoshis | `1000`                                        |
+| Protected path                                         | `/pokemon/*`                                  |
+| Price for this protected path, in millisatoshis        | `1000`                                        |
+| Unprotected paths                                      | `/healthz`                                    |
 
 The config stores routing metadata and environment variable names only. It does
 not store the LND cert or macaroon values.
@@ -145,10 +145,21 @@ Click **Get Random Pokemon**. Expected result:
 - WebLN and manual preimage payment options are visible,
 - browser devtools does not show a CORS error.
 
+If Next.js starts the playground on another port, use the exact origin from the
+browser address bar. For example, if the page is
+`http://localhost:3001/p/demo`, add that origin before restarting the proxy:
+
+```sh
+bun run boltwall -- config allow-origin local-regtest-pokedex http://localhost:3001
+```
+
 If the challenge field is empty while `curl` can see the header, the proxy
-config does not expose `WWW-Authenticate` to the browser origin. Re-run
-`bun run boltwall -- dev --port 4010`, choose to edit the saved config, enable
-browser clients, and include `http://127.0.0.1:3000`.
+config does not expose `WWW-Authenticate` to the browser origin. Check the saved
+origins:
+
+```sh
+bun run boltwall -- config show local-regtest-pokedex
+```
 
 ## 5. Pay From The Payer Node
 

@@ -356,9 +356,19 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
     defaultPriceMsat: config.pricing.defaultPriceMsat,
     routes: config.routes?.length ?? 0,
     challengeCompatibility: config.challengeCompatibility,
-    corsOrigins: config.cors?.allowOrigins.length ?? 0,
-    deployTarget: config.deploy.target,
-    deployProjectName: config.deploy.projectName ?? "(unset)",
+    cors:
+      config.cors === undefined
+        ? { enabled: false }
+        : {
+            enabled: true,
+            allowOrigins: config.cors.allowOrigins,
+            exposeHeaders: config.cors.exposeHeaders ?? ["WWW-Authenticate"],
+            allowHeaders: config.cors.allowHeaders ?? ["Authorization", "Content-Type", "Accept"],
+            allowMethods: config.cors.allowMethods ?? ["GET", "HEAD", "OPTIONS"],
+          },
+    ...(config.deploy.projectName === undefined
+      ? {}
+      : { deployment: { target: config.deploy.target, projectName: config.deploy.projectName } }),
   };
 }
 

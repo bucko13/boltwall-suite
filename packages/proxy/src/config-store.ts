@@ -18,7 +18,9 @@ export function defaultConfigDir(env: Record<string, string | undefined> = proce
   return resolve(env[CONFIG_DIR_ENV] ?? join(homedir(), ".config", "boltwall"));
 }
 
-export async function listSavedConfigs(configDir = defaultConfigDir()): Promise<SavedBoltwallConfig[]> {
+export async function listSavedConfigs(
+  configDir = defaultConfigDir(),
+): Promise<SavedBoltwallConfig[]> {
   let entries: string[];
   try {
     entries = await readdir(configDir);
@@ -47,7 +49,7 @@ export function deploymentDirForConfig(name: string, configDir = defaultConfigDi
 export async function saveConfig(config: BoltwallConfig, path?: string): Promise<string> {
   const outPath = path ?? configPathForName(config.name ?? "default");
   await mkdir(dirname(outPath), { recursive: true });
-  await writeFile(outPath, YAML.stringify(config), { mode: 0o600 });
+  await writeFile(outPath, YAML.stringify(serializableConfig(config)), { mode: 0o600 });
   return outPath;
 }
 
@@ -62,6 +64,12 @@ function safeConfigName(name: string): string {
     .replace(/[^a-z0-9._-]+/gu, "-")
     .replace(/^-+|-+$/gu, "");
   return normalized.length === 0 ? "default" : normalized;
+}
+
+function serializableConfig(config: BoltwallConfig): Record<string, unknown> {
+  const { deploy, ...rest } = config;
+  if (deploy.projectName === undefined) return rest;
+  return { ...rest, deploy };
 }
 
 function isNotFound(error: unknown): boolean {
