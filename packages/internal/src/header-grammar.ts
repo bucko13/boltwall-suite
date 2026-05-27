@@ -63,16 +63,26 @@ function isWs(ch: string | undefined): boolean {
  * `AuthChallengeToken`s. Throws on malformed input. Caller is responsible
  * for pre-trimming and pre-joining any multi-value header arrays.
  *
- * Throws synchronously with a short error code as the message:
- * - `empty-header` — input is whitespace-only
- * - `garbage-data` — leading bytes are not a recognizable scheme keyword
- * - `scheme-mismatch` — first non-whitespace token is not in `knownSchemes`
- * - `expected-sp-after-scheme` — scheme not followed by 1+ space
- * - `expected-param-name` — param list slot has no token
- * - `expected-equals` — param name not followed by `=`
- * - `expected-quoted-value` — param value is not a `"..."` quoted-string
- * - `unterminated-quoted-string` — opened `"` with no closing `"`
- * - `expected-comma-or-eof` — trailing junk after a param value
+ * Throws synchronously with a short error code as the message. Scheme and
+ * param-name tokens are greedy over RFC 7230 token chars, which decides which
+ * code several malformed inputs hit:
+ * - `empty-header` — input is empty or whitespace-only
+ * - `garbage-data` — where a scheme is expected, the next byte is not a token
+ *   char, so no scheme keyword can start (e.g. a leading `"` or `,`)
+ * - `scheme-mismatch` — a token keyword was read but is not in `knownSchemes`.
+ *   The token is greedy, so `L402macaroon="a"` reads `l402macaroon` as the
+ *   scheme and mismatches here rather than failing on the missing space
+ * - `expected-sp-after-scheme` — a known scheme is not followed by whitespace,
+ *   i.e. it is followed by EOF or a non-token byte such as `"` or `,`
+ * - `expected-param-name` — a param name is expected but no token follows
+ *   (e.g. a trailing comma, or a comma before EOF)
+ * - `expected-equals` — a param name is not followed by `=`; an unknown scheme
+ *   after a top-level comma also fails here, since it is parsed as a param name
+ * - `expected-quoted-value` — a param value is not a `"`-quoted string
+ * - `unterminated-quoted-string` — opened `"` with no closing `"` (a trailing
+ *   backslash at EOF does not start an escape)
+ * - `expected-comma-or-eof` — after a param value, the next byte is neither
+ *   `,` nor end of input
  */
 export function tokenizeHttpAuth(
   input: string,

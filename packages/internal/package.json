@@ -25,8 +25,8 @@
   },
   "scripts": {
     "build": "bunx --bun tsup src/index.ts src/numeric.ts src/header-grammar.ts src/timing-safe-equal.ts --format esm --clean --sourcemap && tsc --emitDeclarationOnly --declaration --declarationMap --outDir dist",
-    "lint": "eslint src",
-    "lint:fix": "eslint src --fix",
+    "lint": "eslint src test",
+    "lint:fix": "eslint src test --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:coverage": "bun test --coverage --coverage-reporter lcov"
