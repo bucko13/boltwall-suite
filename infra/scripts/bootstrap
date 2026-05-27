@@ -157,6 +157,14 @@ compose() {
   docker compose -f "$COMPOSE_FILE" "$@"
 }
 
+bitcoin() {
+  compose exec -T bitcoind bitcoin-cli \
+    -regtest \
+    -rpcuser=devuser \
+    -rpcpassword=devpass \
+    "$@"
+}
+
 tail_logs() {
   service="$1"
   echo "Recent $service logs:" >&2
@@ -164,16 +172,42 @@ tail_logs() {
 }
 
 bitcoind_ready() {
-  compose exec -T bitcoind bitcoin-cli \
-    -regtest \
-    -rpcuser=devuser \
-    -rpcpassword=devpass \
-    getblockchaininfo >/dev/null 2>&1
+  bitcoin getblockchaininfo >/dev/null 2>&1
 }
 
 lnd_ready() {
   node="$1"
   "$LNCLI" "$node" getinfo >/dev/null 2>&1
+}
+
+lnd_chain_synced() {
+  node="$1"
+  "$LNCLI" "$node" getinfo |
+    node -e 'const fs = require("node:fs"); const info = JSON.parse(fs.readFileSync(0, "utf8")); process.exit(info.synced_to_chain === true ? 0 : 1);' >/dev/null
+}
+
+node_new_address() {
+  node="$1"
+  "$LNCLI" "$node" newaddress p2wkh |
+    node -e 'const fs = require("node:fs"); const data = JSON.parse(fs.readFileSync(0, "utf8")); if (!data.address) process.exit(1); process.stdout.write(data.address);'
+}
+
+refresh_regtest_tip_if_needed() {
+  if lnd_chain_synced alice && lnd_chain_synced bob; then
+    return 0
+  fi
+
+  echo "Mining one fresh regtest block so LND completes chain sync..."
+  address="$(node_new_address alice)" || {
+    echo "Could not get lnd-alice address for regtest tip refresh." >&2
+    tail_logs lnd-alice
+    return 1
+  }
+  bitcoin generatetoaddress 1 "$address" >/dev/null || {
+    echo "Could not mine regtest tip refresh block." >&2
+    tail_logs bitcoind
+    return 1
+  }
 }
 
 lnd_rest_port() {
@@ -322,6 +356,9 @@ init_wallet bob
 
 wait_for "lnd-alice" 180 1 "lnd_ready alice" lnd-alice
 wait_for "lnd-bob" 180 1 "lnd_ready bob" lnd-bob
+refresh_regtest_tip_if_needed
+wait_for "lnd-alice chain sync" 180 1 "lnd_chain_synced alice" lnd-alice
+wait_for "lnd-bob chain sync" 180 1 "lnd_chain_synced bob" lnd-bob
 
 alice_actual="$(verify_alias alice "$alice_alias")"
 bob_actual="$(verify_alias bob "$bob_alias")"

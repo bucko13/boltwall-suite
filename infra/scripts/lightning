@@ -293,6 +293,10 @@ open_channel() {
   fi
 
   connect_nodes "$from" "$to"
+  if active_channel "$from" "$to_pubkey"; then
+    echo "channel already active after reconnect: $from_alias -> $to_alias"
+    return 0
+  fi
 
   wallet="$(confirmed_balance "$from")"
   if [ "$wallet" -lt "$local_sats" ]; then
