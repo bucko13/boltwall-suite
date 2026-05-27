@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
+import { parseAmount } from "@boltwall/internal/numeric";
 import { validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { z } from "zod";
 
@@ -99,7 +100,7 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
       : { service: fields.BOLTWALL_PROXY_SERVICE }),
     ...(fields.BOLTWALL_PROXY_DEFAULT_PRICE_MSAT === undefined
       ? {}
-      : { defaultPrice: BigInt(fields.BOLTWALL_PROXY_DEFAULT_PRICE_MSAT) }),
+      : { defaultPrice: parseAmount(fields.BOLTWALL_PROXY_DEFAULT_PRICE_MSAT, "msats") }),
     ...(fields.BOLTWALL_PROXY_UNPROTECTED_PATHS === undefined
       ? {}
       : { unprotectedPaths: splitList(fields.BOLTWALL_PROXY_UNPROTECTED_PATHS) }),

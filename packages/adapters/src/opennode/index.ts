@@ -1,3 +1,4 @@
+import { msatsToSats, satsToMsats } from "@boltwall/internal/numeric";
 import { decodeBolt11Invoice } from "@boltwall/l402";
 
 import type {
@@ -212,20 +213,20 @@ function createChargeBody(request: CreateInvoiceRequest): Record<string, unknown
   if (request.amountMsat <= 0n) {
     throw new OpenNodeAdapterError("invalid-request", "Invoice amount must be positive");
   }
-  if (request.amountMsat % 1_000n !== 0n) {
+  const amount = msatsToSats(request.amountMsat);
+  if (amount.msatRemainder !== 0n) {
     throw new OpenNodeAdapterError(
       "invalid-request",
       "OpenNode invoice amount must be an integer number of satoshis",
     );
   }
 
-  const amount = request.amountMsat / 1_000n;
-  if (amount > BigInt(Number.MAX_SAFE_INTEGER)) {
+  if (amount.sats > BigInt(Number.MAX_SAFE_INTEGER)) {
     throw new OpenNodeAdapterError("invalid-request", "OpenNode invoice amount is too large");
   }
 
   const body: Record<string, unknown> = {
-    amount: Number(amount),
+    amount: Number(amount.sats),
   };
   if (request.description !== undefined) {
     body.description = request.description;
@@ -322,7 +323,7 @@ function chargeAmountMsat(charge: OpenNodeCharge): bigint | undefined {
   if (typeof charge.amount !== "number" || !Number.isFinite(charge.amount)) {
     return undefined;
   }
-  return BigInt(Math.trunc(charge.amount)) * 1_000n;
+  return satsToMsats(BigInt(Math.trunc(charge.amount)));
 }
 
 function mapOpenNodeStatus(status: string | undefined): InvoiceLookup["status"] {

@@ -1,3 +1,5 @@
+import { parseAmount } from "@boltwall/internal/numeric";
+
 import type {
   BackendCapabilities,
   BackendKind,
@@ -279,7 +281,14 @@ function parseMsat(value: string, label: string): bigint {
       `BTCPay ${label} must be a millisatoshi string`,
     );
   }
-  return BigInt(value);
+  try {
+    return parseAmount(value, "msats");
+  } catch {
+    throw new BtcPayAdapterError(
+      "invalid-response",
+      `BTCPay ${label} must be a millisatoshi string`,
+    );
+  }
 }
 
 function unixSecondsToDate(value: number): Date {

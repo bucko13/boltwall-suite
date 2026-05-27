@@ -12,6 +12,7 @@
 
 import type { InvoiceLookup } from "@boltwall/adapters";
 import { bytesToHex, hexToBytes } from "@boltwall/internal";
+import { msatsToSats } from "@boltwall/internal/numeric";
 import {
   type Caveat,
   type L402CredentialFields,
@@ -79,7 +80,7 @@ function rateCaveat(amountMsat: bigint, rate: number): Caveat {
   if (!Number.isFinite(rate) || rate <= 0) {
     throw new Error("invalid-rate");
   }
-  const sats = Number(amountMsat / 1000n);
+  const sats = Number(msatsToSats(amountMsat).sats);
   return validUntil({ seconds: Math.ceil(sats / rate) });
 }
 

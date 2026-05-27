@@ -7,6 +7,7 @@ import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
+import { parseAmount } from "@boltwall/internal/numeric";
 import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { z } from "zod";
 
@@ -481,7 +482,7 @@ function policySummary(policy: BoltwallPaywallPolicy): Record<string, unknown> {
 
 function parseMsat(value: string, label: string): bigint {
   try {
-    return BigInt(value);
+    return parseAmount(value, "msats");
   } catch {
     throw new BoltwallConfigError(`${label}: must be a non-negative integer millisatoshi amount`);
   }
