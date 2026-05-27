@@ -1,5 +1,10 @@
 # Boltwall Suite
 
+[![CI](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml)
+[![Coverage](https://codecov.io/gh/bucko13/boltwall-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/bucko13/boltwall-suite)
+[![l402 bundle size](https://img.shields.io/badge/%40boltwall%2Fl402-%E2%89%A4150%20kB%20brotli-blue)](packages/l402)
+[![npm](https://img.shields.io/badge/npm-not%20yet%20published-inactive)](https://www.npmjs.com/org/boltwall)
+
 A TypeScript monorepo for **L402** — the Lightning Network service authentication protocol.
 
 ## What is L402?
