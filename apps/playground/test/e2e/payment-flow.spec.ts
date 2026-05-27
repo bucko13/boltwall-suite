@@ -64,6 +64,93 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     await expect(result).toContainText("bulbasaur");
   });
 
+  test("reuses a paid credential on later requests", async ({ page }) => {
+    let challengeRequests = 0;
+    let authorizedRequests = 0;
+    await page.route(ENDPOINT_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        authorizedRequests += 1;
+        await route.fulfill({
+          status: 200,
+          headers: { "content-type": "application/json" },
+          json: { id: 1, name: "bulbasaur" },
+        });
+        return;
+      }
+      challengeRequests += 1;
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/test-payment-flow");
+    await page.click("[data-testid='payment-flow-start']");
+    await page.fill("[data-testid='payment-flow-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='payment-flow-preimage-submit']");
+    await expect(page.locator("[data-testid='payment-flow-result']")).toContainText("bulbasaur");
+    await expect(page.locator("[data-testid='payment-flow-credential-status']")).toContainText(
+      "credential cached",
+    );
+
+    await page.click("[data-testid='payment-flow-start']");
+    await expect(page.locator("[data-testid='payment-flow-result']")).toContainText("bulbasaur");
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toHaveCount(0);
+    expect(challengeRequests).toBe(1);
+    expect(authorizedRequests).toBe(2);
+  });
+
+  test("clears a rejected cached credential and requests a fresh challenge", async ({ page }) => {
+    let authorizedRequests = 0;
+    let challengeRequests = 0;
+    await page.route(ENDPOINT_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        authorizedRequests += 1;
+        if (authorizedRequests === 1) {
+          await route.fulfill({
+            status: 200,
+            headers: { "content-type": "application/json" },
+            json: { id: 1, name: "bulbasaur" },
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 401,
+          headers: { "content-type": "application/json" },
+          json: { error: "credential-rejected" },
+        });
+        return;
+      }
+      challengeRequests += 1;
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/test-payment-flow");
+    await page.click("[data-testid='payment-flow-start']");
+    await page.fill("[data-testid='payment-flow-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='payment-flow-preimage-submit']");
+    await expect(page.locator("[data-testid='payment-flow-result']")).toContainText("bulbasaur");
+
+    await page.click("[data-testid='payment-flow-start']");
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
+    await expect(page.locator("[data-testid='payment-flow-credential-status']")).toHaveCount(0);
+    expect(authorizedRequests).toBe(2);
+    expect(challengeRequests).toBe(2);
+  });
+
   test("malformed pasted preimage surfaces an error and does not retry", async ({ page }) => {
     await routeProtectedPokemon(page);
 

@@ -7,6 +7,9 @@ import {
   fetchPaidResource,
   parsePastedPreimage,
   retryWithCredential,
+  withAuthorization,
+  type FetchPaidResult,
+  type PaidCredential,
 } from "../../lib/payment";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -32,9 +35,15 @@ type Pokemon = {
 
 type ChallengeState = {
   endpoint: string;
+  endpointTemplate: string;
   invoice: string;
   macaroon: string;
   scheme: "L402" | "LSAT";
+};
+
+type CachedCredentialState = {
+  endpointTemplate: string;
+  credential: PaidCredential;
 };
 
 type DemoStatus =
@@ -158,6 +167,7 @@ export function Demo() {
   const [endpointOverride, setEndpointOverride] = useState("");
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
   const [pastedPreimage, setPastedPreimage] = useState("");
+  const [cachedCredential, setCachedCredential] = useState<CachedCredentialState | null>(null);
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
 
   useEffect(() => {
@@ -176,38 +186,30 @@ export function Demo() {
     setStatus({ kind: "fetching", id });
     setPastedPreimage("");
     try {
-      const result = await fetchPaidResource(endpoint, {
-        headers: { accept: "application/json" },
-        cache: "no-store",
-      });
-      if (result.status === "ok") {
-        const text = await result.response.text();
-        setStatus({
-          kind: "ok",
-          pokemon: parsePokemon(text),
-          l402Protected: false,
-        });
-        return;
-      }
-      if (result.status === "error") {
-        const text = await result.response.text();
-        setStatus({
-          kind: "error",
-          error: messageError(`request failed ${String(result.response.status)}: ${text}`),
-        });
-        return;
-      }
-      setWebLnDetected(getWebLn() !== null);
-      setStatus({
-        kind: "awaiting-payment",
-        id,
-        challenge: {
+      const credential =
+        cachedCredential?.endpointTemplate === endpointTemplate
+          ? cachedCredential.credential
+          : null;
+      const result = await fetchPaidResource(
+        endpoint,
+        credential === null
+          ? pokemonRequestInit()
+          : withAuthorization(pokemonRequestInit(), credential),
+      );
+      if (credential !== null && result.status === "error" && result.response.status === 401) {
+        setCachedCredential(null);
+        await handleFetchResult(
+          id,
           endpoint,
-          invoice: result.challenge.invoice,
-          macaroon: result.challenge.macaroon,
-          scheme: result.challenge.scheme,
-        },
-      });
+          await fetchPaidResource(endpoint, pokemonRequestInit()),
+          false,
+        );
+        return;
+      }
+      if (credential !== null && result.status === "challenge") {
+        setCachedCredential(null);
+      }
+      await handleFetchResult(id, endpoint, result, credential !== null && result.status === "ok");
     } catch (error) {
       setStatus({
         kind: "error",
@@ -269,6 +271,10 @@ export function Demo() {
       preimage,
     );
     if (result.status === "paid") {
+      setCachedCredential({
+        endpointTemplate: challenge.endpointTemplate,
+        credential: result.credential,
+      });
       const text = await result.response.text();
       setStatus({
         kind: "ok",
@@ -281,6 +287,43 @@ export function Demo() {
     setStatus({
       kind: "error",
       error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
+    });
+  }
+
+  async function handleFetchResult(
+    id: number,
+    endpoint: string,
+    result: FetchPaidResult,
+    usedCredential: boolean,
+  ) {
+    if (result.status === "ok") {
+      const text = await result.response.text();
+      setStatus({
+        kind: "ok",
+        pokemon: parsePokemon(text),
+        l402Protected: usedCredential,
+      });
+      return;
+    }
+    if (result.status === "error") {
+      const text = await result.response.text();
+      setStatus({
+        kind: "error",
+        error: messageError(`request failed ${String(result.response.status)}: ${text}`),
+      });
+      return;
+    }
+    setWebLnDetected(getWebLn() !== null);
+    setStatus({
+      kind: "awaiting-payment",
+      id,
+      challenge: {
+        endpoint,
+        endpointTemplate,
+        invoice: result.challenge.invoice,
+        macaroon: result.challenge.macaroon,
+        scheme: result.challenge.scheme,
+      },
     });
   }
 
@@ -379,7 +422,10 @@ export function Demo() {
                 type="url"
                 value={endpointOverride}
                 placeholder={CONFIGURED_DEMO_ENDPOINT || PUBLIC_POKEMON_ENDPOINT_TEMPLATE}
-                onChange={(event) => setEndpointOverride(event.target.value)}
+                onChange={(event) => {
+                  setEndpointOverride(event.target.value);
+                  setCachedCredential(null);
+                }}
                 data-testid="demo-endpoint-input"
                 style={{
                   width: "100%",
@@ -407,6 +453,38 @@ export function Demo() {
               }}
             >
               {endpointTemplate}
+            </div>
+          ) : null}
+
+          {cachedCredential ? (
+            <div
+              data-testid="demo-credential-status"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                alignItems: "center",
+                color: "var(--color-dim)",
+                fontSize: "var(--size-12)",
+              }}
+            >
+              <span>Paid {cachedCredential.credential.scheme} credential cached for reuse.</span>
+              <button
+                type="button"
+                onClick={() => setCachedCredential(null)}
+                data-testid="demo-clear-credential"
+                style={{
+                  padding: "4px 8px",
+                  background: "var(--color-surface)",
+                  color: "var(--color-dim)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 4,
+                  fontSize: "var(--size-12)",
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
             </div>
           ) : null}
 
@@ -593,7 +671,7 @@ export function Demo() {
             </div>
           ) : null}
 
-          {status.kind === "ok" ? (
+          {status.kind === "ok" && !status.l402Protected ? (
             <div
               data-testid="demo-l402-empty"
               style={{
@@ -663,7 +741,7 @@ export function Demo() {
         <CodeSnippet
           language="typescript"
           contract="recipe"
-          template={`const id = Math.floor(Math.random() * {{maxId}}) + 1;\nconst endpoint = {{endpointTemplate}}.replace("{id}", String(id));\nconst result = await fetchPaidResource(endpoint, {\n  headers: { accept: "application/json" },\n  cache: "no-store",\n});\n\nif (result.status === "challenge") {\n  // Pay invoice, then retry with Authorization per L402 protocol-specification.md §6.2.\n}`}
+          template={`const id = Math.floor(Math.random() * {{maxId}}) + 1;\nconst endpoint = {{endpointTemplate}}.replace("{id}", String(id));\nconst init = { headers: { accept: "application/json" }, cache: "no-store" };\nconst credential = cachedCredential?.endpointTemplate === {{endpointTemplate}}\n  ? cachedCredential.credential\n  : null;\nconst result = await fetchPaidResource(endpoint, credential\n  ? withAuthorization(init, credential)\n  : init,\n);\n\nif (result.status === "challenge") {\n  // Pay invoice, then cache Authorization per L402 protocol-specification.md §8.\n}`}
           values={{
             maxId: String(MAX_POKEMON_ID),
             endpointTemplate: JSON.stringify(endpointTemplate),
@@ -672,4 +750,11 @@ export function Demo() {
       }
     />
   );
+}
+
+function pokemonRequestInit(): RequestInit {
+  return {
+    headers: { accept: "application/json" },
+    cache: "no-store",
+  };
 }

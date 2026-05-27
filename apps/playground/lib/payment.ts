@@ -45,6 +45,13 @@ export type FetchPaidResult =
   | { status: "challenge"; challenge: L402ChallengeFields }
   | { status: "error"; response: Response };
 
+export type PaidCredential = {
+  authorization: string;
+  scheme: "L402" | "LSAT";
+  macaroon: string;
+  preimage: string;
+};
+
 export type FetchPaidDiagnostic =
   | {
       kind: "request-failed-before-readable-response";
@@ -80,8 +87,8 @@ export class FetchPaidResourceError extends Error {
  *   credential → 401). The HTTP `response` is surfaced.
  */
 export type RetryResult =
-  | { status: "paid"; response: Response }
-  | { status: "rejected"; response: Response };
+  | { status: "paid"; response: Response; credential: PaidCredential }
+  | { status: "rejected"; response: Response; credential: PaidCredential };
 
 /**
  * Issue the initial request. On 402, parse the challenge so the caller can
@@ -130,16 +137,43 @@ export async function retryWithCredential(
   preimage: string,
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<RetryResult> {
+  const credential = buildPaidCredential(challenge, preimage);
+  const response = await fetchImpl(url, withAuthorization(init, credential));
+  return response.ok
+    ? { status: "paid", response, credential }
+    : { status: "rejected", response, credential };
+}
+
+/**
+ * Build a reusable L402 credential from a challenge and paid preimage.
+ *
+ * Per L402 protocol-specification.md §8, clients should cache and reuse
+ * credentials until rejected by the server.
+ *
+ * @throws when `preimage` is not a 32-byte hex string.
+ */
+export function buildPaidCredential(
+  challenge: Pick<L402ChallengeFields, "macaroon" | "scheme">,
+  preimage: string,
+): PaidCredential {
   assertPreimageHex(preimage);
-  const authorization = buildAuthorizationHeader({
-    macaroons: challenge.macaroon,
-    preimage,
-    legacy: challenge.scheme === "LSAT",
-  });
+  const normalizedPreimage = preimage.toLowerCase();
+  return {
+    authorization: buildAuthorizationHeader({
+      macaroons: challenge.macaroon,
+      preimage: normalizedPreimage,
+      legacy: challenge.scheme === "LSAT",
+    }),
+    scheme: challenge.scheme,
+    macaroon: challenge.macaroon,
+    preimage: normalizedPreimage,
+  };
+}
+
+export function withAuthorization(init: RequestInit, credential: PaidCredential): RequestInit {
   const headers = new Headers(init.headers);
-  headers.set("Authorization", authorization);
-  const response = await fetchImpl(url, { ...init, headers });
-  return response.ok ? { status: "paid", response } : { status: "rejected", response };
+  headers.set("Authorization", credential.authorization);
+  return { ...init, headers };
 }
 
 /**

@@ -6,6 +6,9 @@ import {
   fetchPaidResource,
   parsePastedPreimage,
   retryWithCredential,
+  withAuthorization,
+  type FetchPaidResult,
+  type PaidCredential,
 } from "../lib/payment";
 
 /**
@@ -38,6 +41,11 @@ type Status =
   | { kind: "ok"; body: string }
   | { kind: "error"; message: string };
 
+type CachedCredentialState = {
+  endpoint: string;
+  credential: PaidCredential;
+};
+
 export interface PaymentFlowProps {
   /** Endpoint to fetch through the L402 challenge → pay → retry flow. */
   endpoint: string;
@@ -58,6 +66,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
   const [pastedPreimage, setPastedPreimage] = useState("");
+  const [cachedCredential, setCachedCredential] = useState<CachedCredentialState | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -66,28 +75,24 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
   async function start() {
     setStatus({ kind: "fetching" });
     try {
-      const result = await fetchPaidResource(endpoint);
-      if (result.status === "ok") {
-        const body = await result.response.text();
-        setStatus({ kind: "ok", body });
+      const credential =
+        cachedCredential?.endpoint === endpoint ? cachedCredential.credential : null;
+      if (cachedCredential !== null && cachedCredential.endpoint !== endpoint) {
+        setCachedCredential(null);
+      }
+      const result = await fetchPaidResource(
+        endpoint,
+        credential === null ? {} : withAuthorization({}, credential),
+      );
+      if (credential !== null && result.status === "error" && result.response.status === 401) {
+        setCachedCredential(null);
+        await handleFetchResult(await fetchPaidResource(endpoint));
         return;
       }
-      if (result.status === "error") {
-        const text = await result.response.text();
-        setStatus({
-          kind: "error",
-          message: `request failed ${String(result.response.status)}: ${text}`,
-        });
-        return;
+      if (credential !== null && result.status === "challenge") {
+        setCachedCredential(null);
       }
-      setWebLnDetected(getWebLn() !== null);
-      setPastedPreimage("");
-      setStatus({
-        kind: "awaiting-payment",
-        invoice: result.challenge.invoice,
-        macaroon: result.challenge.macaroon,
-        scheme: result.challenge.scheme,
-      });
+      await handleFetchResult(result);
     } catch (error) {
       setStatus({
         kind: "error",
@@ -145,13 +150,9 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     challenge: { macaroon: string; scheme: "L402" | "LSAT" },
     preimage: string,
   ) {
-    const result = await retryWithCredential(
-      endpoint,
-      {},
-      { ...challenge, invoice: "" },
-      preimage,
-    );
+    const result = await retryWithCredential(endpoint, {}, { ...challenge, invoice: "" }, preimage);
     if (result.status === "paid") {
+      setCachedCredential({ endpoint, credential: result.credential });
       const body = await result.response.text();
       setStatus({ kind: "ok", body });
       return;
@@ -160,6 +161,30 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     setStatus({
       kind: "error",
       message: `retry returned ${String(result.response.status)}: ${text}`,
+    });
+  }
+
+  async function handleFetchResult(result: FetchPaidResult) {
+    if (result.status === "ok") {
+      const body = await result.response.text();
+      setStatus({ kind: "ok", body });
+      return;
+    }
+    if (result.status === "error") {
+      const text = await result.response.text();
+      setStatus({
+        kind: "error",
+        message: `request failed ${String(result.response.status)}: ${text}`,
+      });
+      return;
+    }
+    setWebLnDetected(getWebLn() !== null);
+    setPastedPreimage("");
+    setStatus({
+      kind: "awaiting-payment",
+      invoice: result.challenge.invoice,
+      macaroon: result.challenge.macaroon,
+      scheme: result.challenge.scheme,
     });
   }
 
@@ -201,6 +226,38 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       >
         {label}
       </button>
+
+      {cachedCredential ? (
+        <div
+          data-testid="payment-flow-credential-status"
+          style={{
+            display: "flex",
+            flexWrap: "wrap",
+            gap: 8,
+            alignItems: "center",
+            color: "var(--color-dim)",
+            fontSize: "var(--size-12)",
+          }}
+        >
+          <span>Paid {cachedCredential.credential.scheme} credential cached for reuse.</span>
+          <button
+            type="button"
+            onClick={() => setCachedCredential(null)}
+            data-testid="payment-flow-clear-credential"
+            style={{
+              padding: "4px 8px",
+              background: "var(--color-surface)",
+              color: "var(--color-dim)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
+              fontSize: "var(--size-12)",
+              cursor: "pointer",
+            }}
+          >
+            Clear
+          </button>
+        </div>
+      ) : null}
 
       {status.kind === "awaiting-payment" ? (
         <div
@@ -282,9 +339,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
               data-testid="payment-flow-preimage-submit"
               style={{
                 padding: "8px 16px",
-                background: pasteDisabled
-                  ? "var(--color-surface-alt)"
-                  : "var(--color-primary)",
+                background: pasteDisabled ? "var(--color-surface-alt)" : "var(--color-primary)",
                 color: pasteDisabled ? "var(--color-dim)" : "var(--color-surface)",
                 border: "none",
                 borderRadius: 4,

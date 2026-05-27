@@ -86,6 +86,124 @@ test.describe("panels / demo", () => {
     );
   });
 
+  test("reuses a paid credential for later protected requests", async ({ page }) => {
+    await installWebLnStub(page);
+    let challengeRequests = 0;
+    let authorizedRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        authorizedRequests += 1;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      challengeRequests += 1;
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await page.click("[data-testid='demo-pay-webln']");
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
+      "credential cached",
+    );
+
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+    expect(challengeRequests).toBe(1);
+    expect(authorizedRequests).toBe(2);
+  });
+
+  test("clears a rejected cached credential and prompts for a fresh challenge", async ({
+    page,
+  }) => {
+    let authorizedRequests = 0;
+    let challengeRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        authorizedRequests += 1;
+        if (authorizedRequests === 1) {
+          await route.fulfill({
+            status: 200,
+            headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+            json: pokemonPayload(),
+          });
+          return;
+        }
+        await route.fulfill({
+          status: 401,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: { error: "credential-rejected" },
+        });
+        return;
+      }
+      challengeRequests += 1;
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='demo-preimage-submit']");
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
+      "credential cached",
+    );
+
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-credential-status']")).toHaveCount(0);
+    expect(authorizedRequests).toBe(2);
+    expect(challengeRequests).toBe(2);
+  });
+
+  test("clears cached credentials when the endpoint override changes", async ({ page }) => {
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='demo-preimage-submit']");
+    await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
+      "credential cached",
+    );
+
+    await page.fill("[data-testid='demo-endpoint-input']", "https://other.example.test/pokemon/25");
+
+    await expect(page.locator("[data-testid='demo-credential-status']")).toHaveCount(0);
+  });
+
   test("manual paste path retries a protected endpoint", async ({ page }) => {
     await routeProtectedPokemon(page);
 
