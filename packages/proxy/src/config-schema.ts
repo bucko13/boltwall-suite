@@ -7,7 +7,7 @@ import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { z } from "zod";
 
 import type { ForwardHeadersPolicy } from "./header-policy.js";
@@ -51,6 +51,16 @@ const routeRequirementsSchema = z
   })
   .strict();
 
+const paywallPolicySchema = z
+  .object({
+    validUntil: z.iso.datetime().optional(),
+    validUntilSeconds: z.number().int().positive().optional(),
+    capabilities: z.array(z.string().min(1)).min(1).optional(),
+    hodl: z.literal(true).optional(),
+    requires: routeRequirementsSchema.optional(),
+  })
+  .strict();
+
 const routeSchema = z
   .object({
     path: z.string().min(1),
@@ -77,6 +87,7 @@ const configSchema = z
         defaultPriceMsat: msatStringSchema,
       })
       .strict(),
+    policy: paywallPolicySchema.optional(),
     routes: z.array(routeSchema).optional(),
     challengeCompatibility: challengeCompatibilitySchema.default("dual"),
     unprotectedPaths: z.array(z.string().min(1)).optional(),
@@ -113,6 +124,7 @@ export type BoltwallConfig = z.output<typeof configSchema>;
 export type BoltwallConfigInput = z.input<typeof configSchema>;
 export type BoltwallRoute = z.output<typeof routeSchema>;
 export type BoltwallRouteRequirements = NonNullable<BoltwallRoute["requires"]>;
+export type BoltwallPaywallPolicy = NonNullable<BoltwallConfig["policy"]>;
 export type BoltwallBackendEnv = NonNullable<BoltwallConfig["backend"]["env"]>;
 export interface BoltwallBackendEnvNames {
   socket: string;
@@ -155,6 +167,7 @@ export function toProxyConfig(config: BoltwallConfig, backend: LightningBackend)
     ...(config.upstreamTimeoutMs === undefined
       ? {}
       : { upstreamTimeoutMs: config.upstreamTimeoutMs }),
+    ...paywallPolicy(config.policy),
     ...globalRequirements(config),
   };
 }
@@ -343,6 +356,18 @@ export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string>
   if (config.upstreamTimeoutMs !== undefined) {
     base.UPSTREAM_TIMEOUT_MS = String(config.upstreamTimeoutMs);
   }
+  if (config.policy?.validUntil !== undefined) {
+    base.POLICY_VALID_UNTIL = config.policy.validUntil;
+  }
+  if (config.policy?.validUntilSeconds !== undefined) {
+    base.POLICY_VALID_UNTIL_SECONDS = String(config.policy.validUntilSeconds);
+  }
+  if (config.policy?.capabilities !== undefined) {
+    base.CAPABILITIES = config.policy.capabilities.join(",");
+  }
+  if (config.policy?.hodl === true) {
+    base.PAYWALL_HODL = "true";
+  }
 
   return base;
 }
@@ -352,10 +377,11 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
     name: config.name ?? "(unnamed)",
     targetUrl: config.targetUrl,
     backend: config.backend.kind,
-    paywallMode: "standard-invoice",
+    paywallMode: config.policy?.hodl === true ? "hodl-invoice" : "standard-invoice",
     defaultPriceMsat: config.pricing.defaultPriceMsat,
     routes: config.routes?.length ?? 0,
     challengeCompatibility: config.challengeCompatibility,
+    ...(config.policy === undefined ? {} : { policy: policySummary(config.policy) }),
     cors:
       config.cors === undefined
         ? { enabled: false }
@@ -401,8 +427,29 @@ function corsPolicy(policy: NonNullable<BoltwallConfig["cors"]>): ProxyCorsConfi
   };
 }
 
+function paywallPolicy(
+  policy: BoltwallConfig["policy"],
+): Pick<ProxyConfig, "caveats" | "satisfiers" | "capabilities" | "hodl"> {
+  if (policy === undefined) return {};
+
+  const validUntilSeconds = policy.validUntilSeconds;
+  const caveats = [
+    ...(policy.validUntil === undefined ? [] : [validUntil({ iso: policy.validUntil })]),
+    ...(validUntilSeconds === undefined ? [] : [() => validUntil({ seconds: validUntilSeconds })]),
+  ];
+
+  return {
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(policy.capabilities === undefined ? {} : { capabilities: policy.capabilities }),
+    ...(policy.hodl === true ? { hodl: true as const } : {}),
+  };
+}
+
 function globalRequirements(config: BoltwallConfig): RequiredBackendCapabilities {
-  const requirements: RequiredBackendCapabilities = {};
+  const requirements: RequiredBackendCapabilities = {
+    ...routeRequirements(config.policy?.requires),
+    ...(config.policy?.hodl === true ? { hodl: true } : {}),
+  };
   for (const route of config.routes ?? []) {
     Object.assign(requirements, routeRequirements(route.requires));
   }
@@ -417,6 +464,18 @@ function routeRequirements(
     ...(requirements?.cancelInvoice === true ? { cancelInvoice: true } : {}),
     ...(requirements?.streamingInvoices === true ? { streamingInvoices: true } : {}),
     ...(requirements?.customDescription === true ? { customDescription: true } : {}),
+  };
+}
+
+function policySummary(policy: BoltwallPaywallPolicy): Record<string, unknown> {
+  return {
+    ...(policy.validUntil === undefined ? {} : { validUntil: policy.validUntil }),
+    ...(policy.validUntilSeconds === undefined
+      ? {}
+      : { validUntilSeconds: policy.validUntilSeconds }),
+    ...(policy.capabilities === undefined ? {} : { capabilities: policy.capabilities }),
+    ...(policy.hodl === true ? { hodl: true } : {}),
+    ...(policy.requires === undefined ? {} : { requirements: policy.requires }),
   };
 }
 

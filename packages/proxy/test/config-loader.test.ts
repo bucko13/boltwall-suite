@@ -23,6 +23,9 @@ describe("boltwall config loading", () => {
         "  kind: opennode",
         "pricing:",
         '  defaultPriceMsat: "1000"',
+        "policy:",
+        "  validUntilSeconds: 60",
+        "  capabilities: [pokedex-read]",
         "routes:",
         "  - path: /premium/*",
         "    methods: [GET]",
@@ -31,7 +34,10 @@ describe("boltwall config loading", () => {
     );
 
     await expect(loadBoltwallConfig(jsonPath)).resolves.toMatchObject({ name: "json-config" });
-    await expect(loadBoltwallConfig(yamlPath)).resolves.toMatchObject({ name: "yaml-config" });
+    await expect(loadBoltwallConfig(yamlPath)).resolves.toMatchObject({
+      name: "yaml-config",
+      policy: { validUntilSeconds: 60, capabilities: ["pokedex-read"] },
+    });
   });
 
   test("reports missing config paths without leaking values", async () => {

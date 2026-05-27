@@ -3,6 +3,7 @@ import type { Server } from "node:http";
 
 import type { CreatedInvoice, CreateInvoiceRequest } from "@boltwall/adapters";
 import { MockAdapter } from "@boltwall/adapters/testing";
+import { validUntil, validUntilSatisfier } from "@boltwall/l402";
 import type { L402Config, MinimalLogger } from "@boltwall/middleware/core";
 import express from "express";
 
@@ -283,6 +284,25 @@ describe("createProxy", () => {
 
     expect(res.status).toBe(200);
     expect(await res.json()).toMatchObject({ ok: true, path: "/paid" });
+  });
+
+  test("global expired caveat policy rejects a paid credential", async () => {
+    const upstream = await buildUpstream();
+    const { app, backend } = buildProxy(upstream.url, {
+      caveats: [validUntil({ iso: "2000-01-01T00:00:00.000Z" })],
+      satisfiers: [validUntilSatisfier()],
+    });
+    const proxy = await listen(app);
+
+    const challenge = await fetch(`${proxy.url}/paid`);
+    const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: { authorization: `L402 ${macaroon}:${PREIMAGE_HEX}` },
+    });
+
+    expect(res.status).toBe(401);
   });
 
   test("default price gates paths without a matching route", async () => {

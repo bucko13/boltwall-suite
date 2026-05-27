@@ -39,6 +39,7 @@ export interface ProxyCorsConfig {
 export interface ProxyConfig extends Pick<
   L402ExpressOptions,
   | "rate"
+  | "caveats"
   | "satisfiers"
   | "onPaid"
   | "hodl"
@@ -133,7 +134,7 @@ export function createProxy(config: ProxyConfig): Express {
     }
 
     const price = route?.price ?? config.defaultPrice!;
-    const caveats = wrapCaveats(route?.caveats, req);
+    const caveats = mergeCaveats(config.caveats, wrapRouteCaveats(route?.caveats, req));
     const middleware = boltwall({
       service,
       backend: config.backend,
@@ -217,11 +218,19 @@ function isUnprotected(req: ExpressRequest, patterns: (string | RegExp)[] = []):
   return patterns.some((pattern) => isPathMatch(pattern, req.path));
 }
 
-function wrapCaveats(
+function mergeCaveats(
+  globalCaveats: L402Config["caveats"] | undefined,
+  routeCaveats: L402Config["caveats"] | undefined,
+): L402Config["caveats"] | undefined {
+  const caveats = [...(globalCaveats ?? []), ...(routeCaveats ?? [])];
+  return caveats.length === 0 ? undefined : caveats;
+}
+
+function wrapRouteCaveats(
   caveats: ProxyCaveat[] | undefined,
   req: ExpressRequest,
 ): L402Config["caveats"] | undefined {
-  if (caveats === undefined) return undefined;
+  if (caveats === undefined || caveats.length === 0) return undefined;
 
   return caveats.map((caveat) => {
     if (typeof caveat !== "function") return caveat;

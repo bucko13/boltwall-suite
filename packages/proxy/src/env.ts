@@ -1,5 +1,6 @@
 import { existsSync, readFileSync } from "node:fs";
 
+import { validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { z } from "zod";
 
 import type { ForwardHeadersPolicy } from "./header-policy.js";
@@ -31,6 +32,14 @@ const envSchema = z
       .refine((value) => Number(value) > 0, "must be a positive integer millisecond timeout")
       .optional(),
     BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: z.enum(["dual", "l402-only", "lsat-only"]).optional(),
+    BOLTWALL_PROXY_POLICY_VALID_UNTIL: z.iso.datetime().optional(),
+    BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS: z
+      .string()
+      .regex(/^\d+$/u, "must be a positive integer second duration")
+      .refine((value) => Number(value) > 0, "must be a positive integer second duration")
+      .optional(),
+    BOLTWALL_PROXY_CAPABILITIES: z.string().optional(),
+    BOLTWALL_PROXY_PAYWALL_HODL: z.enum(["true", "false"]).optional(),
   })
   .passthrough();
 
@@ -47,6 +56,10 @@ export type ProxyEnvConfig = Pick<
   | "cors"
   | "upstreamTimeoutMs"
   | "challengeCompatibility"
+  | "caveats"
+  | "satisfiers"
+  | "capabilities"
+  | "hodl"
 >;
 
 /** Options for loading proxy runtime config from exported env and optional env files. */
@@ -78,6 +91,7 @@ export function loadProxyEnv(options: LoadProxyEnvOptions = {}): ProxyEnvConfig 
 function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
   const forwardHeaders = parseForwardHeaders(fields);
   const cors = parseCors(fields);
+  const policy = parsePolicy(fields);
   return {
     targetUrl: fields.BOLTWALL_PROXY_TARGET_URL,
     ...(fields.BOLTWALL_PROXY_SERVICE === undefined
@@ -97,6 +111,33 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
     ...(fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY === undefined
       ? {}
       : { challengeCompatibility: fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY }),
+    ...policy,
+  };
+}
+
+function parsePolicy(
+  fields: ProxyEnvFields,
+): Pick<ProxyEnvConfig, "caveats" | "satisfiers" | "capabilities" | "hodl"> {
+  const caveats = [
+    ...(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL === undefined
+      ? []
+      : [validUntil({ iso: fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL })]),
+    ...(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS === undefined
+      ? []
+      : [
+          () =>
+            validUntil({
+              seconds: Number(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS),
+            }),
+        ]),
+  ];
+
+  return {
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(fields.BOLTWALL_PROXY_CAPABILITIES === undefined
+      ? {}
+      : { capabilities: splitList(fields.BOLTWALL_PROXY_CAPABILITIES) }),
+    ...(fields.BOLTWALL_PROXY_PAYWALL_HODL === "true" ? { hodl: true as const } : {}),
   };
 }
 

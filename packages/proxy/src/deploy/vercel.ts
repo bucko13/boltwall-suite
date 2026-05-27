@@ -219,7 +219,7 @@ function generatedApiIndex(): string {
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
@@ -279,6 +279,7 @@ const app = createProxy({
   },
   ...(optionalEnv("CORS_ALLOW_ORIGINS") === undefined ? {} : { cors: corsConfig() }),
   ...(optionalEnv("UPSTREAM_TIMEOUT_MS") === undefined ? {} : { upstreamTimeoutMs: Number(optionalEnv("UPSTREAM_TIMEOUT_MS")) }),
+  ...paywallPolicy(),
 });
 
 export default app;
@@ -322,6 +323,21 @@ function positiveIntegerEnv(name: string): number {
     throw new Error(\`\${name} must be a non-negative integer\`);
   }
   return value;
+}
+
+function paywallPolicy() {
+  const caveats = [
+    ...(optionalEnv("POLICY_VALID_UNTIL") === undefined ? [] : [validUntil({ iso: requireEnv("POLICY_VALID_UNTIL") })]),
+    ...(optionalEnv("POLICY_VALID_UNTIL_SECONDS") === undefined
+      ? []
+      : [() => validUntil({ seconds: positiveIntegerEnv("POLICY_VALID_UNTIL_SECONDS") })]),
+  ];
+
+  return {
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(optionalEnv("CAPABILITIES") === undefined ? {} : { capabilities: splitList(requireEnv("CAPABILITIES")) }),
+    ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true } : {}),
+  };
 }
 
 function challengeCompatibility(): "dual" | "l402-only" | "lsat-only" {

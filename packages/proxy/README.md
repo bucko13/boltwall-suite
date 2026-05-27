@@ -137,6 +137,10 @@ Supported variables:
 - `BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS`
 - `BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS`
 - `BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY`
+- `BOLTWALL_PROXY_POLICY_VALID_UNTIL`
+- `BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS`
+- `BOLTWALL_PROXY_CAPABILITIES`
+- `BOLTWALL_PROXY_PAYWALL_HODL`
 
 Exported environment variables override values from an optional env file. The
 loader reports variable names and validation reasons without echoing values.
@@ -155,6 +159,12 @@ backend:
     apiKey: OPENNODE_API_KEY
 pricing:
   defaultPriceMsat: "1000"
+policy:
+  # Adds `valid-until=<ISO-8601>` caveats to minted macaroons. L402
+  # macaroon-spec.md §Caveat Format and §Verification govern the caveat shape
+  # and satisfier behavior.
+  validUntilSeconds: 60
+  capabilities: [pokedex-read]
 routes:
   - path: /pokemon/*
     methods: [GET]
@@ -190,6 +200,10 @@ The same config may be written as JSON:
   },
   "pricing": {
     "defaultPriceMsat": "1000"
+  },
+  "policy": {
+    "validUntilSeconds": 60,
+    "capabilities": ["pokedex-read"]
   },
   "routes": [
     {
@@ -251,12 +265,31 @@ environment variables such as `TARGET_URL`, `LN_BACKEND`,
 `DEFAULT_PRICE_MSAT`, `CHALLENGE_COMPATIBILITY`, `UNPROTECTED_PATHS`,
 `FORWARD_ALLOW`, `FORWARD_DENY`, `CORS_ALLOW_ORIGINS`,
 `CORS_EXPOSE_HEADERS`, `CORS_ALLOW_HEADERS`, `CORS_ALLOW_METHODS`,
-`CORS_MAX_AGE_SECONDS`, and `UPSTREAM_TIMEOUT_MS`. When `cors` is configured,
-the runtime allows only the listed exact origins and exposes
+`CORS_MAX_AGE_SECONDS`, `UPSTREAM_TIMEOUT_MS`, `POLICY_VALID_UNTIL`,
+`POLICY_VALID_UNTIL_SECONDS`, `CAPABILITIES`, and `PAYWALL_HODL`. When `cors`
+is configured, the runtime allows only the listed exact origins and exposes
 `WWW-Authenticate` by default so browser clients can read L402 challenges.
 Backend secret references map to the canonical Vercel-side names above. For
 example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
 project receives `OPENNODE_API_KEY`.
+
+### Paywall Policy
+
+The optional `policy` object is the deployment-facing surface for common
+macaroon and paywall controls:
+
+| Key                 | Effect                                                                  |
+| ------------------- | ----------------------------------------------------------------------- |
+| `validUntil`        | Adds a fixed `valid-until=<ISO-8601>` caveat to minted macaroons.       |
+| `validUntilSeconds` | Adds a fresh relative `valid-until` caveat for each challenge.          |
+| `capabilities`      | Appends middleware capability caveats for the configured service.       |
+| `hodl`              | Uses HODL invoices and requires a backend with HODL support.            |
+| `requires`          | Declares backend capability requirements without changing paywall mode. |
+
+`validUntil` and `validUntilSeconds` automatically register the matching
+`valid-until` satisfier, so paid retries with expired credentials return `401`.
+Per-route `requires` still works and is combined with global policy
+requirements during validation.
 
 Do not put backend credentials, macaroons, API keys, TLS certificates,
 preimages, bearer tokens, or `.env` files in client-side code or committed

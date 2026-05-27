@@ -113,6 +113,25 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).not.toContain('"backendCapabilities"');
   });
 
+  test("config show and validate surface configured paywall policy", async () => {
+    const dir = await fixtureDir("policy-summary");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig({ policy: true }));
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate", "--config", "pokedex"],
+      stdout,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain('"policy"');
+    expect(stdout.text()).toContain('"validUntilSeconds": 60');
+    expect(stdout.text()).toContain('"capabilities"');
+    expect(stdout.text()).toContain('"pokedex-read"');
+  });
+
   test("validate requires --config when multiple saved configs exist", async () => {
     const dir = await fixtureDir("validate-many");
     await writeFile(join(dir, "one.yaml"), yamlConfig({ name: "one" }));
@@ -301,7 +320,7 @@ describe("boltwall CLI", () => {
   test("deploy --config --yes sets Vercel env vars and deploys without final confirmation", async () => {
     const dir = await fixtureDir("deploy");
     const configPath = join(dir, "boltwall.yaml");
-    await writeFile(configPath, yamlConfig());
+    await writeFile(configPath, yamlConfig({ policy: true }));
     const stdout = new CaptureStream();
     const runner = new MockRunner();
 
@@ -321,6 +340,32 @@ describe("boltwall CLI", () => {
         join(dir, "deployments", "pokedex") +
         " --sensitive",
     );
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "POLICY_VALID_UNTIL_SECONDS",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+      ],
+      stdin: "60\n",
+    });
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "CAPABILITIES",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+      ],
+      stdin: "pokedex-read\n",
+    });
     expect(runner.commands.at(-1)?.args).toEqual([
       "deploy",
       "--cwd",
@@ -387,6 +432,7 @@ describe("boltwall CLI", () => {
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
         "boltwall-pokedex",
       ],
       select: ["opennode"],
@@ -552,7 +598,9 @@ class ScriptedPrompt implements PromptDriver {
   }
 }
 
-function yamlConfig(options: { name?: string; requireHodl?: boolean } = {}): string {
+function yamlConfig(
+  options: { name?: string; policy?: boolean; requireHodl?: boolean } = {},
+): string {
   return [
     `name: ${options.name ?? "pokedex"}`,
     "targetUrl: https://pokeapi.co/api/v2",
@@ -560,6 +608,9 @@ function yamlConfig(options: { name?: string; requireHodl?: boolean } = {}): str
     "  kind: opennode",
     "pricing:",
     '  defaultPriceMsat: "1000"',
+    ...(options.policy === true
+      ? ["policy:", "  validUntilSeconds: 60", "  capabilities: [pokedex-read]"]
+      : []),
     "routes:",
     "  - path: /pokemon/*",
     "    methods: [GET]",

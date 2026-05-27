@@ -440,6 +440,15 @@ async function promptForConfig(
         existing?.unprotectedPaths?.join(",") ?? "/healthz",
       ),
     ),
+    ...promptedPolicy(
+      existing,
+      await prompt.input(
+        "Credential lifetime in seconds (blank for no expiration caveat)",
+        existing?.policy?.validUntilSeconds === undefined
+          ? ""
+          : String(existing.policy.validUntilSeconds),
+      ),
+    ),
     forwardHeaders: existing?.forwardHeaders ?? {
       allow: ["accept", "content-type", "x-request-id"],
       deny: ["cookie", "authorization"],
@@ -474,6 +483,30 @@ function addCorsOrigins(config: BoltwallConfig, origins: string[]): BoltwallConf
       maxAgeSeconds: existing?.maxAgeSeconds ?? 600,
     },
   });
+}
+
+function promptedPolicy(
+  existing: BoltwallConfig | undefined,
+  validUntilSecondsInput: string,
+): Pick<BoltwallConfigInput, "policy"> {
+  const validUntilSeconds = optionalInput(validUntilSecondsInput);
+  if (validUntilSeconds === undefined && existing?.policy === undefined) return {};
+
+  const nextPolicy: BoltwallConfigInput["policy"] = {
+    ...(existing?.policy?.validUntil === undefined
+      ? {}
+      : { validUntil: existing.policy.validUntil }),
+    ...(validUntilSeconds === undefined
+      ? {}
+      : { validUntilSeconds: Number(validUntilSeconds) }),
+    ...(existing?.policy?.capabilities === undefined
+      ? {}
+      : { capabilities: existing.policy.capabilities }),
+    ...(existing?.policy?.hodl === true ? { hodl: true as const } : {}),
+    ...(existing?.policy?.requires === undefined ? {} : { requires: existing.policy.requires }),
+  };
+
+  return Object.keys(nextPolicy).length === 0 ? {} : { policy: nextPolicy };
 }
 
 async function ensureDeployMetadata(

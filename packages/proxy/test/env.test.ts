@@ -20,6 +20,8 @@ describe("loadProxyEnv", () => {
         BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS: "600",
         BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: "5000",
         BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: "l402-only",
+        BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS: "60",
+        BOLTWALL_PROXY_CAPABILITIES: "pokedex-read,pokedex-list",
       },
     });
 
@@ -41,6 +43,9 @@ describe("loadProxyEnv", () => {
       },
       upstreamTimeoutMs: 5000,
       challengeCompatibility: "l402-only",
+      caveats: [expect.any(Function)],
+      satisfiers: [expect.objectContaining({ condition: "valid-until" })],
+      capabilities: ["pokedex-read", "pokedex-list"],
     });
   });
 
