@@ -30,8 +30,19 @@ import type {
 const HEX_32_BYTES_LENGTH = 64;
 
 export interface LndAdapterOptions {
+  /** LND gRPC socket, for example `127.0.0.1:10009`. */
   socket: string;
+  /**
+   * TLS certificate content. The local regtest helper exports this as
+   * `LND_TLS_CERT` with base64 content; PEM content may also be accepted by the
+   * underlying `lightning` package. Filesystem paths should use path-named
+   * variables such as `LND_TLS_CERT_PATH` before being read into this field.
+   */
   cert: string;
+  /**
+   * Admin macaroon content. The local regtest helper exports this as
+   * `LND_MACAROON` with base64 content.
+   */
   macaroon: string;
 }
 

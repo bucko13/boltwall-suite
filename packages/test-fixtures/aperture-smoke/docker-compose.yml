@@ -19,7 +19,7 @@ services:
       - backend
     volumes:
       - ./aperture.yaml:/root/.aperture/aperture.yaml:ro
-      - ${LND_TLS_CERT:?set LND_TLS_CERT to your regtest lnd tls.cert}:/lnd/tls.cert:ro
+      - ${LND_TLS_CERT_PATH:?set LND_TLS_CERT_PATH to your regtest lnd tls.cert}:/lnd/tls.cert:ro
       - ${LND_MACAROON_DIR:?set LND_MACAROON_DIR to your regtest lnd macaroon dir}:/lnd/macaroons:ro
       - aperture-data:/root/.aperture/data
     ports:

@@ -29,6 +29,7 @@ export interface VercelDeployOptions {
   config: BoltwallConfig;
   configDir?: string;
   env?: Record<string, string | undefined>;
+  production?: boolean;
   secretValues?: Record<string, string>;
   runner?: CommandRunner;
 }
@@ -79,7 +80,7 @@ export async function deployVercel(options: VercelDeployOptions): Promise<Vercel
   const runner = options.runner ?? nodeCommandRunner;
   const config = options.config;
   const projectDir = deploymentDirForConfig(config.name ?? "default", options.configDir);
-  const environment = config.deploy.production ? "production" : "preview";
+  const environment = options.production === true ? "production" : "preview";
 
   await writeVercelProject(projectDir, config);
   await setVercelEnvironment({
@@ -92,7 +93,7 @@ export async function deployVercel(options: VercelDeployOptions): Promise<Vercel
   });
 
   const deployArgs = ["deploy", "--cwd", projectDir, "--yes"];
-  if (config.deploy.production) deployArgs.push("--prod");
+  if (options.production === true) deployArgs.push("--prod");
   const deployed = await runner.run("vercel", deployArgs);
   if (deployed.code !== 0) {
     throw new VercelDeployError(redactCommandFailure("vercel deploy failed", deployed));
@@ -222,6 +223,11 @@ import { InMemoryRootKeyStore } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
+// Backend credential env values are never generated into config. For local LND,
+// LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
+// may also be accepted by the underlying lightning package) and LND_MACAROON is
+// macaroon content (base64 from infra/scripts/lnd-env). Path-based tools should
+// use path-named variables such as LND_TLS_CERT_PATH instead.
 const backend = (() => {
   const kind = requireEnv("LN_BACKEND");
   if (kind === "lnd") {

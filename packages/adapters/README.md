@@ -38,6 +38,25 @@ The mock returns placeholder `mockbolt11_...` payment request strings rather
 than real BOLT 11 invoices. Tests that need real invoice decoding should use
 fixtures from `@boltwall/l402` or a concrete backend adapter.
 
+## Local LND
+
+`@boltwall/adapters/lnd` accepts explicit `LndAdapterOptions`:
+
+```ts
+import { LndAdapter } from "@boltwall/adapters/lnd";
+
+const backend = new LndAdapter({
+  socket: process.env.LND_SOCKET!,
+  cert: process.env.LND_TLS_CERT!,
+  macaroon: process.env.LND_MACAROON!,
+});
+```
+
+For Boltwall's local regtest helpers, `LND_TLS_CERT` is certificate content and
+`LND_MACAROON` is admin macaroon content; `infra/scripts/lnd-env` emits both as
+base64. Path-based interop tooling should use explicit path variable names such
+as `LND_TLS_CERT_PATH`.
+
 ## Voltage-hosted LND
 
 `@boltwall/adapters/voltage-lnd` is a thin profile/factory over the LND adapter

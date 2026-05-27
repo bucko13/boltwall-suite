@@ -36,7 +36,7 @@ jobs:
 
       - name: Start Aperture stack
         env:
-          LND_TLS_CERT: ${{ secrets.LND_TLS_CERT }}
+          LND_TLS_CERT_PATH: ${{ secrets.LND_TLS_CERT_PATH }}
           LND_MACAROON_DIR: ${{ secrets.LND_MACAROON_DIR }}
         run: |
           docker compose \

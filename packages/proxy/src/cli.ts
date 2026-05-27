@@ -1,19 +1,23 @@
 #!/usr/bin/env node
 
+import { existsSync } from "node:fs";
+import { homedir } from "node:os";
+import { extname, resolve } from "node:path";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
 import { createInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
-import { loadBoltwallConfig } from "./config-loader.js";
+import { findSavedConfig, loadBoltwallConfig } from "./config-loader.js";
 import {
+  backendEnvDescription,
   backendEnvNames,
   configSummary,
   createBackendFromEnv,
   parseBoltwallConfig,
-  requiredSecretEnvNames,
   toProxyConfig,
   validateBackendCapabilities,
+  type BoltwallBackendEnvNames,
   type BoltwallBackendKind,
   type BoltwallConfig,
   type BoltwallConfigInput,
@@ -31,12 +35,13 @@ import { createProxy } from "./index.js";
 const usage = `boltwall <command>
 
 Commands:
-  deploy vercel              Configure and deploy the Vercel proxy
-  dev --config <path>        Start the local proxy runtime
-  validate --config <path>   Validate proxy configuration
-  config list                List saved configs
-  config show <name>         Show a saved config path
-  --help                     Show this help
+  dev [--config <name-or-path>] [--port <port>]   Start a local proxy
+  deploy [--config <name-or-path>] [--prod]       Deploy the proxy to Vercel
+  validate [--config <name-or-path>]              Validate proxy configuration
+  config create                                   Create a saved config
+  config list                                     List saved configs
+  config show <name-or-path>                      Show a saved config summary
+  --help                                          Show this help
 `;
 
 export interface CliOptions {
@@ -48,6 +53,7 @@ export interface CliOptions {
   configDir?: string;
   runner?: CommandRunner;
   prompt?: PromptDriver;
+  startServer?: boolean;
 }
 
 export interface PromptDriver {
@@ -56,6 +62,13 @@ export interface PromptDriver {
   confirm(message: string, defaultValue?: boolean): Promise<boolean>;
   select(message: string, choices: string[], defaultValue?: string): Promise<string>;
 }
+
+interface LoadedConfig {
+  config: BoltwallConfig;
+  path: string;
+}
+
+type ConfigPromptMode = "create" | "deploy" | "dev";
 
 export async function runCli(options: CliOptions = {}): Promise<number> {
   const argv = options.argv ?? process.argv.slice(2);
@@ -74,15 +87,19 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
       return 0;
     }
 
-    if (command === "deploy" && subcommand === "vercel") {
-      return await deployVercelCommand(rest, { ...options, env, stdout, prompt });
+    if (command === "deploy") {
+      return await deployCommand([subcommand, ...rest].filter(isDefined), {
+        ...options,
+        env,
+        stdout,
+        prompt,
+      });
     }
 
     if (command === "validate") {
       return await validateCommand([subcommand, ...rest].filter(isDefined), {
         stdout,
         env,
-        prompt,
         ...(options.configDir === undefined ? {} : { configDir: options.configDir }),
       });
     }
@@ -92,22 +109,18 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
         stdout,
         env,
         prompt,
+        startServer: options.startServer ?? true,
         ...(options.configDir === undefined ? {} : { configDir: options.configDir }),
       });
     }
 
-    if (command === "config" && subcommand === "list") {
-      const saved = await listSavedConfigs(options.configDir);
-      for (const config of saved) write(stdout, `${config.name}\t${config.path}\n`);
-      return 0;
-    }
-
-    if (command === "config" && subcommand === "show") {
-      const name = rest[0];
-      if (name === undefined) throw new Error("config show requires a config name");
-      const saved = await findSavedConfigOrThrow(name, options.configDir);
-      write(stdout, `${saved.path}\n`);
-      return 0;
+    if (command === "config") {
+      return await configCommand([subcommand, ...rest].filter(isDefined), {
+        stdout,
+        env,
+        prompt,
+        ...(options.configDir === undefined ? {} : { configDir: options.configDir }),
+      });
     }
 
     write(stderr, usage);
@@ -118,26 +131,46 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
   }
 }
 
-async function deployVercelCommand(
+async function deployCommand(
   argv: string[],
   options: Required<Pick<CliOptions, "env" | "stdout" | "prompt">> &
     Pick<CliOptions, "configDir" | "runner">,
 ): Promise<number> {
   const flags = parseFlags(argv);
-  const yes = flags.boolean.has("yes");
-  const loadedConfig =
-    flags.values.config === undefined
-      ? await chooseOrCreateConfig(options.prompt, options.configDir, options.stdout)
-      : await loadBoltwallConfig(flags.values.config);
-  const config =
-    flags.boolean.has("prod") || flags.boolean.has("production")
-      ? { ...loadedConfig, deploy: { ...loadedConfig.deploy, production: true } }
-      : loadedConfig;
+  if (flags.positionals.includes("vercel")) {
+    throw new Error("Use `boltwall deploy`; the Vercel target is selected by the deploy command.");
+  }
+  if (flags.positionals.length > 0)
+    throw new Error(`Unknown deploy argument: ${flags.positionals[0]}`);
 
-  const secretValues = yes ? {} : await promptForSecrets(config, options.prompt, options.env);
+  const loaded =
+    flags.values.config === undefined
+      ? await chooseOrCreateConfig(options.prompt, "deploy", options.configDir, options.stdout)
+      : await loadConfigReference(flags.values.config, options.configDir);
+  const production = flags.boolean.has("prod") || flags.boolean.has("production");
+  const yes = flags.boolean.has("yes");
+  const config = await ensureDeployMetadata(loaded, options.prompt, options.stdout, !yes);
+  const secretValues = await promptForSecrets(config, options.prompt, options.env);
+  const validationEnv = { ...options.env, ...secretValues };
+  const backend = validateConfig(config, validationEnv);
+  writeValidationSummary(options.stdout, config, backend.capabilities);
+
+  if (!yes) {
+    const environment = production ? "production" : "preview";
+    const shouldDeploy = await options.prompt.confirm(
+      `Deploy ${config.name ?? "proxy"} to Vercel ${environment}`,
+      false,
+    );
+    if (!shouldDeploy) {
+      write(options.stdout, "Deployment cancelled.\n");
+      return 0;
+    }
+  }
+
   const result = await deployVercel({
     config,
     env: options.env,
+    production,
     secretValues,
     ...(options.configDir === undefined ? {} : { configDir: options.configDir }),
     ...(options.runner === undefined ? {} : { runner: options.runner }),
@@ -155,14 +188,17 @@ async function validateCommand(
     configDir?: string;
     stdout: Writable;
     env: Record<string, string | undefined>;
-    prompt: PromptDriver;
   },
 ): Promise<number> {
-  const config = await loadConfigFromFlags(argv, options);
-  const backend = createBackendFromEnv(config, options.env);
-  validateBackendCapabilities(config, backend);
-  write(options.stdout, `${JSON.stringify(configSummary(config), null, 2)}\n`);
-  write(options.stdout, `${JSON.stringify(backend.capabilities, null, 2)}\n`);
+  const flags = parseFlags(argv);
+  if (flags.positionals.length > 0)
+    throw new Error(`Unknown validate argument: ${flags.positionals[0]}`);
+  const loaded =
+    flags.values.config === undefined
+      ? await loadSingleSavedConfig(options.configDir)
+      : await loadConfigReference(flags.values.config, options.configDir);
+  const backend = validateConfig(loaded.config, options.env);
+  writeValidationSummary(options.stdout, loaded.config, backend.capabilities);
   return 0;
 }
 
@@ -173,75 +209,159 @@ async function devCommand(
     stdout: Writable;
     env: Record<string, string | undefined>;
     prompt: PromptDriver;
+    startServer: boolean;
   },
 ): Promise<number> {
   const flags = parseFlags(argv);
+  if (flags.positionals.length > 0)
+    throw new Error(`Unknown dev argument: ${flags.positionals[0]}`);
   const port = flags.values.port === undefined ? 3000 : Number(flags.values.port);
   if (!Number.isInteger(port) || port <= 0) {
     throw new Error("--port must be a positive integer");
   }
 
-  const config = await loadConfigFromFlags(argv, options);
-  const backend = createBackendFromEnv(config, options.env);
-  validateBackendCapabilities(config, backend);
-  const app = createProxy(toProxyConfig(config, backend));
+  const loaded =
+    flags.values.config === undefined
+      ? await chooseDevConfig(options.prompt, options.configDir, options.stdout)
+      : await loadConfigReference(flags.values.config, options.configDir);
+  const secretValues = await promptForSecrets(loaded.config, options.prompt, options.env);
+  const validationEnv = { ...options.env, ...secretValues };
+  const backend = validateConfig(loaded.config, validationEnv);
+  writeValidationSummary(options.stdout, loaded.config, backend.capabilities);
+  const app = createProxy(toProxyConfig(loaded.config, backend));
+  if (!options.startServer) {
+    write(options.stdout, `boltwall proxy validated for http://127.0.0.1:${port}\n`);
+    return 0;
+  }
   app.listen(port, () => {
     write(options.stdout, `boltwall proxy listening on http://127.0.0.1:${port}\n`);
   });
   return 0;
 }
 
-async function loadConfigFromFlags(
+async function configCommand(
   argv: string[],
   options: {
     configDir?: string;
+    stdout: Writable;
+    env: Record<string, string | undefined>;
     prompt: PromptDriver;
   },
-): Promise<BoltwallConfig> {
-  const flags = parseFlags(argv);
-  if (flags.values.config !== undefined) return await loadBoltwallConfig(flags.values.config);
-
-  const saved = await listSavedConfigs(options.configDir);
-  if (saved.length === 0) {
-    throw new Error("No saved configs found. Run `boltwall deploy vercel` or pass --config.");
+): Promise<number> {
+  const [subcommand, ...rest] = argv;
+  if (subcommand === "list") {
+    const saved = await listSavedConfigs(options.configDir);
+    for (const config of saved) write(options.stdout, `${config.name}\t${config.path}\n`);
+    return 0;
   }
-  if (saved.length === 1) return await loadBoltwallConfig(saved[0]!.path);
 
-  const selected = await options.prompt.select(
-    "Select a saved config",
-    saved.map((config) => config.name),
-    saved[0]?.name,
-  );
-  return await loadBoltwallConfig((await findSavedConfigOrThrow(selected, options.configDir)).path);
+  if (subcommand === "show") {
+    const reference = rest[0];
+    if (reference === undefined) throw new Error("config show requires a config name or path");
+    const loaded = await loadConfigReference(reference, options.configDir);
+    write(options.stdout, `Path: ${loaded.path}\n`);
+    writeValidationSummary(options.stdout, loaded.config, requiredEnvNameSummary(loaded.config));
+    return 0;
+  }
+
+  if (subcommand === "create") {
+    await promptForConfig(options.prompt, undefined, "create", options.configDir, options.stdout);
+    return 0;
+  }
+
+  throw new Error("config requires one of: create, list, show");
+}
+
+async function chooseDevConfig(
+  prompt: PromptDriver,
+  configDir: string | undefined,
+  stdout: Writable,
+): Promise<LoadedConfig> {
+  const saved = await listSavedConfigs(configDir);
+  if (saved.length === 0) return await promptForConfig(prompt, undefined, "dev", configDir, stdout);
+  if (saved.length === 1) {
+    write(stdout, `Using saved config: ${saved[0]!.name} (${saved[0]!.path})\n`);
+    return {
+      path: saved[0]!.path,
+      config: await loadBoltwallConfig(saved[0]!.path),
+    };
+  }
+  return await chooseOrCreateConfig(prompt, "dev", configDir, stdout);
 }
 
 async function chooseOrCreateConfig(
   prompt: PromptDriver,
+  mode: ConfigPromptMode,
   configDir?: string,
   stdout: Writable = defaultStdout,
-): Promise<BoltwallConfig> {
+): Promise<LoadedConfig> {
   const saved = await listSavedConfigs(configDir);
-  if (saved.length === 0) return await promptForConfig(prompt, undefined, configDir, stdout);
+  if (saved.length === 0) return await promptForConfig(prompt, undefined, mode, configDir, stdout);
 
   const action = await prompt.select("Config", ["use existing", "edit existing", "create new"]);
-  if (action === "create new") return await promptForConfig(prompt, undefined, configDir, stdout);
+  if (action === "create new")
+    return await promptForConfig(prompt, undefined, mode, configDir, stdout);
 
   const selected = await prompt.select(
     "Saved config",
     saved.map((config) => config.name),
     saved[0]?.name,
   );
-  const existing = await loadBoltwallConfig((await findSavedConfigOrThrow(selected, configDir)).path);
-  if (action === "use existing") return existing;
-  return await promptForConfig(prompt, existing, configDir, stdout);
+  const loaded = await loadConfigReference(selected, configDir);
+  if (action === "use existing") return loaded;
+  return await promptForConfig(prompt, loaded.config, mode, configDir, stdout);
+}
+
+async function loadSingleSavedConfig(configDir?: string): Promise<LoadedConfig> {
+  const saved = await listSavedConfigs(configDir);
+  if (saved.length === 0) {
+    throw new Error(
+      "No saved configs found. Run `boltwall config create`, `boltwall dev`, or pass --config.",
+    );
+  }
+  if (saved.length > 1) {
+    throw new Error(
+      `Multiple saved configs found (${saved.map((config) => config.name).join(", ")}). Pass --config <name-or-path>.`,
+    );
+  }
+  return {
+    path: saved[0]!.path,
+    config: await loadBoltwallConfig(saved[0]!.path),
+  };
+}
+
+async function loadConfigReference(reference: string, configDir?: string): Promise<LoadedConfig> {
+  const tried: string[] = [];
+  if (!isPathLike(reference)) {
+    const saved = await findSavedConfig(reference, configDir);
+    if (saved !== undefined) {
+      return {
+        path: saved.path,
+        config: await loadBoltwallConfig(saved.path),
+      };
+    }
+    tried.push(`saved config "${reference}"`);
+  }
+
+  const path = expandPath(reference);
+  tried.push(path);
+  if (existsSync(path)) {
+    return {
+      path,
+      config: await loadBoltwallConfig(path),
+    };
+  }
+
+  throw new Error(`Config not found: ${reference}. Checked ${tried.join(" and ")}.`);
 }
 
 async function promptForConfig(
   prompt: PromptDriver,
   existing: BoltwallConfig | undefined,
+  mode: ConfigPromptMode,
   configDir?: string,
   stdout: Writable = defaultStdout,
-): Promise<BoltwallConfig> {
+): Promise<LoadedConfig> {
   const name = await prompt.input("Config name", existing?.name ?? "default");
   const backendKind = (await prompt.select(
     "Lightning backend",
@@ -249,13 +369,33 @@ async function promptForConfig(
     existing?.backend.kind ?? "voltage-lnd",
   )) as BoltwallBackendKind;
   const defaultNames = backendEnvNames(backendKind);
+  const allowBrowser = await prompt.confirm(
+    "Allow browser JavaScript clients",
+    existing?.cors !== undefined || mode === "dev",
+  );
+  const cors = allowBrowser
+    ? {
+        allowOrigins: splitListRequired(
+          await prompt.input(
+            "Allowed browser origins (comma separated)",
+            existing?.cors?.allowOrigins.join(",") ??
+              (mode === "dev" ? "http://127.0.0.1:3000,http://localhost:3000" : ""),
+          ),
+          "Allowed browser origins",
+        ),
+        exposeHeaders: existing?.cors?.exposeHeaders ?? ["WWW-Authenticate"],
+        allowMethods: existing?.cors?.allowMethods ?? ["GET", "OPTIONS"],
+        allowHeaders: existing?.cors?.allowHeaders ?? ["Authorization", "Content-Type"],
+        maxAgeSeconds: existing?.cors?.maxAgeSeconds ?? 600,
+      }
+    : undefined;
   const input: BoltwallConfigInput = {
     name,
     targetUrl: await prompt.input("Upstream target URL", existing?.targetUrl ?? ""),
     service: optionalInput(await prompt.input("Service name", existing?.service ?? "")),
     backend: {
       kind: backendKind,
-      env: defaultNames,
+      env: existing?.backend.env ?? defaultNames,
     },
     pricing: {
       defaultPriceMsat: await prompt.input(
@@ -266,34 +406,61 @@ async function promptForConfig(
     routes: [
       {
         path: await prompt.input("Protected path", existing?.routes?.[0]?.path ?? "/*"),
-        methods: ["GET"],
+        methods: existing?.routes?.[0]?.methods ?? ["GET"],
         priceMsat: await prompt.input(
           "Protected path price in millisatoshis",
           existing?.routes?.[0]?.priceMsat ?? existing?.pricing.defaultPriceMsat ?? "1000",
         ),
       },
     ],
-    challengeCompatibility: "dual",
+    challengeCompatibility: existing?.challengeCompatibility ?? "dual",
     unprotectedPaths: splitList(
       await prompt.input(
         "Unprotected paths (comma separated)",
         existing?.unprotectedPaths?.join(",") ?? "/healthz",
       ),
     ),
-    forwardHeaders: {
+    forwardHeaders: existing?.forwardHeaders ?? {
       allow: ["accept", "content-type", "x-request-id"],
       deny: ["cookie", "authorization"],
     },
-    deploy: {
-      target: "vercel",
-      projectName: await prompt.input("Vercel project name", existing?.deploy.projectName ?? name),
-      production: await prompt.confirm("Deploy to production", existing?.deploy.production ?? false),
-    },
+    ...(cors === undefined ? {} : { cors }),
+    ...(existing?.deploy.projectName === undefined
+      ? { deploy: { target: "vercel" } }
+      : { deploy: { target: "vercel", projectName: existing.deploy.projectName } }),
   };
   const config = parseBoltwallConfig(input);
   const path = await saveConfig(config, configPathForName(config.name ?? "default", configDir));
   write(stdout, `Saved config: ${path}\n`);
-  return config;
+  return { config, path };
+}
+
+async function ensureDeployMetadata(
+  loaded: LoadedConfig,
+  prompt: PromptDriver,
+  stdout: Writable,
+  promptForMissing: boolean,
+): Promise<BoltwallConfig> {
+  const config = loaded.config;
+  const fallbackProjectName = config.deploy.projectName ?? config.name ?? "boltwall-proxy";
+  if (config.deploy.projectName === undefined && !promptForMissing) {
+    const next = parseBoltwallConfig({
+      ...config,
+      deploy: { ...config.deploy, projectName: fallbackProjectName },
+    });
+    const path = await saveConfig(next, loaded.path);
+    write(stdout, `Saved config: ${path}\n`);
+    return next;
+  }
+  const projectName = await prompt.input("Vercel project name", fallbackProjectName);
+  if (projectName === config.deploy.projectName) return config;
+  const next = parseBoltwallConfig({
+    ...config,
+    deploy: { ...config.deploy, projectName },
+  });
+  const path = await saveConfig(next, loaded.path);
+  write(stdout, `Saved config: ${path}\n`);
+  return next;
 }
 
 async function promptForSecrets(
@@ -302,29 +469,80 @@ async function promptForSecrets(
   env: Record<string, string | undefined>,
 ): Promise<Record<string, string>> {
   const values: Record<string, string> = {};
-  for (const name of requiredSecretEnvNames(config)) {
+  const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
+  for (const [key, name] of requiredEnvEntries(config, vars)) {
     if (env[name] !== undefined && env[name]!.trim() !== "") continue;
-    values[name] = await prompt.secret(`${name}`);
+    const description = backendEnvDescription(config.backend.kind, key);
+    values[name] = await prompt.secret(`${name} (${description}; not saved to config)`);
   }
   return values;
 }
 
-async function findSavedConfigOrThrow(
-  name: string,
-  configDir?: string,
-): Promise<SavedBoltwallConfig> {
-  const saved = await listSavedConfigs(configDir);
-  const found = saved.find((config) => config.name === name);
-  if (found === undefined) throw new Error(`Saved config not found: ${name}`);
-  return found;
+function validateConfig(config: BoltwallConfig, env: Record<string, string | undefined>) {
+  const backend = createBackendFromEnv(config, env);
+  validateBackendCapabilities(config, backend);
+  return backend;
 }
 
-function parseFlags(argv: string[]): { values: Record<string, string>; boolean: Set<string> } {
+function writeValidationSummary(
+  stdout: Writable,
+  config: BoltwallConfig,
+  secondSummary: unknown,
+): void {
+  write(stdout, `${JSON.stringify(configSummary(config), null, 2)}\n`);
+  write(stdout, `${JSON.stringify(secondSummary, null, 2)}\n`);
+}
+
+function requiredEnvNameSummary(config: BoltwallConfig): Record<string, unknown> {
+  const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
+  return Object.fromEntries(
+    requiredEnvEntries(config, vars).map(([key, name]) => [
+      key,
+      { env: name, expected: backendEnvDescription(config.backend.kind, key) },
+    ]),
+  );
+}
+
+function requiredEnvEntries(
+  config: BoltwallConfig,
+  vars: BoltwallBackendEnvNames,
+): [keyof BoltwallBackendEnvNames, string][] {
+  if (config.backend.kind === "lnd") {
+    return [
+      ["socket", vars.socket],
+      ["cert", vars.cert],
+      ["macaroon", vars.macaroon],
+    ];
+  }
+  if (config.backend.kind === "voltage-lnd") {
+    return [
+      ["baseUrl", vars.baseUrl],
+      ["macaroon", vars.macaroon],
+      ["cert", vars.cert],
+    ];
+  }
+  if (config.backend.kind === "opennode") return [["apiKey", vars.apiKey]];
+  return [
+    ["baseUrl", vars.baseUrl],
+    ["apiKey", vars.apiKey],
+    ["storeId", vars.storeId],
+  ];
+}
+
+function parseFlags(argv: string[]): {
+  values: Record<string, string>;
+  boolean: Set<string>;
+  positionals: string[];
+} {
   const values: Record<string, string> = {};
   const boolean = new Set<string>();
+  const positionals: string[] = [];
   for (let index = 0; index < argv.length; index += 1) {
     const arg = argv[index]!;
-    if (!arg.startsWith("--")) continue;
+    if (!arg.startsWith("--")) {
+      positionals.push(arg);
+      continue;
+    }
     const name = arg.slice(2);
     if (name === "yes" || name === "prod" || name === "production") {
       boolean.add(name);
@@ -337,20 +555,43 @@ function parseFlags(argv: string[]): { values: Record<string, string>; boolean: 
     values[name] = value;
     index += 1;
   }
-  return { values, boolean };
+  return { values, boolean, positionals };
 }
 
 function splitList(value: string): string[] | undefined {
+  const values = splitListRequired(value, "");
+  return values.length === 0 ? undefined : values;
+}
+
+function splitListRequired(value: string, label: string): string[] {
   const values = value
     .split(",")
     .map((part) => part.trim())
     .filter((part) => part.length > 0);
-  return values.length === 0 ? undefined : values;
+  if (label !== "" && values.length === 0)
+    throw new Error(`${label} must include at least one value`);
+  return values;
 }
 
 function optionalInput(value: string): string | undefined {
   const trimmed = value.trim();
   return trimmed.length === 0 ? undefined : trimmed;
+}
+
+function isPathLike(value: string): boolean {
+  return (
+    value.startsWith(".") ||
+    value.startsWith("~") ||
+    value.includes("/") ||
+    value.includes("\\") ||
+    [".json", ".yaml", ".yml"].includes(extname(value))
+  );
+}
+
+function expandPath(value: string): string {
+  if (value === "~") return homedir();
+  if (value.startsWith("~/")) return resolve(homedir(), value.slice(2));
+  return resolve(value);
 }
 
 function write(stream: Writable, value: string): void {
@@ -383,7 +624,7 @@ class ReadlinePrompt implements PromptDriver {
   }
 
   async secret(message: string): Promise<string> {
-    return await this.input(`${message} (not saved to config)`);
+    return await this.input(message);
   }
 
   async confirm(message: string, defaultValue = false): Promise<boolean> {

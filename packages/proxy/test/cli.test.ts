@@ -9,25 +9,79 @@ import { runCli, type PromptDriver } from "../src/cli";
 import type { CommandResult, CommandRunner } from "../src/deploy/vercel";
 
 describe("boltwall CLI", () => {
-  test("prints help", async () => {
+  test("prints compact help", async () => {
     const stdout = new CaptureStream();
     await expect(runCli({ argv: ["--help"], stdout })).resolves.toBe(0);
-    expect(stdout.text()).toContain("deploy vercel");
+    expect(stdout.text()).toContain("deploy [--config <name-or-path>]");
+    expect(stdout.text()).not.toContain("deploy vercel");
   });
 
-  test("validate reports missing config paths", async () => {
+  test("validate reports missing config names and paths", async () => {
     const stderr = new CaptureStream();
     const code = await runCli({
-      argv: ["validate", "--config", "/private/tmp/no-such-boltwall-config.yaml"],
+      argv: ["validate", "--config", "missing-config"],
+      configDir: await fixtureDir("missing-config-dir"),
       stderr,
     });
 
     expect(code).toBe(1);
-    expect(stderr.text()).toContain("Config not found");
+    expect(stderr.text()).toContain("Config not found: missing-config");
+    expect(stderr.text()).toContain('saved config "missing-config"');
   });
 
-  test("validate prints config and backend capability summaries", async () => {
-    const dir = await fixtureDir("validate");
+  test("validate auto-uses the only saved config", async () => {
+    const dir = await fixtureDir("validate-single");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate"],
+      stdout,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain('"backend": "opennode"');
+    expect(stdout.text()).toContain('"hodl": false');
+  });
+
+  test("validate requires --config when multiple saved configs exist", async () => {
+    const dir = await fixtureDir("validate-many");
+    await writeFile(join(dir, "one.yaml"), yamlConfig({ name: "one" }));
+    await writeFile(join(dir, "two.yaml"), yamlConfig({ name: "two" }));
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate"],
+      stderr,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("Multiple saved configs found");
+    expect(stderr.text()).toContain("--config <name-or-path>");
+  });
+
+  test("validate accepts saved config names", async () => {
+    const dir = await fixtureDir("validate-name");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate", "--config", "pokedex"],
+      stdout,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain('"name": "pokedex"');
+  });
+
+  test("validate accepts config paths", async () => {
+    const dir = await fixtureDir("validate-path");
     const configPath = join(dir, "boltwall.yaml");
     await writeFile(configPath, yamlConfig());
     const stdout = new CaptureStream();
@@ -35,12 +89,12 @@ describe("boltwall CLI", () => {
     const code = await runCli({
       argv: ["validate", "--config", configPath],
       stdout,
+      configDir: dir,
       env: { OPENNODE_API_KEY: "test-api-key" },
     });
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"backend": "opennode"');
-    expect(stdout.text()).toContain('"hodl": false');
   });
 
   test("validate fails on backend capability mismatch", async () => {
@@ -75,7 +129,63 @@ describe("boltwall CLI", () => {
     expect(stderr.text()).toContain("--port must be a positive integer");
   });
 
-  test("deploy vercel --config --yes sets Vercel env vars and deploys without prompts", async () => {
+  test("dev creates a saved config interactively when none exists", async () => {
+    const dir = await fixtureDir("dev-interactive");
+    const stdout = new CaptureStream();
+    const prompt = new ScriptedPrompt({
+      input: [
+        "local-pokedex",
+        "",
+        "https://pokeapi.co/api/v2",
+        "pokedex",
+        "1000",
+        "/pokemon/*",
+        "1000",
+        "/healthz",
+      ],
+      select: ["opennode"],
+      confirm: [true],
+      secret: [],
+    });
+
+    const code = await runCli({
+      argv: ["dev", "--port", "4010"],
+      stdout,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      prompt,
+      startServer: false,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain("Saved config:");
+    expect(stdout.text()).toContain("boltwall proxy validated for http://127.0.0.1:4010");
+  });
+
+  test("deploy --config --yes validates before setting Vercel env vars", async () => {
+    const dir = await fixtureDir("deploy-missing-env");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const runner = new MockRunner();
+    const stdout = new CaptureStream();
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      stdout,
+      stderr,
+      configDir: dir,
+      env: {},
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("unexpected prompt");
+    expect(runner.commands).toHaveLength(0);
+  });
+
+  test("deploy --config --yes sets Vercel env vars and deploys without final confirmation", async () => {
     const dir = await fixtureDir("deploy");
     const configPath = join(dir, "boltwall.yaml");
     await writeFile(configPath, yamlConfig());
@@ -83,7 +193,7 @@ describe("boltwall CLI", () => {
     const runner = new MockRunner();
 
     const code = await runCli({
-      argv: ["deploy", "vercel", "--config", configPath, "--yes"],
+      argv: ["deploy", "--config", configPath, "--yes"],
       stdout,
       configDir: dir,
       env: { OPENNODE_API_KEY: "test-api-key" },
@@ -98,19 +208,6 @@ describe("boltwall CLI", () => {
         join(dir, "deployments", "pokedex") +
         " --sensitive",
     );
-    expect(runner.commands).toContainEqual({
-      command: "vercel",
-      args: [
-        "env",
-        "add",
-        "CORS_ALLOW_ORIGINS",
-        "preview",
-        "--force",
-        "--cwd",
-        join(dir, "deployments", "pokedex"),
-      ],
-      stdin: "http://127.0.0.1:3000,https://boltwall-suite-playground.vercel.app\n",
-    });
     expect(runner.commands.at(-1)?.args).toEqual([
       "deploy",
       "--cwd",
@@ -119,7 +216,7 @@ describe("boltwall CLI", () => {
     ]);
   });
 
-  test("deploy vercel maps custom secret env names to canonical Vercel names", async () => {
+  test("deploy maps custom secret env names to canonical Vercel names", async () => {
     const dir = await fixtureDir("deploy-custom-env");
     const configPath = join(dir, "boltwall.yaml");
     await writeFile(
@@ -139,7 +236,7 @@ describe("boltwall CLI", () => {
     const stdout = new CaptureStream();
 
     const code = await runCli({
-      argv: ["deploy", "vercel", "--config", configPath, "--yes"],
+      argv: ["deploy", "--config", configPath, "--yes"],
       stdout,
       configDir: dir,
       env: { MY_OPENNODE_SECRET: "custom-secret-value" },
@@ -164,7 +261,7 @@ describe("boltwall CLI", () => {
     });
   });
 
-  test("deploy vercel interactive creates config and collects missing secrets", async () => {
+  test("deploy interactive creates config and collects missing secrets", async () => {
     const dir = await fixtureDir("interactive");
     const stdout = new CaptureStream();
     const runner = new MockRunner();
@@ -180,12 +277,12 @@ describe("boltwall CLI", () => {
         "boltwall-pokedex",
       ],
       select: ["opennode"],
-      confirm: [false],
+      confirm: [false, true],
       secret: ["interactive-api-key"],
     });
 
     const code = await runCli({
-      argv: ["deploy", "vercel"],
+      argv: ["deploy"],
       stdout,
       configDir: dir,
       env: {},
@@ -196,6 +293,24 @@ describe("boltwall CLI", () => {
     expect(code).toBe(0);
     expect(stdout.text()).toContain("Saved config:");
     expect(runner.commands.some((command) => command.stdin === "interactive-api-key\n")).toBe(true);
+  });
+
+  test("config show prints path and redacted summary", async () => {
+    const dir = await fixtureDir("show");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["config", "show", "pokedex"],
+      stdout,
+      configDir: dir,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain("Path:");
+    expect(stdout.text()).toContain('"targetUrl": "https://pokeapi.co/api/v2"');
+    expect(stdout.text()).toContain('"apiKey"');
+    expect(stdout.text()).toContain('"env": "OPENNODE_API_KEY"');
   });
 });
 
@@ -259,7 +374,8 @@ class ScriptedPrompt implements PromptDriver {
   ) {}
 
   async input(_message: string, defaultValue?: string): Promise<string> {
-    return this.answers.input.shift() ?? defaultValue ?? "";
+    const answer = this.answers.input.shift();
+    return answer === "" || answer === undefined ? (defaultValue ?? "") : answer;
   }
 
   async secret(): Promise<string> {
@@ -275,9 +391,9 @@ class ScriptedPrompt implements PromptDriver {
   }
 }
 
-function yamlConfig(options: { requireHodl?: boolean } = {}): string {
+function yamlConfig(options: { name?: string; requireHodl?: boolean } = {}): string {
   return [
-    "name: pokedex",
+    `name: ${options.name ?? "pokedex"}`,
     "targetUrl: https://pokeapi.co/api/v2",
     "backend:",
     "  kind: opennode",

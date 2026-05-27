@@ -23,37 +23,37 @@ boltwall --help
 ```
 
 Make sure the Vercel CLI is available in `PATH` and authenticated before
-deploying; `boltwall deploy vercel` shells out to `vercel env add` and
+deploying; `boltwall deploy` shells out to `vercel env add` and
 `vercel deploy`.
 
 Start the interactive deployment flow:
 
 ```sh
-boltwall deploy vercel
+boltwall deploy
 ```
 
 The wizard asks for the upstream URL, protected path, Lightning backend, price,
-and Vercel project name. It saves non-secret metadata and environment variable
-names only. If a required backend secret is not already present in the current
-process, the wizard prompts for it and sends it to Vercel with
-`vercel env add --sensitive`; it does not silently write secret values to disk.
+browser CORS policy when needed, and Vercel project name. It saves non-secret
+metadata and environment variable names only. If a required backend secret is
+not already present in the current process, the wizard prompts for it and sends
+it to Vercel with `vercel env add --sensitive`; it does not silently write
+secret values to disk.
 
 Automation can use a checked-in, non-secret JSON or YAML config:
 
 ```sh
-boltwall deploy vercel --config ./boltwall.yaml --yes
+boltwall deploy --config ./boltwall.yaml --yes
 boltwall validate --config ./boltwall.yaml
 boltwall dev --config ./boltwall.yaml
 ```
 
-`--yes` never prompts. It expects the referenced backend secret environment
-variables to be set in the current shell, fails fast if they are missing, then
-writes the generated Vercel runtime variables and sensitive backend variables
-to the deployed project.
+`--config` accepts either a saved config name or a filesystem path. `--yes`
+skips the final deploy confirmation; it does not skip required config or secret
+prompts if values are missing in an interactive shell.
 
 From zero to a paid request:
 
-1. Run `boltwall deploy vercel` and choose `lnd`, `voltage-lnd`, `opennode`, or
+1. Run `boltwall deploy` and choose `lnd`, `voltage-lnd`, `opennode`, or
    `btcpay`.
 2. Enter the upstream API, for example `https://pokeapi.co/api/v2`, and protect
    a path such as `/pokemon/*`.
@@ -143,7 +143,8 @@ loader reports variable names and validation reasons without echoing values.
 
 ## CLI Config
 
-`boltwall deploy vercel` can create this YAML shape interactively:
+`boltwall config create`, `boltwall dev`, and `boltwall deploy` can create this
+YAML shape interactively:
 
 ```yaml
 name: pokedex-proxy
@@ -218,12 +219,13 @@ The same config may be written as JSON:
 Saved configs live under `~/.config/boltwall/` by default. The interactive
 deploy command lets you use an existing config, edit one, or create a new one
 when multiple saved configs exist. `boltwall config list` prints saved config
-names and paths, and `boltwall config show <name>` prints the path for a named
-config.
+names and paths, and `boltwall config show <name-or-path>` prints the path plus
+a compact config summary without expanding credential environment variables.
 
 Supported backend kinds are `lnd`, `voltage-lnd`, `opennode`, and `btcpay`.
 `boltwall validate` constructs the selected adapter, verifies required env vars,
-and checks backend capability flags before serving traffic.
+and checks backend capability flags. `boltwall dev` and `boltwall deploy` run
+the same validation before starting a local server or writing Vercel state.
 
 ### Backend Secret References
 
@@ -238,7 +240,13 @@ names are provided, Boltwall uses these defaults:
 | `opennode`    | `OPENNODE_API_KEY`                                                 | `OPENNODE_BASE_URL`                                                       |
 | `btcpay`      | `BTCPAY_BASE_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`             | `BTCPAY_CRYPTO_CODE`, `BTCPAY_HODL_INVOICES`, `BTCPAY_STREAMING_INVOICES` |
 
-During `boltwall deploy vercel`, config values become generated runtime
+For local LND, `LND_TLS_CERT` is certificate content, not a path; the local
+regtest helper emits base64, and PEM may also be accepted by the underlying
+`lightning` package. `LND_MACAROON` is local LND macaroon content; the local
+regtest helper emits base64. Path-based tools should use explicit path names
+such as `LND_TLS_CERT_PATH`.
+
+During `boltwall deploy`, config values become generated runtime
 environment variables such as `TARGET_URL`, `LN_BACKEND`,
 `DEFAULT_PRICE_MSAT`, `CHALLENGE_COMPATIBILITY`, `UNPROTECTED_PATHS`,
 `FORWARD_ALLOW`, `FORWARD_DENY`, `CORS_ALLOW_ORIGINS`,

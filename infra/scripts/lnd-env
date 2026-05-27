@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
 STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
 NODE_MAP_FILE="$STATE_DIR/nodes.env"
@@ -15,27 +15,28 @@ ADMIN_MACAROON_PATH="/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
 usage() {
   cat <<'EOF'
 Usage:
-  .agents/skills/local-lnd-testing/scripts/lnd-env [--node <node>] [--summary|--export|--json|--validate]
+  infra/scripts/lnd-env [--node <node>] [--summary|--export|--json|--validate]
 
 Derives the local-only LND environment contract for a regtest LND node:
   LND_SOCKET
-  LND_CERT_BASE64
-  LND_MACAROON_BASE64
+  LND_TLS_CERT
+  LND_MACAROON
 
 The default node is alice, the server role used by LndAdapter. The node can be
-an internal role (alice, bob) or a logical name created by bootstrap-regtest:
-  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
+an internal role (alice, bob) or a logical name created by infra/scripts/bootstrap:
+  infra/scripts/bootstrap --nodes carol,david
 
 Modes:
   --summary   Print a redacted summary for logs. This is the default.
-  --export    Print shell exports with credential values. Local eval only.
-  --json      Print JSON with credential values. Local process handoff only.
+  --export    Print shell exports with local credential values.
+  --json      Print JSON with local credential values for process handoff.
   --validate  Construct @boltwall/adapters/lnd LndAdapter with the derived values.
 
 Run bootstrap first if the topology is not already available:
-  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest
+  infra/scripts/bootstrap
 
-Do not paste --export or --json output into logs, issues, commits, or chat.
+The helper emits LND_TLS_CERT and LND_MACAROON as base64 content, not paths.
+Keep the output out of version control.
 EOF
 }
 
@@ -144,7 +145,7 @@ resolve_node_role() {
   fi
 
   echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
-  echo "Run bootstrap-regtest --nodes <first>,<second> to set logical names." >&2
+  echo "Run infra/scripts/bootstrap --nodes <first>,<second> to set logical names." >&2
   return 2
 }
 
@@ -214,47 +215,48 @@ case "$MODE" in
     cat <<EOF
 Local LND env contract ($node_name -> $service, redacted)
 LND_SOCKET=$socket
-LND_CERT_BASE64=$(redacted "$cert_base64")
-LND_MACAROON_BASE64=$(redacted "$macaroon_base64")
+LND_TLS_CERT=$(redacted "$cert_base64")
+LND_MACAROON=$(redacted "$macaroon_base64")
 
 Downstream consumers:
   @boltwall/adapters LndAdapterOptions.socket <- LND_SOCKET
-  @boltwall/adapters LndAdapterOptions.cert <- LND_CERT_BASE64
-  @boltwall/adapters LndAdapterOptions.macaroon <- LND_MACAROON_BASE64
-  middleware, proxy, and playground smoke flows should consume these only as ephemeral local env values.
+  @boltwall/adapters LndAdapterOptions.cert <- LND_TLS_CERT (base64 cert content)
+  @boltwall/adapters LndAdapterOptions.macaroon <- LND_MACAROON (base64 macaroon content)
+  middleware, proxy, and playground smoke flows consume these as local env values.
 
 To export credential values in this shell only:
-  eval "\$(.agents/skills/local-lnd-testing/scripts/lnd-env --node $node_name --export)"
+  eval "\$(infra/scripts/lnd-env --node $node_name --export)"
 EOF
     ;;
   export)
     cat <<EOF
 # Local-only LND regtest credentials for the current shell.
-# Do not paste this output into logs, issues, commits, or chat.
+# LND_TLS_CERT and LND_MACAROON are base64 content, not filesystem paths.
+# Keep this output out of version control.
 export LND_SOCKET='$socket'
-export LND_CERT_BASE64='$cert_base64'
-export LND_MACAROON_BASE64='$macaroon_base64'
+export LND_TLS_CERT='$cert_base64'
+export LND_MACAROON='$macaroon_base64'
 EOF
     ;;
   json)
     printf '{\n'
     printf '  "LND_SOCKET": %s,\n' "$(json_string "$socket")"
-    printf '  "LND_CERT_BASE64": %s,\n' "$(json_string "$cert_base64")"
-    printf '  "LND_MACAROON_BASE64": %s\n' "$(json_string "$macaroon_base64")"
+    printf '  "LND_TLS_CERT": %s,\n' "$(json_string "$cert_base64")"
+    printf '  "LND_MACAROON": %s\n' "$(json_string "$macaroon_base64")"
     printf '}\n'
     ;;
   validate)
     (
       cd "$REPO_ROOT"
       LND_SOCKET="$socket" \
-        LND_CERT_BASE64="$cert_base64" \
-        LND_MACAROON_BASE64="$macaroon_base64" \
+        LND_TLS_CERT="$cert_base64" \
+        LND_MACAROON="$macaroon_base64" \
         bun --silent --eval '
           import { LndAdapter } from "./packages/adapters/src/lnd";
 
           const socket = process.env.LND_SOCKET;
-          const cert = process.env.LND_CERT_BASE64;
-          const macaroon = process.env.LND_MACAROON_BASE64;
+          const cert = process.env.LND_TLS_CERT;
+          const macaroon = process.env.LND_MACAROON;
 
           if (!socket || !cert || !macaroon) {
             throw new Error("Missing LND env contract value");

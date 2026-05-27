@@ -30,7 +30,7 @@ Docker, and regtest LND together.
 2. Export the LND material Aperture needs:
 
    ```sh
-   export LND_TLS_CERT=/absolute/path/to/lnd/tls.cert
+   export LND_TLS_CERT_PATH=/absolute/path/to/lnd/tls.cert
    export LND_MACAROON_DIR=/absolute/path/to/lnd/data/chain/bitcoin/regtest
    ```
 

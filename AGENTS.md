@@ -334,6 +334,10 @@ We optimize for clean architecture.
 
 - No "compat shims" or "v2" file clones.
 - When changing behavior, migrate callers and remove old code in the same change.
+- If a change makes files or code paths redundant, ask the owner for approval
+  to remove them in the same work pass instead of leaving deprecated wrappers,
+  aliases, or dead files for later cleanup. The deletion rule above still
+  governs: get exact command approval before deleting anything.
 - New files only for genuinely new domains. The bar for adding files is high.
 - Legacy `lsat-js` compatibility is a gate when the old public API remains semantically valid under current L402 behavior and is not blocked by spec drift, LSAT-only naming, browser/runtime constraints, or security rationale.
 - When preserving compatibility, prefer L402-native names plus source-compatible aliases or methods where that keeps migration practical. For example, `L402.fromToken(...)` and `L402#toToken(...)` preserve the useful shape of legacy `Lsat.fromToken(...)` / `Lsat#toToken()`.

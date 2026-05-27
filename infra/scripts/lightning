@@ -2,32 +2,32 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
-LNCLI="$SCRIPT_DIR/lncli-docker"
-BOOTSTRAP="$SCRIPT_DIR/bootstrap-regtest"
+LNCLI="$SCRIPT_DIR/lncli"
+BOOTSTRAP="$SCRIPT_DIR/bootstrap"
 STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
 NODE_MAP_FILE="$STATE_DIR/nodes.env"
 
 usage() {
   cat <<'EOF'
 Usage:
-  lightning-regtest balances [node...]
-  lightning-regtest fund <node> [blocks]
-  lightning-regtest fund-all [node node] [blocks]
-  lightning-regtest connect <from> <to>
-  lightning-regtest open-channel <from> <to> [local-sats]
-  lightning-regtest ready <from> <to> [local-sats]
-  lightning-regtest move <from> <to> [sats]
+  infra/scripts/lightning balances [node...]
+  infra/scripts/lightning fund <node> [blocks]
+  infra/scripts/lightning fund-all [node node] [blocks]
+  infra/scripts/lightning connect <from> <to>
+  infra/scripts/lightning open-channel <from> <to> [local-sats]
+  infra/scripts/lightning ready <from> <to> [local-sats]
+  infra/scripts/lightning move <from> <to> [sats]
 
 Reusable local regtest operations for the Docker LND harness. Nodes can be
-internal roles (alice, bob) or logical names set by bootstrap-regtest --nodes.
+internal roles (alice, bob) or logical names set by infra/scripts/bootstrap --nodes.
 
 Examples:
-  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
-  .agents/skills/local-lnd-testing/scripts/lightning-regtest ready carol david
-  .agents/skills/local-lnd-testing/scripts/lightning-regtest move carol david 1000
-  .agents/skills/local-lnd-testing/scripts/lightning-regtest balances carol david
+  infra/scripts/bootstrap --nodes carol,david
+  infra/scripts/lightning ready carol david
+  infra/scripts/lightning move carol david 1000
+  infra/scripts/lightning balances carol david
 EOF
 }
 
@@ -151,7 +151,7 @@ role_for_node() {
     return 0
   fi
 
-  echo "Unknown node '$requested'. Run bootstrap-regtest --nodes <first>,<second> first." >&2
+  echo "Unknown node '$requested'. Run infra/scripts/bootstrap --nodes <first>,<second> first." >&2
   return 2
 }
 

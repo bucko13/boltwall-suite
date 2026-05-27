@@ -40,8 +40,8 @@ for i in $(seq 1 120); do
 done
 
 export LND_SOCKET="${LND_SOCKET:-127.0.0.1:10009}"
-export LND_CERT_BASE64="$(docker compose -f "$COMPOSE_FILE" exec -T lnd-alice sh -lc "base64 < /root/.lnd/tls.cert | tr -d '\n'")"
-export LND_MACAROON_BASE64="$(docker compose -f "$COMPOSE_FILE" exec -T lnd-alice sh -lc "base64 < /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon | tr -d '\n'")"
+export LND_TLS_CERT="$(docker compose -f "$COMPOSE_FILE" exec -T lnd-alice sh -lc "base64 < /root/.lnd/tls.cert | tr -d '\n'")"
+export LND_MACAROON="$(docker compose -f "$COMPOSE_FILE" exec -T lnd-alice sh -lc "base64 < /root/.lnd/data/chain/bitcoin/regtest/admin.macaroon | tr -d '\n'")"
 
 echo "Exported LND env vars for adapter smoke."
 echo "Running adapter tests..."
@@ -50,8 +50,8 @@ bun run test --filter @boltwall/adapters
 cat <<EOF
 Smoke harness environment exported in current shell process only:
   LND_SOCKET
-  LND_CERT_BASE64
-  LND_MACAROON_BASE64
+  LND_TLS_CERT
+  LND_MACAROON
 
 Topology remains running for manual payment/channel exercises.
 Teardown:

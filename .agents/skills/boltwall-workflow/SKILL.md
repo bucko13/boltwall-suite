@@ -176,6 +176,11 @@ Do not release a reservation while reserved files remain locally modified. If yo
 cannot finish and commit now, either keep the reservation and post a handoff, or
 remove your local edit before releasing.
 
+If the selected design makes files, wrappers, or old code paths redundant, ask
+the owner for exact deletion approval during the same work pass. Do not leave
+deprecated cruft solely to avoid the approval step; the approval requirement
+exists to make cleanup explicit, not to encourage stale files.
+
 ## Close And Land
 
 When the work is complete:

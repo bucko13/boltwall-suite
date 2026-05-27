@@ -10,19 +10,19 @@ the acceptance criteria for that work are not met.**
 
 ## Quick Reference
 
-| Command                                               | What it covers                                                          | Prerequisites                          | Runs in CI?             |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | ----------------------- |
-| `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push            |
-| `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                       |
-| `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push            |
-| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push            |
+| Command                                               | What it covers                                                          | Prerequisites                          | Runs in CI?                |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | -------------------------- |
+| `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push               |
+| `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                          |
+| `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push               |
+| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push               |
 | `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate |
-| `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs   |
-| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow |
-| `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | Manual                  |
-| `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | Manual                  |
-| `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push            |
-| `bun run lint:fix`                                    | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None                                   | ✗ never                 |
+| `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs      |
+| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow   |
+| `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | Manual                     |
+| `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | Manual                     |
+| `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push               |
+| `bun run lint:fix`                                    | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None                                   | ✗ never                    |
 
 `bun run lint` is the gate. `bun run lint:fix` is the local autofix helper —
 run it when ESLint reports `... potentially fixable with the --fix option`,
@@ -179,14 +179,14 @@ and makes the infrastructure requirement explicit.
 
 - Docker
 - A running LND regtest node with the following exported:
-  - `LND_TLS_CERT` — path to your LND `tls.cert`
+  - `LND_TLS_CERT_PATH` — path to your LND `tls.cert`
   - `LND_MACAROON_DIR` — path to your LND macaroon directory
 
 **Run:**
 
 ```sh
 # Step 1: start the Aperture + backend Docker stack
-LND_TLS_CERT=/path/to/tls.cert \
+LND_TLS_CERT_PATH=/path/to/tls.cert \
 LND_MACAROON_DIR=/path/to/macaroon-dir \
 docker compose \
   -f packages/test-fixtures/aperture-smoke/docker-compose.yml \
@@ -197,7 +197,7 @@ cd packages/l402
 bun run test:interop
 
 # Or use the orchestration script from repo root:
-LND_TLS_CERT=/path/to/tls.cert \
+LND_TLS_CERT_PATH=/path/to/tls.cert \
 LND_MACAROON_DIR=/path/to/macaroon-dir \
 packages/test-fixtures/aperture-smoke/run-interop.sh
 ```
@@ -212,7 +212,7 @@ docker compose \
 
 **CI:** `.github/workflows/compat-aperture.yml` — triggers on PRs that touch
 `packages/l402/**`, `packages/test-fixtures/**`, or the workflow file itself,
-and on `workflow_dispatch`. Requires `LND_TLS_CERT` and `LND_MACAROON_DIR`
+and on `workflow_dispatch`. Requires `LND_TLS_CERT_PATH` and `LND_MACAROON_DIR`
 configured as GitHub Actions secrets.
 
 ---

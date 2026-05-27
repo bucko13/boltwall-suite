@@ -2,7 +2,7 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 COMPOSE_FILE="$REPO_ROOT/packages/adapters/src/lnd/docker-compose.smoke.yml"
 STATE_DIR="${TMPDIR:-/tmp}/boltwall-local-lnd-testing/$(printf '%s' "$REPO_ROOT" | cksum | cut -d ' ' -f 1)"
 NODE_MAP_FILE="$STATE_DIR/nodes.env"
@@ -10,16 +10,16 @@ NODE_MAP_FILE="$STATE_DIR/nodes.env"
 usage() {
   cat <<'EOF'
 Usage:
-  .agents/skills/local-lnd-testing/scripts/lncli-docker <node> <lncli args...>
+  infra/scripts/lncli <node> <lncli args...>
 
 Examples:
-  .agents/skills/local-lnd-testing/scripts/lncli-docker alice getinfo
-  .agents/skills/local-lnd-testing/scripts/lncli-docker carol getinfo
-  .agents/skills/local-lnd-testing/scripts/lncli-docker bob walletbalance
-  .agents/skills/local-lnd-testing/scripts/lncli-docker bob payinvoice --force <bolt11>
+  infra/scripts/lncli alice getinfo
+  infra/scripts/lncli carol getinfo
+  infra/scripts/lncli bob walletbalance
+  infra/scripts/lncli bob payinvoice --force <bolt11>
 
 The node can be an internal role (alice, bob) or a logical name created by:
-  .agents/skills/local-lnd-testing/scripts/bootstrap-regtest --nodes carol,david
+  infra/scripts/bootstrap --nodes carol,david
 
 Expands to:
   docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
@@ -73,7 +73,7 @@ resolve_node_role() {
   fi
 
   echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
-  echo "Run bootstrap-regtest --nodes <first>,<second> to set logical names." >&2
+  echo "Run infra/scripts/bootstrap --nodes <first>,<second> to set logical names." >&2
   return 2
 }
 

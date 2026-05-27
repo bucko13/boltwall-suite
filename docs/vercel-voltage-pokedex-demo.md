@@ -69,63 +69,39 @@ export VOLTAGE_LND_CERT="<certificate-value>"
 Do not commit these values, paste them into client-side code, or store them in
 `NEXT_PUBLIC_*` variables.
 
-## 2. Create The Proxy Config
+## 2. Create Or Select The Proxy Config
 
-Create `boltwall.voltage.yaml` locally. It is safe to commit only if it contains
-no credential values; the example below stores env var names only.
+The CLI saves named configs under `~/.config/boltwall/`. Config files store
+non-secret routing metadata and environment variable names only; they do not
+store Voltage credential values.
 
-```yaml
-name: voltage-pokedex-proxy
-targetUrl: https://pokeapi.co/api/v2
-service: pokedex
-backend:
-  kind: voltage-lnd
-  env:
-    baseUrl: VOLTAGE_LND_BASE_URL
-    macaroon: VOLTAGE_LND_MACAROON
-    cert: VOLTAGE_LND_CERT
-pricing:
-  defaultPriceMsat: "1000"
-routes:
-  - path: /pokemon/*
-    methods: [GET]
-    priceMsat: "1000"
-challengeCompatibility: dual
-unprotectedPaths:
-  - /healthz
-forwardHeaders:
-  allow: [accept, content-type, x-request-id]
-  deny: [authorization, cookie]
-cors:
-  allowOrigins:
-    - https://boltwall-suite-playground.vercel.app
-  allowMethods: [GET, OPTIONS]
-  allowHeaders: [Authorization, Content-Type]
-  maxAgeSeconds: 600
-upstreamTimeoutMs: 10000
-deploy:
-  target: vercel
-  projectName: boltwall-pokedex-proxy
-  production: false
+To create a config without deploying yet:
+
+```sh
+bun run boltwall -- config create
 ```
 
-`production: false` creates a preview deployment. Change it to `true` or pass
-`--prod`/`--production` only when the proxy is ready to be the production target.
+Use these answers for the hosted playground Pokedex demo:
+
+| Prompt                                | Answer                                         |
+| ------------------------------------- | ---------------------------------------------- |
+| Config name                           | `voltage-pokedex-proxy`                        |
+| Lightning backend                     | `voltage-lnd`                                  |
+| Allow browser JavaScript clients      | `yes`                                          |
+| Allowed browser origins               | `https://boltwall-suite-playground.vercel.app` |
+| Upstream target URL                   | `https://pokeapi.co/api/v2`                    |
+| Service name                          | `pokedex`                                      |
+| Default price in millisatoshis        | `1000`                                         |
+| Protected path                        | `/pokemon/*`                                   |
+| Protected path price in millisatoshis | `1000`                                         |
+| Unprotected paths                     | `/healthz`                                     |
 
 ## 3. Validate The Proxy Config
 
-When using the local workspace package before publication, build the proxy CLI:
+Validate the named config from the current shell:
 
 ```sh
-bun run --cwd packages/proxy build
-bun packages/proxy/dist/cli.js validate --config ./boltwall.voltage.yaml
-```
-
-After publication, the installed CLI path is:
-
-```sh
-bun add --global @boltwall/proxy
-boltwall validate --config ./boltwall.voltage.yaml
+bun run boltwall -- validate --config voltage-pokedex-proxy
 ```
 
 Expected output:
@@ -136,23 +112,24 @@ Expected output:
 
 ## 4. Deploy The Proxy To Vercel
 
-Interactive mode can collect missing secrets and send them to Vercel:
+Interactive mode selects or edits a saved config, confirms deploy intent, and
+sends missing backend secrets to Vercel as sensitive environment variables:
 
 ```sh
-boltwall deploy vercel --config ./boltwall.voltage.yaml
+bun run boltwall -- deploy --config voltage-pokedex-proxy
 ```
 
 Automation mode requires all referenced env vars to be present in the current
-shell:
+shell and skips the final confirmation:
 
 ```sh
-boltwall deploy vercel --config ./boltwall.voltage.yaml --yes
+bun run boltwall -- deploy --config voltage-pokedex-proxy --yes
 ```
 
 For a production deployment:
 
 ```sh
-boltwall deploy vercel --config ./boltwall.voltage.yaml --yes --prod
+bun run boltwall -- deploy --config voltage-pokedex-proxy --prod
 ```
 
 The CLI shells out to Vercel, creates or updates generated runtime variables,

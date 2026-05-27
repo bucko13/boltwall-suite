@@ -47,8 +47,8 @@ Set env vars:
 
 ```bash
 export LND_SOCKET="127.0.0.1:10009"
-export LND_CERT_BASE64="<base64-cert>"
-export LND_MACAROON_BASE64="<base64-macaroon>"
+export LND_TLS_CERT="<base64-cert>"
+export LND_MACAROON="<base64-macaroon>"
 ```
 
 ### 4) Run adapter verification script/REPL (copy/paste checklist)
@@ -60,8 +60,8 @@ import { LndAdapter } from "@boltwall/adapters/lnd";
 
 const lnd = new LndAdapter({
   socket: process.env.LND_SOCKET!,
-  cert: process.env.LND_CERT_BASE64!,
-  macaroon: process.env.LND_MACAROON_BASE64!,
+  cert: process.env.LND_TLS_CERT!,
+  macaroon: process.env.LND_MACAROON!,
 });
 
 const created = await lnd.createInvoice({
@@ -157,7 +157,7 @@ Repository/session findings from 2026-05-12:
 | Bootstrap regtest network             | No reliable headless path           | Polar likely drives Docker internally, but this repo has no stable scripted entrypoint for that lifecycle.              |
 | Open/fund channel in Polar            | No reliable headless path           | This currently depends on the GUI or undocumented app internals.                                                        |
 | Extract server cert + admin macaroon  | Partial                             | Feasible only after the operator exposes or copies the values; this doc does not rely on undocumented filesystem paths. |
-| Run `LndAdapter` create/lookup checks | Yes                                 | Once `LND_SOCKET`, `LND_CERT_BASE64`, and `LND_MACAROON_BASE64` are exported, the adapter smoke is scriptable.          |
+| Run `LndAdapter` create/lookup checks | Yes                                 | Once `LND_SOCKET`, `LND_TLS_CERT`, and `LND_MACAROON` are exported, the adapter smoke is scriptable.                    |
 | Pay invoice from peer node            | Partial                             | Scriptable if payer-node CLI/container access exists; otherwise still manual in Polar.                                  |
 | HODL settle/cancel verification       | Yes                                 | Scriptable after the network and credentials exist.                                                                     |
 
@@ -255,7 +255,7 @@ Run date: 2026-05-12
 Command:
 
 ```bash
-.agents/skills/local-lnd-testing/scripts/lnd-adapter-smoke --payer carol --server david --amount-msat 1000
+infra/scripts/smoke-adapter --payer carol --server david --amount-msat 1000
 ```
 
 Topology proof:

@@ -2,10 +2,10 @@
 set -euo pipefail
 
 SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
-REPO_ROOT="$(cd "$SCRIPT_DIR/../../../.." && pwd)"
+REPO_ROOT="$(cd "$SCRIPT_DIR/../.." && pwd)"
 LND_ENV="$SCRIPT_DIR/lnd-env"
-LNCLI="$SCRIPT_DIR/lncli-docker"
-LIGHTNING_REGTEST="$SCRIPT_DIR/lightning-regtest"
+LNCLI="$SCRIPT_DIR/lncli"
+LIGHTNING_REGTEST="$SCRIPT_DIR/lightning"
 
 SERVER_NODE="david"
 PAYER_NODE="carol"
@@ -16,7 +16,7 @@ DESCRIPTION="boltwall-lnd-adapter-smoke"
 usage() {
   cat <<'EOF'
 Usage:
-  lnd-adapter-smoke [--server <node>] [--payer <node>] [--amount-msat <msat>] [--ready-local-sats <sats>]
+  infra/scripts/smoke-adapter [--server <node>] [--payer <node>] [--amount-msat <msat>] [--ready-local-sats <sats>]
 
 Runs the LndAdapter real-regtest proof:
   1. ensure payer -> server channel readiness,
@@ -131,8 +131,8 @@ echo "Preparing local LND topology: payer=$PAYER_NODE server=$SERVER_NODE local_
 lnd_env_json="$("$LND_ENV" --node "$SERVER_NODE" --json)"
 raw_socket="$(printf '%s' "$lnd_env_json" | json_read LND_SOCKET)"
 socket="$(normalize_socket "$raw_socket")"
-cert="$(printf '%s' "$lnd_env_json" | json_read LND_CERT_BASE64)"
-macaroon="$(printf '%s' "$lnd_env_json" | json_read LND_MACAROON_BASE64)"
+cert="$(printf '%s' "$lnd_env_json" | json_read LND_TLS_CERT)"
+macaroon="$(printf '%s' "$lnd_env_json" | json_read LND_MACAROON)"
 
 echo "Creating invoice with LndAdapter: server=$SERVER_NODE socket=$socket amount_msat=$AMOUNT_MSAT"
 created_json="$(

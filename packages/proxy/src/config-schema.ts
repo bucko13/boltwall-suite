@@ -102,10 +102,9 @@ const configSchema = z
       .object({
         target: z.literal("vercel").default("vercel"),
         projectName: z.string().min(1).optional(),
-        production: z.boolean().default(false),
       })
       .strict()
-      .default({ target: "vercel", production: false }),
+      .default({ target: "vercel" }),
   })
   .strict();
 
@@ -269,6 +268,37 @@ export function backendEnvNames(
   );
 }
 
+export function backendEnvDescription(
+  kind: BoltwallBackendKind,
+  key: keyof BoltwallBackendEnvNames,
+): string {
+  if (kind === "lnd") {
+    if (key === "socket") return "LND gRPC host:port";
+    if (key === "cert") return "LND TLS certificate content; local regtest helper emits base64";
+    if (key === "macaroon") return "LND admin macaroon content; local regtest helper emits base64";
+  }
+
+  if (kind === "voltage-lnd") {
+    if (key === "baseUrl") return "Voltage LND node URL or host";
+    if (key === "cert") return "Voltage LND TLS certificate content";
+    if (key === "macaroon") return "Voltage LND admin macaroon as an even-length hex string";
+  }
+
+  if (kind === "opennode") {
+    if (key === "apiKey") return "OpenNode API key";
+    if (key === "baseUrl") return "optional OpenNode API base URL";
+  }
+
+  if (key === "baseUrl") return "BTCPay Server base URL";
+  if (key === "apiKey") return "BTCPay API key";
+  if (key === "storeId") return "BTCPay store ID";
+  if (key === "cryptoCode") return "optional BTCPay crypto code";
+  if (key === "hodlInvoices") return "optional BTCPay HODL support flag, true or false";
+  if (key === "streamingInvoices")
+    return "optional BTCPay streaming invoice support flag, true or false";
+  return "backend environment value";
+}
+
 export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
 
@@ -327,7 +357,7 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
     challengeCompatibility: config.challengeCompatibility,
     corsOrigins: config.cors?.allowOrigins.length ?? 0,
     deployTarget: config.deploy.target,
-    production: config.deploy.production,
+    deployProjectName: config.deploy.projectName ?? "(unset)",
   };
 }
 

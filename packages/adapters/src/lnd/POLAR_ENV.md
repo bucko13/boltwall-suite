@@ -14,8 +14,8 @@ cp packages/adapters/src/lnd/.env.polar.example packages/adapters/src/lnd/.env.p
 2. Fill values from your Polar node:
 
 - `LND_SOCKET` (for example `127.0.0.1:10009`)
-- `LND_CERT_BASE64` (base64 of TLS cert PEM bytes)
-- `LND_MACAROON_BASE64` (base64 of admin macaroon bytes)
+- `LND_TLS_CERT` (base64 of TLS cert PEM bytes)
+- `LND_MACAROON` (base64 of admin macaroon bytes)
 
 3. Load env values before running verification:
 
@@ -37,8 +37,8 @@ When needed (CI, ephemeral shells), direct exports are still valid:
 
 ```bash
 export LND_SOCKET="127.0.0.1:10009"
-export LND_CERT_BASE64="<base64-cert>"
-export LND_MACAROON_BASE64="<base64-macaroon>"
+export LND_TLS_CERT="<base64-cert>"
+export LND_MACAROON="<base64-macaroon>"
 ```
 
 ## Typed Env Plan (zod)
@@ -51,8 +51,8 @@ import { z } from "zod";
 
 export const LndEnvSchema = z.object({
   LND_SOCKET: z.string().min(1),
-  LND_CERT_BASE64: z.string().min(1),
-  LND_MACAROON_BASE64: z.string().min(1),
+  LND_TLS_CERT: z.string().min(1),
+  LND_MACAROON: z.string().min(1),
 });
 
 export type LndEnv = z.infer<typeof LndEnvSchema>;
