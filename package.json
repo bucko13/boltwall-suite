@@ -19,6 +19,7 @@
     "test:e2e": "turbo run test:e2e",
     "package-health": "turbo run package-health",
     "boltwall": "bun packages/proxy/src/cli.ts",
+    "infra": "bash infra/scripts/run",
     "docs:api": "typedoc",
     "size": "turbo run size",
     "dev": "turbo run dev --parallel",

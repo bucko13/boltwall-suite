@@ -77,6 +77,13 @@ Package-specific details live in package READMEs:
 - [`@boltwall/adapters`](./packages/adapters/README.md) for Lightning backend
   setup, including Voltage LND env handling.
 
+Local regtest helper scripts are available from the repo root:
+
+```sh
+bun run infra -- --help
+bun run infra -- bootstrap --nodes payer,server
+```
+
 ## Playground
 
 The playground is a Next.js/Vercel app for inspecting L402 headers, caveats,

@@ -28,7 +28,7 @@ bun install
 Use logical node names so the rest of the commands read naturally:
 
 ```sh
-infra/scripts/bootstrap --nodes payer,server
+bun run infra -- bootstrap --nodes payer,server
 ```
 
 `payer` pays invoices. `server` is the node the proxy uses to create and settle
@@ -37,14 +37,14 @@ invoices.
 Prepare channel liquidity from `payer` to `server`:
 
 ```sh
-infra/scripts/lightning ready payer server
-infra/scripts/lightning balances payer server
+bun run infra -- lightning ready payer server
+bun run infra -- lightning balances payer server
 ```
 
 For a proof payment outside the proxy, this should settle a 1 sat invoice:
 
 ```sh
-infra/scripts/lightning move payer server 1
+bun run infra -- lightning move payer server 1
 ```
 
 ## 2. Export Server LND Env
@@ -52,7 +52,7 @@ infra/scripts/lightning move payer server 1
 In the shell that will run the proxy, export the server node connection values:
 
 ```sh
-eval "$(infra/scripts/lnd-env --node server --export)"
+eval "$(bun --silent run infra -- lnd-env --node server --export)"
 ```
 
 The helper exports the canonical local LND backend variables:
@@ -68,8 +68,8 @@ but keep them out of version control.
 For a redacted check:
 
 ```sh
-infra/scripts/lnd-env --node server --summary
-infra/scripts/lnd-env --node server --validate
+bun run infra -- lnd-env --node server --summary
+bun run infra -- lnd-env --node server --validate
 ```
 
 ## 3. Start The Local Proxy
@@ -154,7 +154,7 @@ If WebLN is not connected to the local payer node, pay the invoice from the
 challenge with `lncli`:
 
 ```sh
-infra/scripts/lncli payer payinvoice --force <bolt11-invoice>
+bun run infra -- lncli payer payinvoice --force <bolt11-invoice>
 ```
 
 Copy the 64-character hex payment preimage from the `lncli` output, paste it
@@ -186,13 +186,13 @@ If you copied the legacy challenge instead, use `Authorization: LSAT
 ## Troubleshooting
 
 - `Missing required environment variable`: re-run
-  `eval "$(infra/scripts/lnd-env --node server --export)"` in the same shell
-  that starts the proxy.
+  `eval "$(bun --silent run infra -- lnd-env --node server --export)"` in the
+  same shell that starts the proxy.
 - `402` after retry: make sure the macaroon and preimage came from the same
   challenge/invoice. A fresh first request creates a fresh invoice.
 - Browser cannot read the challenge: edit the saved proxy config so browser
   clients are allowed and `http://127.0.0.1:3000` is listed as an origin.
-- Invoice does not settle: run `infra/scripts/lightning ready payer server`
+- Invoice does not settle: run `bun run infra -- lightning ready payer server`
   again and check channel balances.
 
 ## Useful CLI Checks
