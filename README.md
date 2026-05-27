@@ -4,8 +4,11 @@
 [![Coverage](https://codecov.io/gh/bucko13/boltwall-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/bucko13/boltwall-suite)
 [![l402 bundle size](https://img.shields.io/badge/%40boltwall%2Fl402-%E2%89%A4150%20kB%20brotli-blue)](packages/l402)
 [![npm](https://img.shields.io/badge/npm-not%20yet%20published-inactive)](https://www.npmjs.com/org/boltwall)
+[![Playground](https://img.shields.io/badge/playground-live-000000?logo=vercel&logoColor=white)](https://boltwall-suite-playground.vercel.app)
 
 A TypeScript monorepo for **L402** — the Lightning Network service authentication protocol.
+
+**[Try the live playground →](https://boltwall-suite-playground.vercel.app)** — inspect L402 challenges, generate and parse credentials, and walk a paid endpoint end to end.
 
 ## What is L402?
 
