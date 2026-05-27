@@ -220,6 +220,179 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-pokemon-type']")).toContainText("electric");
   });
 
+  test("fresh page can use a shared full Authorization credential", async ({ page }) => {
+    let authorizedRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization === `L402 abc:${TEST_PREIMAGE}`) {
+        authorizedRequests += 1;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="fresh", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.fill(
+      "[data-testid='demo-custom-authorization']",
+      `Authorization: L402 abc:${TEST_PREIMAGE}`,
+    );
+    await page.click("[data-testid='demo-use-custom-authorization']");
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Custom L402 credential active",
+    );
+
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+    expect(authorizedRequests).toBe(1);
+  });
+
+  test("can edit and replace the macaroon used for custom requests", async ({ page }) => {
+    let acceptedAuthorization = "";
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization === `L402 def:${TEST_PREIMAGE}`) {
+        acceptedAuthorization = authorization;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 401,
+        headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+        json: { error: "wrong-credential" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.fill("[data-testid='demo-custom-macaroon']", "abc");
+    await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
+    await page.click("[data-testid='demo-use-custom-parts']");
+    await page.fill("[data-testid='demo-custom-macaroon']", "def");
+    await page.click("[data-testid='demo-use-custom-parts']");
+
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    expect(acceptedAuthorization).toBe(`L402 def:${TEST_PREIMAGE}`);
+  });
+
+  test("can load a Workbench macaroon into the custom credential", async ({ page }) => {
+    const fixtureHeader = 'L402 macaroon="abc", invoice="lnbc1demo"';
+    let authorizedRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      if (request.headers().authorization === `L402 abc:${TEST_PREIMAGE}`) {
+        authorizedRequests += 1;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": fixtureHeader,
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/parse");
+    await page.fill("[data-testid='challenge-input']", fixtureHeader);
+    await page.click("[data-testid='challenge-parse']");
+    await page.click("[data-testid='challenge-store-macaroon']");
+    await expect(page.locator("[data-testid='workbench-memory-token']")).toContainText("abc");
+
+    await page.getByTestId("nav-link-demo").click();
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.click("[data-testid='demo-load-workbench-macaroon']");
+    await expect(page.locator("[data-testid='demo-custom-macaroon']")).toHaveValue("abc");
+    await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
+    await page.click("[data-testid='demo-use-custom-parts']");
+
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    expect(authorizedRequests).toBe(1);
+  });
+
+  test("rejected custom credentials show recovery actions", async ({ page }) => {
+    let challengeRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        await route.fulfill({
+          status: 401,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: { error: "custom-rejected" },
+        });
+        return;
+      }
+      challengeRequests += 1;
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="fresh", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.fill("[data-testid='demo-custom-authorization']", `L402 abc:${TEST_PREIMAGE}`);
+    await page.click("[data-testid='demo-use-custom-authorization']");
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
+      "Custom credential rejected",
+    );
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Custom L402 credential active",
+    );
+    await page.click("[data-testid='demo-fetch-fresh-challenge']");
+
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toHaveCount(0);
+    expect(challengeRequests).toBe(1);
+  });
+
   test("request failures show endpoint and origin diagnostics", async ({ page }) => {
     await page.route(PROTECTED_RE, async (route) => {
       await route.abort("failed");

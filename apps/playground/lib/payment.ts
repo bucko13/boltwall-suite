@@ -21,6 +21,7 @@
 import {
   buildAuthorizationHeader,
   parseAuthenticateHeader,
+  parseAuthorizationHeader,
   type L402ChallengeFields,
 } from "@boltwall/l402";
 
@@ -49,6 +50,7 @@ export type PaidCredential = {
   authorization: string;
   scheme: "L402" | "LSAT";
   macaroon: string;
+  macaroons: string[];
   preimage: string;
 };
 
@@ -158,14 +160,16 @@ export function buildPaidCredential(
 ): PaidCredential {
   assertPreimageHex(preimage);
   const normalizedPreimage = preimage.toLowerCase();
+  const macaroons = [challenge.macaroon];
   return {
     authorization: buildAuthorizationHeader({
-      macaroons: challenge.macaroon,
+      macaroons,
       preimage: normalizedPreimage,
       legacy: challenge.scheme === "LSAT",
     }),
     scheme: challenge.scheme,
     macaroon: challenge.macaroon,
+    macaroons,
     preimage: normalizedPreimage,
   };
 }
@@ -174,6 +178,54 @@ export function withAuthorization(init: RequestInit, credential: PaidCredential)
   const headers = new Headers(init.headers);
   headers.set("Authorization", credential.authorization);
   return { ...init, headers };
+}
+
+/**
+ * Parse a full user-supplied `Authorization` value into the same credential
+ * shape the pay-and-retry flow caches.
+ *
+ * L402 protocol-specification.md §5.2 defines the credential header syntax;
+ * §8 defines reuse of the resulting bearer credential until server rejection.
+ */
+export function parsePastedCredential(input: string): PaidCredential {
+  const fields = parseAuthorizationHeader(normalizePastedCredentialInput(input));
+  const preimage = fields.preimage.toLowerCase();
+  return {
+    authorization: buildAuthorizationHeader({
+      macaroons: fields.macaroons,
+      preimage,
+      legacy: fields.scheme === "LSAT",
+    }),
+    scheme: fields.scheme,
+    macaroon: fields.macaroons[0]!,
+    macaroons: fields.macaroons,
+    preimage,
+  };
+}
+
+function normalizePastedCredentialInput(input: string): string {
+  const trimmed = input.trim().replace(/^authorization\s*:\s*/i, "");
+  if (/^(L402|LSAT)\s+/i.test(trimmed)) return trimmed;
+  return `L402 ${trimmed}`;
+}
+
+/**
+ * Build a reusable credential from separate macaroon and preimage inputs.
+ * This supports playground workflows where the macaroon comes from Workbench
+ * memory and the preimage comes from a wallet or a shared note.
+ */
+export function buildPastedCredentialParts(
+  macaroon: string,
+  preimage: string,
+  scheme: "L402" | "LSAT" = "L402",
+): PaidCredential {
+  return parsePastedCredential(
+    buildAuthorizationHeader({
+      macaroons: macaroon.trim(),
+      preimage: parsePastedPreimage(preimage),
+      legacy: scheme === "LSAT",
+    }),
+  );
 }
 
 /**

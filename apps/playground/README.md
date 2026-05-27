@@ -66,6 +66,14 @@ otherwise the browser cannot read the challenge header. `@boltwall/proxy`
 supports this with `cors.allowOrigins`; configure the local playground origin or
 hosted playground URL on the proxy deployment, not in client-side secrets.
 
+The demo also has an Advanced credential area for reusable bearer credentials.
+Users can paste a full `Authorization` value, compose one from a macaroon and
+preimage, or load the macaroon currently stored in Workbench memory. Custom
+credentials are used before the paid credential cached by the demo itself and
+remain editable until cleared. If the endpoint rejects a custom credential, the
+demo keeps the rejection visible and offers controls to clear it or request a
+fresh challenge.
+
 For the umbrella workflows that wire the playground to a local regtest proxy or
 a Vercel/Voltage proxy, see:
 

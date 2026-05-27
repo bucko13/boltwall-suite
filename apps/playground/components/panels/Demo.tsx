@@ -4,13 +4,16 @@ import { useEffect, useMemo, useState } from "react";
 
 import {
   FetchPaidResourceError,
+  buildPastedCredentialParts,
   fetchPaidResource,
   parsePastedPreimage,
+  parsePastedCredential,
   retryWithCredential,
   withAuthorization,
   type FetchPaidResult,
   type PaidCredential,
 } from "../../lib/payment";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { HeaderRow } from "../ui/header-row";
@@ -164,10 +167,16 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
 }
 
 export function Demo() {
+  const workbenchMemory = useWorkbenchMemory();
   const [endpointOverride, setEndpointOverride] = useState("");
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
   const [pastedPreimage, setPastedPreimage] = useState("");
   const [cachedCredential, setCachedCredential] = useState<CachedCredentialState | null>(null);
+  const [customCredential, setCustomCredential] = useState<CachedCredentialState | null>(null);
+  const [customAuthorization, setCustomAuthorization] = useState("");
+  const [customMacaroon, setCustomMacaroon] = useState("");
+  const [customPreimage, setCustomPreimage] = useState("");
+  const [customScheme, setCustomScheme] = useState<"L402" | "LSAT">("L402");
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
 
   useEffect(() => {
@@ -179,17 +188,24 @@ export function Demo() {
     [endpointOverride],
   );
   const usingConfiguredEndpoint = endpointOverride.trim() !== "" || CONFIGURED_DEMO_ENDPOINT !== "";
+  const matchingCustomCredential =
+    customCredential?.endpointTemplate === endpointTemplate
+      ? { ...customCredential, source: "custom" as const }
+      : null;
+  const matchingCachedCredential =
+    cachedCredential?.endpointTemplate === endpointTemplate
+      ? { ...cachedCredential, source: "paid" as const }
+      : null;
+  const activeCredential = matchingCustomCredential ?? matchingCachedCredential;
 
-  async function getPokemon() {
+  async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
     const endpoint = endpointForPokemon(endpointTemplate, id);
     setStatus({ kind: "fetching", id });
     setPastedPreimage("");
     try {
-      const credential =
-        cachedCredential?.endpointTemplate === endpointTemplate
-          ? cachedCredential.credential
-          : null;
+      const active = useStoredCredential ? activeCredential : null;
+      const credential = active?.credential ?? null;
       const result = await fetchPaidResource(
         endpoint,
         credential === null
@@ -197,6 +213,21 @@ export function Demo() {
           : withAuthorization(pokemonRequestInit(), credential),
       );
       if (credential !== null && result.status === "error" && result.response.status === 401) {
+        if (active?.source === "custom") {
+          const text = await result.response.text();
+          setStatus({
+            kind: "error",
+            error: {
+              title: "Custom credential rejected.",
+              details: [
+                `Endpoint: ${endpoint}`,
+                `Server response: ${String(result.response.status)} ${text}`,
+                "Clear the custom credential or fetch a fresh challenge to pay again.",
+              ],
+            },
+          });
+          return;
+        }
         setCachedCredential(null);
         await handleFetchResult(
           id,
@@ -207,7 +238,11 @@ export function Demo() {
         return;
       }
       if (credential !== null && result.status === "challenge") {
-        setCachedCredential(null);
+        if (active?.source === "custom") {
+          setCustomCredential(null);
+        } else {
+          setCachedCredential(null);
+        }
       }
       await handleFetchResult(id, endpoint, result, credential !== null && result.status === "ok");
     } catch (error) {
@@ -216,6 +251,51 @@ export function Demo() {
         error: describeInitialFetchError(endpoint, error),
       });
     }
+  }
+
+  async function fetchFreshChallenge() {
+    setCustomCredential(null);
+    await getPokemon(false);
+  }
+
+  function useFullCustomCredential() {
+    try {
+      const credential = parsePastedCredential(customAuthorization);
+      setCustomCredential({ endpointTemplate, credential });
+      setCachedCredential(null);
+      setStatus({ kind: "idle" });
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        error: messageError(error instanceof Error ? error.message : String(error)),
+      });
+    }
+  }
+
+  function useCustomCredentialParts() {
+    try {
+      const credential = buildPastedCredentialParts(customMacaroon, customPreimage, customScheme);
+      setCustomCredential({ endpointTemplate, credential });
+      setCachedCredential(null);
+      setStatus({ kind: "idle" });
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        error: messageError(error instanceof Error ? error.message : String(error)),
+      });
+    }
+  }
+
+  function loadWorkbenchMacaroon() {
+    if (!workbenchMemory?.macaroon) return;
+    setCustomMacaroon(workbenchMemory.macaroon);
+  }
+
+  function clearCustomCredential() {
+    setCustomCredential(null);
+    setCustomAuthorization("");
+    setCustomMacaroon("");
+    setCustomPreimage("");
   }
 
   async function payWithWebLn() {
@@ -425,6 +505,7 @@ export function Demo() {
                 onChange={(event) => {
                   setEndpointOverride(event.target.value);
                   setCachedCredential(null);
+                  setCustomCredential(null);
                 }}
                 data-testid="demo-endpoint-input"
                 style={{
@@ -456,7 +537,285 @@ export function Demo() {
             </div>
           ) : null}
 
-          {cachedCredential ? (
+          <details data-testid="demo-custom-credential">
+            <summary
+              style={{
+                cursor: "pointer",
+                fontSize: "var(--size-12)",
+                color: "var(--color-dim)",
+              }}
+            >
+              Advanced credential
+            </summary>
+            <div
+              style={{
+                display: "flex",
+                flexDirection: "column",
+                gap: 10,
+                marginTop: 8,
+                padding: "12px 14px",
+                background: "var(--color-surface-alt)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 4,
+              }}
+            >
+              <label
+                style={{
+                  display: "flex",
+                  flexDirection: "column",
+                  gap: 6,
+                  color: "var(--color-dim)",
+                  fontSize: "var(--size-12)",
+                }}
+              >
+                Full Authorization value
+                <textarea
+                  value={customAuthorization}
+                  onChange={(event) => setCustomAuthorization(event.target.value)}
+                  placeholder="L402 macaroon:preimage"
+                  data-testid="demo-custom-authorization"
+                  rows={3}
+                  style={{
+                    width: "100%",
+                    minWidth: 0,
+                    resize: "vertical",
+                    padding: "8px 10px",
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    color: "var(--color-text)",
+                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                    fontSize: "var(--size-12)",
+                    wordBreak: "break-all",
+                  }}
+                />
+              </label>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={useFullCustomCredential}
+                  disabled={customAuthorization.trim() === ""}
+                  data-testid="demo-use-custom-authorization"
+                  style={{
+                    padding: "7px 12px",
+                    background:
+                      customAuthorization.trim() === ""
+                        ? "var(--color-surface)"
+                        : "var(--color-primary)",
+                    color:
+                      customAuthorization.trim() === ""
+                        ? "var(--color-dim)"
+                        : "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 500,
+                    cursor: customAuthorization.trim() === "" ? "not-allowed" : "pointer",
+                  }}
+                >
+                  Use custom credential
+                </button>
+              </div>
+              <div
+                style={{
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) minmax(180px, 0.45fr)",
+                  gap: 8,
+                }}
+              >
+                <label
+                  style={{
+                    display: "flex",
+                    flexDirection: "column",
+                    gap: 6,
+                    color: "var(--color-dim)",
+                    fontSize: "var(--size-12)",
+                  }}
+                >
+                  Macaroon
+                  <textarea
+                    value={customMacaroon}
+                    onChange={(event) => setCustomMacaroon(event.target.value)}
+                    placeholder="base64 macaroon"
+                    data-testid="demo-custom-macaroon"
+                    rows={3}
+                    style={{
+                      width: "100%",
+                      minWidth: 0,
+                      resize: "vertical",
+                      padding: "8px 10px",
+                      background: "var(--color-surface)",
+                      border: "1px solid var(--color-border)",
+                      borderRadius: 4,
+                      color: "var(--color-text)",
+                      fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                      fontSize: "var(--size-12)",
+                      wordBreak: "break-all",
+                    }}
+                  />
+                </label>
+                <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      color: "var(--color-dim)",
+                      fontSize: "var(--size-12)",
+                    }}
+                  >
+                    Scheme
+                    <select
+                      value={customScheme}
+                      onChange={(event) => {
+                        setCustomScheme(event.target.value === "LSAT" ? "LSAT" : "L402");
+                      }}
+                      data-testid="demo-custom-scheme"
+                      style={{
+                        padding: "8px 10px",
+                        background: "var(--color-surface)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 4,
+                        color: "var(--color-text)",
+                        fontSize: "var(--size-12)",
+                      }}
+                    >
+                      <option value="L402">L402</option>
+                      <option value="LSAT">LSAT</option>
+                    </select>
+                  </label>
+                  <label
+                    style={{
+                      display: "flex",
+                      flexDirection: "column",
+                      gap: 6,
+                      color: "var(--color-dim)",
+                      fontSize: "var(--size-12)",
+                    }}
+                  >
+                    Preimage
+                    <input
+                      type="text"
+                      value={customPreimage}
+                      onChange={(event) => setCustomPreimage(event.target.value)}
+                      placeholder="64-char hex"
+                      data-testid="demo-custom-preimage"
+                      style={{
+                        width: "100%",
+                        minWidth: 0,
+                        padding: "8px 10px",
+                        background: "var(--color-surface)",
+                        border: "1px solid var(--color-border)",
+                        borderRadius: 4,
+                        color: "var(--color-text)",
+                        fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                        fontSize: "var(--size-12)",
+                      }}
+                    />
+                  </label>
+                </div>
+              </div>
+              <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={loadWorkbenchMacaroon}
+                  disabled={!workbenchMemory?.macaroon}
+                  data-testid="demo-load-workbench-macaroon"
+                  style={{
+                    padding: "7px 12px",
+                    background: "var(--color-surface)",
+                    color: workbenchMemory?.macaroon ? "var(--color-text)" : "var(--color-dim)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 500,
+                    cursor: workbenchMemory?.macaroon ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Use Workbench macaroon
+                </button>
+                <button
+                  type="button"
+                  onClick={useCustomCredentialParts}
+                  disabled={customMacaroon.trim() === "" || customPreimage.trim() === ""}
+                  data-testid="demo-use-custom-parts"
+                  style={{
+                    padding: "7px 12px",
+                    background:
+                      customMacaroon.trim() === "" || customPreimage.trim() === ""
+                        ? "var(--color-surface)"
+                        : "var(--color-primary)",
+                    color:
+                      customMacaroon.trim() === "" || customPreimage.trim() === ""
+                        ? "var(--color-dim)"
+                        : "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 500,
+                    cursor:
+                      customMacaroon.trim() === "" || customPreimage.trim() === ""
+                        ? "not-allowed"
+                        : "pointer",
+                  }}
+                >
+                  Use macaroon + preimage
+                </button>
+              </div>
+            </div>
+          </details>
+
+          {customCredential ? (
+            <div
+              data-testid="demo-custom-credential-status"
+              style={{
+                display: "flex",
+                flexWrap: "wrap",
+                gap: 8,
+                alignItems: "center",
+                color: "var(--color-dim)",
+                fontSize: "var(--size-12)",
+              }}
+            >
+              <span>Custom {customCredential.credential.scheme} credential active.</span>
+              <button
+                type="button"
+                onClick={clearCustomCredential}
+                data-testid="demo-clear-custom-credential"
+                style={{
+                  padding: "4px 8px",
+                  background: "var(--color-surface)",
+                  color: "var(--color-dim)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 4,
+                  fontSize: "var(--size-12)",
+                  cursor: "pointer",
+                }}
+              >
+                Clear
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  void fetchFreshChallenge();
+                }}
+                data-testid="demo-fetch-fresh-challenge"
+                style={{
+                  padding: "4px 8px",
+                  background: "var(--color-surface)",
+                  color: "var(--color-dim)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 4,
+                  fontSize: "var(--size-12)",
+                  cursor: "pointer",
+                }}
+              >
+                Fetch fresh challenge
+              </button>
+            </div>
+          ) : null}
+
+          {cachedCredential && !matchingCustomCredential ? (
             <div
               data-testid="demo-credential-status"
               style={{
