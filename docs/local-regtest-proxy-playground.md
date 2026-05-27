@@ -87,14 +87,24 @@ If you have no saved configs yet, the CLI creates one under
 | Allow browser apps to call this proxy                  | `yes`                                         |
 | Browser origins allowed to call this proxy             | `http://127.0.0.1:3000,http://localhost:3000` |
 | Upstream target URL                                    | `https://pokeapi.co/api/v2`                   |
-| Service name                                           | `pokedex`                                     |
 | Default price for protected requests, in millisatoshis | `1000`                                        |
 | Protected path                                         | `/pokemon/*`                                  |
 | Price for this protected path, in millisatoshis        | `1000`                                        |
 | Unprotected paths                                      | `/healthz`                                    |
+| Service name for service/capability caveats            | press Enter                                   |
+| Credential lifetime in seconds                         | press Enter                                   |
+| Origin caveat origins                                  | press Enter                                   |
+| Capability caveats to mint                             | press Enter                                   |
+| Use HODL invoices                                      | `no`                                          |
 
 The config stores routing metadata and environment variable names only. It does
 not store the LND cert or macaroon values.
+
+Do not set a service name for the basic Pokedex demo. Service and capability
+caveats are advanced authorization policy: setting a service name causes minted
+macaroons to include `services=<name>:0`, and setting capabilities adds
+`<service>_capabilities=...`. L402 macaroon-spec.md §Caveat Format defines
+those caveats, and §Verification defines how they are evaluated.
 
 The protected Pokemon resource is now:
 

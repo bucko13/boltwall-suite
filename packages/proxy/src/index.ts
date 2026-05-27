@@ -53,7 +53,7 @@ export interface ProxyConfig extends Pick<
   backend: LightningBackend;
   /** Server-side root-key store used to mint and verify macaroons. */
   rootKeyStore: L402Config["rootKeyStore"];
-  /** Optional service name for minted macaroon service caveats. Defaults to the target host. */
+  /** Optional service name for minted macaroon service/capability caveats. */
   service?: string;
   /** Protected route pricing and caveat rules, evaluated before `defaultPrice`. */
   routes?: ProxyRoute[];
@@ -93,7 +93,6 @@ export interface ProxyConfig extends Pick<
 export function createProxy(config: ProxyConfig): Express {
   const target = new URL(config.targetUrl);
   const logger = config.logger ?? console;
-  const service = config.service ?? target.host;
   const protectedUpstream = createUpstreamProxy({
     targetUrl: target.toString(),
     logger,
@@ -136,10 +135,10 @@ export function createProxy(config: ProxyConfig): Express {
     const price = route?.price ?? config.defaultPrice!;
     const caveats = mergeCaveats(config.caveats, wrapRouteCaveats(route?.caveats, req));
     const middleware = boltwall({
-      service,
       backend: config.backend,
       rootKeyStore: config.rootKeyStore,
       price: typeof price === "function" ? () => price(req) : price,
+      ...(config.service === undefined ? {} : { service: config.service }),
       ...(caveats === undefined ? {} : { caveats }),
       ...(config.rate === undefined ? {} : { rate: config.rate }),
       ...(config.capabilities === undefined ? {} : { capabilities: config.capabilities }),

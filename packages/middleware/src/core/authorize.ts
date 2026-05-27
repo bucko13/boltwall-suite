@@ -20,6 +20,7 @@ import {
   VerificationFailurePrefix,
   VerificationFailureReason,
   buildAuthenticateHeaders,
+  capabilitiesCaveat,
   decodeIdentifier,
   mintMacaroon,
   parseAuthorizationHeader,
@@ -43,10 +44,7 @@ function randomTokenId(): Uint8Array {
 }
 
 /** Resolve a price value that may be static or a per-request function. */
-async function resolvePrice(
-  price: L402Config["price"],
-  req: Request,
-): Promise<bigint> {
+async function resolvePrice(price: L402Config["price"], req: Request): Promise<bigint> {
   return typeof price === "function" ? price(req) : price;
 }
 
@@ -58,8 +56,16 @@ async function resolveCaveats(
 ): Promise<Caveat[]> {
   const out: Caveat[] = [];
 
-  // Always add a services caveat scoped to the configured service (tier 0).
-  out.push(servicesCaveat([{ name: config.service, tier: 0 }]));
+  const service = config.service;
+  if (service !== undefined) {
+    out.push(servicesCaveat([{ name: service, tier: 0 }]));
+  }
+  if (config.capabilities !== undefined) {
+    if (service === undefined) {
+      throw new Error("capabilities-require-service");
+    }
+    out.push(capabilitiesCaveat(service, config.capabilities));
+  }
 
   for (const c of config.caveats ?? []) {
     out.push(typeof c === "function" ? await c(req) : c);
@@ -236,19 +242,22 @@ async function emitChallenge(
   try {
     amountMsat = await resolvePrice(config.price, req);
     const description = config.invoiceMemo ? config.invoiceMemo(req) : config.service;
+    const invoiceRequest = {
+      amountMsat,
+      ...(description === undefined ? {} : { description }),
+    };
     if (config.hodl === true) {
       const paymentHash = await extractHodlPaymentHash(req);
       if (paymentHash === undefined) {
         return errorResult("bad-request", "HODL requests must include a 32-byte hex paymentHash");
       }
       invoice = await config.backend.createInvoice({
-        amountMsat,
-        description,
+        ...invoiceRequest,
         hodl: true,
         paymentHash,
       });
     } else {
-      invoice = await config.backend.createInvoice({ amountMsat, description });
+      invoice = await config.backend.createInvoice(invoiceRequest);
     }
   } catch (cause) {
     log.warn({ cause }, "L402 backend failed to create invoice");
@@ -284,11 +293,9 @@ async function emitChallenge(
   }
 
   const headersRecord: Record<string, string[]> = { "WWW-Authenticate": wwwAuth };
-  const error = new L402Error(
-    "payment-required",
-    "L402 payment required",
-    { headers: headersRecord },
-  );
+  const error = new L402Error("payment-required", "L402 payment required", {
+    headers: headersRecord,
+  });
 
   return {
     ok: false,
@@ -328,16 +335,16 @@ async function getOrGenerateRootKey(
  * @param request - Web Fetch Request object.
  * @param config  - L402 middleware configuration.
  */
-export async function authorizeL402(
-  request: Request,
-  config: L402Config,
-): Promise<L402GateResult> {
+export async function authorizeL402(request: Request, config: L402Config): Promise<L402GateResult> {
   const log = config.logger ?? noopLogger;
 
   // Warn if TLS appears absent — deployers are responsible for TLS, but
   // we surface an obvious mistake loudly.
   if (request.url.startsWith("http://")) {
-    log.warn({ url: request.url }, "L402 middleware handling a non-TLS request — production deployments must use HTTPS");
+    log.warn(
+      { url: request.url },
+      "L402 middleware handling a non-TLS request — production deployments must use HTTPS",
+    );
   }
 
   const authHeader = request.headers.get("Authorization") ?? "";
@@ -422,13 +429,18 @@ export async function authorizeL402(
 
     if (hasPreimage) {
       if (config.backend.settleHodlInvoice === undefined) {
-        return errorResult("invoice-provider-failure", "Lightning backend cannot settle HODL invoices");
+        return errorResult(
+          "invoice-provider-failure",
+          "Lightning backend cannot settle HODL invoices",
+        );
       }
       try {
         await config.backend.settleHodlInvoice(credential.preimage);
       } catch (cause) {
         log.warn({ cause }, "L402 backend failed to settle HODL invoice");
-        const error = new L402Error("invoice-provider-failure", "Backend HODL settlement failed", { cause });
+        const error = new L402Error("invoice-provider-failure", "Backend HODL settlement failed", {
+          cause,
+        });
         return {
           ok: false,
           response: new Response(null, { status: l402ErrorToStatus(error.kind) }),
@@ -453,12 +465,5 @@ export async function authorizeL402(
   const amountError = await requireAmountMatch(config, request, lookup, log);
   if (amountError !== undefined) return amountError;
 
-  return authorizeSuccess(
-    config,
-    request,
-    credential,
-    paymentHashHex,
-    identifier,
-    log,
-  );
+  return authorizeSuccess(config, request, credential, paymentHashHex, identifier, log);
 }

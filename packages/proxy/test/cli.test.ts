@@ -249,11 +249,11 @@ describe("boltwall CLI", () => {
         "local-pokedex",
         "",
         "https://pokeapi.co/api/v2",
-        "pokedex",
         "1000",
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
         "",
         "",
         "",
@@ -283,6 +283,7 @@ describe("boltwall CLI", () => {
     expect(saved).toContain("http://localhost:3000");
     expect(saved).toContain("apiKey: OPENNODE_API_KEY");
     expect(saved).toContain("baseUrl: OPENNODE_BASE_URL");
+    expect(saved).not.toContain("service:");
     expect(saved).not.toContain("deploy:");
     expect(saved).not.toContain("UNUSED_");
     expect(saved).not.toContain("socket:");
@@ -295,11 +296,11 @@ describe("boltwall CLI", () => {
       input: [
         "local-dev",
         "https://pokeapi.co/api/v2",
-        "pokedex",
         "1000",
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
         "",
         "",
         "",
@@ -321,6 +322,7 @@ describe("boltwall CLI", () => {
     expect(saved).toContain("socket: LND_SOCKET");
     expect(saved).toContain("cert: LND_TLS_CERT");
     expect(saved).toContain("macaroon: LND_MACAROON");
+    expect(saved).not.toContain("service:");
     expect(saved).not.toContain("deploy:");
     expect(saved).not.toContain("UNUSED_");
   });
@@ -331,11 +333,11 @@ describe("boltwall CLI", () => {
       input: [
         "hodl-dev",
         "https://pokeapi.co/api/v2",
-        "pokedex",
         "1000",
         "/pokemon/*",
         "1000",
         "/healthz",
+        "pokedex",
         "120",
         "https://app.example",
         "pokedex-read",
@@ -353,6 +355,7 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     const saved = await readFile(join(dir, "hodl-dev.yaml"), "utf8");
+    expect(saved).toContain("service: pokedex");
     expect(saved).toContain("policy:");
     expect(saved).toContain("validUntilSeconds: 120");
     expect(saved).toContain("origin:");
@@ -554,11 +557,11 @@ describe("boltwall CLI", () => {
       input: [
         "pokedex",
         "https://pokeapi.co/api/v2",
-        "",
         "1000",
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
         "",
         "",
         "",
@@ -735,6 +738,7 @@ function yamlConfig(
     "targetUrl: https://pokeapi.co/api/v2",
     "backend:",
     "  kind: opennode",
+    ...(options.policy === true ? ["service: pokedex"] : []),
     "pricing:",
     '  defaultPriceMsat: "1000"',
     ...(options.policy === true

@@ -411,7 +411,6 @@ async function promptForConfig(
       }
     : undefined;
   const targetUrl = await prompt.input("Upstream target URL", existing?.targetUrl ?? "");
-  const service = optionalInput(await prompt.input("Service name", existing?.service ?? ""));
   const defaultPriceMsat = await prompt.input(
     "Default price for protected requests, in millisatoshis",
     existing?.pricing.defaultPriceMsat ?? "1000",
@@ -427,6 +426,13 @@ async function promptForConfig(
       existing?.unprotectedPaths?.join(",") ?? "/healthz",
     ),
   );
+  write(stdout, "Advanced paywall policy (press Enter to skip optional caveats).\n");
+  const service = optionalInput(
+    await prompt.input(
+      "Service name for service/capability caveats (blank for none)",
+      existing?.service ?? "",
+    ),
+  );
   const validUntilSeconds = await prompt.input(
     "Credential lifetime in seconds (blank for no expiration caveat)",
     existing?.policy?.validUntilSeconds === undefined
@@ -438,9 +444,12 @@ async function promptForConfig(
     defaultOriginCaveatInput(existing),
   );
   const capabilities = await prompt.input(
-    "Required capability caveats (comma separated, blank for none)",
+    "Capability caveats to mint (comma separated, blank for none)",
     existing?.policy?.capabilities?.join(",") ?? "",
   );
+  if (splitList(capabilities) !== undefined && service === undefined) {
+    throw new Error("Capability caveats require a service name.");
+  }
   const hodl = await prompt.confirm("Use HODL invoices", existing?.policy?.hodl === true);
   const input: BoltwallConfigInput = {
     name,

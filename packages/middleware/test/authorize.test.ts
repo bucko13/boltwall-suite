@@ -15,6 +15,7 @@ import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
 import { authorizeL402 } from "../src/core/authorize";
 import type { L402Config } from "../src/core/types";
+import { decodeRaw } from "../../l402/src/internal/macaroon";
 
 // --- Fixture setup ---
 
@@ -27,6 +28,10 @@ function hexToBytes(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
+}
+
+function bytesToUtf8(bytes: Uint8Array): string {
+  return new TextDecoder().decode(bytes);
 }
 
 const ROOT_KEY = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
@@ -66,9 +71,7 @@ class CountingHodlBackend extends TestBackend {
   }
 }
 
-async function makeConfig(
-  overrides: Partial<L402Config> = {},
-): Promise<L402Config> {
+async function makeConfig(overrides: Partial<L402Config> = {}): Promise<L402Config> {
   const rootKeyStore = new InMemoryRootKeyStore();
   await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
 
@@ -155,9 +158,7 @@ async function challengeMacaroon(config: L402Config): Promise<string> {
   const result = await authorizeL402(makeRequest(), config);
   expect(result.ok).toBe(false);
   if (result.ok) throw new Error("expected challenge");
-  const challenges = parseAuthenticateHeader(
-    result.response.headers.get("WWW-Authenticate")!,
-  );
+  const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
   const challenge = challenges.find((entry) => entry.scheme === "L402");
   expect(challenge?.macaroon).toBeTruthy();
   return challenge!.macaroon;
@@ -167,12 +168,27 @@ async function challengeMacaroon(config: L402Config): Promise<string> {
 function failingBackend(): LightningBackend {
   return {
     kind: "mock",
-    capabilities: { hodl: false, cancelInvoice: false, streamingInvoices: false, customDescription: false },
-    createInvoice: async () => { throw new Error("LND unreachable"); },
-    lookupInvoice: async () => { throw new Error("not called"); },
-    cancelInvoice: async () => { throw new Error("not called"); },
-    settleHodlInvoice: async () => { throw new Error("not called"); },
-    subscribeInvoices: async function* () { return; },
+    capabilities: {
+      hodl: false,
+      cancelInvoice: false,
+      streamingInvoices: false,
+      customDescription: false,
+    },
+    createInvoice: async () => {
+      throw new Error("LND unreachable");
+    },
+    lookupInvoice: async () => {
+      throw new Error("not called");
+    },
+    cancelInvoice: async () => {
+      throw new Error("not called");
+    },
+    settleHodlInvoice: async () => {
+      throw new Error("not called");
+    },
+    subscribeInvoices: async function* () {
+      return;
+    },
   };
 }
 
@@ -203,10 +219,36 @@ describe("authorizeL402 — missing credential (402)", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    const challenges = parseAuthenticateHeader(
-      result.response.headers.get("WWW-Authenticate")!,
-    );
+    const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
     expect(challenges.every((c) => c.scheme === "L402")).toBe(true);
+  });
+
+  test("omits services caveat when no service is configured", async () => {
+    const config = await makeConfig({ service: undefined });
+    const result = await authorizeL402(makeRequest(), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const [challenge] = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
+    expect(challenge).toBeDefined();
+    const raw = decodeRaw(challenge!.macaroon);
+    expect(raw.caveats.map(bytesToUtf8)).not.toContain("services=test-service:0");
+    expect(raw.caveats.map(bytesToUtf8).some((caveat) => caveat.startsWith("services="))).toBe(
+      false,
+    );
+  });
+
+  test("adds service and capability caveats only when configured", async () => {
+    const config = await makeConfig({ service: "pokedex", capabilities: ["pokedex-read"] });
+    const result = await authorizeL402(makeRequest(), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    const [challenge] = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
+    expect(challenge).toBeDefined();
+    const caveats = decodeRaw(challenge!.macaroon).caveats.map(bytesToUtf8);
+    expect(caveats).toContain("services=pokedex:0");
+    expect(caveats).toContain("pokedex_capabilities=pokedex-read");
   });
 
   test("challengeCompatibility lsat-only → only LSAT scheme emitted", async () => {
@@ -215,9 +257,7 @@ describe("authorizeL402 — missing credential (402)", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    const challenges = parseAuthenticateHeader(
-      result.response.headers.get("WWW-Authenticate")!,
-    );
+    const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
     expect(challenges.every((c) => c.scheme === "LSAT")).toBe(true);
   });
 
@@ -363,7 +403,11 @@ describe("authorizeL402 — valid credential (200)", () => {
 
   test("onPaid callback is invoked on successful authorization", async () => {
     let called = false;
-    const config = await makeConfig({ onPaid: () => { called = true; } });
+    const config = await makeConfig({
+      onPaid: () => {
+        called = true;
+      },
+    });
     const result = await authorizeL402(makeRequest(makeValidAuthHeader()), config);
     expect(result.ok).toBe(true);
     expect(called).toBe(true);
@@ -373,7 +417,10 @@ describe("authorizeL402 — valid credential (200)", () => {
 describe("authorizeL402 — HODL flow", () => {
   test("hodl:true missing paymentHash → 400 bad-request", async () => {
     const { config } = await makeHodlConfig("open");
-    const result = await authorizeL402(makeRequest(undefined, { method: "POST", body: {} }), config);
+    const result = await authorizeL402(
+      makeRequest(undefined, { method: "POST", body: {} }),
+      config,
+    );
 
     expect(result.ok).toBe(false);
     if (result.ok) return;

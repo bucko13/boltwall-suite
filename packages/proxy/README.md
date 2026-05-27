@@ -164,13 +164,9 @@ backend:
 pricing:
   defaultPriceMsat: "1000"
 policy:
-  # Adds `valid-until=<ISO-8601>` caveats to minted macaroons. L402
-  # macaroon-spec.md §Caveat Format and §Verification govern the caveat shape
-  # and satisfier behavior.
   validUntilSeconds: 60
   origin:
     - https://boltwall-suite-playground.vercel.app
-  capabilities: [pokedex-read]
 routes:
   - path: /pokemon/*
     methods: [GET]
@@ -209,8 +205,7 @@ The same config may be written as JSON:
   },
   "policy": {
     "validUntilSeconds": 60,
-    "origin": ["https://boltwall-suite-playground.vercel.app"],
-    "capabilities": ["pokedex-read"]
+    "origin": ["https://boltwall-suite-playground.vercel.app"]
   },
   "routes": [
     {
@@ -292,7 +287,7 @@ macaroon and paywall controls:
 | `validUntil`        | Adds a fixed `valid-until=<ISO-8601>` caveat to minted macaroons.        |
 | `validUntilSeconds` | Adds a fresh relative `valid-until` caveat for each challenge.           |
 | `origin`            | Adds an `origin=<origins>` caveat and verifies request `Origin` headers. |
-| `capabilities`      | Appends middleware capability caveats for the configured service.        |
+| `capabilities`      | Adds service-specific capability caveats; requires `service`.            |
 | `hodl`              | Uses HODL invoices and requires a backend with HODL support.             |
 | `requires`          | Declares backend capability requirements without changing paywall mode.  |
 
@@ -300,6 +295,21 @@ macaroon and paywall controls:
 `valid-until` satisfier, so paid retries with expired credentials return `401`.
 Per-route `requires` still works and is combined with global policy
 requirements during validation.
+
+Normal reverse-proxy payment does not need a `service` field, a `services`
+caveat, or capability caveats. Add them only when a credential should be scoped
+to named services or service-specific operations. L402 macaroon-spec.md
+§Caveat Format defines `services=<name>:<tier>` and
+`<service>_capabilities=<capability,...>` caveats; §Verification defines their
+attenuation and satisfier behavior.
+
+Advanced service/capability policy example:
+
+```yaml
+service: pokedex
+policy:
+  capabilities: [pokedex-read]
+```
 
 Do not put backend credentials, macaroons, API keys, TLS certificates,
 preimages, bearer tokens, or `.env` files in client-side code or committed

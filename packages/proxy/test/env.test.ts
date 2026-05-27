@@ -89,4 +89,15 @@ describe("loadProxyEnv", () => {
       }),
     ).not.toThrow(/secret-token/);
   });
+
+  test("requires service when capability caveats are configured", () => {
+    expect(() =>
+      loadProxyEnv({
+        env: {
+          BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
+          BOLTWALL_PROXY_CAPABILITIES: "pokedex-read",
+        },
+      }),
+    ).toThrow(/BOLTWALL_PROXY_SERVICE is required/);
+  });
 });

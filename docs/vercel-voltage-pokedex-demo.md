@@ -90,18 +90,28 @@ bun run boltwall -- config create
 
 Use these answers for the hosted playground Pokedex demo:
 
-| Prompt                                | Answer                                         |
-| ------------------------------------- | ---------------------------------------------- |
-| Config name                           | `voltage-pokedex-proxy`                        |
-| Lightning backend                     | `voltage-lnd`                                  |
-| Allow browser JavaScript clients      | `yes`                                          |
-| Allowed browser origins               | `https://boltwall-suite-playground.vercel.app` |
-| Upstream target URL                   | `https://pokeapi.co/api/v2`                    |
-| Service name                          | `pokedex`                                      |
-| Default price in millisatoshis        | `1000`                                         |
-| Protected path                        | `/pokemon/*`                                   |
-| Protected path price in millisatoshis | `1000`                                         |
-| Unprotected paths                     | `/healthz`                                     |
+| Prompt                                      | Answer                                         |
+| ------------------------------------------- | ---------------------------------------------- |
+| Config name                                 | `voltage-pokedex-proxy`                        |
+| Lightning backend                           | `voltage-lnd`                                  |
+| Allow browser JavaScript clients            | `yes`                                          |
+| Allowed browser origins                     | `https://boltwall-suite-playground.vercel.app` |
+| Upstream target URL                         | `https://pokeapi.co/api/v2`                    |
+| Default price in millisatoshis              | `1000`                                         |
+| Protected path                              | `/pokemon/*`                                   |
+| Protected path price in millisatoshis       | `1000`                                         |
+| Unprotected paths                           | `/healthz`                                     |
+| Service name for service/capability caveats | press Enter                                    |
+| Credential lifetime in seconds              | press Enter                                    |
+| Origin caveat origins                       | press Enter                                    |
+| Capability caveats to mint                  | press Enter                                    |
+| Use HODL invoices                           | `no`                                           |
+
+Leave the service/capability prompts blank for the basic hosted Pokedex demo.
+Those prompts are for advanced authorization policy: a service name mints a
+`services=<name>:0` caveat, and capabilities mint
+`<service>_capabilities=...`. L402 macaroon-spec.md §Caveat Format defines
+these caveats, and §Verification defines the satisfier behavior.
 
 ## 3. Validate The Proxy Config
 

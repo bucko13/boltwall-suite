@@ -13,8 +13,8 @@ import type { L402Error } from "./error.js";
 export type { AuthenticateHeaderCompatibility };
 
 export interface L402Config {
-  /** Service name for the macaroon identifier (passed as a services caveat). */
-  service: string;
+  /** Optional service name used to mint a `services=<name>:0` caveat. */
+  service?: string;
   capabilities?: string[];
   /** Lightning backend (MockAdapter, LndAdapter, etc.). */
   backend: LightningBackend;

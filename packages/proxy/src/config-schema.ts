@@ -125,7 +125,16 @@ const configSchema = z
       .strict()
       .default({ target: "vercel" }),
   })
-  .strict();
+  .strict()
+  .superRefine((config, ctx) => {
+    if (config.policy?.capabilities !== undefined && config.service === undefined) {
+      ctx.addIssue({
+        code: "custom",
+        path: ["service"],
+        message: "service is required when policy.capabilities is configured",
+      });
+    }
+  });
 
 export type BoltwallBackendKind = z.infer<typeof backendKindSchema>;
 export type BoltwallConfig = z.output<typeof configSchema>;

@@ -91,6 +91,12 @@ export function loadProxyEnv(options: LoadProxyEnvOptions = {}): ProxyEnvConfig 
 }
 
 function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
+  if (
+    fields.BOLTWALL_PROXY_CAPABILITIES !== undefined &&
+    fields.BOLTWALL_PROXY_SERVICE === undefined
+  ) {
+    throw new Error("BOLTWALL_PROXY_SERVICE is required when BOLTWALL_PROXY_CAPABILITIES is set");
+  }
   const forwardHeaders = parseForwardHeaders(fields);
   const cors = parseCors(fields);
   const policy = parsePolicy(fields);

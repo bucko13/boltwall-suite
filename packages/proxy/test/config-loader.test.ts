@@ -19,6 +19,7 @@ describe("boltwall config loading", () => {
       [
         "name: yaml-config",
         "targetUrl: https://api.example.com",
+        "service: pokedex",
         "backend:",
         "  kind: opennode",
         "pricing:",
