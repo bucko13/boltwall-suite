@@ -21,7 +21,10 @@ describe("loadProxyEnv", () => {
         BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: "5000",
         BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: "l402-only",
         BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS: "60",
+        BOLTWALL_PROXY_POLICY_ORIGIN:
+          "http://127.0.0.1:3000, https://boltwall-suite-playground.vercel.app",
         BOLTWALL_PROXY_CAPABILITIES: "pokedex-read,pokedex-list",
+        BOLTWALL_PROXY_PAYWALL_HODL: "true",
       },
     });
 
@@ -43,9 +46,13 @@ describe("loadProxyEnv", () => {
       },
       upstreamTimeoutMs: 5000,
       challengeCompatibility: "l402-only",
-      caveats: [expect.any(Function)],
-      satisfiers: [expect.objectContaining({ condition: "valid-until" })],
+      caveats: [expect.any(Function), expect.objectContaining({ condition: "origin" })],
+      satisfiers: [
+        expect.objectContaining({ condition: "valid-until" }),
+        expect.objectContaining({ condition: "origin" }),
+      ],
       capabilities: ["pokedex-read", "pokedex-list"],
+      hodl: true,
     });
   });
 

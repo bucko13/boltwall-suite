@@ -219,7 +219,7 @@ function generatedApiIndex(): string {
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
+import { InMemoryRootKeyStore, originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
@@ -326,18 +326,32 @@ function positiveIntegerEnv(name: string): number {
 }
 
 function paywallPolicy() {
+  const origin = optionalEnv("POLICY_ORIGIN") === undefined ? undefined : corsOriginsFrom("POLICY_ORIGIN");
   const caveats = [
     ...(optionalEnv("POLICY_VALID_UNTIL") === undefined ? [] : [validUntil({ iso: requireEnv("POLICY_VALID_UNTIL") })]),
     ...(optionalEnv("POLICY_VALID_UNTIL_SECONDS") === undefined
       ? []
       : [() => validUntil({ seconds: positiveIntegerEnv("POLICY_VALID_UNTIL_SECONDS") })]),
+    ...(origin === undefined ? [] : [originCaveat(origin)]),
+  ];
+  const satisfiers = [
+    ...(optionalEnv("POLICY_VALID_UNTIL") === undefined && optionalEnv("POLICY_VALID_UNTIL_SECONDS") === undefined
+      ? []
+      : [validUntilSatisfier()]),
+    ...(origin === undefined ? [] : [originSatisfier(origin)]),
   ];
 
   return {
-    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers }),
     ...(optionalEnv("CAPABILITIES") === undefined ? {} : { capabilities: splitList(requireEnv("CAPABILITIES")) }),
     ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true } : {}),
   };
+}
+
+function corsOriginsFrom(name: string): string[] {
+  const origins = splitList(requireEnv(name));
+  if (origins.length === 0) throw new Error(\`\${name} must include at least one origin\`);
+  return origins.map((origin) => new URL(origin).origin);
 }
 
 function challengeCompatibility(): "dual" | "l402-only" | "lsat-only" {

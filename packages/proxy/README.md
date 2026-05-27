@@ -33,8 +33,10 @@ boltwall deploy
 ```
 
 The wizard asks for the upstream URL, protected path, Lightning backend, price,
-browser CORS policy when needed, and Vercel project name. Select prompts show
-numbered choices with the default marked, and secret prompts mask terminal echo.
+browser CORS policy when needed, advanced paywall policy (credential
+expiration, origin caveat, capability caveats, and HODL invoice mode), and
+Vercel project name. Select prompts show numbered choices with the default
+marked, and secret prompts mask terminal echo.
 The wizard saves non-secret metadata and environment variable names only. If a
 required backend secret is not already present in the current process, the
 wizard prompts for it and sends it to Vercel with `vercel env add --sensitive`;
@@ -140,6 +142,7 @@ Supported variables:
 - `BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY`
 - `BOLTWALL_PROXY_POLICY_VALID_UNTIL`
 - `BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS`
+- `BOLTWALL_PROXY_POLICY_ORIGIN`
 - `BOLTWALL_PROXY_CAPABILITIES`
 - `BOLTWALL_PROXY_PAYWALL_HODL`
 
@@ -165,6 +168,8 @@ policy:
   # macaroon-spec.md §Caveat Format and §Verification govern the caveat shape
   # and satisfier behavior.
   validUntilSeconds: 60
+  origin:
+    - https://boltwall-suite-playground.vercel.app
   capabilities: [pokedex-read]
 routes:
   - path: /pokemon/*
@@ -204,6 +209,7 @@ The same config may be written as JSON:
   },
   "policy": {
     "validUntilSeconds": 60,
+    "origin": ["https://boltwall-suite-playground.vercel.app"],
     "capabilities": ["pokedex-read"]
   },
   "routes": [
@@ -267,11 +273,13 @@ environment variables such as `TARGET_URL`, `LN_BACKEND`,
 `FORWARD_ALLOW`, `FORWARD_DENY`, `CORS_ALLOW_ORIGINS`,
 `CORS_EXPOSE_HEADERS`, `CORS_ALLOW_HEADERS`, `CORS_ALLOW_METHODS`,
 `CORS_MAX_AGE_SECONDS`, `UPSTREAM_TIMEOUT_MS`, `POLICY_VALID_UNTIL`,
-`POLICY_VALID_UNTIL_SECONDS`, `CAPABILITIES`, and `PAYWALL_HODL`. When `cors`
-is configured, the runtime allows only the listed exact origins and exposes
-`WWW-Authenticate` by default so browser clients can read L402 challenges.
-Backend secret references map to the canonical Vercel-side names above. For
-example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
+`POLICY_VALID_UNTIL_SECONDS`, `POLICY_ORIGIN`, `CAPABILITIES`, and
+`PAYWALL_HODL`. When `cors` is configured, the runtime allows only the listed
+exact origins and exposes `WWW-Authenticate` by default so browser clients can
+read L402 challenges. `POLICY_ORIGIN` is separate from CORS: it binds minted
+credentials to request `Origin` headers using an `origin=<origins>` macaroon
+caveat. Backend secret references map to the canonical Vercel-side names above.
+For example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
 project receives `OPENNODE_API_KEY`.
 
 ### Paywall Policy
@@ -279,13 +287,14 @@ project receives `OPENNODE_API_KEY`.
 The optional `policy` object is the deployment-facing surface for common
 macaroon and paywall controls:
 
-| Key                 | Effect                                                                  |
-| ------------------- | ----------------------------------------------------------------------- |
-| `validUntil`        | Adds a fixed `valid-until=<ISO-8601>` caveat to minted macaroons.       |
-| `validUntilSeconds` | Adds a fresh relative `valid-until` caveat for each challenge.          |
-| `capabilities`      | Appends middleware capability caveats for the configured service.       |
-| `hodl`              | Uses HODL invoices and requires a backend with HODL support.            |
-| `requires`          | Declares backend capability requirements without changing paywall mode. |
+| Key                 | Effect                                                                   |
+| ------------------- | ------------------------------------------------------------------------ |
+| `validUntil`        | Adds a fixed `valid-until=<ISO-8601>` caveat to minted macaroons.        |
+| `validUntilSeconds` | Adds a fresh relative `valid-until` caveat for each challenge.           |
+| `origin`            | Adds an `origin=<origins>` caveat and verifies request `Origin` headers. |
+| `capabilities`      | Appends middleware capability caveats for the configured service.        |
+| `hodl`              | Uses HODL invoices and requires a backend with HODL support.             |
+| `requires`          | Declares backend capability requirements without changing paywall mode.  |
 
 `validUntil` and `validUntilSeconds` automatically register the matching
 `valid-until` satisfier, so paid retries with expired credentials return `401`.

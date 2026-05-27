@@ -8,7 +8,13 @@ import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
 import { parseAmount } from "@boltwall/internal/numeric";
-import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
+import {
+  InMemoryRootKeyStore,
+  originCaveat,
+  originSatisfier,
+  validUntil,
+  validUntilSatisfier,
+} from "@boltwall/l402";
 import { z } from "zod";
 
 import type { ForwardHeadersPolicy } from "./header-policy.js";
@@ -56,6 +62,7 @@ const paywallPolicySchema = z
   .object({
     validUntil: z.iso.datetime().optional(),
     validUntilSeconds: z.number().int().positive().optional(),
+    origin: z.array(corsOriginSchema).min(1).optional(),
     capabilities: z.array(z.string().min(1)).min(1).optional(),
     hodl: z.literal(true).optional(),
     requires: routeRequirementsSchema.optional(),
@@ -366,8 +373,14 @@ export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string>
   if (config.policy?.capabilities !== undefined) {
     base.CAPABILITIES = config.policy.capabilities.join(",");
   }
+  if (config.policy?.origin !== undefined) {
+    base.POLICY_ORIGIN = config.policy.origin.join(",");
+  }
   if (config.policy?.hodl === true) {
     base.PAYWALL_HODL = "true";
+    if (config.backend.kind === "btcpay") {
+      base.BTCPAY_HODL_INVOICES = "true";
+    }
   }
 
   return base;
@@ -437,10 +450,17 @@ function paywallPolicy(
   const caveats = [
     ...(policy.validUntil === undefined ? [] : [validUntil({ iso: policy.validUntil })]),
     ...(validUntilSeconds === undefined ? [] : [() => validUntil({ seconds: validUntilSeconds })]),
+    ...(policy.origin === undefined ? [] : [originCaveat(policy.origin)]),
+  ];
+  const satisfiers = [
+    ...(policy.validUntil === undefined && validUntilSeconds === undefined
+      ? []
+      : [validUntilSatisfier()]),
+    ...(policy.origin === undefined ? [] : [originSatisfier(policy.origin)]),
   ];
 
   return {
-    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers }),
     ...(policy.capabilities === undefined ? {} : { capabilities: policy.capabilities }),
     ...(policy.hodl === true ? { hodl: true as const } : {}),
   };
@@ -474,6 +494,7 @@ function policySummary(policy: BoltwallPaywallPolicy): Record<string, unknown> {
     ...(policy.validUntilSeconds === undefined
       ? {}
       : { validUntilSeconds: policy.validUntilSeconds }),
+    ...(policy.origin === undefined ? {} : { origin: policy.origin }),
     ...(policy.capabilities === undefined ? {} : { capabilities: policy.capabilities }),
     ...(policy.hodl === true ? { hodl: true } : {}),
     ...(policy.requires === undefined ? {} : { requirements: policy.requires }),

@@ -410,46 +410,59 @@ async function promptForConfig(
         maxAgeSeconds: existing?.cors?.maxAgeSeconds ?? 600,
       }
     : undefined;
+  const targetUrl = await prompt.input("Upstream target URL", existing?.targetUrl ?? "");
+  const service = optionalInput(await prompt.input("Service name", existing?.service ?? ""));
+  const defaultPriceMsat = await prompt.input(
+    "Default price for protected requests, in millisatoshis",
+    existing?.pricing.defaultPriceMsat ?? "1000",
+  );
+  const protectedPath = await prompt.input("Protected path", existing?.routes?.[0]?.path ?? "/*");
+  const protectedPathPriceMsat = await prompt.input(
+    "Price for this protected path, in millisatoshis",
+    existing?.routes?.[0]?.priceMsat ?? existing?.pricing.defaultPriceMsat ?? "1000",
+  );
+  const unprotectedPaths = splitList(
+    await prompt.input(
+      "Unprotected paths (comma separated)",
+      existing?.unprotectedPaths?.join(",") ?? "/healthz",
+    ),
+  );
+  const validUntilSeconds = await prompt.input(
+    "Credential lifetime in seconds (blank for no expiration caveat)",
+    existing?.policy?.validUntilSeconds === undefined
+      ? ""
+      : String(existing.policy.validUntilSeconds),
+  );
+  const origin = await prompt.input(
+    "Origin caveat origins (comma separated, blank for none)",
+    defaultOriginCaveatInput(existing),
+  );
+  const capabilities = await prompt.input(
+    "Required capability caveats (comma separated, blank for none)",
+    existing?.policy?.capabilities?.join(",") ?? "",
+  );
+  const hodl = await prompt.confirm("Use HODL invoices", existing?.policy?.hodl === true);
   const input: BoltwallConfigInput = {
     name,
-    targetUrl: await prompt.input("Upstream target URL", existing?.targetUrl ?? ""),
-    service: optionalInput(await prompt.input("Service name", existing?.service ?? "")),
+    targetUrl,
+    service,
     backend: {
       kind: backendKind,
       env: configBackendEnvNames(backendKind, existing?.backend.env),
     },
     pricing: {
-      defaultPriceMsat: await prompt.input(
-        "Default price for protected requests, in millisatoshis",
-        existing?.pricing.defaultPriceMsat ?? "1000",
-      ),
+      defaultPriceMsat,
     },
     routes: [
       {
-        path: await prompt.input("Protected path", existing?.routes?.[0]?.path ?? "/*"),
+        path: protectedPath,
         methods: existing?.routes?.[0]?.methods ?? ["GET"],
-        priceMsat: await prompt.input(
-          "Price for this protected path, in millisatoshis",
-          existing?.routes?.[0]?.priceMsat ?? existing?.pricing.defaultPriceMsat ?? "1000",
-        ),
+        priceMsat: protectedPathPriceMsat,
       },
     ],
     challengeCompatibility: existing?.challengeCompatibility ?? "dual",
-    unprotectedPaths: splitList(
-      await prompt.input(
-        "Unprotected paths (comma separated)",
-        existing?.unprotectedPaths?.join(",") ?? "/healthz",
-      ),
-    ),
-    ...promptedPolicy(
-      existing,
-      await prompt.input(
-        "Credential lifetime in seconds (blank for no expiration caveat)",
-        existing?.policy?.validUntilSeconds === undefined
-          ? ""
-          : String(existing.policy.validUntilSeconds),
-      ),
-    ),
+    unprotectedPaths,
+    ...promptedPolicy(existing, { validUntilSeconds, origin, capabilities, hodl }),
     forwardHeaders: existing?.forwardHeaders ?? {
       allow: ["accept", "content-type", "x-request-id"],
       deny: ["cookie", "authorization"],
@@ -488,24 +501,38 @@ function addCorsOrigins(config: BoltwallConfig, origins: string[]): BoltwallConf
 
 function promptedPolicy(
   existing: BoltwallConfig | undefined,
-  validUntilSecondsInput: string,
+  inputs: { validUntilSeconds: string; origin: string; capabilities: string; hodl: boolean },
 ): Pick<BoltwallConfigInput, "policy"> {
-  const validUntilSeconds = optionalInput(validUntilSecondsInput);
-  if (validUntilSeconds === undefined && existing?.policy === undefined) return {};
+  const validUntilSeconds = optionalInput(inputs.validUntilSeconds);
+  const origin = splitList(inputs.origin);
+  const capabilities = splitList(inputs.capabilities);
+  if (
+    validUntilSeconds === undefined &&
+    origin === undefined &&
+    capabilities === undefined &&
+    inputs.hodl !== true &&
+    existing?.policy === undefined
+  ) {
+    return {};
+  }
 
   const nextPolicy: BoltwallConfigInput["policy"] = {
     ...(existing?.policy?.validUntil === undefined
       ? {}
       : { validUntil: existing.policy.validUntil }),
     ...(validUntilSeconds === undefined ? {} : { validUntilSeconds: Number(validUntilSeconds) }),
-    ...(existing?.policy?.capabilities === undefined
-      ? {}
-      : { capabilities: existing.policy.capabilities }),
-    ...(existing?.policy?.hodl === true ? { hodl: true as const } : {}),
+    ...(origin === undefined ? {} : { origin }),
+    ...(capabilities === undefined ? {} : { capabilities }),
+    ...(inputs.hodl === true ? { hodl: true as const } : {}),
     ...(existing?.policy?.requires === undefined ? {} : { requires: existing.policy.requires }),
   };
 
   return Object.keys(nextPolicy).length === 0 ? {} : { policy: nextPolicy };
+}
+
+function defaultOriginCaveatInput(existing: BoltwallConfig | undefined): string {
+  if (existing?.policy?.origin !== undefined) return existing.policy.origin.join(",");
+  return "";
 }
 
 async function ensureDeployMetadata(

@@ -151,6 +151,8 @@ describe("boltwall CLI", () => {
     expect(code).toBe(0);
     expect(stdout.text()).toContain('"policy"');
     expect(stdout.text()).toContain('"validUntilSeconds": 60');
+    expect(stdout.text()).toContain('"origin"');
+    expect(stdout.text()).toContain('"https://boltwall-suite-playground.vercel.app"');
     expect(stdout.text()).toContain('"capabilities"');
     expect(stdout.text()).toContain('"pokedex-read"');
   });
@@ -252,9 +254,12 @@ describe("boltwall CLI", () => {
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
+        "",
+        "",
       ],
       select: ["opennode"],
-      confirm: [true],
+      confirm: [true, false],
       secret: [],
     });
 
@@ -295,9 +300,12 @@ describe("boltwall CLI", () => {
         "/pokemon/*",
         "1000",
         "/healthz",
+        "",
+        "",
+        "",
       ],
       select: [],
-      confirm: [false],
+      confirm: [false, false],
       secret: [],
     });
 
@@ -315,6 +323,43 @@ describe("boltwall CLI", () => {
     expect(saved).toContain("macaroon: LND_MACAROON");
     expect(saved).not.toContain("deploy:");
     expect(saved).not.toContain("UNUSED_");
+  });
+
+  test("interactive config creation can enable origin caveat and HODL mode", async () => {
+    const dir = await fixtureDir("create-advanced-policy");
+    const prompt = new ScriptedPrompt({
+      input: [
+        "hodl-dev",
+        "https://pokeapi.co/api/v2",
+        "pokedex",
+        "1000",
+        "/pokemon/*",
+        "1000",
+        "/healthz",
+        "120",
+        "https://app.example",
+        "pokedex-read",
+      ],
+      select: [],
+      confirm: [false, true],
+      secret: [],
+    });
+
+    const code = await runCli({
+      argv: ["config", "create"],
+      configDir: dir,
+      prompt,
+    });
+
+    expect(code).toBe(0);
+    const saved = await readFile(join(dir, "hodl-dev.yaml"), "utf8");
+    expect(saved).toContain("policy:");
+    expect(saved).toContain("validUntilSeconds: 120");
+    expect(saved).toContain("origin:");
+    expect(saved).toContain("https://app.example");
+    expect(saved).toContain("capabilities:");
+    expect(saved).toContain("pokedex-read");
+    expect(saved).toContain("hodl: true");
   });
 
   test("deploy --config --yes validates before setting Vercel env vars", async () => {
@@ -389,6 +434,19 @@ describe("boltwall CLI", () => {
       ],
       stdin: "pokedex-read\n",
     });
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "POLICY_ORIGIN",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+      ],
+      stdin: "https://boltwall-suite-playground.vercel.app\n",
+    });
     expect(runner.commands.at(-1)?.args).toEqual([
       "deploy",
       "--cwd",
@@ -442,6 +500,52 @@ describe("boltwall CLI", () => {
     });
   });
 
+  test("deploy maps HODL paywall mode to Vercel runtime env", async () => {
+    const dir = await fixtureDir("deploy-hodl");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(
+      configPath,
+      [
+        "name: hodl-proxy",
+        "targetUrl: https://pokeapi.co/api/v2",
+        "backend:",
+        "  kind: lnd",
+        "pricing:",
+        '  defaultPriceMsat: "1000"',
+        "policy:",
+        "  hodl: true",
+      ].join("\n"),
+    );
+    const runner = new MockRunner();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      configDir: dir,
+      env: {
+        LND_SOCKET: "localhost:10009",
+        LND_TLS_CERT: "cert",
+        LND_MACAROON: "macaroon",
+      },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(0);
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "PAYWALL_HODL",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "hodl-proxy"),
+      ],
+      stdin: "true\n",
+    });
+  });
+
   test("deploy interactive creates config and collects missing secrets", async () => {
     const dir = await fixtureDir("interactive");
     const stdout = new CaptureStream();
@@ -456,10 +560,12 @@ describe("boltwall CLI", () => {
         "1000",
         "/healthz",
         "",
+        "",
+        "",
         "boltwall-pokedex",
       ],
       select: ["opennode"],
-      confirm: [false, true],
+      confirm: [false, false, true],
       secret: ["interactive-api-key"],
     });
 
@@ -632,7 +738,13 @@ function yamlConfig(
     "pricing:",
     '  defaultPriceMsat: "1000"',
     ...(options.policy === true
-      ? ["policy:", "  validUntilSeconds: 60", "  capabilities: [pokedex-read]"]
+      ? [
+          "policy:",
+          "  validUntilSeconds: 60",
+          "  origin:",
+          "    - https://boltwall-suite-playground.vercel.app",
+          "  capabilities: [pokedex-read]",
+        ]
       : []),
     "routes:",
     "  - path: /pokemon/*",

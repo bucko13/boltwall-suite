@@ -1,7 +1,7 @@
 import { existsSync, readFileSync } from "node:fs";
 
 import { parseAmount } from "@boltwall/internal/numeric";
-import { validUntil, validUntilSatisfier } from "@boltwall/l402";
+import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { z } from "zod";
 
 import type { ForwardHeadersPolicy } from "./header-policy.js";
@@ -39,6 +39,7 @@ const envSchema = z
       .regex(/^\d+$/u, "must be a positive integer second duration")
       .refine((value) => Number(value) > 0, "must be a positive integer second duration")
       .optional(),
+    BOLTWALL_PROXY_POLICY_ORIGIN: z.string().optional(),
     BOLTWALL_PROXY_CAPABILITIES: z.string().optional(),
     BOLTWALL_PROXY_PAYWALL_HODL: z.enum(["true", "false"]).optional(),
   })
@@ -119,6 +120,13 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
 function parsePolicy(
   fields: ProxyEnvFields,
 ): Pick<ProxyEnvConfig, "caveats" | "satisfiers" | "capabilities" | "hodl"> {
+  const origin =
+    fields.BOLTWALL_PROXY_POLICY_ORIGIN === undefined
+      ? undefined
+      : normalizeOrigins(
+          splitList(fields.BOLTWALL_PROXY_POLICY_ORIGIN),
+          "BOLTWALL_PROXY_POLICY_ORIGIN",
+        );
   const caveats = [
     ...(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL === undefined
       ? []
@@ -131,10 +139,18 @@ function parsePolicy(
               seconds: Number(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS),
             }),
         ]),
+    ...(origin === undefined ? [] : [originCaveat(origin)]),
+  ];
+  const satisfiers = [
+    ...(fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL === undefined &&
+    fields.BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS === undefined
+      ? []
+      : [validUntilSatisfier()]),
+    ...(origin === undefined ? [] : [originSatisfier(origin)]),
   ];
 
   return {
-    ...(caveats.length === 0 ? {} : { caveats, satisfiers: [validUntilSatisfier()] }),
+    ...(caveats.length === 0 ? {} : { caveats, satisfiers }),
     ...(fields.BOLTWALL_PROXY_CAPABILITIES === undefined
       ? {}
       : { capabilities: splitList(fields.BOLTWALL_PROXY_CAPABILITIES) }),
@@ -146,7 +162,10 @@ function parseCors(fields: ProxyEnvFields): ProxyEnvConfig["cors"] | undefined {
   if (fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS === undefined) return undefined;
 
   return {
-    allowOrigins: normalizeOrigins(splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS)),
+    allowOrigins: normalizeOrigins(
+      splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS),
+      "BOLTWALL_PROXY_CORS_ALLOW_ORIGINS",
+    ),
     ...(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS === undefined
       ? {}
       : { exposeHeaders: splitList(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS) }),
@@ -162,10 +181,10 @@ function parseCors(fields: ProxyEnvFields): ProxyEnvConfig["cors"] | undefined {
   };
 }
 
-function normalizeOrigins(values: string[]): string[] {
+function normalizeOrigins(values: string[], fieldName: string): string[] {
   if (values.length === 0) {
     throw new Error(
-      "Invalid Boltwall proxy environment: BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: must contain at least one origin",
+      `Invalid Boltwall proxy environment: ${fieldName}: must contain at least one origin`,
     );
   }
 
@@ -173,7 +192,7 @@ function normalizeOrigins(values: string[]): string[] {
     return values.map((origin) => new URL(origin).origin);
   } catch {
     throw new Error(
-      "Invalid Boltwall proxy environment: BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: must contain valid URL origins",
+      `Invalid Boltwall proxy environment: ${fieldName}: must contain valid URL origins`,
     );
   }
 }
