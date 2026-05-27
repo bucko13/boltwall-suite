@@ -14,6 +14,7 @@ Commands:
   lncli          Run lncli against a regtest node by logical node name
   lnd-env        Print or export local LND adapter environment values
   smoke-adapter  Run the @boltwall/adapters LND payment smoke test
+  teardown       Stop local Bitcoin/LND regtest containers without deleting state
 
 Examples:
   bun run bootstrap -- --nodes payer,server
@@ -21,6 +22,7 @@ Examples:
   bun run lncli -- payer walletbalance
   bun run lnd-env -- --node server --summary
   bun run smoke-adapter -- --payer payer --server server
+  bun run infra -- teardown
 USAGE
 }
 
@@ -33,7 +35,7 @@ command="$1"
 shift
 
 case "$command" in
-  bootstrap | lightning | lncli | lnd-env | smoke-adapter)
+  bootstrap | lightning | lncli | lnd-env | smoke-adapter | teardown)
     exec "$SCRIPT_DIR/$command" "$@"
     ;;
   *)
