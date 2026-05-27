@@ -9,19 +9,47 @@ usage() {
   cat <<'USAGE'
 Usage:
   bun run infra -- teardown
+  bun run infra -- teardown --reset --yes
 
 Stops the local Bitcoin/LND regtest containers without removing Docker volumes,
 wallets, channels, certs, macaroons, or regtest chain state.
+
+Use --reset --yes only when you intentionally want to remove the local regtest
+containers, network, and Docker volumes for a clean state. This deletes local
+wallets, channels, certs, macaroons, and regtest chain state created by this
+harness.
 USAGE
 }
 
-if [ "${1:-}" = "-h" ] || [ "${1:-}" = "--help" ]; then
-  usage
-  exit 0
-fi
+reset_state=0
+yes=0
 
-if [ "$#" -ne 0 ]; then
-  usage >&2
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    -h | --help)
+      usage
+      exit 0
+      ;;
+    --reset)
+      reset_state=1
+      shift
+      ;;
+    --yes)
+      yes=1
+      shift
+      ;;
+    *)
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ "$reset_state" -eq 1 ] && [ "$yes" -ne 1 ]; then
+  usage
+  echo >&2
+  echo "Refusing to reset local LND state without --yes." >&2
+  echo "This operation removes Docker volumes containing wallets, channels, certs, macaroons, and regtest chain state." >&2
   exit 2
 fi
 
@@ -35,4 +63,8 @@ if ! docker compose version >/dev/null 2>&1; then
   exit 1
 fi
 
-docker compose -f "$COMPOSE_FILE" stop
+if [ "$reset_state" -eq 1 ]; then
+  docker compose -f "$COMPOSE_FILE" down --volumes --remove-orphans
+else
+  docker compose -f "$COMPOSE_FILE" stop
+fi

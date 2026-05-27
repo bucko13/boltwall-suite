@@ -192,7 +192,7 @@ containerized LND smoke harness that owns:
 3. channel funding/open,
 4. cert/macaroon extraction,
 5. invoice creation and payment loop,
-6. teardown.
+6. teardown or explicit reset.
 
 That harness can back both:
 
@@ -204,23 +204,29 @@ That harness can back both:
 Current repository command shape:
 
 ```bash
-# 1. Start containers + export LND_* vars.
-packages/adapters/src/lnd/smoke.sh
+# 1. Start the regtest topology with logical node names.
+bun run bootstrap -- --nodes payer,server
 
-# 2. If first run times out waiting for admin.macaroon, initialize wallet once:
-docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml exec lnd-alice lncli --network=regtest create
+# 2. Fund/connect/open a channel when needed.
+bun run lightning -- ready payer server
 
-# 3. Re-run the smoke script after wallet creation.
-packages/adapters/src/lnd/smoke.sh
+# 3. Run the LndAdapter settled-payment smoke.
+bun run smoke-adapter -- --payer payer --server server --amount-msat 1000
+
+# 4. Stop containers but preserve wallets/channels/chain state.
+bun run infra -- teardown
+
+# 5. Remove wallets/channels/chain state only when a clean reset is intended.
+bun run infra -- teardown --reset --yes
 ```
 
 This proof sequence is intentionally container-first. It avoids depending on
 undocumented Polar app internals and is a better fit for agent execution.
 
-Current limitation:
-
-- The committed harness is a first-cut bootstrap/export path and does not yet
-  fully automate channel open + payer invoice settlement end-to-end.
+`teardown` uses `docker compose stop` and keeps Docker volumes intact. The
+explicit `--reset --yes` path uses `docker compose down --volumes --remove-orphans`
+and removes the local regtest wallets, channels, certs, macaroons, and chain
+state owned by this harness.
 
 ## Risks And Constraints
 

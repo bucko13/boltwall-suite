@@ -14,7 +14,7 @@ Commands:
   lncli          Run lncli against a regtest node by logical node name
   lnd-env        Print or export local LND adapter environment values
   smoke-adapter  Run the @boltwall/adapters LND payment smoke test
-  teardown       Stop local Bitcoin/LND regtest containers without deleting state
+  teardown       Stop or explicitly reset the local Bitcoin/LND regtest topology
 
 Examples:
   bun run bootstrap -- --nodes payer,server
@@ -23,6 +23,7 @@ Examples:
   bun run lnd-env -- --node server --summary
   bun run smoke-adapter -- --payer payer --server server
   bun run infra -- teardown
+  bun run infra -- teardown --reset --yes
 USAGE
 }
 
