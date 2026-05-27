@@ -54,9 +54,10 @@ The current spec name is `L402`. For backward compatibility:
 - Servers should emit dual `WWW-Authenticate` challenges by default, with `LSAT` first and `L402` second, per Lightning Labs L402 spec §10.
 - Library serializers can be configured to emit `L402`-only output for explicit greenfield or test scenarios.
 
-## Start Here
+## Development
 
-For an end-to-end view, start with the workflows that cross packages:
+For local development, contribution validation, and cross-package testing, use
+the workflows that exercise the suite the way a user will:
 
 - [Local regtest proxy and playground workflow](./docs/local-regtest-proxy-playground.md):
   bootstrap a two-node Bitcoin/LND regtest topology, run the proxy against
@@ -81,7 +82,7 @@ Local regtest helper scripts are available from the repo root:
 
 ```sh
 bun run infra -- --help
-bun run infra -- bootstrap --nodes payer,server
+bun run bootstrap -- --nodes payer,server
 ```
 
 ## Playground

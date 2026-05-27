@@ -16,11 +16,11 @@ Commands:
   smoke-adapter  Run the @boltwall/adapters LND payment smoke test
 
 Examples:
-  bun run infra -- bootstrap --nodes payer,server
-  bun run infra -- lightning ready payer server
-  bun run infra -- lncli payer walletbalance
-  bun run infra -- lnd-env --node server --summary
-  bun run infra -- smoke-adapter --payer payer --server server
+  bun run bootstrap -- --nodes payer,server
+  bun run lightning -- ready payer server
+  bun run lncli -- payer walletbalance
+  bun run lnd-env -- --node server --summary
+  bun run smoke-adapter -- --payer payer --server server
 USAGE
 }
 

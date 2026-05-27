@@ -11,8 +11,8 @@ NODE_MAP_FILE="$STATE_DIR/nodes.env"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/bootstrap [--status] [--nodes <first>,<second>]
-  infra/scripts/bootstrap [--status] [--nodes <first> <second>]
+  bun run bootstrap -- [--status] [--nodes <first>,<second>]
+  bun run bootstrap -- [--status] [--nodes <first> <second>]
 
 Starts the Boltwall local Bitcoin/LND regtest topology and waits until:
   - bitcoind answers regtest RPC calls
@@ -21,7 +21,7 @@ Starts the Boltwall local Bitcoin/LND regtest topology and waits until:
 
 Use --nodes to assign logical test-node names while keeping the internal
 two-service Docker topology. For example, --nodes carol,david makes later
-infra/scripts/lncli commands accept carol and david as node names.
+bun run lncli -- carol ... and bun run lncli -- david ... commands work.
 
 The LND containers use a deterministic dev-only wallet password through the
 compose harness. Do not use this topology for production funds.
@@ -296,7 +296,7 @@ verify_alias() {
 
   if [ "$actual" != "$expected" ]; then
     echo "lnd-$node alias mismatch: expected '$expected', got '$actual'." >&2
-    echo "Try running infra/scripts/bootstrap again; changing existing aliases may require container recreation." >&2
+    echo "Try running bun run bootstrap again; changing existing aliases may require container recreation." >&2
     tail_logs "lnd-$node"
     return 1
   fi
@@ -334,11 +334,8 @@ Logical nodes:
   $bob_actual -> lnd-bob
 
 Useful commands:
-  infra/scripts/lncli $alice_actual getinfo
-  infra/scripts/lncli $bob_actual getinfo
-  infra/scripts/lncli $bob_actual walletbalance
-
-Next beads:
-  bw-4vd7.3 will add funding, channel readiness, and payment proof.
-  bw-4vd7.4 will add ephemeral LND env export for downstream packages.
+  bun run lncli -- $alice_actual getinfo
+  bun run lncli -- $bob_actual getinfo
+  bun run lncli -- $bob_actual walletbalance
+  bun run lightning -- ready $alice_actual $bob_actual
 EOF

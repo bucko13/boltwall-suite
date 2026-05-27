@@ -10,16 +10,16 @@ NODE_MAP_FILE="$STATE_DIR/nodes.env"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/lncli <node> <lncli args...>
+  bun run lncli -- <node> <lncli args...>
 
 Examples:
-  infra/scripts/lncli alice getinfo
-  infra/scripts/lncli carol getinfo
-  infra/scripts/lncli bob walletbalance
-  infra/scripts/lncli bob payinvoice --force <bolt11>
+  bun run lncli -- alice getinfo
+  bun run lncli -- carol getinfo
+  bun run lncli -- bob walletbalance
+  bun run lncli -- bob payinvoice --force <bolt11>
 
 The node can be an internal role (alice, bob) or a logical name created by:
-  infra/scripts/bootstrap --nodes carol,david
+  bun run bootstrap -- --nodes carol,david
 
 Expands to:
   docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
@@ -73,7 +73,7 @@ resolve_node_role() {
   fi
 
   echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
-  echo "Run infra/scripts/bootstrap --nodes <first>,<second> to set logical names." >&2
+  echo "Run bun run bootstrap -- --nodes <first>,<second> to set logical names." >&2
   return 2
 }
 

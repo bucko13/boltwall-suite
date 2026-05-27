@@ -16,7 +16,7 @@ DESCRIPTION="boltwall-lnd-adapter-smoke"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/smoke-adapter [--server <node>] [--payer <node>] [--amount-msat <msat>] [--ready-local-sats <sats>]
+  bun run smoke-adapter -- [--server <node>] [--payer <node>] [--amount-msat <msat>] [--ready-local-sats <sats>]
 
 Runs the LndAdapter real-regtest proof:
   1. ensure payer -> server channel readiness,

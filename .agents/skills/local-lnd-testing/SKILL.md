@@ -1,6 +1,6 @@
 ---
 name: local-lnd-testing
-description: Use when an agent needs to run, inspect, or document local containerized LND regtest testing for @boltwall/adapters, including Docker lncli commands, wallet/channel/payment smoke checks, or bw-4vd7 harness validation.
+description: Use when an agent needs to run, inspect, or document local containerized LND regtest testing for @boltwall/adapters, including Docker lncli commands and wallet/channel/payment smoke checks.
 ---
 
 # Local LND Testing
@@ -19,10 +19,10 @@ Map human-language requests to reusable local operations:
 - "Spin up a local Lightning network" -> bootstrap the Docker regtest topology.
 - "Use nodes carol and david" -> bootstrap with `--nodes carol,david`, then
   use those logical names in helper commands.
-- "Fund the nodes" -> use `bun run infra -- lightning ready <from> <to>`.
+- "Fund the nodes" -> use `bun run lightning -- ready <from> <to>`.
 - "Move funds from one node to another" -> create an invoice on the receiver,
   pay from the sender, and report before/after balances and payment status.
-- "Run lncli" -> use the bundled `bun run infra -- lncli` helper, not raw Docker Compose.
+- "Run lncli" -> use the bundled `bun run lncli --` helper, not raw Docker Compose.
 
 Report useful proof output: node aliases, regtest network, wallet/channel
 balances, payment hash/status, and command failures. Do not print certs,
@@ -33,10 +33,10 @@ macaroons, seeds, or env files.
 Use this harness for downstream work when a package needs a real LND-backed
 settled-flow proof instead of pure unit tests:
 
-- `@boltwall/adapters`: use `bun run infra -- smoke-adapter` for `LndAdapter`
-  create/open/pay/settled proof, or `bun run infra -- lightning` when validating
+- `@boltwall/adapters`: use `bun run smoke-adapter --` for `LndAdapter`
+  create/open/pay/settled proof, or `bun run lightning --` when validating
   only channel readiness and payer liquidity.
-- `@boltwall/middleware`: use `bun run infra -- lightning ready` before middleware tests
+- `@boltwall/middleware`: use `bun run lightning -- ready` before middleware tests
   need a payable invoice path, and use `lnd-env --node <server>` only when a
   local middleware process must construct `LndAdapterOptions`.
 - `@boltwall/proxy`: use the same `lnd-env` contract for the upstream payment
@@ -54,15 +54,15 @@ runbook in package docs.
 
 Keep the steps distinct so handoffs are easy to review:
 
-1. Bootstrap: `bun run infra -- bootstrap --nodes <payer>,<server>` starts the topology
+1. Bootstrap: `bun run bootstrap -- --nodes <payer>,<server>` starts the topology
    and verifies aliases.
 2. Env export: `lnd-env --node <server>` prints a redacted summary; use
    `--export` only inside the local shell that needs credentials.
-3. Payment helper: `bun run infra -- lightning ready` proves channel readiness, and
-   `bun run infra -- lightning move` proves a non-interactive settled invoice.
-4. Adapter smoke: `bun run infra -- smoke-adapter` proves the same settled path through
+3. Payment helper: `bun run lightning -- ready` proves channel readiness, and
+   `bun run lightning -- move` proves a non-interactive settled invoice.
+4. Adapter smoke: `bun run smoke-adapter --` proves the same settled path through
    `LndAdapter`.
-5. Diagnostics: use helper output first, then `bun run infra -- lncli` for targeted
+5. Diagnostics: use helper output first, then `bun run lncli --` for targeted
    `getinfo`, `walletbalance`, `listchannels`, or `pendingchannels` checks.
 6. Teardown: stop local containers only when no peer task depends on the shared
    topology. Do not remove Docker volumes, wallet state, env files, copied
@@ -79,7 +79,7 @@ or paste certs, macaroons, seeds, preimages, full `lnd-env --json` output,
 First bootstrap the Docker regtest topology:
 
 ```sh
-bun run infra -- bootstrap --nodes carol,david
+bun run bootstrap -- --nodes carol,david
 ```
 
 The bootstrap command starts bitcoind, `lnd-alice`, and `lnd-bob`, waits for
@@ -93,7 +93,7 @@ reports those aliases.
 Use `--status` to inspect an already-running topology:
 
 ```sh
-bun run infra -- bootstrap --status
+bun run bootstrap -- --status
 ```
 
 ## Node Commands
@@ -101,10 +101,10 @@ bun run infra -- bootstrap --status
 Use the bundled script instead of hand-writing Docker Compose `lncli` commands:
 
 ```sh
-bun run infra -- lncli alice getinfo
-bun run infra -- lncli carol getinfo
-bun run infra -- lncli bob walletbalance
-bun run infra -- lncli david payinvoice --force <bolt11>
+bun run lncli -- alice getinfo
+bun run lncli -- carol getinfo
+bun run lncli -- bob walletbalance
+bun run lncli -- david payinvoice --force <bolt11>
 ```
 
 It expands to:
@@ -115,7 +115,7 @@ docker compose -f packages/adapters/src/lnd/docker-compose.smoke.yml \
 ```
 
 The helper accepts internal roles (`alice`, `bob`) and logical names from the
-last `bun run infra -- bootstrap --nodes <first>,<second>` run. The mapping is stored as
+last `bun run bootstrap -- --nodes <first>,<second>` run. The mapping is stored as
 non-secret runtime state under the local temp directory, so a fresh agent in the
 same checkout can target `carol` and `david` without prior session context.
 
@@ -136,13 +136,13 @@ Use direct `docker compose` only when debugging the topology lifecycle itself.
 
 ## Funding And Payments
 
-Use `bun run infra -- lightning` for reusable network operations instead of composing raw
+Use `bun run lightning --` for reusable network operations instead of composing raw
 `bitcoin-cli` and `lncli` calls:
 
 ```sh
-bun run infra -- lightning ready carol david
-bun run infra -- lightning move carol david 1000
-bun run infra -- lightning balances carol david
+bun run lightning -- ready carol david
+bun run lightning -- move carol david 1000
+bun run lightning -- balances carol david
 ```
 
 `ready <from> <to> [local-sats]` bootstraps the requested logical names, funds
@@ -166,18 +166,18 @@ prefix:
 
 ## LndAdapter Smoke
 
-Use `bun run infra -- smoke-adapter` when a task needs proof that `@boltwall/adapters/lnd`
+Use `bun run smoke-adapter --` when a task needs proof that `@boltwall/adapters/lnd`
 can create a real invoice and observe settlement through the `lightning` npm
 package:
 
 ```sh
-bun run infra -- smoke-adapter --payer carol --server david --amount-msat 1000
+bun run smoke-adapter -- --payer carol --server david --amount-msat 1000
 ```
 
 The helper ensures payer-to-server channel readiness, derives the server LND
 env contract without printing credentials, normalizes the host socket to avoid
 IP-address TLS server-name failures in `lightning`, creates a `LndAdapter`
-invoice, pays it with `bun run infra -- lncli`, then prints proof-safe output: local
+invoice, pays it with `bun run lncli --`, then prints proof-safe output: local
 BOLT11, payment hash, open/settled statuses, amount, and preimage shape.
 
 Never paste certs, macaroons, seeds, env files, or full helper debug traces into
@@ -190,7 +190,7 @@ Use `lnd-env` when adapter, middleware, proxy, or playground code needs to talk
 to the server LND node from the host process:
 
 ```sh
-bun run infra -- lnd-env
+bun run lnd-env
 ```
 
 The default mode prints a redacted summary for logs and names the expected
@@ -204,11 +204,11 @@ To export the local-only credential values into the current shell, make the
 credential-bearing mode explicit:
 
 ```sh
-eval "$(bun run --silent infra -- lnd-env --export)"
+eval "$(bun run --silent lnd-env -- --export)"
 ```
 
 Use `--node <name>` to target an internal role (`alice`, `bob`) or a logical
-name from `bun run infra -- bootstrap --nodes <first>,<second>`. The default is `alice`,
+name from `bun run bootstrap -- --nodes <first>,<second>`. The default is `alice`,
 the server role intended for `LndAdapter` smoke checks. `--json` is available
 for local process handoff, and `--validate` constructs `LndAdapter` with the
 derived values without printing certs or macaroons.
@@ -220,17 +220,17 @@ environment variables.
 ## Workflow
 
 1. Read `packages/adapters/src/lnd/REGTEST.md` for the operator-facing runbook.
-2. Start the topology with `bun run infra -- bootstrap`.
+2. Start the topology with `bun run bootstrap`.
 3. Use requested logical names in helper commands; the first logical node maps
    to `lnd-alice`, and the second maps to `lnd-bob`.
 4. Use `lnd-env --node <first>` to export adapter env values for the server
    node when code needs `LndAdapterOptions`.
-5. Use `bun run infra -- lightning ready <first> <second>` before tests need spendable
+5. Use `bun run lightning -- ready <first> <second>` before tests need spendable
    channel liquidity.
-6. Use `bun run infra -- lightning move <from> <to> <sats>` for payment proof.
-7. Use `bun run infra -- smoke-adapter --payer <first> --server <second>` when the proof must
+6. Use `bun run lightning -- move <from> <to> <sats>` for payment proof.
+7. Use `bun run smoke-adapter -- --payer <first> --server <second>` when the proof must
    go through `LndAdapter` instead of raw `lncli` invoice creation.
-8. Use `bun run infra -- lncli <node> ...` only for ad hoc node inspection that is not
+8. Use `bun run lncli -- <node> ...` only for ad hoc node inspection that is not
    covered by the higher-level helper.
 9. For settled-flow proof, record only non-secret facts: command names, invoice
    status transitions, payment hash, and success/failure summaries. Never paste
@@ -243,9 +243,9 @@ environment variables.
 - `listchannels` checks channel state and liquidity.
 - `pendingchannels` helps explain why a channel is not usable yet.
 - `payinvoice --force <bolt11>` is the payer-side non-interactive payment path.
-- `bun run infra -- lightning ready` distinguishes funding, peer connection, and channel
+- `bun run lightning -- ready` distinguishes funding, peer connection, and channel
   readiness failures.
-- `bun run infra -- lightning move` distinguishes invoice creation, payment, and settled
+- `bun run lightning -- move` distinguishes invoice creation, payment, and settled
   lookup failures.
 
 When a command fails, include the failing command, node (`alice` or `bob`), and

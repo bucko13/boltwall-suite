@@ -28,7 +28,7 @@ bun install
 Use logical node names so the rest of the commands read naturally:
 
 ```sh
-bun run infra -- bootstrap --nodes payer,server
+bun run bootstrap -- --nodes payer,server
 ```
 
 `payer` pays invoices. `server` is the node the proxy uses to create and settle
@@ -37,14 +37,13 @@ invoices.
 Prepare channel liquidity from `payer` to `server`:
 
 ```sh
-bun run infra -- lightning ready payer server
-bun run infra -- lightning balances payer server
+bun run lightning -- ready payer server
 ```
 
 For a proof payment outside the proxy, this should settle a 1 sat invoice:
 
 ```sh
-bun run infra -- lightning move payer server 1
+bun run lightning -- move payer server 1
 ```
 
 ## 2. Export Server LND Env
@@ -52,7 +51,7 @@ bun run infra -- lightning move payer server 1
 In the shell that will run the proxy, export the server node connection values:
 
 ```sh
-eval "$(bun run --silent infra -- lnd-env --node server --export)"
+eval "$(bun run --silent lnd-env -- --node server --export)"
 ```
 
 The helper exports the canonical local LND backend variables:
@@ -61,15 +60,13 @@ The helper exports the canonical local LND backend variables:
 - `LND_TLS_CERT`
 - `LND_MACAROON`
 
-`LND_TLS_CERT` and `LND_MACAROON` are local credential content emitted by the
-helper, not filesystem paths. They are fine to print in local terminal output,
-but keep them out of version control.
+`LND_TLS_CERT` and `LND_MACAROON` are credential content, not filesystem paths.
 
 For a redacted check:
 
 ```sh
-bun run infra -- lnd-env --node server --summary
-bun run infra -- lnd-env --node server --validate
+bun run lnd-env -- --node server --summary
+bun run lnd-env -- --node server --validate
 ```
 
 ## 3. Start The Local Proxy
@@ -83,18 +80,18 @@ bun run boltwall -- dev --port 4010
 If you have no saved configs yet, the CLI creates one under
 `~/.config/boltwall/`. Use these answers for the PokeAPI playground demo:
 
-| Prompt                                | Answer                      |
-| ------------------------------------- | --------------------------- |
-| Config name                           | `local-regtest-pokedex`     |
-| Lightning backend                     | `lnd`                       |
-| Allow browser JavaScript clients      | `yes`                       |
-| Allowed browser origins               | accept the local defaults   |
-| Upstream target URL                   | `https://pokeapi.co/api/v2` |
-| Service name                          | `pokedex`                   |
-| Default price in millisatoshis        | `1000`                      |
-| Protected path                        | `/pokemon/*`                |
-| Protected path price in millisatoshis | `1000`                      |
-| Unprotected paths                     | `/healthz`                  |
+| Prompt                                                 | Answer                      |
+| ------------------------------------------------------ | --------------------------- |
+| Config name                                            | `local-regtest-pokedex`     |
+| Lightning backend                                      | `lnd`                       |
+| Allow browser JavaScript clients                       | `yes`                       |
+| Allowed browser origins                                | accept the local defaults   |
+| Upstream target URL                                    | `https://pokeapi.co/api/v2` |
+| Service name                                           | `pokedex`                   |
+| Default price for protected requests, in millisatoshis | `1000`                      |
+| Protected path                                         | `/pokemon/*`                |
+| Price for this protected path, in millisatoshis        | `1000`                      |
+| Unprotected paths                                      | `/healthz`                  |
 
 The config stores routing metadata and environment variable names only. It does
 not store the LND cert or macaroon values.
@@ -127,8 +124,13 @@ In a new shell:
 
 ```sh
 NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT=http://127.0.0.1:4010/pokemon/{id} \
-  bun run --cwd apps/playground dev
+  bun run playground
 ```
+
+Expected terminal output includes Next.js starting the playground on
+`http://localhost:3000`. If you see unrelated Agent Mail or file-reservation
+logs, the command is running in the wrong terminal process; open a fresh shell
+in the repo root and run it there.
 
 Open the local playground and go to the Demo panel:
 
@@ -154,7 +156,7 @@ If WebLN is not connected to the local payer node, pay the invoice from the
 challenge with `lncli`:
 
 ```sh
-bun run infra -- lncli payer payinvoice --force <bolt11-invoice>
+bun run lncli -- payer payinvoice --force <bolt11-invoice>
 ```
 
 Copy the 64-character hex payment preimage from the `lncli` output, paste it
@@ -186,13 +188,13 @@ If you copied the legacy challenge instead, use `Authorization: LSAT
 ## Troubleshooting
 
 - `Missing required environment variable`: re-run
-  `eval "$(bun run --silent infra -- lnd-env --node server --export)"` in the
+  `eval "$(bun run --silent lnd-env -- --node server --export)"` in the
   same shell that starts the proxy.
 - `402` after retry: make sure the macaroon and preimage came from the same
   challenge/invoice. A fresh first request creates a fresh invoice.
 - Browser cannot read the challenge: edit the saved proxy config so browser
   clients are allowed and `http://127.0.0.1:3000` is listed as an origin.
-- Invoice does not settle: run `bun run infra -- lightning ready payer server`
+- Invoice does not settle: run `bun run lightning -- ready payer server`
   again and check channel balances.
 
 ## Useful CLI Checks

@@ -15,7 +15,7 @@ ADMIN_MACAROON_PATH="/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/lnd-env [--node <node>] [--summary|--export|--json|--validate]
+  bun run lnd-env -- [--node <node>] [--summary|--export|--json|--validate]
 
 Derives the local-only LND environment contract for a regtest LND node:
   LND_SOCKET
@@ -23,8 +23,8 @@ Derives the local-only LND environment contract for a regtest LND node:
   LND_MACAROON
 
 The default node is alice, the server role used by LndAdapter. The node can be
-an internal role (alice, bob) or a logical name created by infra/scripts/bootstrap:
-  infra/scripts/bootstrap --nodes carol,david
+an internal role (alice, bob) or a logical name created by bootstrap:
+  bun run bootstrap -- --nodes carol,david
 
 Modes:
   --summary   Print a redacted summary for logs. This is the default.
@@ -33,7 +33,7 @@ Modes:
   --validate  Construct @boltwall/adapters/lnd LndAdapter with the derived values.
 
 Run bootstrap first if the topology is not already available:
-  infra/scripts/bootstrap
+  bun run bootstrap
 
 The helper emits LND_TLS_CERT and LND_MACAROON as base64 content, not paths.
 Keep the output out of version control.
@@ -145,7 +145,7 @@ resolve_node_role() {
   fi
 
   echo "Unknown LND node '$requested'; expected $(known_nodes)." >&2
-  echo "Run infra/scripts/bootstrap --nodes <first>,<second> to set logical names." >&2
+  echo "Run bun run bootstrap -- --nodes <first>,<second> to set logical names." >&2
   return 2
 }
 
@@ -190,7 +190,7 @@ if (!match) {
   process.exit(1);
 }
 
-process.stdout.write(`127.0.0.1:${match[1]}`);
+process.stdout.write(`localhost:${match[1]}`);
 NODE
 }
 
@@ -225,7 +225,7 @@ Downstream consumers:
   middleware, proxy, and playground smoke flows consume these as local env values.
 
 To export credential values in this shell only:
-  eval "\$(infra/scripts/lnd-env --node $node_name --export)"
+  eval "\$(bun run --silent lnd-env -- --node $node_name --export)"
 EOF
     ;;
   export)

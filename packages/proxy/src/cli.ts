@@ -278,7 +278,10 @@ async function chooseDevConfig(
   stdout: Writable,
 ): Promise<LoadedConfig> {
   const saved = await listSavedConfigs(configDir);
-  if (saved.length === 0) return await promptForConfig(prompt, undefined, "dev", configDir, stdout);
+  if (saved.length === 0) {
+    write(stdout, "No saved Boltwall config found. Creating a local proxy config now.\n");
+    return await promptForConfig(prompt, undefined, "dev", configDir, stdout);
+  }
   if (saved.length === 1) {
     write(stdout, `Using saved config: ${saved[0]!.name} (${saved[0]!.path})\n`);
     return {
@@ -296,7 +299,10 @@ async function chooseOrCreateConfig(
   stdout: Writable = defaultStdout,
 ): Promise<LoadedConfig> {
   const saved = await listSavedConfigs(configDir);
-  if (saved.length === 0) return await promptForConfig(prompt, undefined, mode, configDir, stdout);
+  if (saved.length === 0) {
+    write(stdout, "No saved Boltwall config found. Creating a proxy config now.\n");
+    return await promptForConfig(prompt, undefined, mode, configDir, stdout);
+  }
 
   const action = await prompt.select("Config", ["use existing", "edit existing", "create new"]);
   if (action === "create new")
@@ -399,7 +405,7 @@ async function promptForConfig(
     },
     pricing: {
       defaultPriceMsat: await prompt.input(
-        "Default price in millisatoshis",
+        "Default price for protected requests, in millisatoshis",
         existing?.pricing.defaultPriceMsat ?? "1000",
       ),
     },
@@ -408,7 +414,7 @@ async function promptForConfig(
         path: await prompt.input("Protected path", existing?.routes?.[0]?.path ?? "/*"),
         methods: existing?.routes?.[0]?.methods ?? ["GET"],
         priceMsat: await prompt.input(
-          "Protected path price in millisatoshis",
+          "Price for this protected path, in millisatoshis",
           existing?.routes?.[0]?.priceMsat ?? existing?.pricing.defaultPriceMsat ?? "1000",
         ),
       },

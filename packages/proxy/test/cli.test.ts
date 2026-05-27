@@ -158,6 +158,9 @@ describe("boltwall CLI", () => {
     });
 
     expect(code).toBe(0);
+    expect(stdout.text()).toContain(
+      "No saved Boltwall config found. Creating a local proxy config now.",
+    );
     expect(stdout.text()).toContain("Saved config:");
     expect(stdout.text()).toContain("boltwall proxy validated for http://127.0.0.1:4010");
   });

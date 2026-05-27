@@ -12,22 +12,22 @@ NODE_MAP_FILE="$STATE_DIR/nodes.env"
 usage() {
   cat <<'EOF'
 Usage:
-  infra/scripts/lightning balances [node...]
-  infra/scripts/lightning fund <node> [blocks]
-  infra/scripts/lightning fund-all [node node] [blocks]
-  infra/scripts/lightning connect <from> <to>
-  infra/scripts/lightning open-channel <from> <to> [local-sats]
-  infra/scripts/lightning ready <from> <to> [local-sats]
-  infra/scripts/lightning move <from> <to> [sats]
+  bun run lightning -- balances [node...]
+  bun run lightning -- fund <node> [blocks]
+  bun run lightning -- fund-all [node node] [blocks]
+  bun run lightning -- connect <from> <to>
+  bun run lightning -- open-channel <from> <to> [local-sats]
+  bun run lightning -- ready <from> <to> [local-sats]
+  bun run lightning -- move <from> <to> [sats]
 
 Reusable local regtest operations for the Docker LND harness. Nodes can be
-internal roles (alice, bob) or logical names set by infra/scripts/bootstrap --nodes.
+internal roles (alice, bob) or logical names set by bun run bootstrap -- --nodes.
 
 Examples:
-  infra/scripts/bootstrap --nodes carol,david
-  infra/scripts/lightning ready carol david
-  infra/scripts/lightning move carol david 1000
-  infra/scripts/lightning balances carol david
+  bun run bootstrap -- --nodes carol,david
+  bun run lightning -- ready carol david
+  bun run lightning -- move carol david 1000
+  bun run lightning -- balances carol david
 EOF
 }
 
@@ -151,7 +151,7 @@ role_for_node() {
     return 0
   fi
 
-  echo "Unknown node '$requested'. Run infra/scripts/bootstrap --nodes <first>,<second> first." >&2
+  echo "Unknown node '$requested'. Run bun run bootstrap -- --nodes <first>,<second> first." >&2
   return 2
 }
 

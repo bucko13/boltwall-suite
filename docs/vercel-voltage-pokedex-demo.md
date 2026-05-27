@@ -1,4 +1,4 @@
-# Vercel Voltage Pokedex Demo
+# Vercel LND Pokedex Demo
 
 This runbook deploys a production-style Boltwall proxy to Vercel, backed by a
 Voltage LND node, then points the hosted playground at the protected PokeAPI
@@ -46,6 +46,13 @@ Voltage LND reference:
   dashboard.
 - The gRPC port is `10009`; REST is `8080`.
 - Macaroons are authentication tokens and must be treated like passwords.
+
+Self-hosted LND can use the same Vercel proxy flow with the `lnd` backend
+instead of `voltage-lnd`. The required env names are `LND_SOCKET`,
+`LND_TLS_CERT`, and `LND_MACAROON`; the socket must be reachable from Vercel and
+the TLS certificate must match the host name clients use. Voltage remains the
+primary example here because it provides a hosted LND endpoint with public
+network reachability.
 
 ## 1. Prepare Voltage Credentials
 
