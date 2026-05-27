@@ -33,11 +33,12 @@ boltwall deploy
 ```
 
 The wizard asks for the upstream URL, protected path, Lightning backend, price,
-browser CORS policy when needed, and Vercel project name. It saves non-secret
-metadata and environment variable names only. If a required backend secret is
-not already present in the current process, the wizard prompts for it and sends
-it to Vercel with `vercel env add --sensitive`; it does not silently write
-secret values to disk.
+browser CORS policy when needed, and Vercel project name. Select prompts show
+numbered choices with the default marked, and secret prompts mask terminal echo.
+The wizard saves non-secret metadata and environment variable names only. If a
+required backend secret is not already present in the current process, the
+wizard prompts for it and sends it to Vercel with `vercel env add --sensitive`;
+it does not silently write secret values to disk.
 
 Automation can use a checked-in, non-secret JSON or YAML config:
 

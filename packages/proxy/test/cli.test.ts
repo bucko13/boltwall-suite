@@ -1,11 +1,11 @@
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { Writable } from "node:stream";
+import { Readable, Writable } from "node:stream";
 
 import { describe, expect, test } from "bun:test";
 
-import { runCli, type PromptDriver } from "../src/cli";
+import { ReadlinePrompt, runCli, type PromptDriver } from "../src/cli";
 import type { CommandResult, CommandRunner } from "../src/deploy/vercel";
 
 describe("boltwall CLI", () => {
@@ -15,6 +15,29 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).toContain("deploy [--config <name-or-path>]");
     expect(stdout.text()).not.toContain("deploy vercel");
     expect(stdout.text()).toContain("config allow-origin <name-or-path> <origin...>");
+  });
+
+  test("readline select renders a choice prompt with a default marker", async () => {
+    const stdout = new CaptureStream();
+    const prompt = new ReadlinePrompt(Readable.from(["2\n"]), stdout);
+
+    await expect(
+      prompt.select("Lightning backend", ["voltage-lnd", "lnd", "opennode"], "lnd"),
+    ).resolves.toBe("lnd");
+
+    expect(stdout.text()).toContain("Lightning backend:");
+    expect(stdout.text()).toContain("  1. voltage-lnd");
+    expect(stdout.text()).toContain("  2. lnd (default)");
+    expect(stdout.text()).toContain("Choose lightning backend [lnd]:");
+  });
+
+  test("readline secret prompts do not echo secret values", async () => {
+    const stdout = new CaptureStream();
+    const prompt = new ReadlinePrompt(Readable.from(["secret-api-key\n"]), stdout);
+
+    await expect(prompt.secret("OPENNODE_API_KEY")).resolves.toBe("secret-api-key");
+    expect(stdout.text()).toContain("OPENNODE_API_KEY:");
+    expect(stdout.text()).not.toContain("secret-api-key");
   });
 
   test("validate reports missing config names and paths", async () => {

@@ -4,7 +4,8 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
-import { createInterface } from "node:readline/promises";
+import { createInterface as createMaskedInterface } from "node:readline";
+import { createInterface as createQuestionInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
 
@@ -496,9 +497,7 @@ function promptedPolicy(
     ...(existing?.policy?.validUntil === undefined
       ? {}
       : { validUntil: existing.policy.validUntil }),
-    ...(validUntilSeconds === undefined
-      ? {}
-      : { validUntilSeconds: Number(validUntilSeconds) }),
+    ...(validUntilSeconds === undefined ? {} : { validUntilSeconds: Number(validUntilSeconds) }),
     ...(existing?.policy?.capabilities === undefined
       ? {}
       : { capabilities: existing.policy.capabilities }),
@@ -737,16 +736,22 @@ function isDefined(value: string | undefined): value is string {
   return value !== undefined;
 }
 
-class ReadlinePrompt implements PromptDriver {
+interface MaskedInterface {
+  _writeToOutput?: (value: string) => void;
+  close(): void;
+  question(query: string, callback: (answer: string) => void): void;
+}
+
+export class ReadlinePrompt implements PromptDriver {
   constructor(
     private readonly inputStream: Readable,
     private readonly outputStream: Writable,
   ) {}
 
   async input(message: string, defaultValue?: string): Promise<string> {
-    const rl = createInterface({ input: this.inputStream, output: this.outputStream });
+    const rl = createQuestionInterface({ input: this.inputStream, output: this.outputStream });
     try {
-      const suffix = defaultValue === undefined || defaultValue === "" ? "" : ` (${defaultValue})`;
+      const suffix = defaultValue === undefined || defaultValue === "" ? "" : ` [${defaultValue}]`;
       const answer = await rl.question(`${message}${suffix}: `);
       return answer.trim() === "" && defaultValue !== undefined ? defaultValue : answer.trim();
     } finally {
@@ -755,7 +760,23 @@ class ReadlinePrompt implements PromptDriver {
   }
 
   async secret(message: string): Promise<string> {
-    return await this.input(message);
+    write(this.outputStream, `${message}: `);
+    const rl = createMaskedInterface({
+      input: this.inputStream,
+      output: this.outputStream,
+      terminal: true,
+    }) as MaskedInterface;
+    rl._writeToOutput = () => {};
+
+    try {
+      const answer = await new Promise<string>((resolve) => {
+        rl.question("", resolve);
+      });
+      write(this.outputStream, "\n");
+      return answer.trim();
+    } finally {
+      rl.close();
+    }
   }
 
   async confirm(message: string, defaultValue = false): Promise<boolean> {
@@ -767,11 +788,13 @@ class ReadlinePrompt implements PromptDriver {
 
   async select(message: string, choices: string[], defaultValue?: string): Promise<string> {
     if (choices.length === 0) throw new Error(`${message}: no choices available`);
-    choices.forEach((choice, index) => {
-      write(this.outputStream, `${index + 1}. ${choice}\n`);
-    });
     const fallback = defaultValue ?? choices[0]!;
-    const answer = await this.input(message, fallback);
+    write(this.outputStream, `${message}:\n`);
+    choices.forEach((choice, index) => {
+      const marker = choice === fallback ? " (default)" : "";
+      write(this.outputStream, `  ${index + 1}. ${choice}${marker}\n`);
+    });
+    const answer = await this.input(`Choose ${message.toLowerCase()}`, fallback);
     const numeric = Number(answer);
     if (Number.isInteger(numeric) && numeric >= 1 && numeric <= choices.length) {
       return choices[numeric - 1]!;
