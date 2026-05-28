@@ -186,6 +186,22 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       `L402 abc:${TEST_PREIMAGE}`,
     );
+
+    await page.reload();
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/p\/demo/);
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+
+    await page.click("[data-testid='workbench-memory-clear-all']");
+    await page.reload();
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText(
+      "empty",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("empty");
   });
 
   test("shows captured L402 caveats with an expiration timer", async ({ page }) => {
@@ -220,6 +236,19 @@ test.describe("panels / demo", () => {
       `L402 macaroon="${CAVEATED_MACAROON}", invoice="lnbc1demo"`,
     );
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(CAVEATED_MACAROON);
+
+    await page.reload();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      CAVEATED_MACAROON.slice(0, 8),
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/p\/demo/);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      CAVEATED_MACAROON.slice(0, 8),
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
   });
 
   test("reuses a paid credential for later protected requests", async ({ page }) => {

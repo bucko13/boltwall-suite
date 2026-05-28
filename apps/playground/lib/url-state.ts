@@ -36,6 +36,47 @@ type WorkbenchMemoryContextValue = {
 
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
 const WORKBENCH_MEMORY_CLEAR_EVENT = "boltwall:workbench-memory-clear";
+const WORKBENCH_MEMORY_STORAGE_KEY = "bw.workbench-memory";
+
+type WorkbenchMemorySnapshot = Record<WorkbenchMemoryField, string>;
+
+const EMPTY_WORKBENCH_MEMORY: WorkbenchMemorySnapshot = {
+  signingKey: "",
+  macaroon: "",
+  challenge: "",
+  credential: "",
+};
+
+function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
+  if (typeof window === "undefined") return EMPTY_WORKBENCH_MEMORY;
+  try {
+    const raw = window.sessionStorage.getItem(WORKBENCH_MEMORY_STORAGE_KEY);
+    if (!raw) return EMPTY_WORKBENCH_MEMORY;
+    const parsed = JSON.parse(raw) as Partial<Record<WorkbenchMemoryField, unknown>>;
+    return {
+      signingKey: typeof parsed.signingKey === "string" ? parsed.signingKey : "",
+      macaroon: typeof parsed.macaroon === "string" ? parsed.macaroon : "",
+      challenge: typeof parsed.challenge === "string" ? parsed.challenge : "",
+      credential: typeof parsed.credential === "string" ? parsed.credential : "",
+    };
+  } catch {
+    return EMPTY_WORKBENCH_MEMORY;
+  }
+}
+
+function writeStoredWorkbenchMemory(snapshot: WorkbenchMemorySnapshot) {
+  if (typeof window === "undefined") return;
+  const hasValue = Object.values(snapshot).some(Boolean);
+  try {
+    if (hasValue) {
+      window.sessionStorage.setItem(WORKBENCH_MEMORY_STORAGE_KEY, JSON.stringify(snapshot));
+      return;
+    }
+    window.sessionStorage.removeItem(WORKBENCH_MEMORY_STORAGE_KEY);
+  } catch {
+    // Storage is a progressive enhancement; keep in-memory Workbench state usable.
+  }
+}
 
 function notifyMemoryFieldCleared(field: WorkbenchMemoryField) {
   if (typeof window === "undefined") return;
@@ -47,6 +88,21 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const [macaroon, setMacaroonState] = useState("");
   const [challenge, setChallengeState] = useState("");
   const [credential, setCredentialState] = useState("");
+  const [storageHydrated, setStorageHydrated] = useState(false);
+
+  useEffect(() => {
+    const stored = readStoredWorkbenchMemory();
+    setSigningKeyState(stored.signingKey);
+    setMacaroonState(stored.macaroon);
+    setChallengeState(stored.challenge);
+    setCredentialState(stored.credential);
+    setStorageHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!storageHydrated) return;
+    writeStoredWorkbenchMemory({ signingKey, macaroon, challenge, credential });
+  }, [challenge, credential, macaroon, signingKey, storageHydrated]);
 
   const setSigningKey = useCallback((value: string | null) => {
     if (!value) notifyMemoryFieldCleared("signingKey");
