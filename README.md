@@ -22,7 +22,7 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 - **Protocol-correct.** The L402 spec is the source of truth. [Aperture](https://github.com/lightninglabs/aperture) (the Lightning Labs Go implementation) is the interop reference.
 - **Browser and Node.** The core protocol library runs in both. Public API uses `Uint8Array`, not `Buffer`.
-- **MIT-licensed.** Packages are private while the API stabilizes and are intended to publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope.
+- **MIT-licensed.** Packages are intended to publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope once the API is stable.
 
 ## Packages
 
@@ -99,6 +99,9 @@ Local regtest helper scripts are available from the repo root:
 bun run infra -- --help
 bun run bootstrap -- --nodes payer,server
 ```
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md) before opening larger protocol,
+security, deployment, or public API changes.
 
 ## Playground
 

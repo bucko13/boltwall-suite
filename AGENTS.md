@@ -587,4 +587,6 @@ When stuck, escalate before improvising:
 
 ## Contribution Policy
 
-This is a private project for now. Do not add CONTRIBUTING.md, contributor lists, or "how to contribute" sections to README. If the policy changes, the owner will update this section.
+Durable repository docs should read as public-ready. Keep contributor-facing
+guidance in `CONTRIBUTING.md`, and keep agent-only coordination details in this
+file. Do not add private-project disclaimers to user-facing docs.
