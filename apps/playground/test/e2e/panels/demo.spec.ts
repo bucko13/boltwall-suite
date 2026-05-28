@@ -115,6 +115,7 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
       "L402 challenge captured",
     );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Parse L402");
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("⧉");
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveAttribute(
@@ -136,6 +137,8 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-pay-webln']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
       "Credential created",
     );
@@ -410,6 +413,8 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-preimage-submit']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
     await expect(page.locator("[data-testid='demo-pokemon-type']")).toContainText("electric");
   });
 

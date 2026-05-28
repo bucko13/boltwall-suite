@@ -456,6 +456,8 @@ export function Demo() {
         credential: result.credential,
         sourceChallenge: challenge.rawAuthenticate,
       });
+      workbenchMemory?.setCredential(result.credential.authorization);
+      workbenchMemory?.setChallenge(challenge.rawAuthenticate);
       setCachedCredential({
         endpointTemplate: challenge.endpointTemplate,
         credential: result.credential,
@@ -475,6 +477,8 @@ export function Demo() {
       credential: result.credential,
       sourceChallenge: challenge.rawAuthenticate,
     });
+    workbenchMemory?.setCredential(result.credential.authorization);
+    workbenchMemory?.setChallenge(challenge.rawAuthenticate);
     setStatus({
       kind: "error",
       error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
@@ -509,6 +513,7 @@ export function Demo() {
       kind: "challenge",
       rawAuthenticate: result.challenge.rawAuthenticate,
     });
+    workbenchMemory?.setChallenge(result.challenge.rawAuthenticate);
     setStatus({
       kind: "awaiting-payment",
       id,
