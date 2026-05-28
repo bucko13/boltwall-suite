@@ -29,7 +29,11 @@ permissions:
 
 Per-job overrides are allowed only when narrowly justified by a specific step (e.g., `checks: write` for a status-publisher, `pull-requests: write` for a comment-bot). Document the reason inline.
 
-**Only the release workflow may hold `id-token: write`**, and only on the job that actually requests an OIDC token. Never grant it at the top level.
+**Only the release workflow and GitHub Pages deploy jobs may hold
+`id-token: write`**, and only on the job that actually requests an OIDC token.
+Never grant it at the top level. Pages deploy jobs are the narrow exception
+because GitHub's custom Pages workflow contract requires both `pages: write`
+and `id-token: write` for the deployment job.
 
 ### 3. CI installs use `--ignore-scripts` and `--frozen-lockfile`
 

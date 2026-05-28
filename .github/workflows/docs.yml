@@ -56,6 +56,8 @@ jobs:
     permissions:
       contents: read
       pages: write
+      # Required by GitHub Pages custom workflows for the deploy-pages OIDC token:
+      # https://docs.github.com/pages/getting-started-with-github-pages/using-custom-workflows-with-github-pages
       id-token: write
     environment:
       name: github-pages
