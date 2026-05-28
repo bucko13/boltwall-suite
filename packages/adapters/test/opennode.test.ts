@@ -170,6 +170,41 @@ describe("OpenNodeAdapter", () => {
     });
   });
 
+  test.each([1.25, Number.MAX_SAFE_INTEGER + 1])(
+    "rejects lossy lookup charge amounts instead of truncating %p",
+    async (amount) => {
+      const adapter = new OpenNodeAdapter({
+        apiKey: API_KEY,
+        fetch: fetchStub(
+          [],
+          [
+            jsonResponse(201, {
+              data: chargeResponse({
+                amount: 2,
+                lightning_invoice: { payreq: PAYREQ, expires_at: 1_900_000_000 },
+              }),
+            }),
+            jsonResponse(200, {
+              data: chargeResponse({ status: "paid", amount }),
+            }),
+          ],
+        ),
+        decodeInvoice: () => ({
+          paymentHashHex: PAYMENT_HASH,
+          amountMsat: 2_000n,
+          expiresAt: new Date("2030-01-01T00:00:00.000Z"),
+        }),
+      });
+
+      const created = await adapter.createInvoice({ amountMsat: 2_000n });
+
+      await expect(adapter.lookupInvoice(created.paymentHash)).rejects.toMatchObject({
+        kind: "invalid-response",
+        message: "OpenNode charge amount must be a non-negative safe integer number of satoshis",
+      });
+    },
+  );
+
   test("fails on malformed provider responses without leaking invoices", async () => {
     const adapter = new OpenNodeAdapter({
       apiKey: API_KEY,

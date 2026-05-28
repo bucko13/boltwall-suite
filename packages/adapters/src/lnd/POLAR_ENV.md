@@ -59,5 +59,5 @@ export type LndEnv = z.infer<typeof LndEnvSchema>;
 export const lndEnv = LndEnvSchema.parse(process.env);
 ```
 
-This should be the default for scriptable local verification once we implement
-agent-driven Polar/LND checks.
+This should be the default for scriptable local verification once maintained
+Polar/LND checks exist.

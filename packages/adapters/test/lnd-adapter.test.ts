@@ -6,6 +6,8 @@ import { LndAdapter, LndAdapterError } from "../src/lnd";
 
 const PAYMENT_HASH = "1111111111111111111111111111111111111111111111111111111111111111";
 const PREIMAGE = "2222222222222222222222222222222222222222222222222222222222222222";
+const MACAROON_HEX = "abcdef0123456789".repeat(8);
+const CERT_BASE64 = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=".repeat(3);
 
 describe("LndAdapter", () => {
   test("creates regular invoices through lightning createInvoice", async () => {
@@ -165,6 +167,26 @@ describe("LndAdapter", () => {
           },
         }),
     ).toThrow(LndAdapterError);
+  });
+
+  test("redacts credential-shaped values from normalized LND errors", async () => {
+    const adapter = new LndAdapter(lndOptions(), {
+      ...stubApi(),
+      async getInvoice() {
+        throw new Error(`permission denied macaroon=${MACAROON_HEX} cert=${CERT_BASE64}`);
+      },
+    });
+
+    try {
+      await adapter.lookupInvoice(PAYMENT_HASH);
+      throw new Error("expected lookupInvoice to throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(LndAdapterError);
+      const message = (error as Error).message;
+      expect(message).not.toContain(MACAROON_HEX);
+      expect(message).not.toContain(CERT_BASE64);
+      expect(message).toContain("[redacted-lnd-credential]");
+    }
   });
 
   test("streams invoice updates from lightning subscriptions", async () => {

@@ -155,6 +155,16 @@ export class BtcPayAdapter implements LightningBackend {
     const paymentHash = normalizePaymentHash(
       requireNonEmptyString(invoice.paymentHash, "payment hash"),
     );
+    const amountMsat = parseMsat(
+      requireNonEmptyString(invoice.amount, "invoice amount"),
+      "invoice amount",
+    );
+    if (amountMsat !== request.amountMsat) {
+      throw new BtcPayAdapterError(
+        "invalid-response",
+        "BTCPay invoice amount did not match the requested amount",
+      );
+    }
     this.#providerIdsByPaymentHash.set(
       paymentHash,
       requireNonEmptyString(invoice.id, "invoice id"),
@@ -163,10 +173,7 @@ export class BtcPayAdapter implements LightningBackend {
     return {
       paymentRequest: requireNonEmptyString(invoice.BOLT11, "BOLT11 invoice"),
       paymentHash,
-      amountMsat: parseMsat(
-        requireNonEmptyString(invoice.amount, "invoice amount"),
-        "invoice amount",
-      ),
+      amountMsat,
       ...(invoice.expiresAt === undefined
         ? {}
         : { expiresAt: unixSecondsToDate(invoice.expiresAt) }),

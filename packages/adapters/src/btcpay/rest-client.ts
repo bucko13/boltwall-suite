@@ -115,7 +115,7 @@ export class BtcPayRestClient {
   async createLightningInvoice(
     body: BtcPayCreateLightningInvoiceRequest,
   ): Promise<BtcPayLightningInvoiceData> {
-    return this.#request<BtcPayLightningInvoiceData>(
+    return this.#request(
       "POST",
       `/api/v1/stores/${encodeURIComponent(this.#storeId)}/lightning/${encodeURIComponent(
         this.#cryptoCode,
@@ -125,7 +125,7 @@ export class BtcPayRestClient {
   }
 
   async getLightningInvoice(providerInvoiceId: string): Promise<BtcPayLightningInvoiceData> {
-    return this.#request<BtcPayLightningInvoiceData>(
+    return this.#request(
       "GET",
       `/api/v1/stores/${encodeURIComponent(this.#storeId)}/lightning/${encodeURIComponent(
         this.#cryptoCode,
@@ -133,7 +133,11 @@ export class BtcPayRestClient {
     );
   }
 
-  async #request<T>(method: "GET" | "POST", path: string, body?: unknown): Promise<T> {
+  async #request(
+    method: "GET" | "POST",
+    path: string,
+    body?: unknown,
+  ): Promise<BtcPayLightningInvoiceData> {
     const url = new URL(path.replace(/^\//, ""), this.#baseUrl);
     let response: Response;
     try {
@@ -159,8 +163,11 @@ export class BtcPayRestClient {
     }
 
     try {
-      return (await response.json()) as T;
+      return parseLightningInvoiceData(await response.json());
     } catch (error) {
+      if (error instanceof BtcPayAdapterError) {
+        throw error;
+      }
       throw new BtcPayAdapterError("invalid-response", "BTCPay response was not valid JSON", error);
     }
   }
@@ -213,8 +220,11 @@ function normalizeBaseUrl(raw: string): URL {
   } catch (cause) {
     throw new BtcPayAdapterError("invalid-request", "BTCPay baseUrl is not a valid URL", cause);
   }
-  if (url.protocol !== "http:" && url.protocol !== "https:") {
-    throw new BtcPayAdapterError("invalid-request", "BTCPay baseUrl must use http or https");
+  if (url.protocol !== "https:" && !(url.protocol === "http:" && isLocalhost(url.hostname))) {
+    throw new BtcPayAdapterError(
+      "invalid-request",
+      "BTCPay baseUrl must use HTTPS unless it targets localhost for local testing",
+    );
   }
   if (!url.pathname.endsWith("/")) {
     url.pathname = `${url.pathname}/`;
@@ -237,6 +247,88 @@ function requireNonEmpty(value: string, label: string): string {
     throw new BtcPayAdapterError("invalid-request", `BTCPay ${label} is required`);
   }
   return value.trim();
+}
+
+function parseLightningInvoiceData(payload: unknown): BtcPayLightningInvoiceData {
+  if (typeof payload !== "object" || payload === null || Array.isArray(payload)) {
+    throw new BtcPayAdapterError("invalid-response", "BTCPay response was not an invoice object");
+  }
+
+  const candidate = payload as Record<string, unknown>;
+  const status = candidate.status;
+  if (status !== "Expired" && status !== "Paid" && status !== "Unpaid") {
+    throw new BtcPayAdapterError("invalid-response", "BTCPay invoice status was invalid");
+  }
+
+  return {
+    id: requireStringField(candidate.id, "invoice id"),
+    status,
+    BOLT11: requireStringField(candidate.BOLT11, "BOLT11 invoice"),
+    amount: requireStringField(candidate.amount, "invoice amount"),
+    paymentHash: requireStringField(candidate.paymentHash, "payment hash"),
+    ...(candidate.paidAt === undefined
+      ? {}
+      : { paidAt: optionalNumberOrNull(candidate.paidAt, "paidAt") }),
+    ...(candidate.expiresAt === undefined
+      ? {}
+      : { expiresAt: requireNumberField(candidate.expiresAt, "expiresAt") }),
+    ...(candidate.amountReceived === undefined
+      ? {}
+      : { amountReceived: requireStringField(candidate.amountReceived, "amount received") }),
+    ...(candidate.preimage === undefined
+      ? {}
+      : { preimage: optionalStringOrNull(candidate.preimage, "preimage") }),
+    ...(candidate.customRecords === undefined
+      ? {}
+      : { customRecords: optionalRecordOrNull(candidate.customRecords, "custom records") }),
+  };
+}
+
+function requireStringField(value: unknown, label: string): string {
+  if (typeof value !== "string") {
+    throw new BtcPayAdapterError("invalid-response", `BTCPay ${label} was missing or invalid`);
+  }
+  return value;
+}
+
+function requireNumberField(value: unknown, label: string): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) {
+    throw new BtcPayAdapterError("invalid-response", `BTCPay ${label} was missing or invalid`);
+  }
+  return value;
+}
+
+function optionalNumberOrNull(value: unknown, label: string): number | null {
+  if (value === null) {
+    return null;
+  }
+  return requireNumberField(value, label);
+}
+
+function optionalStringOrNull(value: unknown, label: string): string | null {
+  if (value === null) {
+    return null;
+  }
+  return requireStringField(value, label);
+}
+
+function optionalRecordOrNull(value: unknown, label: string): Record<string, unknown> | null {
+  if (value === null) {
+    return null;
+  }
+  if (typeof value !== "object" || value === null || Array.isArray(value)) {
+    throw new BtcPayAdapterError("invalid-response", `BTCPay ${label} was invalid`);
+  }
+  return value as Record<string, unknown>;
+}
+
+function isLocalhost(hostname: string): boolean {
+  return (
+    hostname === "localhost" ||
+    hostname === "127.0.0.1" ||
+    hostname === "::1" ||
+    hostname === "[::1]"
+  );
 }
 
 function redactSensitive(value: string, apiKey: string): string {

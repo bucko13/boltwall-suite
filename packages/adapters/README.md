@@ -204,7 +204,8 @@ const backend = new BtcPayAdapter({
 ### Configuration shape
 
 - `BTCPAY_BASE_URL` — BTCPay Server origin, such as
-  `https://btcpay.example`.
+  `https://btcpay.example`. Credentialed requests require HTTPS except for
+  explicit localhost URLs used by local test deployments.
 - `BTCPAY_API_KEY` — Greenfield API key sent as
   `Authorization: token <api-key>`, per the BTCPay eCommerce integration guide.
 - `BTCPAY_STORE_ID` — store id whose Lightning node configuration will create

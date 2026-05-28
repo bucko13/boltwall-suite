@@ -323,7 +323,13 @@ function chargeAmountMsat(charge: OpenNodeCharge): bigint | undefined {
   if (typeof charge.amount !== "number" || !Number.isFinite(charge.amount)) {
     return undefined;
   }
-  return satsToMsats(BigInt(Math.trunc(charge.amount)));
+  if (!Number.isSafeInteger(charge.amount) || charge.amount < 0) {
+    throw new OpenNodeAdapterError(
+      "invalid-response",
+      "OpenNode charge amount must be a non-negative safe integer number of satoshis",
+    );
+  }
+  return satsToMsats(BigInt(charge.amount));
 }
 
 function mapOpenNodeStatus(status: string | undefined): InvoiceLookup["status"] {

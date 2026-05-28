@@ -348,7 +348,11 @@ function normalizeLndError(error: unknown, message: string): LndAdapterError {
     return error;
   }
   const kind = classifyLndError(error);
-  return new LndAdapterError(kind, `${message}: ${formatLndError(error)}`, error);
+  return new LndAdapterError(
+    kind,
+    `${message}: ${redactLndCredentials(formatLndError(error))}`,
+    error,
+  );
 }
 
 function classifyLndError(error: unknown): LndAdapterErrorKind {
@@ -392,6 +396,17 @@ function formatLndError(error: unknown): string {
       .join(" ");
   }
   return String(error);
+}
+
+function redactLndCredentials(value: string): string {
+  return value
+    .replace(/-----BEGIN [^-]+-----[\s\S]*?-----END [^-]+-----/g, "[redacted-lnd-credential]")
+    .replace(
+      /\b(macaroon|cert|certificate|tls[_ -]?cert|authorization|bearer|token)\b\s*[:=]\s*[^\s,;)]+/gi,
+      "$1=[redacted-lnd-credential]",
+    )
+    .replace(/\b[0-9a-f]{64,}\b/gi, "[redacted-lnd-credential]")
+    .replace(/\b[A-Za-z0-9+/]{80,}={0,2}\b/g, "[redacted-lnd-credential]");
 }
 
 function fail(message: string): never {

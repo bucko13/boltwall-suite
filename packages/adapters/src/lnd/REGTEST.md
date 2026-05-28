@@ -128,26 +128,27 @@ Manual/operator steps:
 - Initial channel open/funding/liquidity setup.
 - First-time credential retrieval from Polar UI.
 
-Scriptable/agent-friendly steps after prerequisites:
+Scriptable maintainer steps after prerequisites:
 
 - Adapter construction from env vars.
 - `createInvoice` -> `lookupInvoice(open)` checks.
 - Post-payment `lookupInvoice(settled)` checks.
 - HODL settle/cancel verification logic.
 
-This split is intentional for now: agent-run checks are reliable once a local
+This split is intentional for now: scripted checks are reliable once a local
 operator has a healthy Polar network and credentials ready.
 
 ## Polar Automation Feasibility
 
-Repository/session findings from 2026-05-12:
+Repository environment findings from 2026-05-12:
 
 - `Polar.app` is installed locally, but there is no `polar` CLI on `PATH`.
-- There is no `lncli` on `PATH` in this session.
+- There is no `lncli` on `PATH` in the checked development environment.
 - Polar appears to be an Electron app bundle with internal Docker and gRPC
   plumbing, but no stable repo-local automation entrypoint is documented here.
-- Agent-run Docker access is a prerequisite for any fully automated local
-  network bootstrap; in this session, direct Docker access was unavailable.
+- Docker access is a prerequisite for any fully automated local network
+  bootstrap; direct Docker access was unavailable in the checked development
+  environment.
 
 ### Control-surface assessment
 
@@ -164,7 +165,7 @@ Repository/session findings from 2026-05-12:
 ### Practical conclusion
 
 Polar is a good local operator tool, but it is not a good primary automation
-surface for agent-run verification in this repository today. The dependable
+surface for scripted verification in this repository today. The dependable
 automation boundary starts _after_ a healthy local network already exists and
 credentials have been exported into env vars.
 
@@ -179,8 +180,8 @@ Keep Polar as the shortest path for a human maintainer to:
 3. retrieve the first cert/macaroon set,
 4. optionally pay invoices from the UI.
 
-After that handoff, agent-run checks should use only exported env vars and
-scripted adapter calls.
+After that setup, scripted checks should use only exported env vars and adapter
+calls.
 
 ### Agent/CI automation path
 
@@ -196,7 +197,7 @@ containerized LND smoke harness that owns:
 
 That harness can back both:
 
-- a local agent-run smoke for maintainers with Docker access, and
+- a local maintainer-run smoke for environments with Docker access, and
 - a skipped-by-default or explicitly gated CI/manual workflow.
 
 ## Minimal Proof Sequence For The Recommended Harness
@@ -221,7 +222,8 @@ bun run infra -- teardown --reset --yes
 ```
 
 This proof sequence is intentionally container-first. It avoids depending on
-undocumented Polar app internals and is a better fit for agent execution.
+undocumented Polar app internals and is a better fit for maintainer-run
+automation.
 
 `teardown` uses `docker compose stop` and keeps Docker volumes intact. The
 explicit `--reset --yes` path uses `docker compose down --volumes --remove-orphans`

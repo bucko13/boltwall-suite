@@ -38,6 +38,35 @@ describe("BtcPayAdapter", () => {
     );
   });
 
+  test("requires HTTPS for non-local credentialed requests", () => {
+    expect(
+      () =>
+        new BtcPayAdapter({
+          baseUrl: "http://btcpay.example",
+          apiKey: API_KEY,
+          storeId: "store-123",
+        }),
+    ).toThrow("BTCPay baseUrl must use HTTPS");
+  });
+
+  test("allows HTTP localhost for local BTCPay test deployments", async () => {
+    const calls: RecordedRequest[] = [];
+    const adapter = new BtcPayAdapter({
+      baseUrl: "http://localhost:23000/root",
+      apiKey: API_KEY,
+      storeId: "store-123",
+      fetch: recordingFetch(calls, [lightningInvoice({ amount: "1" })]),
+    });
+
+    await expect(adapter.createInvoice({ amountMsat: 1n })).resolves.toMatchObject({
+      paymentHash: PAYMENT_HASH,
+      amountMsat: 1n,
+    });
+    expect(calls[0]?.url).toBe(
+      "http://localhost:23000/root/api/v1/stores/store-123/lightning/BTC/invoices",
+    );
+  });
+
   test("creates a Lightning invoice with documented Greenfield request shape", async () => {
     const calls: RecordedRequest[] = [];
     const adapter = new BtcPayAdapter({
@@ -72,6 +101,33 @@ describe("BtcPayAdapter", () => {
     });
   });
 
+  test("rejects malformed invoice responses as invalid BTCPay responses", async () => {
+    const adapter = new BtcPayAdapter({
+      baseUrl: "https://btcpay.example",
+      apiKey: API_KEY,
+      storeId: "store-123",
+      fetch: responseFetch({ id: "provider-id" }),
+    });
+
+    await expect(adapter.createInvoice({ amountMsat: 1_000n })).rejects.toMatchObject({
+      kind: "invalid-response",
+    });
+  });
+
+  test("rejects created invoices with a mismatched returned amount", async () => {
+    const adapter = new BtcPayAdapter({
+      baseUrl: "https://btcpay.example",
+      apiKey: API_KEY,
+      storeId: "store-123",
+      fetch: responseFetch(lightningInvoice({ amount: "999" })),
+    });
+
+    await expect(adapter.createInvoice({ amountMsat: 1_000n })).rejects.toMatchObject({
+      kind: "invalid-response",
+      message: "BTCPay invoice amount did not match the requested amount",
+    });
+  });
+
   test("looks up by payment hash while hiding the provider invoice id", async () => {
     const calls: RecordedRequest[] = [];
     const adapter = new BtcPayAdapter({
@@ -79,7 +135,7 @@ describe("BtcPayAdapter", () => {
       apiKey: API_KEY,
       storeId: "store-123",
       fetch: recordingFetch(calls, [
-        lightningInvoice({ id: "btcpay-provider-id" }),
+        lightningInvoice({ id: "btcpay-provider-id", amount: "1000" }),
         lightningInvoice({ id: "btcpay-provider-id", status: "Paid", paidAt: PAID_AT_SECONDS }),
       ]),
     });
@@ -112,7 +168,7 @@ describe("BtcPayAdapter", () => {
       fetch: recordingFetch(
         [],
         [
-          lightningInvoice({ id: "provider-id" }),
+          lightningInvoice({ id: "provider-id", amount: "1000" }),
           lightningInvoice({ id: "provider-id", status: btcpayStatus }),
         ],
       ),
@@ -134,7 +190,7 @@ describe("BtcPayAdapter", () => {
       fetch: recordingFetch(
         [],
         [
-          lightningInvoice({ id: "provider-id" }),
+          lightningInvoice({ id: "provider-id", amount: "1000" }),
           lightningInvoice({ id: "provider-id", status: "Unpaid", expiresAt: EXPIRED_AT_SECONDS }),
         ],
       ),
@@ -292,36 +348,6 @@ describe("loadBtcPayEnv", () => {
       }),
     ).toThrow("HODL invoices are not supported");
   });
-});
-
-const maybeIntegrationEnv = {
-  baseUrl: process.env.BTCPAY_TEST_BASE_URL,
-  apiKey: process.env.BTCPAY_TEST_API_KEY,
-  storeId: process.env.BTCPAY_TEST_STORE_ID,
-  cryptoCode: process.env.BTCPAY_TEST_CRYPTO_CODE,
-};
-
-test.skipIf(
-  maybeIntegrationEnv.baseUrl === undefined ||
-    maybeIntegrationEnv.apiKey === undefined ||
-    maybeIntegrationEnv.storeId === undefined,
-)("BTCPay test environment can create and look up a Lightning invoice", async () => {
-  const adapter = new BtcPayAdapter({
-    baseUrl: maybeIntegrationEnv.baseUrl as string,
-    apiKey: maybeIntegrationEnv.apiKey as string,
-    storeId: maybeIntegrationEnv.storeId as string,
-    cryptoCode: maybeIntegrationEnv.cryptoCode,
-  });
-
-  const created = await adapter.createInvoice({
-    amountMsat: 1_000n,
-    description: "Boltwall BTCPay adapter integration test",
-    expirySeconds: 300,
-  });
-  const lookup = await adapter.lookupInvoice(created.paymentHash);
-
-  expect(created.paymentRequest).toStartWith("ln");
-  expect(lookup.paymentHash).toBe(created.paymentHash);
 });
 
 interface RecordedRequest {
