@@ -5,7 +5,7 @@
   "excludePrivate": true,
   "excludeInternal": true,
   "excludeExternals": true,
-  "intentionallyNotExported": ["Bytes32Input", "ParseAuthorizationHeaderOptions", "ValidUntilArg"],
+  "intentionallyNotExported": ["Bytes32Input", "ValidUntilArg"],
   "validation": {
     "notExported": true,
     "invalidLink": true,

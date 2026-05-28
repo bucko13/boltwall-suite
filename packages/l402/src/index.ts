@@ -36,7 +36,11 @@ export {
   type L402Scheme,
 } from "./parse-authenticate-header";
 
-export { parseAuthorizationHeader, type L402CredentialFields } from "./parse-authorization-header";
+export {
+  parseAuthorizationHeader,
+  type L402CredentialFields,
+  type ParseAuthorizationHeaderOptions,
+} from "./parse-authorization-header";
 
 export { InMemoryRootKeyStore, type RootKeyStore } from "./root-key-store";
 

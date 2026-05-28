@@ -64,6 +64,21 @@ describe("parseAuthorizationHeader / always-array shape", () => {
   });
 });
 
+describe("parseAuthorizationHeader / credential grammar", () => {
+  for (const header of [
+    `L402 ${SPEC_EXAMPLE_MACAROON} :${SPEC_EXAMPLE_PREIMAGE}`,
+    `L402 ${SPEC_EXAMPLE_MACAROON}: ${SPEC_EXAMPLE_PREIMAGE}`,
+    `L402 ${SPEC_EXAMPLE_MACAROON}, ${SPEC_EXAMPLE_MACAROON_2}:${SPEC_EXAMPLE_PREIMAGE}`,
+    `L402 ${SPEC_EXAMPLE_MACAROON}:\t${SPEC_EXAMPLE_PREIMAGE}`,
+  ]) {
+    test(`rejects whitespace inside credential body: ${JSON.stringify(header)}`, () => {
+      expect(() => parseAuthorizationHeader(header)).toThrow(
+        "invalid-credential-whitespace",
+      );
+    });
+  }
+});
+
 describe("parseAuthorizationHeader / HODL empty preimage", () => {
   test("rejects an empty preimage by default", () => {
     expect(() => parseAuthorizationHeader(`LSAT ${SPEC_EXAMPLE_MACAROON}:`)).toThrow(

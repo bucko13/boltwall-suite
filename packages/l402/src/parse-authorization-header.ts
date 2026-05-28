@@ -21,6 +21,10 @@ export interface L402CredentialFields {
   preimage: string;
 }
 
+/**
+ * Options that relax strict L402 Authorization parsing for
+ * pending-settlement migration flows.
+ */
 export interface ParseAuthorizationHeaderOptions {
   /**
    * Accept the HODL pending-settlement token shape `LSAT/L402 <macaroon>:`
@@ -44,7 +48,7 @@ const BASE64_ALPHABET = /^[A-Za-z0-9+/]*={0,2}$/;
  * comma-separated) from the preimage hex.
  *
  * Spec citations:
- * - L402 protocol-specification.md §5 — Authorization scheme grammar:
+ * - L402 protocol-specification.md §5.3 Grammar — Authorization credentials:
  *   `<scheme> <macaroons-csv>:<preimage-hex>`, preimage = 32 bytes hex.
  * - L402 protocol-specification.md §10 Backwards Compatibility — incoming
  *   `LSAT` scheme keyword MUST be accepted alongside `L402`.
@@ -63,10 +67,9 @@ export function parseAuthorizationHeader(
     throw new Error("empty-header");
   }
 
-  // L402 spec §5: scheme keyword + 1*SP + credential body. We split on the
-  // first run of whitespace so any internal spacing inside the body
-  // (legitimate whitespace tolerance per the bead's `M1, M2 : r` case) is
-  // preserved for downstream tokenization.
+  // L402 protocol-specification.md §5.3 Grammar: scheme keyword + 1*SP +
+  // credential body. Whitespace inside the credential body is not part of
+  // macaroon CSV or preimage hex grammar and is rejected before tokenization.
   const trimmed = header.trim();
   const firstSpace = /\s/.exec(trimmed);
   if (firstSpace === null) {
@@ -74,6 +77,9 @@ export function parseAuthorizationHeader(
   }
   const schemeRaw = trimmed.slice(0, firstSpace.index);
   const body = trimmed.slice(firstSpace.index).trim();
+  if (/\s/.test(body)) {
+    throw new Error("invalid-credential-whitespace");
+  }
 
   const schemeMatch = SCHEME_RE.exec(schemeRaw);
   if (schemeMatch === null) {

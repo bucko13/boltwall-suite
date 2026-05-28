@@ -102,7 +102,7 @@ describe("L402 class facade / preimage state", () => {
 });
 
 describe("L402 class facade / JSON", () => {
-  test("serializes inspectable state without exposing Buffer", () => {
+  test("serializes inspectable state without exposing Buffer or payment preimage", () => {
     const l402 = L402.fromToken(
       `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
       SPEC_EXAMPLE_INVOICE,
@@ -110,10 +110,10 @@ describe("L402 class facade / JSON", () => {
     expect(l402.toJSON()).toEqual({
       macaroons: [SPEC_EXAMPLE_MACAROON],
       invoice: SPEC_EXAMPLE_INVOICE,
-      paymentPreimage: SPEC_EXAMPLE_PREIMAGE,
       timeCreated: expect.any(Number),
       isPending: false,
       isSatisfied: false,
     });
+    expect(l402.toJSON()).not.toHaveProperty("paymentPreimage");
   });
 });

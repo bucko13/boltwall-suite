@@ -200,11 +200,18 @@ export class L402 {
     })[0]!;
   }
 
+  /**
+   * Return JSON-safe inspectable state.
+   *
+   * The payment preimage is intentionally omitted: L402 credentials are bearer
+   * tokens whose macaroon/preimage material is cleartext in HTTP headers and
+   * must be protected per L402 protocol-specification.md §9.1 Transport
+   * Security.
+   */
   toJSON(): {
     macaroons: string[];
     invoice?: string;
     paymentHash?: string;
-    paymentPreimage?: string;
     timeCreated: number;
     isPending: boolean;
     isSatisfied: boolean;
@@ -213,7 +220,6 @@ export class L402 {
       macaroons: string[];
       invoice?: string;
       paymentHash?: string;
-      paymentPreimage?: string;
       timeCreated: number;
       isPending: boolean;
       isSatisfied: boolean;
@@ -228,9 +234,6 @@ export class L402 {
     }
     if (this.paymentHashHex !== undefined) {
       json.paymentHash = this.paymentHashHex;
-    }
-    if (this.paymentPreimage !== undefined) {
-      json.paymentPreimage = this.paymentPreimage;
     }
     return json;
   }
@@ -277,4 +280,3 @@ export class L402 {
     return L402.fromChallenge(header);
   }
 }
-

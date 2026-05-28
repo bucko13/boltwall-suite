@@ -153,7 +153,8 @@ describe("Aperture interop — PR check", () => {
     // Build a multi-macaroon header by repeating the same token.
     // Real use would have two distinct macaroons (one per service).
     // We test parse acceptance here; Aperture acceptance is scenario 3.
-    // L402 protocol-specification.md §6.3 Multi-macaroon
+    // L402 protocol-specification.md §5.3 Grammar: macaroons are a CSV
+    // credential component before the preimage separator.
     const multiHeader = buildAuthorizationHeader({
       macaroons: [macaroon, macaroon],
       preimage: FIXTURE_PREIMAGE_HEX,
@@ -162,6 +163,6 @@ describe("Aperture interop — PR check", () => {
     const parsed = parseAuthorizationHeader(multiHeader);
     expect(Array.isArray(parsed.macaroons)).toBe(true);
     expect(parsed.macaroons.length).toBe(2);
-    expect(parsed.preimageHex).toBe(FIXTURE_PREIMAGE_HEX);
+    expect(parsed.preimage).toBe(FIXTURE_PREIMAGE_HEX);
   });
 });
