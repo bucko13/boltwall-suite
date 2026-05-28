@@ -7,8 +7,8 @@ Use the installable `@boltwall/proxy` CLI instead:
 
 ```sh
 bun add --global @boltwall/proxy
-boltwall deploy vercel
-boltwall deploy vercel --config ./boltwall.yaml --yes
+boltwall deploy
+boltwall deploy --config ./boltwall.yaml --yes
 ```
 
 The CLI owns the v1 deployment experience because it can guide backend-specific
@@ -21,6 +21,5 @@ Direct Vercel Deploy Button prompts are static and cannot express that
 conditional secret/config workflow safely. Do not link users here as the v1
 deployment path, and do not add new template-only behavior.
 
-This workspace remains only as deprecated dead code until the owner explicitly
-authorizes the exact file deletion command required by `AGENTS.md` Rule 1.
+This workspace remains only for compatibility with older local template checks.
 Useful deploy-shape assertions belong in `@boltwall/proxy` tests.

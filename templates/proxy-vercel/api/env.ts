@@ -3,31 +3,15 @@ import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-import type { ProxyEnvConfig } from "@boltwall/proxy";
+import { loadProxyEnv, type ProxyEnvConfig } from "@boltwall/proxy";
 import { z } from "zod";
 
 const backendSchema = z.enum(["lnd", "voltage-lnd", "opennode", "btcpay"]);
-const challengeCompatibilitySchema = z.enum(["dual", "l402-only", "lsat-only"]);
 const boolFlagSchema = z.enum(["true", "false"]).transform((value) => value === "true");
 
 const baseEnvSchema = z
   .object({
-    TARGET_URL: z.url(),
     LN_BACKEND: backendSchema,
-    SERVICE: z.string().min(1).optional(),
-    DEFAULT_PRICE_MSAT: z
-      .string()
-      .regex(/^\d+$/u, "must be a non-negative integer millisatoshi amount")
-      .default("1000"),
-    CHALLENGE_COMPATIBILITY: challengeCompatibilitySchema.default("dual"),
-    UNPROTECTED_PATHS: z.string().optional(),
-    FORWARD_ALLOW: z.string().optional(),
-    FORWARD_DENY: z.string().optional(),
-    UPSTREAM_TIMEOUT_MS: z
-      .string()
-      .regex(/^\d+$/u, "must be a positive integer millisecond timeout")
-      .refine((value) => Number(value) > 0, "must be a positive integer millisecond timeout")
-      .optional(),
   })
   .passthrough();
 
@@ -106,19 +90,7 @@ export function loadBoltwallEnv(
 ): BoltwallTemplateEnv {
   const base = parseEnv(baseEnvSchema, env);
   const backend = loadBackendEnv(base.LN_BACKEND, env);
-  const proxy: ProxyEnvConfig = {
-    targetUrl: base.TARGET_URL,
-    defaultPrice: BigInt(base.DEFAULT_PRICE_MSAT),
-    challengeCompatibility: base.CHALLENGE_COMPATIBILITY,
-    ...(base.SERVICE === undefined ? {} : { service: base.SERVICE }),
-    ...(base.UNPROTECTED_PATHS === undefined
-      ? {}
-      : { unprotectedPaths: splitList(base.UNPROTECTED_PATHS) }),
-    ...(base.UPSTREAM_TIMEOUT_MS === undefined
-      ? {}
-      : { upstreamTimeoutMs: Number(base.UPSTREAM_TIMEOUT_MS) }),
-    ...forwardHeaders(base),
-  };
+  const proxy = loadProxyEnv({ env });
 
   return { proxy, backend };
 }
@@ -212,28 +184,6 @@ function parseEnv<T extends z.ZodType>(
     throw new BoltwallTemplateEnvError(formatEnvError(parsed.error));
   }
   return parsed.data;
-}
-
-function forwardHeaders(
-  base: z.output<typeof baseEnvSchema>,
-): Pick<ProxyEnvConfig, "forwardHeaders"> {
-  const allow = base.FORWARD_ALLOW === undefined ? undefined : splitList(base.FORWARD_ALLOW);
-  const deny = base.FORWARD_DENY === undefined ? undefined : splitList(base.FORWARD_DENY);
-
-  if (allow === undefined && deny === undefined) return {};
-  return {
-    forwardHeaders: {
-      ...(allow === undefined ? {} : { allow }),
-      ...(deny === undefined ? {} : { deny }),
-    },
-  };
-}
-
-function splitList(value: string): string[] {
-  return value
-    .split(",")
-    .map((part) => part.trim())
-    .filter((part) => part.length > 0);
 }
 
 function formatEnvError(error: z.ZodError): string {

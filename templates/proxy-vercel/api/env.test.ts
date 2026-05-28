@@ -6,12 +6,13 @@ describe("loadBoltwallEnv", () => {
   test("loads LND proxy configuration without echoing secrets", () => {
     const config = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
+      BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
       LN_BACKEND: "lnd",
-      DEFAULT_PRICE_MSAT: "2500",
-      CHALLENGE_COMPATIBILITY: "l402-only",
-      UNPROTECTED_PATHS: "/healthz, /robots.txt",
-      FORWARD_ALLOW: "accept, x-request-id",
-      UPSTREAM_TIMEOUT_MS: "3000",
+      BOLTWALL_PROXY_DEFAULT_PRICE_MSAT: "2500",
+      BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: "l402-only",
+      BOLTWALL_PROXY_UNPROTECTED_PATHS: "/healthz, /robots.txt",
+      BOLTWALL_PROXY_FORWARD_ALLOW: "accept, x-request-id",
+      BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: "3000",
       LND_SOCKET: "127.0.0.1:10009",
       LND_TLS_CERT: "certificate-value",
       LND_MACAROON: "secret-macaroon",
@@ -38,14 +39,15 @@ describe("loadBoltwallEnv", () => {
   test("loads Voltage LND configuration", () => {
     const config = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
+      BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
       LN_BACKEND: "voltage-lnd",
       VOLTAGE_LND_BASE_URL: "https://node.m.voltageapp.io:8080",
       VOLTAGE_LND_MACAROON: "00ff",
       VOLTAGE_LND_CERT: "certificate-value",
     });
 
-    expect(config.proxy.defaultPrice).toBe(1000n);
-    expect(config.proxy.challengeCompatibility).toBe("dual");
+    expect(config.proxy.defaultPrice).toBeUndefined();
+    expect(config.proxy.challengeCompatibility).toBeUndefined();
     expect(config.backend).toEqual({
       kind: "voltage-lnd",
       baseUrl: "https://node.m.voltageapp.io:8080",
@@ -58,6 +60,7 @@ describe("loadBoltwallEnv", () => {
     expect(() =>
       loadBoltwallEnv({
         TARGET_URL: "https://api.example.com",
+        BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
         LN_BACKEND: "voltage-lnd",
         VOLTAGE_LND_BASE_URL: "https://node.m.voltageapp.io",
         VOLTAGE_LND_MACAROON: "not-secret-but-invalid",
@@ -68,6 +71,7 @@ describe("loadBoltwallEnv", () => {
     try {
       loadBoltwallEnv({
         TARGET_URL: "https://api.example.com",
+        BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
         LN_BACKEND: "voltage-lnd",
         VOLTAGE_LND_BASE_URL: "https://node.m.voltageapp.io",
         VOLTAGE_LND_MACAROON: "not-secret-but-invalid",
@@ -83,11 +87,13 @@ describe("loadBoltwallEnv", () => {
   test("creates OpenNode and BTCPay backends from template env", () => {
     const openNodeConfig = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
+      BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
       LN_BACKEND: "opennode",
       OPENNODE_API_KEY: "secret-api-key",
     });
     const btcPayConfig = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
+      BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
       LN_BACKEND: "btcpay",
       BTCPAY_BASE_URL: "https://btcpay.example.com",
       BTCPAY_API_KEY: "secret-api-key",
@@ -101,6 +107,7 @@ describe("loadBoltwallEnv", () => {
   test("rejects BTCPay deployment feature flags that the adapter cannot prove", () => {
     const config = loadBoltwallEnv({
       TARGET_URL: "https://api.example.com",
+      BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
       LN_BACKEND: "btcpay",
       BTCPAY_BASE_URL: "https://btcpay.example.com",
       BTCPAY_API_KEY: "secret-api-key",

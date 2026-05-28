@@ -5,11 +5,6 @@ backend:
   envPrefix: VOLTAGE_LND
 pricing:
   defaultPriceMsat: "1000"
-routes:
-  - path: /pokemon/*
-    methods:
-      - GET
-    priceMsat: "1000"
 challengeCompatibility: dual
 forwardHeaders:
   allow:
