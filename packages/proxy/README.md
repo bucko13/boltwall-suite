@@ -30,7 +30,9 @@ hidden input, rejects blank values, and sends them to Vercel with
 `vercel env add --sensitive`. Before writing env vars, it links the generated
 project directory with `vercel link --yes --project <name> --cwd <dir>` so a
 missing Vercel project link fails before any env writes. After preflight, it
-shells out to `vercel env add` and `vercel deploy`.
+shells out to `vercel env add` and `vercel deploy`. Generated Vercel projects
+pin their `@boltwall/*` dependencies to the installed `@boltwall/proxy` version
+that generated the project, not to `latest`.
 
 Start the interactive deployment flow:
 
@@ -47,6 +49,13 @@ The wizard saves non-secret metadata and environment variable names only. If a
 required backend secret is not already present in the current process, the
 wizard prompts for it and sends it to Vercel with `vercel env add --sensitive`;
 it does not silently write secret values to disk.
+
+Generated Vercel deployments also require `BOLTWALL_PROXY_ROOT_KEY`, a 32-byte
+hex deployment secret used to derive per-token L402 macaroon root keys. If the
+variable is present in the current environment, `boltwall deploy` sends that
+exact value to Vercel as a sensitive env var. If it is absent, the CLI generates
+a new 32-byte hex secret for the deployment. Persist this value outside source
+control before redeploying if existing paid credentials must continue to verify.
 
 Automation can use a checked-in, non-secret JSON or YAML config:
 
@@ -276,6 +285,16 @@ credentials to request `Origin` headers using an `origin=<origins>` macaroon
 caveat. Backend secret references map to the canonical Vercel-side names above.
 For example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
 project receives `OPENNODE_API_KEY`.
+
+Generated Vercel projects additionally receive `BOLTWALL_PROXY_ROOT_KEY` as a
+sensitive Vercel environment variable. This release-MVP store uses that secret
+to deterministically derive a 32-byte root key for each token id, matching L402
+macaroon-spec.md §Identifier Structure and §Minting's server-side root-key
+requirement without keeping mutable per-token storage in Vercel. This is good
+enough for release persistence across serverless instances, but it is not a
+production revocation or rotation store: L402 macaroon-spec.md §Revocation
+requires deleting an individual stored root key, while this MVP can only rotate
+the deployment secret and invalidate every credential minted by that proxy.
 
 ### Paywall Policy
 

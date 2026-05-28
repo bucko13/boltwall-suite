@@ -553,6 +553,20 @@ describe("boltwall CLI", () => {
         join(dir, "deployments", "pokedex") +
         " --sensitive",
     );
+    const rootKeyCommand = runner.commands.find(
+      (command) => command.args[2] === "BOLTWALL_PROXY_ROOT_KEY",
+    );
+    expect(rootKeyCommand?.args).toEqual([
+      "env",
+      "add",
+      "BOLTWALL_PROXY_ROOT_KEY",
+      "preview",
+      "--force",
+      "--cwd",
+      join(dir, "deployments", "pokedex"),
+      "--sensitive",
+    ]);
+    expect(rootKeyCommand?.stdin).toMatch(/^[0-9a-f]{64}\n$/);
     expect(runner.commands).toContainEqual({
       command: "vercel",
       args: [
@@ -598,6 +612,53 @@ describe("boltwall CLI", () => {
       join(dir, "deployments", "pokedex"),
       "--yes",
     ]);
+
+    const generatedPackage = JSON.parse(
+      await readFile(join(dir, "deployments", "pokedex", "package.json"), "utf8"),
+    ) as { dependencies: Record<string, string> };
+    expect(generatedPackage.dependencies["@boltwall/adapters"]).toBe("0.0.0");
+    expect(generatedPackage.dependencies["@boltwall/l402"]).toBe("0.0.0");
+    expect(generatedPackage.dependencies["@boltwall/proxy"]).toBe("0.0.0");
+
+    const generatedApi = await readFile(
+      join(dir, "deployments", "pokedex", "api", "index.ts"),
+      "utf8",
+    );
+    expect(generatedApi).toContain('requireEnv("BOLTWALL_PROXY_ROOT_KEY")');
+    expect(generatedApi).toContain("class EnvRootKeyStore");
+    expect(generatedApi).not.toContain("InMemoryRootKeyStore");
+  });
+
+  test("deploy reuses configured Vercel proxy root key secret", async () => {
+    const dir = await fixtureDir("deploy-root-key-secret");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const runner = new MockRunner();
+    const rootKey = "0123456789abcdef0123456789abcdef0123456789abcdef0123456789abcdef";
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key", BOLTWALL_PROXY_ROOT_KEY: rootKey },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(0);
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "BOLTWALL_PROXY_ROOT_KEY",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+        "--sensitive",
+      ],
+      stdin: `${rootKey}\n`,
+    });
   });
 
   test("deploy --config --yes does not prompt when Vercel project name exists", async () => {

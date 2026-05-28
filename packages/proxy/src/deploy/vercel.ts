@@ -1,6 +1,8 @@
 import { spawn } from "node:child_process";
-import { mkdir, writeFile } from "node:fs/promises";
-import { join } from "node:path";
+import { randomBytes } from "node:crypto";
+import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { dirname, join } from "node:path";
+import { fileURLToPath } from "node:url";
 
 import type { BoltwallConfig } from "../config-schema.js";
 import {
@@ -9,6 +11,8 @@ import {
   type BoltwallBackendEnvNames,
 } from "../config-schema.js";
 import { deploymentDirForConfig } from "../config-store.js";
+
+const VERCEL_ROOT_KEY_ENV = "BOLTWALL_PROXY_ROOT_KEY";
 
 export interface CommandResult {
   code: number | null;
@@ -144,7 +148,9 @@ export async function deployVercel(options: VercelDeployOptions): Promise<Vercel
 
 async function writeVercelProject(projectDir: string, config: BoltwallConfig): Promise<void> {
   await mkdir(join(projectDir, "api"), { recursive: true });
-  await writeFile(join(projectDir, "package.json"), generatedPackageJson(config), { mode: 0o600 });
+  await writeFile(join(projectDir, "package.json"), await generatedPackageJson(config), {
+    mode: 0o600,
+  });
   await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
   await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
 }
@@ -191,6 +197,19 @@ async function setVercelEnvironment(options: {
   for (const [name, value] of Object.entries(runtime)) {
     await addVercelEnv(options.runner, options.projectDir, options.environment, name, value, false);
   }
+
+  const rootKeySecret =
+    options.secretValues[VERCEL_ROOT_KEY_ENV] ??
+    options.env[VERCEL_ROOT_KEY_ENV] ??
+    randomBytes(32).toString("hex");
+  await addVercelEnv(
+    options.runner,
+    options.projectDir,
+    options.environment,
+    VERCEL_ROOT_KEY_ENV,
+    rootKeySecret,
+    true,
+  );
 
   for (const key of requiredSecretKeys(options.config)) {
     const sourceName = sourceNames[key];
@@ -241,7 +260,8 @@ async function addVercelEnv(
   }
 }
 
-function generatedPackageJson(config: BoltwallConfig): string {
+async function generatedPackageJson(config: BoltwallConfig): Promise<string> {
+  const boltwallVersion = await generatorPackageVersion();
   return `${JSON.stringify(
     {
       name: config.deploy.projectName ?? config.name ?? "boltwall-proxy",
@@ -251,9 +271,9 @@ function generatedPackageJson(config: BoltwallConfig): string {
         start: "node api/index.ts",
       },
       dependencies: {
-        "@boltwall/adapters": "latest",
-        "@boltwall/l402": "latest",
-        "@boltwall/proxy": "latest",
+        "@boltwall/adapters": boltwallVersion,
+        "@boltwall/l402": boltwallVersion,
+        "@boltwall/proxy": boltwallVersion,
         express: "^5.1.0",
       },
       devDependencies: {
@@ -263,6 +283,22 @@ function generatedPackageJson(config: BoltwallConfig): string {
     null,
     2,
   )}\n`;
+}
+
+async function generatorPackageVersion(): Promise<string> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [join(here, "../../package.json"), join(here, "../package.json")];
+  for (const candidate of candidates) {
+    try {
+      const parsed = JSON.parse(await readFile(candidate, "utf8")) as { version?: unknown };
+      if (typeof parsed.version === "string" && parsed.version.length > 0) {
+        return parsed.version;
+      }
+    } catch {
+      // Try the next layout. Source tests run from src/deploy; packaged CLI runs from dist.
+    }
+  }
+  throw new VercelDeployError("Unable to resolve @boltwall/proxy package version");
 }
 
 function generatedVercelJson(): string {
@@ -276,11 +312,13 @@ function generatedVercelJson(): string {
 }
 
 function generatedApiIndex(): string {
-  return `import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
+  return `import { createHmac } from "node:crypto";
+
+import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-import { InMemoryRootKeyStore, originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
+import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
@@ -329,7 +367,7 @@ const backend = (() => {
 const app = createProxy({
   targetUrl: requireEnv("TARGET_URL"),
   backend,
-  rootKeyStore: new InMemoryRootKeyStore(),
+  rootKeyStore: new EnvRootKeyStore(requireEnv("BOLTWALL_PROXY_ROOT_KEY")),
   defaultPrice: BigInt(optionalEnv("DEFAULT_PRICE_MSAT") ?? "1000"),
   challengeCompatibility: challengeCompatibility(),
   ...(optionalEnv("SERVICE") === undefined ? {} : { service: optionalEnv("SERVICE") }),
@@ -360,6 +398,36 @@ function optionalEnv(name: string): string | undefined {
 
 function splitList(value: string): string[] {
   return value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
+}
+
+class EnvRootKeyStore {
+  #secret;
+
+  constructor(secret) {
+    const trimmed = secret.trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      throw new Error("BOLTWALL_PROXY_ROOT_KEY must be a 32-byte hex secret");
+    }
+    this.#secret = Buffer.from(trimmed, "hex");
+  }
+
+  async get(tokenId) {
+    // L402 macaroon-spec.md §Identifier Structure / §Minting require a
+    // server-side 32-byte root key per token id. This release-MVP Vercel store
+    // deterministically derives that key from a deployment secret and token id.
+    return createHmac("sha256", this.#secret).update(tokenId).digest();
+  }
+
+  async put() {
+    // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
+    // per-token write surface in this Vercel MVP store.
+  }
+
+  async delete() {
+    // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
+    // This env-secret MVP cannot revoke individual credentials; rotate the
+    // deployment secret to invalidate every credential minted by this proxy.
+  }
 }
 
 function corsConfig() {
