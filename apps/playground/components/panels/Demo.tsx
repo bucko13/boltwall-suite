@@ -1,6 +1,6 @@
 "use client";
 
-import { parseAuthenticateHeader, parseCaveat } from "@boltwall/l402";
+import { inspectMacaroon, parseAuthenticateHeader } from "@boltwall/l402";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -1502,7 +1502,7 @@ function extractCaveatSummaries(input: string): CaveatSummary[] {
   if (macaroon === "") return [];
 
   try {
-    return extractRawCaveats(base64ToBytes(macaroon)).map((caveat) => ({
+    return inspectMacaroon(macaroon).caveats.map((caveat) => ({
       ...caveat,
       label: formatCaveatLabel(caveat.condition, caveat.value),
       expiresAtMs: parseCaveatExpiration(caveat.condition, caveat.value),
@@ -1528,67 +1528,6 @@ function extractMacaroonForInspection(input: string): string {
   const authMatch = /^(?:L402|LSAT)\s+([^:\s]+)(?::[0-9a-fA-F]{64})?$/u.exec(authorization);
   if (authMatch?.[1]) return authMatch[1];
   return trimmed;
-}
-
-/**
- * L402 macaroon-spec.md §Caveat Format: caveats are UTF-8 condition=value
- * strings; this reads the local Aperture-compatible V2 layout used by
- * @boltwall/l402's private macaroon codec for display only.
- */
-function extractRawCaveats(bytes: Uint8Array): Array<{ condition: string; value: string }> {
-  const caveats: Array<{ condition: string; value: string }> = [];
-  const decoder = new TextDecoder();
-  let pos = 1;
-
-  if (bytes.length < 1 || bytes[0] !== 2) return caveats;
-
-  function readVarint(): number {
-    let result = 0;
-    let shift = 0;
-    while (pos < bytes.length) {
-      const byte = bytes[pos++] ?? 0;
-      result |= (byte & 0x7f) << shift;
-      if ((byte & 0x80) === 0) break;
-      shift += 7;
-    }
-    return result;
-  }
-
-  while (pos < bytes.length) {
-    const tag = bytes[pos++];
-    if (tag === 0) break;
-    if (tag === 6) return caveats;
-    pos += readVarint();
-  }
-
-  while (pos < bytes.length) {
-    const tag = bytes[pos];
-    if (tag === 0 || tag === 6) break;
-    pos++;
-    const length = readVarint();
-    const fieldBytes = bytes.slice(pos, pos + length);
-    pos += length;
-    if (bytes[pos] === 0) pos++;
-    if (tag !== 2) continue;
-
-    const raw = decoder.decode(fieldBytes);
-    try {
-      caveats.push(parseCaveat(raw));
-    } catch {
-      caveats.push({ condition: raw, value: "" });
-    }
-  }
-
-  return caveats;
-}
-
-function base64ToBytes(input: string): Uint8Array {
-  const binary = atob(input);
-  const bytes = new Uint8Array(binary.length);
-  for (let index = 0; index < binary.length; index++) {
-    bytes[index] = binary.charCodeAt(index);
-  }
-  return bytes;
 }
 
 function formatCaveatLabel(condition: string, value: string): string {

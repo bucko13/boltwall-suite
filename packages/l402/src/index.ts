@@ -28,6 +28,12 @@ export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./
 
 export { L402, type L402ChallengeOptions, type L402Options, type L402TokenOptions } from "./l402";
 
+export {
+  inspectMacaroon,
+  type InspectedMacaroonCaveat,
+  type MacaroonInspection,
+} from "./inspect-macaroon";
+
 export { mintMacaroon, type MintMacaroonArgs } from "./mint-macaroon";
 
 export {

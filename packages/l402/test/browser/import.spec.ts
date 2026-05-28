@@ -101,6 +101,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         context: {},
       });
       const mintedIdentifier = l402.decodeIdentifier(mintedMacaroon);
+      const inspectedMintedMacaroon = l402.inspectMacaroon(mintedMacaroon);
 
       let invalidIdentifierReason = "";
       try {
@@ -117,6 +118,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           decodeBolt11Invoice: typeof l402.decodeBolt11Invoice,
           verifyPreimage: typeof l402.verifyPreimage,
           parseCaveat: typeof l402.parseCaveat,
+          inspectMacaroon: typeof l402.inspectMacaroon,
           mintMacaroon: typeof l402.mintMacaroon,
           verifyMacaroon: typeof l402.verifyMacaroon,
         },
@@ -137,6 +139,16 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         preimageOk,
         preimageRejected,
         caveat,
+        inspectedMintedMacaroon: {
+          identifierBytesLength: inspectedMintedMacaroon.identifierBytes.length,
+          signatureLength: inspectedMintedMacaroon.signature.length,
+          caveats: inspectedMintedMacaroon.caveats.map(({ condition, value, text }) => ({
+            condition,
+            value,
+            text,
+          })),
+          paymentHashHex: bytesToHex(inspectedMintedMacaroon.identifier.paymentHash),
+        },
         macaroon: {
           encodedLength: mintedMacaroon.length,
           publicVerified: verifiedMacaroon,
@@ -177,6 +189,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     decodeBolt11Invoice: "function",
     verifyPreimage: "function",
     parseCaveat: "function",
+    inspectMacaroon: "function",
     mintMacaroon: "function",
     verifyMacaroon: "function",
   });
@@ -195,6 +208,12 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
   expect(result.preimageOk).toBe(true);
   expect(result.preimageRejected).toBe(false);
   expect(result.caveat).toEqual({ condition: "services", value: "pokedex:0" });
+  expect(result.inspectedMintedMacaroon).toEqual({
+    identifierBytesLength: 66,
+    signatureLength: 32,
+    caveats: [{ condition: "services", value: "pokedex:0", text: "services=pokedex:0" }],
+    paymentHashHex: goodPreimageFixture.paymentHashHex,
+  });
   expect(result.macaroon).toEqual({
     encodedLength: expect.any(Number),
     publicVerified: { ok: true },

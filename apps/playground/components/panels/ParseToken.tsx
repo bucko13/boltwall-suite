@@ -1,11 +1,10 @@
 "use client";
 
 import {
-  decodeIdentifier,
+  inspectMacaroon,
   parseAuthorizationHeader,
   parseAuthenticateHeader,
-  parseCaveat,
-  type MacaroonIdentifierV0,
+  type MacaroonInspection,
 } from "@boltwall/l402";
 import { useState } from "react";
 
@@ -27,15 +26,6 @@ type ViewModeValue = "raw" | "json" | "stripe";
 
 function bytesToHex(b: Uint8Array): string {
   return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-}
-
-function base64ToBytes(b64: string): Uint8Array {
-  const binStr = atob(b64);
-  const bytes = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) {
-    bytes[i] = binStr.charCodeAt(i);
-  }
-  return bytes;
 }
 
 function normalizeChallengeInput(input: string): string {
@@ -70,91 +60,12 @@ function extractMacaroonInput(input: string): {
   return { macaroon: trimmed, source: "macaroon" };
 }
 
-/**
- * Extract caveats from a raw V2 macaroon binary.
- * V2 format (encodeBinaryV2 in packages/l402/src/internal/macaroon.ts):
- * 0x02 (version) | 0x02 <len> <identifier> | 0x00 (EOS header)
- * [ 0x02 <len> <caveat> | 0x00 (EOS caveat) ] * N
- * 0x00 (EOS caveat list) | 0x06 <len> <signature>
- */
-function extractRawCaveats(
-  macaroonBytes: Uint8Array,
-): Array<{ raw: Uint8Array; condition: string; value: string }> {
-  const caveats: Array<{ raw: Uint8Array; condition: string; value: string }> = [];
-  const dec = new TextDecoder();
-
-  if (macaroonBytes.length < 1 || macaroonBytes[0] !== 2) return caveats;
-
-  let pos = 1; // skip version byte
-  const bytes = macaroonBytes;
-
-  function readVarint(): number {
-    let result = 0;
-    let shift = 0;
-    while (pos < bytes.length) {
-      const b = bytes[pos++] ?? 0;
-      result |= (b & 0x7f) << shift;
-      if ((b & 0x80) === 0) break;
-      shift += 7;
-    }
-    return result;
-  }
-
-  // Skip header: tag-2 identifier field, then EOS byte
-  while (pos < bytes.length) {
-    const tag = bytes[pos++];
-    if (tag === 0) break; // EOS, header done
-    if (tag === 6) return caveats; // signature tag, no caveats
-    const len = readVarint();
-    pos += len;
-  }
-
-  // Parse caveats: each is tag-2 + bytes + EOS; double-EOS or tag-6 ends list
-  while (pos < bytes.length) {
-    const tag = bytes[pos];
-    if (tag === 0 || tag === 6) break; // EOS list or signature
-    pos++;
-    const len = readVarint();
-    const fieldBytes = bytes.slice(pos, pos + len);
-    pos += len;
-    if (bytes[pos] === 0) pos++; // consume EOS after caveat
-    if (tag === 2) {
-      const text = dec.decode(fieldBytes);
-      try {
-        const parsed = parseCaveat(text);
-        caveats.push({ raw: fieldBytes, condition: parsed.condition, value: parsed.value });
-      } catch {
-        caveats.push({ raw: fieldBytes, condition: text, value: "" });
-      }
-    }
-  }
-
-  return caveats;
-}
-
-/**
- * Build MacaroonSegments from a base64 macaroon for the stripe.
- * Since decodeIdentifier gives us the v0 identifier (66 bytes),
- * we build the identifier bytes from it.
- */
-function buildStripeSegments(
-  macaroon: string,
-  id: MacaroonIdentifierV0,
-  caveats: Array<{ raw: Uint8Array; condition: string; value: string }>,
-  sigBytes: Uint8Array,
-): MacaroonSegments {
-  // Reconstruct 66-byte v0 identifier
-  const identBytes = new Uint8Array(66);
-  identBytes[0] = 0;
-  identBytes[1] = 0;
-  identBytes.set(id.paymentHash, 2);
-  identBytes.set(id.tokenId, 34);
-
+function buildStripeSegments(inspection: MacaroonInspection): MacaroonSegments {
   return {
-    identifier: identBytes,
+    identifier: inspection.identifierBytes,
     location: "",
-    caveats,
-    signature: sigBytes,
+    caveats: inspection.caveats,
+    signature: inspection.signature,
   };
 }
 
@@ -173,9 +84,7 @@ export function ParseToken() {
   );
 
   const [parseResult, setParseResult] = useState<{
-    id: MacaroonIdentifierV0;
-    caveats: Array<{ raw: Uint8Array; condition: string; value: string }>;
-    sigBytes: Uint8Array;
+    inspection: MacaroonInspection;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
@@ -188,13 +97,8 @@ export function ParseToken() {
       return;
     }
     try {
-      const id = decodeIdentifier(extracted.macaroon);
-      const macBytes = base64ToBytes(extracted.macaroon);
-      const caveats = extractRawCaveats(macBytes);
-      // Last 32 bytes of V2 binary = signature (after tag 0x03)
-      const sigBytes =
-        macBytes.length >= 33 ? macBytes.slice(macBytes.length - 32) : new Uint8Array(32);
-      setParseResult({ id, caveats, sigBytes });
+      const inspection = inspectMacaroon(extracted.macaroon);
+      setParseResult({ inspection });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -342,21 +246,21 @@ export function ParseToken() {
                   }}
                 >
                   <span style={{ color: "var(--color-dim)" }}>version</span>
-                  <span>{parseResult.id.version}</span>
+                  <span>{parseResult.inspection.identifier.version}</span>
                   <span style={{ color: "var(--color-dim)" }}>paymentHash</span>
                   <span data-testid="parse-token-payment-hash" style={{ wordBreak: "break-all" }}>
-                    {bytesToHex(parseResult.id.paymentHash)}
+                    {bytesToHex(parseResult.inspection.identifier.paymentHash)}
                   </span>
                   <span style={{ color: "var(--color-dim)" }}>tokenId</span>
                   <span data-testid="parse-token-token-id" style={{ wordBreak: "break-all" }}>
-                    {bytesToHex(parseResult.id.tokenId)}
+                    {bytesToHex(parseResult.inspection.identifier.tokenId)}
                   </span>
                   <span style={{ color: "var(--color-dim)" }}>caveats</span>
                   <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
-                    {parseResult.caveats.length === 0 ? (
+                    {parseResult.inspection.caveats.length === 0 ? (
                       <span style={{ color: "var(--color-dim)" }}>none</span>
                     ) : (
-                      parseResult.caveats.map((c, i) => (
+                      parseResult.inspection.caveats.map((c, i) => (
                         <CaveatPill key={i} state="unsatisfied">
                           {c.condition}={c.value}
                         </CaveatPill>
@@ -365,7 +269,7 @@ export function ParseToken() {
                   </div>
                   <span style={{ color: "var(--color-dim)" }}>signature</span>
                   <span data-testid="parse-token-signature" style={{ wordBreak: "break-all" }}>
-                    {bytesToHex(parseResult.sigBytes)}
+                    {bytesToHex(parseResult.inspection.signature)}
                   </span>
                 </div>
               )}
@@ -387,14 +291,14 @@ export function ParseToken() {
                 >
                   {JSON.stringify(
                     {
-                      version: parseResult.id.version,
-                      paymentHash: bytesToHex(parseResult.id.paymentHash),
-                      tokenId: bytesToHex(parseResult.id.tokenId),
-                      caveats: parseResult.caveats.map((c) => ({
+                      version: parseResult.inspection.identifier.version,
+                      paymentHash: bytesToHex(parseResult.inspection.identifier.paymentHash),
+                      tokenId: bytesToHex(parseResult.inspection.identifier.tokenId),
+                      caveats: parseResult.inspection.caveats.map((c) => ({
                         condition: c.condition,
                         value: c.value,
                       })),
-                      signature: bytesToHex(parseResult.sigBytes),
+                      signature: bytesToHex(parseResult.inspection.signature),
                     },
                     null,
                     2,
@@ -402,14 +306,7 @@ export function ParseToken() {
                 </pre>
               )}
               {activeView === "stripe" && (
-                <MacaroonStripe
-                  segments={buildStripeSegments(
-                    extractedInput.macaroon,
-                    parseResult.id,
-                    parseResult.caveats,
-                    parseResult.sigBytes,
-                  )}
-                />
+                <MacaroonStripe segments={buildStripeSegments(parseResult.inspection)} />
               )}
             </div>
           ) : null}
@@ -419,7 +316,7 @@ export function ParseToken() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { decodeIdentifier } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst id = decodeIdentifier(macaroon);\n// -> { version: 0, paymentHash: Uint8Array, tokenId: Uint8Array }`}
+          template={`import { inspectMacaroon } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst inspection = inspectMacaroon(macaroon);\n// -> { identifier, caveats, signature }`}
           values={{
             tokenLiteral,
           }}

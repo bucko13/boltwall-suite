@@ -1,6 +1,7 @@
 "use client";
 
 import {
+  inspectMacaroon,
   parseCaveat,
   serializeCaveat,
   servicesSatisfier,
@@ -96,63 +97,9 @@ function parseAddKind(raw: string | null): AddKind {
   return ADD_KINDS.includes(raw as AddKind) ? (raw as AddKind) : "custom";
 }
 
-function base64ToBytes(b64: string): Uint8Array {
-  const binStr = atob(b64);
-  const bytes = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) {
-    bytes[i] = binStr.charCodeAt(i);
-  }
-  return bytes;
-}
-
 function extractCaveatsFromMacaroon(macaroon: string): CaveatRow[] {
   try {
-    const macBytes = base64ToBytes(macaroon);
-    const dec = new TextDecoder();
-    const caveats: CaveatRow[] = [];
-
-    if (macBytes.length < 1 || macBytes[0] !== 2) return caveats;
-    let pos = 1;
-
-    function readVarint(): number {
-      let result = 0;
-      let shift = 0;
-      while (pos < macBytes.length) {
-        const b = macBytes[pos++] ?? 0;
-        result |= (b & 0x7f) << shift;
-        if ((b & 0x80) === 0) break;
-        shift += 7;
-      }
-      return result;
-    }
-
-    while (pos < macBytes.length) {
-      const tag = macBytes[pos++];
-      if (tag === 0) break;
-      if (tag === 6) return caveats;
-      const len = readVarint();
-      pos += len;
-    }
-
-    while (pos < macBytes.length) {
-      const tag = macBytes[pos];
-      if (tag === 0 || tag === 6) break;
-      pos++;
-      const len = readVarint();
-      const fieldBytes = macBytes.slice(pos, pos + len);
-      pos += len;
-      if (macBytes[pos] === 0) pos++;
-      if (tag === 2) {
-        const text = dec.decode(fieldBytes);
-        try {
-          const parsed = parseCaveat(text);
-          caveats.push({ condition: parsed.condition, value: parsed.value });
-        } catch {
-          caveats.push({ condition: text, value: "" });
-        }
-      }
-    }
-    return caveats;
+    return inspectMacaroon(macaroon).caveats.map(({ condition, value }) => ({ condition, value }));
   } catch {
     return [];
   }

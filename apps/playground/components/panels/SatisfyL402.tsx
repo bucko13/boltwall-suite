@@ -1,7 +1,7 @@
 "use client";
 
 import {
-  parseCaveat,
+  inspectMacaroon,
   validUntilSatisfier,
   servicesSatisfier,
   type CaveatSatisfier,
@@ -54,71 +54,9 @@ function jsonToRows(raw: string | null): SatisfierRow[] {
   return [];
 }
 
-function base64ToBytes(b64: string): Uint8Array {
-  const binStr = atob(b64);
-  const bytes = new Uint8Array(binStr.length);
-  for (let i = 0; i < binStr.length; i++) {
-    bytes[i] = binStr.charCodeAt(i);
-  }
-  return bytes;
-}
-
 function extractCaveatsFromMacaroon(macaroon: string): Array<{ condition: string; value: string }> {
-  // V2 binary format (encodeBinaryV2 in packages/l402/src/internal/macaroon.ts):
-  // 0x02 (version) | 0x02 <len> <identifier> | 0x00 (EOS header)
-  // [ 0x02 <len> <caveat> | 0x00 (EOS caveat) ] * N
-  // 0x00 (EOS caveat list) | 0x06 <len> <signature>
-  // Caveats use tag 0x02 (FIELD_IDENTIFIER), same as the identifier field.
   try {
-    const macBytes = base64ToBytes(macaroon);
-    const dec = new TextDecoder();
-    const caveats: Array<{ condition: string; value: string }> = [];
-
-    if (macBytes.length < 1 || macBytes[0] !== 2) return caveats;
-    let pos = 1;
-
-    function readVarint(): number {
-      let result = 0;
-      let shift = 0;
-      while (pos < macBytes.length) {
-        const b = macBytes[pos++] ?? 0;
-        result |= (b & 0x7f) << shift;
-        if ((b & 0x80) === 0) break;
-        shift += 7;
-      }
-      return result;
-    }
-
-    // Skip header: read tag-2 identifier field, then EOS byte
-    while (pos < macBytes.length) {
-      const tag = macBytes[pos++];
-      if (tag === 0) break; // EOS, end of header
-      if (tag === 6) return caveats; // signature, no caveats
-      const len = readVarint();
-      pos += len; // skip identifier bytes
-    }
-
-    // Parse caveats: each is tag-2 + bytes + EOS; double-EOS ends the list
-    while (pos < macBytes.length) {
-      const tag = macBytes[pos];
-      if (tag === 0 || tag === 6) break; // EOS list or signature
-      pos++;
-      const len = readVarint();
-      const fieldBytes = macBytes.slice(pos, pos + len);
-      pos += len;
-      if (macBytes[pos] === 0) pos++; // consume EOS after caveat
-      if (tag === 2) {
-        // Caveat, same tag as identifier and determined by position.
-        const text = dec.decode(fieldBytes);
-        try {
-          const parsed = parseCaveat(text);
-          caveats.push({ condition: parsed.condition, value: parsed.value });
-        } catch {
-          caveats.push({ condition: text, value: "" });
-        }
-      }
-    }
-    return caveats;
+    return inspectMacaroon(macaroon).caveats.map(({ condition, value }) => ({ condition, value }));
   } catch {
     return [];
   }
