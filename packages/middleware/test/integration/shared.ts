@@ -13,13 +13,13 @@ import {
   buildAuthorizationHeader,
   mintMacaroon,
   parseAuthenticateHeader,
+  validUntilSatisfier,
 } from "@boltwall/l402";
 import { BackendCapabilityError, type LightningBackend } from "@boltwall/adapters";
 import { MockAdapter } from "@boltwall/adapters/testing";
 import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
 import { boltwall, validUntil } from "../../src/express/index.js";
-import { validUntilSatisfier } from "@boltwall/l402";
 
 // --- Fixtures ---
 
@@ -62,14 +62,20 @@ interface AppOptions {
   challengeCompatibility?: "dual" | "l402-only" | "lsat-only";
   satisfiers?: ReturnType<typeof validUntilSatisfier>[];
   hodl?: true;
+  allowInsecureHttp?: boolean;
 }
 
-export async function buildIntegrationApp(options: AppOptions = {}) {
+type ExpressFactory = typeof express;
+
+export async function buildIntegrationApp(
+  options: AppOptions = {},
+  expressFactory: ExpressFactory = express,
+) {
   const backend = new IntegrationBackend();
   const rootKeyStore = new InMemoryRootKeyStore();
   await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
 
-  const app = express();
+  const app = expressFactory();
   app.use(express.json());
   let capturedL402: unknown;
   app.use(
@@ -79,6 +85,7 @@ export async function buildIntegrationApp(options: AppOptions = {}) {
       backend,
       rootKeyStore,
       price: AMOUNT_MSAT,
+      allowInsecureHttp: true,
       ...options,
     }),
     (req: express.Request, res: express.Response) => {
@@ -255,7 +262,7 @@ export function defineIntegrationSuite(
       expect(backend.settleHodlInvoiceCalls).toBe(0);
     });
 
-    test("non-HODL config with held invoice → 402 re-challenge", async () => {
+    test("non-HODL config with held invoice → 401 invalid credential", async () => {
       const { app, backend } = await makeApp();
 
       const challenge = await supertest(app).get("/paid");
@@ -267,7 +274,7 @@ export function defineIntegrationSuite(
         .get("/paid")
         .set("Authorization", hodlCredentialFromMacaroon(macaroon, PREIMAGE_HEX));
 
-      expect(res.status).toBe(402);
+      expect(res.status).toBe(401);
     });
 
     // Scenario 5 — invalid credential (parse failure)
@@ -314,8 +321,12 @@ export function defineIntegrationSuite(
           streamingInvoices: false,
           customDescription: false,
         },
-        createInvoice: async () => { throw new Error("not called"); },
-        lookupInvoice: async () => { throw new Error("not called"); },
+        createInvoice: async () => {
+          throw new Error("not called");
+        },
+        lookupInvoice: async () => {
+          throw new Error("not called");
+        },
       };
       const rootKeyStore = new InMemoryRootKeyStore();
 
@@ -345,7 +356,13 @@ export function defineIntegrationSuite(
       const app = express();
       app.use(
         "/paid",
-        boltwall({ service: "test-service", backend, rootKeyStore, price: 2_000n }),
+        boltwall({
+          service: "test-service",
+          backend,
+          rootKeyStore,
+          price: 2_000n,
+          allowInsecureHttp: true,
+        }),
         (_req, res) => res.json({ ok: true }),
       );
 

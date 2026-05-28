@@ -1,7 +1,7 @@
 import pino from "pino";
 import type { DestinationStream } from "pino";
 
-import type { MinimalLogger } from "./core/types.js";
+import { noopLogger, type MinimalLogger } from "./core/types.js";
 
 export const REDACTED_PATHS = [
   "macaroon",
@@ -51,10 +51,4 @@ export function createLogger(
 }
 
 export const defaultLogger: MinimalLogger = createLogger();
-
-/** No-op logger for contexts where logging is explicitly disabled. */
-export const noopLogger: MinimalLogger = {
-  info: () => {},
-  warn: () => {},
-  error: () => {},
-};
+export { noopLogger };

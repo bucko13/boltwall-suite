@@ -6,6 +6,15 @@
  * middleware runner. This file proves that compatibility by running all
  * shared scenarios against the same express package.
  */
-import { defineIntegrationSuite } from "./shared.js";
+import { createRequire } from "node:module";
 
-defineIntegrationSuite("Express 4-compat integration");
+import type express from "express";
+
+import { buildIntegrationApp, defineIntegrationSuite } from "./shared.js";
+
+const require = createRequire(import.meta.url);
+const express4 = require("express4") as typeof express;
+
+defineIntegrationSuite("Express 4-compat integration", (options = {}) =>
+  buildIntegrationApp(options, express4),
+);

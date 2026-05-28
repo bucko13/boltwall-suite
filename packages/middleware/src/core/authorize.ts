@@ -2,8 +2,10 @@
  * authorizeL402 — framework-agnostic L402 authentication gate.
  *
  * Spec citations:
- *   L402 protocol-specification.md §5  — 402 is ONLY for the initial
+ *   L402 protocol-specification.md §4.1 — 402 is ONLY for the initial
  *     missing-credential challenge. Present-but-invalid credentials → 401.
+ *   L402 protocol-specification.md §6.1 — server flow for minting challenges
+ *     and returning 401 on failed credential verification.
  *   L402 protocol-specification.md §10 — dual LSAT-first/L402-second
  *     WWW-Authenticate headers for backwards compatibility (default).
  *   L402 macaroon-spec.md §Verification — HMAC chain integrity check.
@@ -21,18 +23,23 @@ import {
   VerificationFailureReason,
   buildAuthenticateHeaders,
   capabilitiesCaveat,
+  type CaveatSatisfier,
   decodeIdentifier,
   mintMacaroon,
   parseAuthorizationHeader,
   servicesCaveat,
+  servicesSatisfier,
   validUntil,
   verifyMacaroon,
 } from "@boltwall/l402";
 
-import { noopLogger } from "../logger.js";
-
 import { L402Error, l402ErrorToStatus, type L402ErrorKind } from "./error.js";
-import type { L402Config, L402GateResult, L402RequestContext } from "./types.js";
+import {
+  noopLogger,
+  type L402Config,
+  type L402GateResult,
+  type L402RequestContext,
+} from "./types.js";
 
 const PAYMENT_HASH_HEX_RE = /^[0-9a-fA-F]{64}$/;
 
@@ -102,7 +109,7 @@ function orderValidUntilCaveats(caveats: Caveat[]): Caveat[] {
 
 /**
  * Map a verifyMacaroon failure reason to an L402ErrorKind.
- * L402 protocol-specification.md §6 Authorization — 401 for all present-
+ * L402 protocol-specification.md §4.1 / §6.1 — 401 for all present-
  * but-invalid-credential cases.
  */
 function verifyReasonToKind(
@@ -124,6 +131,64 @@ function errorResult(kind: L402ErrorKind, message: string): L402GateResult {
 
 function normalizePaymentHash(value: string): string | undefined {
   return PAYMENT_HASH_HEX_RE.test(value) ? value.toLowerCase() : undefined;
+}
+
+function isLoopbackHost(hostname: string): boolean {
+  return hostname === "localhost" || hostname === "127.0.0.1" || hostname === "::1";
+}
+
+function hasSatisfier(satisfiers: CaveatSatisfier[], condition: string): boolean {
+  return satisfiers.some((satisfier) =>
+    typeof satisfier.condition === "string"
+      ? satisfier.condition === condition
+      : satisfier.condition.test(condition),
+  );
+}
+
+function parseCapabilityList(value: string): string[] {
+  return value
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+}
+
+function isSubset(candidate: string[], allowed: string[]): boolean {
+  return candidate.every((entry) => allowed.includes(entry));
+}
+
+function middlewareCapabilitiesSatisfier(
+  service: string,
+  requiredCapabilities: string[],
+): CaveatSatisfier {
+  return {
+    condition: `${service}_capabilities`,
+    satisfyPrevious(previous, next) {
+      return isSubset(parseCapabilityList(next.value), parseCapabilityList(previous.value));
+    },
+    satisfyFinal(caveat) {
+      const actualCapabilities = parseCapabilityList(caveat.value);
+      return requiredCapabilities.every((capability) => actualCapabilities.includes(capability));
+    },
+  };
+}
+
+function defaultSatisfiers(config: L402Config): CaveatSatisfier[] {
+  const callerSatisfiers = config.satisfiers ?? [];
+  const middlewareSatisfiers: CaveatSatisfier[] = [];
+
+  if (config.service !== undefined && !hasSatisfier(callerSatisfiers, "services")) {
+    middlewareSatisfiers.push(servicesSatisfier(config.service));
+  }
+
+  if (
+    config.service !== undefined &&
+    config.capabilities !== undefined &&
+    !hasSatisfier(callerSatisfiers, `${config.service}_capabilities`)
+  ) {
+    middlewareSatisfiers.push(middlewareCapabilitiesSatisfier(config.service, config.capabilities));
+  }
+
+  return [...callerSatisfiers, ...middlewareSatisfiers];
 }
 
 async function extractHodlPaymentHash(req: Request): Promise<string | undefined> {
@@ -188,7 +253,7 @@ async function verifyCredential(
   const verifyResult = await verifyMacaroon({
     macaroons: credential.macaroons,
     rootKeyStore: config.rootKeyStore,
-    satisfiers: config.satisfiers ?? [],
+    satisfiers: defaultSatisfiers(config),
     context: { request, now: new Date() },
     requirePreimage,
     ...(preimage === undefined ? {} : { preimage }),
@@ -227,7 +292,7 @@ async function authorizeSuccess(
 /**
  * Emit a 402 Payment Required response with a fresh invoice + macaroon.
  *
- * L402 protocol-specification.md §5 — 402 is ONLY for absent credentials.
+ * L402 protocol-specification.md §4.1 / §6.1 — 402 is ONLY for absent credentials.
  * L402 protocol-specification.md §10 — dual LSAT-first/L402-second by default.
  */
 async function emitChallenge(
@@ -326,7 +391,7 @@ async function getOrGenerateRootKey(
  *
  * Security invariants (per AGENTS.md and L402 spec):
  *   - 402 is emitted ONLY when the Authorization header is absent or carries
- *     a non-L402/LSAT scheme. L402 protocol-specification.md §5.
+ *     a non-L402/LSAT scheme. L402 protocol-specification.md §4.1.
  *   - Invoice amount MUST match config.price. Amount mismatch is treated as
  *     invalid-credential (401). AGENTS.md security-boundaries.
  *   - Constant-time comparisons are handled inside verifyMacaroon /
@@ -338,19 +403,25 @@ async function getOrGenerateRootKey(
 export async function authorizeL402(request: Request, config: L402Config): Promise<L402GateResult> {
   const log = config.logger ?? noopLogger;
 
-  // Warn if TLS appears absent — deployers are responsible for TLS, but
-  // we surface an obvious mistake loudly.
-  if (request.url.startsWith("http://")) {
-    log.warn(
-      { url: request.url },
-      "L402 middleware handling a non-TLS request — production deployments must use HTTPS",
+  // L402 protocol-specification.md §9.1 — credentials are bearer credentials,
+  // so cleartext HTTP is refused before challenges or credentials are handled.
+  const requestUrl = new URL(request.url);
+  if (
+    requestUrl.protocol === "http:" &&
+    config.allowInsecureHttp !== true &&
+    !isLoopbackHost(requestUrl.hostname)
+  ) {
+    log.warn({ url: request.url }, "L402 middleware refused a non-TLS request");
+    return errorResult(
+      "bad-request",
+      "L402 requires HTTPS; set allowInsecureHttp only for local development",
     );
   }
 
   const authHeader = request.headers.get("Authorization") ?? "";
   const scheme = authHeader.split(" ")[0]?.toUpperCase() ?? "";
 
-  // L402 protocol-specification.md §5 — absent or non-L402/LSAT credential
+  // L402 protocol-specification.md §4.1 — absent or non-L402/LSAT credential
   // triggers a 402 challenge. "Bearer" and other schemes are treated as absent.
   if (!authHeader || (scheme !== "L402" && scheme !== "LSAT")) {
     return emitChallenge(config, request, log);
@@ -402,22 +473,22 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
     };
   }
 
-  // Invoice still unpaid → re-challenge. The spec says to use the SAME invoice,
-  // but since InvoiceLookup doesn't carry paymentRequest, we issue a fresh
-  // challenge. This is a known v0.1.0 limitation; a persistent challenge cache
-  // can restore exact idempotency later.
+  // L402 protocol-specification.md §6.1 — after a credential is presented,
+  // failures are 401 rather than a fresh 402 challenge.
   if (lookup.status === "open") {
-    return emitChallenge(config, request, log);
+    return errorResult("invalid-credential", "Invoice is not settled");
   }
 
-  // Invoice expired or cancelled → treat as missing credential.
   if (lookup.status === "expired" || lookup.status === "canceled") {
-    return emitChallenge(config, request, log);
+    return errorResult("invalid-credential", `Invoice is ${lookup.status}`);
   }
 
   if (lookup.status === "held") {
     if (config.hodl !== true) {
-      return emitChallenge(config, request, log);
+      return errorResult(
+        "invalid-credential",
+        "Invoice is held but HODL authorization is disabled",
+      );
     }
 
     const amountError = await requireAmountMatch(config, request, lookup, log);

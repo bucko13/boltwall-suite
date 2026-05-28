@@ -76,7 +76,13 @@ async function buildApp() {
   const app = express();
   app.use(
     "/paid",
-    boltwall({ service: "test-service", backend, rootKeyStore, price: AMOUNT_MSAT }),
+    boltwall({
+      service: "test-service",
+      backend,
+      rootKeyStore,
+      price: AMOUNT_MSAT,
+      allowInsecureHttp: true,
+    }),
     (_req, res) => {
       res.json({ ok: true });
     },
@@ -104,6 +110,7 @@ async function buildPresetApp(
       backend,
       rootKeyStore,
       price: AMOUNT_MSAT,
+      allowInsecureHttp: true,
       ...preset,
     }),
     (_req, res) => res.json({ ok: true }),
@@ -144,7 +151,13 @@ describe("Express adapter — GET /paid", () => {
     const app2 = express();
     app2.use(
       "/paid",
-      boltwall({ service: "test-service", backend, rootKeyStore, price: AMOUNT_MSAT }),
+      boltwall({
+        service: "test-service",
+        backend,
+        rootKeyStore,
+        price: AMOUNT_MSAT,
+        allowInsecureHttp: true,
+      }),
       (req, res) => {
         capturedL402 = req.l402;
         res.json({ ok: true, paymentHash: req.l402?.paymentHash });
@@ -197,7 +210,13 @@ describe("Express adapter — GET /paid", () => {
     // Config price is 2000 but invoice is 1000.
     app.use(
       "/paid",
-      boltwall({ service: "test-service", backend, rootKeyStore, price: 2_000n }),
+      boltwall({
+        service: "test-service",
+        backend,
+        rootKeyStore,
+        price: 2_000n,
+        allowInsecureHttp: true,
+      }),
       (_req, res) => res.json({ ok: true }),
     );
 
@@ -220,6 +239,7 @@ describe("Express adapter — GET /paid", () => {
         backend,
         rootKeyStore,
         price: AMOUNT_MSAT,
+        allowInsecureHttp: true,
         satisfiers: [ipSatisfier()],
       }),
       (_req, res) => res.json({ ok: true }),
@@ -271,6 +291,7 @@ describe("Express adapter — GET /paid", () => {
         backend: failingBackend,
         rootKeyStore,
         price: AMOUNT_MSAT,
+        allowInsecureHttp: true,
       }),
       (_req, res) => res.json({ ok: true }),
     );

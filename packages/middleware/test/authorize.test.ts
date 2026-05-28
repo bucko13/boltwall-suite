@@ -3,8 +3,10 @@ import { describe, expect, test } from "bun:test";
 import {
   InMemoryRootKeyStore,
   buildAuthorizationHeader,
+  capabilitiesSatisfier,
   mintMacaroon,
   parseAuthenticateHeader,
+  servicesSatisfier,
   validUntil,
   validUntilSatisfier,
   verifyMacaroon,
@@ -15,7 +17,6 @@ import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
 import { authorizeL402 } from "../src/core/authorize";
 import type { L402Config } from "../src/core/types";
-import { decodeRaw } from "../../l402/src/internal/macaroon";
 
 // --- Fixture setup ---
 
@@ -28,10 +29,6 @@ function hexToBytes(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length / 2);
   for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
   return out;
-}
-
-function bytesToUtf8(bytes: Uint8Array): string {
-  return new TextDecoder().decode(bytes);
 }
 
 const ROOT_KEY = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
@@ -225,30 +222,58 @@ describe("authorizeL402 — missing credential (402)", () => {
 
   test("omits services caveat when no service is configured", async () => {
     const config = await makeConfig({ service: undefined });
-    const result = await authorizeL402(makeRequest(), config);
+    const macaroon = await challengeMacaroon(config);
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    const [challenge] = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
-    expect(challenge).toBeDefined();
-    const raw = decodeRaw(challenge!.macaroon);
-    expect(raw.caveats.map(bytesToUtf8)).not.toContain("services=test-service:0");
-    expect(raw.caveats.map(bytesToUtf8).some((caveat) => caveat.startsWith("services="))).toBe(
-      false,
-    );
+    const result = await verifyMacaroon({
+      macaroons: [macaroon],
+      rootKeyStore: config.rootKeyStore,
+      satisfiers: [servicesSatisfier("test-service")],
+      context: { request: makeRequest(), now: new Date() },
+      requirePreimage: false,
+    });
+    expect(result.ok).toBe(true);
   });
 
-  test("adds service and capability caveats only when configured", async () => {
-    const config = await makeConfig({ service: "pokedex", capabilities: ["pokedex-read"] });
-    const result = await authorizeL402(makeRequest(), config);
+  test("registers middleware-minted service and capability caveats by default", async () => {
+    const backend = new FixedPaymentHashBackend();
+    const config = await makeConfig({
+      service: "pokedex",
+      capabilities: ["pokedex-read"],
+      backend,
+    });
+    const macaroon = await challengeMacaroon(config);
+    const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
 
-    expect(result.ok).toBe(false);
-    if (result.ok) return;
-    const [challenge] = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
-    expect(challenge).toBeDefined();
-    const caveats = decodeRaw(challenge!.macaroon).caveats.map(bytesToUtf8);
-    expect(caveats).toContain("services=pokedex:0");
-    expect(caveats).toContain("pokedex_capabilities=pokedex-read");
+    const acceptedByPublicSatisfiers = await verifyMacaroon({
+      macaroons: [macaroon],
+      preimage: PREIMAGE_HEX,
+      rootKeyStore: config.rootKeyStore,
+      satisfiers: [servicesSatisfier("pokedex"), capabilitiesSatisfier("pokedex", "pokedex-read")],
+      context: { request: makeRequest(), now: new Date() },
+      requirePreimage: false,
+    });
+    expect(acceptedByPublicSatisfiers.ok).toBe(true);
+
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+    const result = await authorizeL402(makeRequest(authHeader), config);
+    expect(result.ok).toBe(true);
+  });
+
+  test("preserves caller satisfiers alongside middleware defaults", async () => {
+    const backend = new FixedPaymentHashBackend();
+    const config = await makeConfig({
+      service: "pokedex",
+      capabilities: ["pokedex-read"],
+      backend,
+      caveats: [validUntil({ seconds: 60 })],
+      satisfiers: [validUntilSatisfier()],
+    });
+    const macaroon = await challengeMacaroon(config);
+    const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+
+    backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+    const result = await authorizeL402(makeRequest(authHeader), config);
+    expect(result.ok).toBe(true);
   });
 
   test("challengeCompatibility lsat-only → only LSAT scheme emitted", async () => {
@@ -286,6 +311,33 @@ describe("authorizeL402 — missing credential (402)", () => {
     if (result.ok) return;
     expect(result.response.status).toBe(502);
     expect(result.error.kind).toBe("invoice-provider-failure");
+  });
+
+  test("cleartext HTTP is refused before issuing a challenge", async () => {
+    const config = await makeConfig();
+    const result = await authorizeL402(
+      makeRequest(undefined, { url: "http://example.com/test" }),
+      config,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(400);
+    expect(result.response.headers.has("WWW-Authenticate")).toBe(false);
+    expect(result.error.kind).toBe("bad-request");
+  });
+
+  test("allowInsecureHttp permits local development challenges explicitly", async () => {
+    const config = await makeConfig({ allowInsecureHttp: true });
+    const result = await authorizeL402(
+      makeRequest(undefined, { url: "http://example.com/test" }),
+      config,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(402);
+    expect(result.response.headers.has("WWW-Authenticate")).toBe(true);
   });
 
   test("rate appends a valid-until caveat proportional to paid sats", async () => {
@@ -483,7 +535,7 @@ describe("authorizeL402 — HODL flow", () => {
     expect(backend.settleHodlInvoiceCalls).toBe(0);
   });
 
-  test("hodl:false held invoice → 402 re-challenge, not paid", async () => {
+  test("hodl:false held invoice → 401 invalid credential", async () => {
     const rootKeyStore = new InMemoryRootKeyStore();
     await rootKeyStore.put(TOKEN_ID, ROOT_KEY);
     const backend = new TestBackend();
@@ -504,14 +556,40 @@ describe("authorizeL402 — HODL flow", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    expect(result.response.status).toBe(402);
-    expect(result.error.kind).toBe("payment-required");
+    expect(result.response.status).toBe(401);
+    expect(result.error.kind).toBe("invalid-credential");
   });
 });
 
 // --- Invalid credential tests (401) ---
 
 describe("authorizeL402 — invalid credential (401)", () => {
+  test("present credential for an open invoice → 401 invalid-credential", async () => {
+    const config = await makeConfig();
+    const backend = config.backend as TestBackend;
+    await backend.createInvoice({ amountMsat: AMOUNT_MSAT, paymentHash: PAYMENT_HASH_HEX });
+
+    const result = await authorizeL402(makeRequest(makeValidAuthHeader()), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(401);
+    expect(result.error.kind).toBe("invalid-credential");
+  });
+
+  test("cleartext HTTP is refused before accepting a credential", async () => {
+    const config = await makeConfig();
+    const result = await authorizeL402(
+      makeRequest(makeValidAuthHeader(), { url: "http://example.com/test" }),
+      config,
+    );
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.response.status).toBe(400);
+    expect(result.error.kind).toBe("bad-request");
+  });
+
   test("mismatched preimage → 401 invalid-preimage", async () => {
     const config = await makeConfig();
     const macaroon = mintMacaroon({

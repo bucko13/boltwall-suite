@@ -60,6 +60,15 @@ export interface L402Config {
   invoiceMemo?: (req: Request) => string;
   /** Caveat satisfiers registered for this middleware instance. */
   satisfiers?: CaveatSatisfier[];
+  /**
+   * Allow cleartext `http:` requests.
+   *
+   * L402 protocol-specification.md §9.1 requires TLS because L402 credentials
+   * are bearer credentials. Loopback HTTP is allowed for local development;
+   * leave this disabled in production and use it only for tests that do not
+   * cross a network boundary.
+   */
+  allowInsecureHttp?: boolean;
   /** Called after a credential is fully verified (payment confirmed). */
   onPaid?: (event: { credential: L402CredentialFields; req: Request }) => void | Promise<void>;
   /** Optional structured logger (pino-compatible). Defaults to a no-op. */
@@ -72,6 +81,13 @@ export interface MinimalLogger {
   warn(obj: object, msg?: string): void;
   error(obj: object, msg?: string): void;
 }
+
+/** No-op logger for contexts where logging is explicitly disabled. */
+export const noopLogger: MinimalLogger = {
+  info: () => {},
+  warn: () => {},
+  error: () => {},
+};
 
 /** Request-scoped context returned on successful authorization. */
 export interface L402RequestContext {

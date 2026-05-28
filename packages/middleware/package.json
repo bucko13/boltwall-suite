@@ -18,7 +18,9 @@
       "import": "./dist/express/index.js"
     }
   },
-  "files": ["dist"],
+  "files": [
+    "dist"
+  ],
   "sideEffects": false,
   "scripts": {
     "build": "tsup src/core/index.ts src/express/index.ts --format esm --dts --clean --sourcemap",
@@ -51,6 +53,7 @@
     "@boltwall/typescript-config": "workspace:*",
     "@types/express": "^5.0.6",
     "express": "^5.1.0",
+    "express4": "npm:express@^4.21.2",
     "publint": "^0.3.15",
     "supertest": "^7.1.4",
     "tsup": "^8.5.0"
