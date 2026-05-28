@@ -15,6 +15,20 @@ describe("proxy route matching", () => {
     expect(isPathMatch("/api/data", "/api/other")).toBe(false);
   });
 
+  test("matches global and sticky regexp paths without carrying lastIndex state", () => {
+    const globalPattern = /^\/v1\/items\/\d+$/g;
+    const stickyPattern = /^\/v1\/items\/\d+$/y;
+
+    expect(isPathMatch(globalPattern, "/v1/items/42")).toBe(true);
+    expect(globalPattern.lastIndex).toBe(0);
+    expect(isPathMatch(globalPattern, "/v1/items/42")).toBe(true);
+
+    stickyPattern.lastIndex = 4;
+    expect(isPathMatch(stickyPattern, "/v1/items/42")).toBe(true);
+    expect(stickyPattern.lastIndex).toBe(0);
+    expect(isPathMatch(stickyPattern, "/v1/items/42")).toBe(true);
+  });
+
   test("respects method filters and first-match order", () => {
     const routes: ProxyRoute[] = [
       { path: "/paid", methods: ["POST"], price: 1_000n },

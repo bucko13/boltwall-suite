@@ -670,6 +670,35 @@ describe("boltwall CLI", () => {
     });
   });
 
+  test("deploy redacts exact short Vercel secret values from env command failures", async () => {
+    const dir = await fixtureDir("deploy-redact-short-secret");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const projectDir = join(dir, "deployments", "pokedex");
+    const runner = new MockRunner({
+      [`env add OPENNODE_API_KEY preview --force --cwd ${projectDir} --sensitive`]: {
+        code: 1,
+        stdout: "received short-secret",
+        stderr: "invalid value short-secret",
+      },
+    });
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      stderr,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "short-secret" },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("vercel env add OPENNODE_API_KEY failed");
+    expect(stderr.text()).toContain("[redacted]");
+    expect(stderr.text()).not.toContain("short-secret");
+  });
+
   test("deploy maps HODL paywall mode to Vercel runtime env", async () => {
     const dir = await fixtureDir("deploy-hodl");
     const configPath = join(dir, "boltwall.yaml");

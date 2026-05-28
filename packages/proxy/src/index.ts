@@ -93,16 +93,10 @@ export interface ProxyConfig extends Pick<
 export function createProxy(config: ProxyConfig): Express {
   const target = new URL(config.targetUrl);
   const logger = config.logger ?? console;
-  const protectedUpstream = createUpstreamProxy({
+  const upstream = createUpstreamProxy({
     targetUrl: target.toString(),
     logger,
     ...(config.forwardHeaders === undefined ? {} : { forwardHeaders: config.forwardHeaders }),
-    ...(config.upstreamTimeoutMs === undefined ? {} : { timeoutMs: config.upstreamTimeoutMs }),
-  });
-  const passthroughUpstream = createUpstreamProxy({
-    targetUrl: target.toString(),
-    logger,
-    sanitizeHeaders: false,
     ...(config.upstreamTimeoutMs === undefined ? {} : { timeoutMs: config.upstreamTimeoutMs }),
   });
   const app = express();
@@ -122,7 +116,7 @@ export function createProxy(config: ProxyConfig): Express {
     }
 
     if (isUnprotected(req, config.unprotectedPaths)) {
-      void passthroughUpstream(req, res, next);
+      void upstream(req, res, next);
       return;
     }
 
@@ -164,7 +158,7 @@ export function createProxy(config: ProxyConfig): Express {
         next(err instanceof Error ? err : new Error(String(err)));
         return;
       }
-      void protectedUpstream(req, res, next);
+      void upstream(req, res, next);
     });
   });
 

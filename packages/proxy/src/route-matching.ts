@@ -36,7 +36,12 @@ export function findMatchingRoute(
 }
 
 export function isPathMatch(pattern: string | RegExp, path: string): boolean {
-  if (pattern instanceof RegExp) return pattern.test(path);
+  if (pattern instanceof RegExp) {
+    pattern.lastIndex = 0;
+    const matched = pattern.test(path);
+    pattern.lastIndex = 0;
+    return matched;
+  }
   if (pattern.endsWith("*")) return path.startsWith(pattern.slice(0, -1));
   return pattern === path;
 }

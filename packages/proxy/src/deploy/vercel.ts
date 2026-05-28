@@ -235,7 +235,9 @@ async function addVercelEnv(
   if (sensitive) args.push("--sensitive");
   const result = await runner.run("vercel", args, { stdin: `${value}\n` });
   if (result.code !== 0) {
-    throw new VercelDeployError(redactCommandFailure(`vercel env add ${name} failed`, result));
+    throw new VercelDeployError(
+      redactCommandFailure(`vercel env add ${name} failed`, result, sensitive ? [value] : []),
+    );
   }
 }
 
@@ -421,12 +423,16 @@ function challengeCompatibility(): "dual" | "l402-only" | "lsat-only" {
 `;
 }
 
-function redactCommandFailure(prefix: string, result: CommandResult): string {
+function redactCommandFailure(
+  prefix: string,
+  result: CommandResult,
+  sensitiveValues: readonly string[] = [],
+): string {
   const detail = [result.stderr.trim(), result.stdout.trim()].filter(Boolean).join("\n");
-  return detail.length === 0 ? prefix : `${prefix}: ${redact(detail)}`;
+  return detail.length === 0 ? prefix : `${prefix}: ${redact(detail, sensitiveValues)}`;
 }
 
-function redact(value: string): string {
+function redact(value: string, sensitiveValues: readonly string[] = []): string {
   const names = [
     ...Object.values(backendEnvNames("lnd")),
     ...Object.values(backendEnvNames("voltage-lnd")),
@@ -434,6 +440,11 @@ function redact(value: string): string {
     ...Object.values(backendEnvNames("btcpay")),
   ];
   let out = value;
+  for (const sensitiveValue of sensitiveValues) {
+    if (sensitiveValue.length > 0) {
+      out = out.replaceAll(sensitiveValue, "[redacted]");
+    }
+  }
   for (const name of names) {
     out = out.replaceAll(name, name);
   }

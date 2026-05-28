@@ -73,7 +73,13 @@ async function buildUpstream() {
   const app = express();
   app.use(express.json());
   app.all("/public", (req, res) => {
-    res.json({ path: req.path, authorization: req.get("authorization") ?? null });
+    res.json({
+      path: req.path,
+      authorization: req.get("authorization") ?? null,
+      proxyAuthorization: req.get("proxy-authorization") ?? null,
+      cookie: req.get("cookie") ?? null,
+      custom: req.get("x-custom-foo") ?? null,
+    });
   });
   app.all("/paid", (req, res) => {
     res.json({
@@ -108,17 +114,28 @@ function buildProxy(targetUrl: string, overrides: Partial<Parameters<typeof crea
 }
 
 describe("createProxy", () => {
-  test("unprotected paths pass through without L402", async () => {
+  test("unprotected paths pass through without L402 and use the forward header policy", async () => {
     const upstream = await buildUpstream();
-    const { app } = buildProxy(upstream.url);
+    const { app } = buildProxy(upstream.url, { forwardHeaders: { allow: ["x-custom-*"] } });
     const proxy = await listen(app);
 
     const res = await fetch(`${proxy.url}/public`, {
-      headers: { authorization: "Bearer existing" },
+      headers: {
+        authorization: "Bearer existing",
+        "proxy-authorization": "Basic existing",
+        cookie: "sid=secret",
+        "x-custom-foo": "forward-me",
+      },
     });
 
     expect(res.status).toBe(200);
-    expect(await res.json()).toEqual({ path: "/public", authorization: "Bearer existing" });
+    expect(await res.json()).toEqual({
+      path: "/public",
+      authorization: null,
+      proxyAuthorization: null,
+      cookie: null,
+      custom: "forward-me",
+    });
   });
 
   test("missing credential returns default dual LSAT-first/L402-second challenge", async () => {
