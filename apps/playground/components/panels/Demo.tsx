@@ -1,5 +1,6 @@
 "use client";
 
+import { parseAuthenticateHeader, parseCaveat } from "@boltwall/l402";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -15,6 +16,7 @@ import {
   type PaidCredential,
 } from "../../lib/payment";
 import { useWorkbenchMemory } from "../../lib/url-state";
+import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { HeaderRow } from "../ui/header-row";
@@ -67,6 +69,15 @@ type DemoError = {
 type CapturedArtifact =
   | { kind: "challenge"; rawAuthenticate: string }
   | { kind: "credential"; outcome: "created" | "rejected"; credential: PaidCredential };
+
+type CopyTarget = "invoice" | "challenge" | "credential";
+
+type CaveatSummary = {
+  condition: string;
+  value: string;
+  label: string;
+  expiresAtMs: number | null;
+};
 
 function getWebLn(): WebLnHandle | null {
   if (typeof window === "undefined") return null;
@@ -188,10 +199,17 @@ export function Demo() {
   const [customScheme, setCustomScheme] = useState<"L402" | "LSAT">("L402");
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
   const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
+  const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
   }, []);
+
+  useEffect(() => {
+    if (copiedTarget === null) return;
+    const timeout = window.setTimeout(() => setCopiedTarget(null), 1800);
+    return () => window.clearTimeout(timeout);
+  }, [copiedTarget]);
 
   const endpointTemplate = useMemo(
     () => pickEndpointTemplate(endpointOverride),
@@ -315,9 +333,10 @@ export function Demo() {
     setCustomPreimage("");
   }
 
-  async function copyText(value: string) {
+  async function copyText(value: string, target: CopyTarget) {
     try {
       await navigator.clipboard.writeText(value);
+      setCopiedTarget(target);
     } catch {
       // Copy affordances are progressive enhancement; keep the flow usable.
     }
@@ -325,12 +344,17 @@ export function Demo() {
 
   function openParseWithChallenge(rawAuthenticate: string) {
     workbenchMemory?.setChallenge(rawAuthenticate);
-    router.push("/p/parse");
+    router.push(`/p/parse?from-challenge.challenge=${encodeURIComponent(rawAuthenticate)}`);
+  }
+
+  function openParseWithMacaroon(macaroon: string) {
+    workbenchMemory?.setMacaroon(macaroon);
+    router.push(`/p/parse?parse-token.macaroon=${encodeURIComponent(macaroon)}`);
   }
 
   function openValidateWithCredential(credential: PaidCredential) {
     workbenchMemory?.setCredential(credential.authorization);
-    router.push("/p/validate");
+    router.push(`/p/validate?validate.token=${encodeURIComponent(credential.authorization)}`);
   }
 
   async function payWithWebLn() {
@@ -522,20 +546,25 @@ export function Demo() {
               fontWeight: 600,
               cursor: busy ? "wait" : "pointer",
               alignSelf: "flex-start",
+              order: 0,
             }}
           >
             {busy ? "Loading..." : "Get Random Pokemon"}
           </button>
 
-          <details data-testid="demo-endpoint-settings">
+          <details data-testid="demo-endpoint-settings" style={{ order: 30 }}>
             <summary
               style={{
                 cursor: "pointer",
-                fontSize: "var(--size-12)",
-                color: "var(--color-dim)",
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "5px 0",
+                fontSize: "var(--size-13)",
+                color: "var(--color-text)",
+                fontWeight: 600,
               }}
             >
-              Endpoint settings
+              Use a different endpoint
             </summary>
             <label
               style={{
@@ -547,7 +576,7 @@ export function Demo() {
                 color: "var(--color-dim)",
               }}
             >
-              Advanced endpoint override
+              Endpoint URL
               <input
                 type="url"
                 value={endpointOverride}
@@ -581,21 +610,26 @@ export function Demo() {
                 fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
                 fontSize: "var(--size-12)",
                 wordBreak: "break-all",
+                order: 29,
               }}
             >
               {endpointTemplate}
             </div>
           ) : null}
 
-          <details data-testid="demo-custom-credential">
+          <details data-testid="demo-custom-credential" style={{ order: 31 }}>
             <summary
               style={{
                 cursor: "pointer",
-                fontSize: "var(--size-12)",
-                color: "var(--color-dim)",
+                display: "inline-flex",
+                alignItems: "center",
+                padding: "5px 0",
+                fontSize: "var(--size-13)",
+                color: "var(--color-text)",
+                fontWeight: 600,
               }}
             >
-              Advanced credential
+              Use an existing L402
             </summary>
             <div
               style={{
@@ -618,7 +652,7 @@ export function Demo() {
                   fontSize: "var(--size-12)",
                 }}
               >
-                Full Authorization value
+                L402 Authorization value
                 <textarea
                   value={customAuthorization}
                   onChange={(event) => setCustomAuthorization(event.target.value)}
@@ -663,7 +697,7 @@ export function Demo() {
                     cursor: customAuthorization.trim() === "" ? "not-allowed" : "pointer",
                   }}
                 >
-                  Use custom credential
+                  Use Authorization
                 </button>
               </div>
               <div
@@ -825,6 +859,7 @@ export function Demo() {
                 alignItems: "center",
                 color: "var(--color-dim)",
                 fontSize: "var(--size-12)",
+                order: 12,
               }}
             >
               <span>Custom {customCredential.credential.scheme} credential active.</span>
@@ -875,6 +910,7 @@ export function Demo() {
                 alignItems: "center",
                 color: "var(--color-dim)",
                 fontSize: "var(--size-12)",
+                order: 12,
               }}
             >
               <span>Paid {cachedCredential.credential.scheme} credential cached for reuse.</span>
@@ -940,7 +976,7 @@ export function Demo() {
                   title="Copy invoice"
                   data-testid="demo-copy-invoice"
                   onClick={() => {
-                    void copyText(challenge.invoice);
+                    void copyText(challenge.invoice, "invoice");
                   }}
                   style={{
                     width: 38,
@@ -953,9 +989,10 @@ export function Demo() {
                     cursor: "pointer",
                   }}
                 >
-                  ⧉
+                  {copiedTarget === "invoice" ? "OK" : "⧉"}
                 </button>
               </div>
+              <CopyFeedback active={copiedTarget === "invoice"}>Invoice copied</CopyFeedback>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"
@@ -1127,10 +1164,12 @@ export function Demo() {
               artifact={capturedArtifact}
               onCopy={copyText}
               onOpenParse={openParseWithChallenge}
+              onOpenMacaroonParse={openParseWithMacaroon}
               onOpenValidate={openValidateWithCredential}
               onFetchFreshChallenge={() => {
                 void fetchFreshChallenge();
               }}
+              copiedTarget={copiedTarget}
             />
           ) : null}
         </div>
@@ -1167,39 +1206,45 @@ function ArtifactCard({
   artifact,
   onCopy,
   onOpenParse,
+  onOpenMacaroonParse,
   onOpenValidate,
   onFetchFreshChallenge,
+  copiedTarget,
 }: {
   artifact: CapturedArtifact;
-  onCopy: (value: string) => void | Promise<void>;
+  onCopy: (value: string, target: CopyTarget) => void | Promise<void>;
   onOpenParse: (rawAuthenticate: string) => void;
+  onOpenMacaroonParse: (macaroon: string) => void;
   onOpenValidate: (credential: PaidCredential) => void;
   onFetchFreshChallenge: () => void;
+  copiedTarget: CopyTarget | null;
 }) {
   if (artifact.kind === "challenge") {
+    const challengeCaveats = extractCaveatSummaries(artifact.rawAuthenticate);
     return (
       <ArtifactShell testId="demo-captured-challenge" title="L402 challenge captured">
         <p style={artifactTextStyle}>
-          The proxy returned a WWW-Authenticate header. Parse it to inspect the invoice and
-          macaroon.
+          The proxy returned a challenge. Parse it to inspect the invoice and macaroon.
         </p>
+        <CaveatSummaryList caveats={challengeCaveats} />
         <ArtifactActions>
           <ArtifactButton
             testId="demo-open-parse"
             onClick={() => onOpenParse(artifact.rawAuthenticate)}
           >
-            Open Parse
+            Parse L402
           </ArtifactButton>
           <ArtifactButton
             testId="demo-copy-challenge"
             onClick={() => {
-              void onCopy(artifact.rawAuthenticate);
+              void onCopy(artifact.rawAuthenticate, "challenge");
             }}
             subtle
           >
-            Copy L402 challenge
+            {copiedTarget === "challenge" ? "Copied" : "Copy"}
           </ArtifactButton>
         </ArtifactActions>
+        <CopyFeedback active={copiedTarget === "challenge"}>Challenge copied</CopyFeedback>
         <RawArtifactDetails
           label="Show WWW-Authenticate"
           testId="demo-raw-www-authenticate"
@@ -1210,6 +1255,7 @@ function ArtifactCard({
   }
 
   const rejected = artifact.outcome === "rejected";
+  const credentialCaveats = extractCaveatSummaries(artifact.credential.authorization);
   return (
     <ArtifactShell
       testId={rejected ? "demo-rejected-credential" : "demo-created-credential"}
@@ -1220,21 +1266,29 @@ function ArtifactCard({
           ? "The proxy rejected this Authorization header. Validate it or fetch a fresh challenge."
           : "The retry used an Authorization header. Validate it or copy it for another client."}
       </p>
+      <CaveatSummaryList caveats={credentialCaveats} />
       <ArtifactActions>
         <ArtifactButton
           testId="demo-open-validate"
           onClick={() => onOpenValidate(artifact.credential)}
         >
-          Open Validate
+          Validate L402
+        </ArtifactButton>
+        <ArtifactButton
+          testId="demo-open-parse-credential"
+          onClick={() => onOpenMacaroonParse(artifact.credential.macaroon)}
+          subtle
+        >
+          Parse L402
         </ArtifactButton>
         <ArtifactButton
           testId="demo-copy-credential"
           onClick={() => {
-            void onCopy(artifact.credential.authorization);
+            void onCopy(artifact.credential.authorization, "credential");
           }}
           subtle
         >
-          Copy credential
+          {copiedTarget === "credential" ? "Copied" : "Copy"}
         </ArtifactButton>
         {rejected ? (
           <ArtifactButton
@@ -1246,6 +1300,7 @@ function ArtifactCard({
           </ArtifactButton>
         ) : null}
       </ArtifactActions>
+      <CopyFeedback active={copiedTarget === "credential"}>Credential copied</CopyFeedback>
       <RawArtifactDetails
         label="Show Authorization"
         testId="demo-raw-authorization"
@@ -1253,6 +1308,233 @@ function ArtifactCard({
       />
     </ArtifactShell>
   );
+}
+
+function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
+  const [nowMs, setNowMs] = useState(() => Date.now());
+
+  useEffect(() => {
+    if (!caveats.some((caveat) => caveat.expiresAtMs !== null)) return;
+    const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(interval);
+  }, [caveats]);
+
+  if (caveats.length === 0) {
+    return (
+      <div
+        data-testid="demo-caveats-empty"
+        style={{
+          color: "var(--color-dim)",
+          fontSize: "var(--size-12)",
+        }}
+      >
+        Restrictions: none found in this macaroon.
+      </div>
+    );
+  }
+
+  return (
+    <div
+      data-testid="demo-caveats"
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 6,
+      }}
+    >
+      <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>Restrictions</span>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 6 }}>
+        {caveats.map((caveat, index) => (
+          <CaveatPill
+            key={`${caveat.condition}:${caveat.value}:${String(index)}`}
+            state={
+              caveat.expiresAtMs !== null && caveat.expiresAtMs <= nowMs ? "rejected" : "matched"
+            }
+          >
+            <span data-testid={`demo-caveat-${index}`}>{caveat.label}</span>
+          </CaveatPill>
+        ))}
+      </div>
+      {caveats
+        .filter((caveat) => caveat.expiresAtMs !== null)
+        .map((caveat, index) => (
+          <span
+            key={`${caveat.condition}:${caveat.value}:timer`}
+            data-testid={`demo-caveat-timer-${index}`}
+            style={{
+              color: "var(--color-dim)",
+              fontSize: "var(--size-12)",
+              fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+            }}
+          >
+            {formatExpirationCountdown(caveat.expiresAtMs!, nowMs)}
+          </span>
+        ))}
+    </div>
+  );
+}
+
+function CopyFeedback({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <span
+      aria-live="polite"
+      data-testid="demo-copy-feedback"
+      style={{
+        minHeight: 16,
+        color: active ? "var(--color-accent)" : "transparent",
+        fontSize: "var(--size-12)",
+      }}
+    >
+      {active ? children : ""}
+    </span>
+  );
+}
+
+function extractCaveatSummaries(input: string): CaveatSummary[] {
+  const macaroon = extractMacaroonForInspection(input);
+  if (macaroon === "") return [];
+
+  try {
+    return extractRawCaveats(base64ToBytes(macaroon)).map((caveat) => ({
+      ...caveat,
+      label: formatCaveatLabel(caveat.condition, caveat.value),
+      expiresAtMs: parseCaveatExpiration(caveat.condition, caveat.value),
+    }));
+  } catch {
+    return [];
+  }
+}
+
+function extractMacaroonForInspection(input: string): string {
+  const trimmed = input.trim();
+  if (trimmed === "") return "";
+
+  try {
+    const challenges = parseAuthenticateHeader(trimmed.replace(/^WWW-Authenticate:\s*/i, ""));
+    const challenge = challenges.find((entry) => entry.scheme === "L402") ?? challenges[0];
+    return challenge?.macaroon ?? "";
+  } catch {
+    // Fall through to Authorization or raw macaroon input.
+  }
+
+  const authorization = trimmed.replace(/^Authorization:\s*/i, "");
+  const authMatch = /^(?:L402|LSAT)\s+([^:\s]+)(?::[0-9a-fA-F]{64})?$/u.exec(authorization);
+  if (authMatch?.[1]) return authMatch[1];
+  return trimmed;
+}
+
+/**
+ * L402 macaroon-spec.md §Caveat Format: caveats are UTF-8 condition=value
+ * strings; this reads the local Aperture-compatible V2 layout used by
+ * @boltwall/l402's private macaroon codec for display only.
+ */
+function extractRawCaveats(bytes: Uint8Array): Array<{ condition: string; value: string }> {
+  const caveats: Array<{ condition: string; value: string }> = [];
+  const decoder = new TextDecoder();
+  let pos = 1;
+
+  if (bytes.length < 1 || bytes[0] !== 2) return caveats;
+
+  function readVarint(): number {
+    let result = 0;
+    let shift = 0;
+    while (pos < bytes.length) {
+      const byte = bytes[pos++] ?? 0;
+      result |= (byte & 0x7f) << shift;
+      if ((byte & 0x80) === 0) break;
+      shift += 7;
+    }
+    return result;
+  }
+
+  while (pos < bytes.length) {
+    const tag = bytes[pos++];
+    if (tag === 0) break;
+    if (tag === 6) return caveats;
+    pos += readVarint();
+  }
+
+  while (pos < bytes.length) {
+    const tag = bytes[pos];
+    if (tag === 0 || tag === 6) break;
+    pos++;
+    const length = readVarint();
+    const fieldBytes = bytes.slice(pos, pos + length);
+    pos += length;
+    if (bytes[pos] === 0) pos++;
+    if (tag !== 2) continue;
+
+    const raw = decoder.decode(fieldBytes);
+    try {
+      caveats.push(parseCaveat(raw));
+    } catch {
+      caveats.push({ condition: raw, value: "" });
+    }
+  }
+
+  return caveats;
+}
+
+function base64ToBytes(input: string): Uint8Array {
+  const binary = atob(input);
+  const bytes = new Uint8Array(binary.length);
+  for (let index = 0; index < binary.length; index++) {
+    bytes[index] = binary.charCodeAt(index);
+  }
+  return bytes;
+}
+
+function formatCaveatLabel(condition: string, value: string): string {
+  if (
+    condition === "valid-until" ||
+    condition === "expiration" ||
+    condition.endsWith("_valid_until")
+  ) {
+    return `expires ${formatExpirationValue(value)}`;
+  }
+  if (condition === "services") return `services ${value}`;
+  if (condition.endsWith("_capabilities")) {
+    return `${condition.replace(/_capabilities$/u, "")} can ${value}`;
+  }
+  if (condition === "origin") return `origin ${value}`;
+  if (condition === "route") return `route ${value}`;
+  if (condition === "ip") return `ip ${value}`;
+  return value === "" ? condition : `${condition} ${value}`;
+}
+
+function parseCaveatExpiration(condition: string, value: string): number | null {
+  if (condition === "valid-until") {
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? null : timestamp;
+  }
+  if (condition === "expiration") {
+    const timestamp = Number(value);
+    return Number.isFinite(timestamp) ? timestamp : null;
+  }
+  if (condition.endsWith("_valid_until")) {
+    const numeric = Number(value);
+    if (Number.isFinite(numeric)) {
+      return numeric < 10_000_000_000 ? numeric * 1000 : numeric;
+    }
+    const timestamp = Date.parse(value);
+    return Number.isNaN(timestamp) ? null : timestamp;
+  }
+  return null;
+}
+
+function formatExpirationValue(value: string): string {
+  const timestamp = Date.parse(value);
+  if (!Number.isNaN(timestamp)) return new Date(timestamp).toLocaleString();
+  return value;
+}
+
+function formatExpirationCountdown(expiresAtMs: number, nowMs: number): string {
+  const remainingSeconds = Math.max(0, Math.ceil((expiresAtMs - nowMs) / 1000));
+  if (remainingSeconds === 0) return "expired";
+  const minutes = Math.floor(remainingSeconds / 60);
+  const seconds = remainingSeconds % 60;
+  if (minutes === 0) return `expires in ${String(seconds)}s`;
+  return `expires in ${String(minutes)}m ${String(seconds).padStart(2, "0")}s`;
 }
 
 function ArtifactShell({
