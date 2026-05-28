@@ -27,8 +27,10 @@ deploying. `boltwall deploy` checks this first, before loading or creating proxy
 config, and asks you to install the CLI or run `vercel login` if the preflight
 fails. When backend secrets are missing, `boltwall deploy` prompts for them with
 hidden input, rejects blank values, and sends them to Vercel with
-`vercel env add --sensitive`. After preflight, it shells out to `vercel env add`
-and `vercel deploy`.
+`vercel env add --sensitive`. Before writing env vars, it links the generated
+project directory with `vercel link --yes --project <name> --cwd <dir>` so a
+missing Vercel project link fails before any env writes. After preflight, it
+shells out to `vercel env add` and `vercel deploy`.
 
 Start the interactive deployment flow:
 

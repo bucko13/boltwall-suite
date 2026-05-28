@@ -447,6 +447,67 @@ describe("boltwall CLI", () => {
     expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
   });
 
+  test("deploy links the generated Vercel project before writing env vars", async () => {
+    const dir = await fixtureDir("deploy-link-first");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const runner = new MockRunner();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(0);
+    const commands = runner.commands.map((command) => command.args.join(" "));
+    const linkIndex = commands.indexOf(
+      "link --yes --project pokedex --cwd " + join(dir, "deployments", "pokedex"),
+    );
+    const firstEnvIndex = commands.findIndex((command) => command.startsWith("env add "));
+    expect(linkIndex).toBeGreaterThan(1);
+    expect(firstEnvIndex).toBeGreaterThan(linkIndex);
+    expect(commands[firstEnvIndex]).toBe(
+      "env add TARGET_URL preview --force --cwd " + join(dir, "deployments", "pokedex"),
+    );
+  });
+
+  test("deploy stops before Vercel env writes when project link fails", async () => {
+    const dir = await fixtureDir("deploy-link-missing");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const projectDir = join(dir, "deployments", "pokedex");
+    const runner = new MockRunner({
+      [`link --yes --project pokedex --cwd ${projectDir}`]: {
+        code: 1,
+        stdout: "",
+        stderr:
+          "Error: Your codebase isn’t linked to a project on Vercel. Run `vercel link` to begin.",
+      },
+    });
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      stderr,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("vercel link failed");
+    expect(stderr.text()).toContain(`vercel link --cwd ${projectDir}`);
+    expect(runner.commands.map((command) => command.args)).toEqual([
+      ["--version"],
+      ["whoami"],
+      ["link", "--yes", "--project", "pokedex", "--cwd", projectDir],
+    ]);
+  });
+
   test("deploy --config --yes sets Vercel env vars and deploys without final confirmation", async () => {
     const dir = await fixtureDir("deploy");
     const configPath = join(dir, "boltwall.yaml");
@@ -465,6 +526,9 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(0);
     expect(stdout.text()).toContain("Deployment URL: https://boltwall-preview.vercel.app");
+    expect(runner.commands.map((command) => command.args.join(" "))).toContain(
+      "link --yes --project pokedex --cwd " + join(dir, "deployments", "pokedex"),
+    );
     expect(runner.commands.map((command) => command.args.join(" "))).toContain(
       "env add OPENNODE_API_KEY preview --force --cwd " +
         join(dir, "deployments", "pokedex") +

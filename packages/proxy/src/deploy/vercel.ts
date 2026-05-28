@@ -114,6 +114,11 @@ export async function deployVercel(options: VercelDeployOptions): Promise<Vercel
   const environment = options.production === true ? "production" : "preview";
 
   await writeVercelProject(projectDir, config);
+  await linkVercelProject(
+    runner,
+    projectDir,
+    config.deploy.projectName ?? config.name ?? "boltwall-proxy",
+  );
   await setVercelEnvironment({
     config,
     projectDir,
@@ -142,6 +147,29 @@ async function writeVercelProject(projectDir: string, config: BoltwallConfig): P
   await writeFile(join(projectDir, "package.json"), generatedPackageJson(config), { mode: 0o600 });
   await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
   await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
+}
+
+async function linkVercelProject(
+  runner: CommandRunner,
+  cwd: string,
+  projectName: string,
+): Promise<void> {
+  const result = await runner.run("vercel", [
+    "link",
+    "--yes",
+    "--project",
+    projectName,
+    "--cwd",
+    cwd,
+  ]);
+  if (result.code !== 0) {
+    throw new VercelDeployError(
+      redactCommandFailure(
+        `vercel link failed. Link the generated project first with \`vercel link --cwd ${cwd}\`, then run \`boltwall deploy\` again`,
+        result,
+      ),
+    );
+  }
 }
 
 async function setVercelEnvironment(options: {
