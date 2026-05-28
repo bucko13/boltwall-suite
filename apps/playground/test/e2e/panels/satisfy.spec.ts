@@ -99,3 +99,39 @@ test.describe("panels / caveats — check mode", () => {
     await expect(page.locator("[data-testid='satisfy-output']")).not.toBeVisible();
   });
 });
+
+test.describe("panels / caveats — Workbench memory", () => {
+  test("lists caveats from a Workbench macaroon as current caveats", async ({ page }) => {
+    await page.addInitScript((macaroon) => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({
+          signingKey: "",
+          macaroon,
+          challenge: "",
+          credential: "",
+        }),
+      );
+    }, FIXTURE_MACAROON_WITH_CAVEAT);
+
+    await page.goto("/p/caveats");
+    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.click("[data-testid='caveats-mode-check']");
+
+    await expect(page.locator("[data-testid='satisfy-token-input']")).toHaveValue(
+      FIXTURE_MACAROON_WITH_CAVEAT,
+    );
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toContainText(
+      "Current caveats from macaroon",
+    );
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("valid-until");
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText(
+      "2030-01-01T00:00:00.000Z",
+    );
+    await expect(page.locator("[data-testid='caveat-remove-0']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
+      "Source: macaroon caveats (1)",
+    );
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText("valid-until");
+  });
+});

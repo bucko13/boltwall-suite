@@ -255,6 +255,12 @@ export function Caveats() {
     name: "valid-until",
     param: "",
   });
+  const tokenRows = (token ?? "").trim() ? extractCaveatsFromMacaroon((token ?? "").trim()) : [];
+  const visibleRows = activeMode === "check" && rows.length === 0 ? tokenRows : rows;
+  const visibleSerialized = visibleRows.map((r) =>
+    serializeCaveat({ condition: r.condition, value: r.value }),
+  );
+  const visibleSource = rows.length > 0 ? "current" : activeMode === "check" ? "macaroon" : "empty";
 
   function saveRows(newRows: CaveatRow[]) {
     setCaveatsJson(rowsToJson(newRows));
@@ -326,9 +332,6 @@ export function Caveats() {
 
   async function runCheck() {
     try {
-      const tokenRows = (token ?? "").trim()
-        ? extractCaveatsFromMacaroon((token ?? "").trim())
-        : [];
       const caveats = rows.length > 0 ? rows : tokenRows;
       if (caveats.length === 0) {
         setSatisfyError("Add caveats or paste a base64-encoded macaroon.");
@@ -351,11 +354,17 @@ export function Caveats() {
     setSatisfyError(null);
   }
 
-  const serialized = rows.map((r) => serializeCaveat({ condition: r.condition, value: r.value }));
   const draftSnippetRows = draft.condition.trim()
     ? [{ condition: draft.condition.trim(), value: draft.value }]
     : [];
-  const snippetRows = rows.length > 0 ? rows : draftSnippetRows;
+  const snippetRows =
+    activeMode === "check"
+      ? visibleRows.length > 0
+        ? visibleRows
+        : draftSnippetRows
+      : rows.length > 0
+        ? rows
+        : draftSnippetRows;
   const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
   const ttlSecondsLiteral = /^[0-9]+$/.test(seconds ?? "") ? (seconds ?? "") : "3600";
   const caveatValueLiteral = JSON.stringify(expirationResult?.value ?? "");
@@ -436,7 +445,12 @@ export function Caveats() {
             ))}
           </div>
 
-          <CurrentCaveats rows={rows} serialized={serialized} removeRow={removeRow} />
+          <CurrentCaveats
+            rows={visibleRows}
+            serialized={visibleSerialized}
+            removeRow={visibleSource === "current" ? removeRow : undefined}
+            source={visibleSource}
+          />
 
           {activeMode === "add" ? (
             <>
@@ -501,7 +515,8 @@ export function Caveats() {
 
           {activeMode === "check" ? (
             <CheckMode
-              caveatCount={rows.length}
+              caveatCount={visibleRows.length}
+              caveatSource={visibleSource}
               token={token ?? ""}
               setToken={(value) => {
                 setToken(value);
@@ -588,10 +603,12 @@ function CurrentCaveats({
   rows,
   serialized,
   removeRow,
+  source,
 }: {
   rows: CaveatRow[];
   serialized: string[];
-  removeRow: (index: number) => void;
+  removeRow?: ((index: number) => void) | undefined;
+  source: "current" | "macaroon" | "empty";
 }) {
   return (
     <div
@@ -605,7 +622,10 @@ function CurrentCaveats({
         background: "var(--color-surface-alt)",
       }}
     >
-      <div style={outputLabelStyle}>Current caveats</div>
+      <div style={outputLabelStyle}>
+        Current caveats
+        {source === "macaroon" ? " from macaroon" : ""}
+      </div>
       {rows.length > 0 ? (
         <>
           <div
@@ -617,15 +637,17 @@ function CurrentCaveats({
                 <CaveatPill state="unsatisfied">
                   {r.condition}={r.value}
                 </CaveatPill>
-                <button
-                  type="button"
-                  onClick={() => removeRow(i)}
-                  data-testid={`caveat-remove-${i}`}
-                  aria-label={`Remove caveat ${r.condition}`}
-                  style={removeButtonStyle}
-                >
-                  x
-                </button>
+                {removeRow ? (
+                  <button
+                    type="button"
+                    onClick={() => removeRow(i)}
+                    data-testid={`caveat-remove-${i}`}
+                    aria-label={`Remove caveat ${r.condition}`}
+                    style={removeButtonStyle}
+                  >
+                    x
+                  </button>
+                ) : null}
               </div>
             ))}
           </div>
@@ -808,6 +830,7 @@ function TimeLimitMode({
 
 function CheckMode({
   caveatCount,
+  caveatSource,
   token,
   setToken,
   satisfierRows,
@@ -821,6 +844,7 @@ function CheckMode({
   results,
 }: {
   caveatCount: number;
+  caveatSource: "current" | "macaroon" | "empty";
   token: string;
   setToken: (value: string | null) => void;
   satisfierRows: SatisfierRow[];
@@ -850,7 +874,8 @@ function CheckMode({
         data-testid="satisfy-source"
         style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}
       >
-        Source: {caveatCount > 0 ? "current caveats" : "macaroon caveats"}
+        Source: {caveatSource === "current" ? "current caveats" : "macaroon caveats"}
+        {caveatSource === "macaroon" && caveatCount > 0 ? ` (${caveatCount})` : ""}
       </div>
 
       {satisfierRows.length > 0 ? (
