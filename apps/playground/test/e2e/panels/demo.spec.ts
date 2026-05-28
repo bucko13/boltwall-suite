@@ -179,6 +179,10 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
+      "white-space",
+      "nowrap",
+    );
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       `L402 abc:${TEST_PREIMAGE}`,
     );

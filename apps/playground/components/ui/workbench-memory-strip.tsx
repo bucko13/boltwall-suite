@@ -35,9 +35,16 @@ function MemoryChip({
         fontFamily:
           "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
         fontSize: "var(--size-11)",
+        maxWidth: "100%",
       }}
     >
-      <span>
+      <span
+        style={{
+          overflow: "hidden",
+          textOverflow: "ellipsis",
+          whiteSpace: "nowrap",
+        }}
+      >
         {label}: {hasValue ? truncMiddle(value) : "empty"}
       </span>
       {hasValue ? (
@@ -54,6 +61,7 @@ function MemoryChip({
             background: "var(--color-surface)",
             fontSize: "var(--size-10)",
             lineHeight: 1.4,
+            whiteSpace: "nowrap",
           }}
         >
           clear
@@ -78,9 +86,9 @@ export function WorkbenchMemoryStrip() {
     >
       <div
         style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "space-between",
+          display: "grid",
+          gridTemplateColumns: "minmax(0, 1fr) auto",
+          alignItems: "start",
           gap: 10,
           padding: "8px 10px",
           border: "1px solid var(--color-border)",
@@ -102,6 +110,7 @@ export function WorkbenchMemoryStrip() {
               color: "var(--color-dim)",
               fontWeight: 600,
               textTransform: "uppercase",
+              whiteSpace: "nowrap",
             }}
           >
             Workbench memory
@@ -145,6 +154,7 @@ export function WorkbenchMemoryStrip() {
               color: "var(--color-dim)",
               fontSize: "var(--size-11)",
               fontWeight: 500,
+              whiteSpace: "nowrap",
             }}
           >
             Clear all
