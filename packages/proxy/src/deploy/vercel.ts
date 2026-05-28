@@ -44,6 +44,37 @@ export class VercelDeployError extends Error {
   override readonly name = "VercelDeployError";
 }
 
+export async function assertVercelCliReady(
+  runner: CommandRunner = nodeCommandRunner,
+): Promise<void> {
+  try {
+    const installed = await runner.run("vercel", ["--version"]);
+    if (installed.code !== 0) {
+      throw new VercelDeployError(
+        redactCommandFailure(
+          "Vercel CLI is required before running boltwall deploy. Install it and try again",
+          installed,
+        ),
+      );
+    }
+  } catch (error) {
+    if (error instanceof VercelDeployError) throw error;
+    throw new VercelDeployError(
+      "Vercel CLI is required before running boltwall deploy. Install it, ensure `vercel` is on PATH, then try again.",
+    );
+  }
+
+  const authenticated = await runner.run("vercel", ["whoami"]);
+  if (authenticated.code !== 0) {
+    throw new VercelDeployError(
+      redactCommandFailure(
+        "Vercel CLI must be authenticated before running boltwall deploy. Run `vercel login`, then try again",
+        authenticated,
+      ),
+    );
+  }
+}
+
 export const nodeCommandRunner: CommandRunner = {
   run(command, args, options) {
     return new Promise((resolve, reject) => {

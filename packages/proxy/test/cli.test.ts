@@ -385,7 +385,54 @@ describe("boltwall CLI", () => {
 
     expect(code).toBe(1);
     expect(stderr.text()).toContain("unexpected prompt");
-    expect(runner.commands).toHaveLength(0);
+    expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
+  });
+
+  test("deploy checks Vercel CLI before config prompts", async () => {
+    const runner = new MockRunner({
+      "--version": {
+        code: 1,
+        stdout: "",
+        stderr: "command not found: vercel",
+      },
+    });
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["deploy"],
+      stderr,
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("Vercel CLI is required before running boltwall deploy");
+    expect(runner.commands.map((command) => command.args)).toEqual([["--version"]]);
+  });
+
+  test("deploy checks Vercel authentication before config prompts", async () => {
+    const runner = new MockRunner({
+      whoami: {
+        code: 1,
+        stdout: "",
+        stderr: "Error: No existing credentials found. Please run `vercel login`",
+      },
+    });
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["deploy"],
+      stderr,
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain(
+      "Vercel CLI must be authenticated before running boltwall deploy",
+    );
+    expect(stderr.text()).toContain("vercel login");
+    expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
   });
 
   test("deploy --config --yes sets Vercel env vars and deploys without final confirmation", async () => {
@@ -673,12 +720,16 @@ class CaptureStream extends Writable {
 class MockRunner implements CommandRunner {
   readonly commands: { command: string; args: string[]; stdin?: string }[] = [];
 
+  constructor(private readonly responses: Record<string, CommandResult> = {}) {}
+
   async run(command: string, args: string[], options?: { stdin?: string }): Promise<CommandResult> {
     this.commands.push({
       command,
       args,
       ...(options?.stdin === undefined ? {} : { stdin: options.stdin }),
     });
+    const response = this.responses[args.join(" ")] ?? this.responses[args[0] ?? ""];
+    if (response !== undefined) return response;
     return {
       code: 0,
       stdout: args[0] === "deploy" ? "https://boltwall-preview.vercel.app\n" : "",

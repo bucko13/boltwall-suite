@@ -29,7 +29,7 @@ import {
   saveConfig,
   type SavedBoltwallConfig,
 } from "./config-store.js";
-import { deployVercel, type CommandRunner } from "./deploy/vercel.js";
+import { assertVercelCliReady, deployVercel, type CommandRunner } from "./deploy/vercel.js";
 
 import { createProxy } from "./index.js";
 
@@ -144,6 +144,8 @@ async function deployCommand(
   }
   if (flags.positionals.length > 0)
     throw new Error(`Unknown deploy argument: ${flags.positionals[0]}`);
+
+  await assertVercelCliReady(options.runner);
 
   const loaded =
     flags.values.config === undefined

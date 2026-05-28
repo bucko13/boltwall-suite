@@ -23,8 +23,9 @@ boltwall --help
 ```
 
 Make sure the Vercel CLI is available in `PATH` and authenticated before
-deploying; `boltwall deploy` shells out to `vercel env add` and
-`vercel deploy`.
+deploying. `boltwall deploy` checks this first, before loading or creating proxy
+config, and asks you to install the CLI or run `vercel login` if the preflight
+fails. After preflight, it shells out to `vercel env add` and `vercel deploy`.
 
 Start the interactive deployment flow:
 
