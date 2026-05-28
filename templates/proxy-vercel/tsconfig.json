@@ -1,8 +1,0 @@
-{
-  "extends": "@boltwall/typescript-config/node.json",
-  "compilerOptions": {
-    "noEmit": true
-  },
-  "include": ["api/**/*.ts"],
-  "exclude": ["api/**/*.test.ts"]
-}

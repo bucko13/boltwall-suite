@@ -21,7 +21,6 @@ boltwall-suite/
 │   ├── eslint-config/              # shared ESLint config
 │   ├── typescript-config/          # shared tsconfig presets
 │   └── prettier-config/            # shared Prettier config
-├── templates/proxy-vercel/         # deprecated internal fixture; CLI owns Vercel deploys
 ├── examples/
 └── docs/
 ```

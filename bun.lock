@@ -188,26 +188,6 @@
         "typescript": "^6.0.3",
       },
     },
-    "templates/proxy-vercel": {
-      "name": "@boltwall/template-proxy-vercel",
-      "version": "0.0.0",
-      "dependencies": {
-        "@boltwall/adapters": "workspace:*",
-        "@boltwall/l402": "workspace:*",
-        "@boltwall/middleware": "workspace:*",
-        "@boltwall/proxy": "workspace:*",
-        "express": "^5.1.0",
-        "zod": "^4.4.3",
-      },
-      "devDependencies": {
-        "@boltwall/eslint-config": "workspace:*",
-        "@boltwall/prettier-config": "workspace:*",
-        "@boltwall/typescript-config": "workspace:*",
-        "@types/express": "^5.0.6",
-        "@types/node": "^24.12.3",
-        "typescript": "^6.0.3",
-      },
-    },
   },
   "packages": {
     "@alexbosworth/blockchain": ["@alexbosworth/blockchain@3.2.0", "", {}, "sha512-+90ob+ruUhb5RfdZhfryIb0H+G3BDtQ+IiQvNJwpwN/gMRcMm9jwJpUBAf5yqhPCWY8KsPNcKFzt5IzCmtqzxQ=="],
@@ -271,8 +251,6 @@
     "@boltwall/prettier-config": ["@boltwall/prettier-config@workspace:packages/prettier-config"],
 
     "@boltwall/proxy": ["@boltwall/proxy@workspace:packages/proxy"],
-
-    "@boltwall/template-proxy-vercel": ["@boltwall/template-proxy-vercel@workspace:templates/proxy-vercel"],
 
     "@boltwall/test-fixtures": ["@boltwall/test-fixtures@workspace:packages/test-fixtures"],
 
