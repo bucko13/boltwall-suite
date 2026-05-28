@@ -152,8 +152,10 @@ loader reports variable names and validation reasons without echoing values.
 
 ## CLI Config
 
-`boltwall config create`, `boltwall dev`, and `boltwall deploy` can create this
-YAML shape interactively:
+`boltwall config create`, `boltwall dev`, and `boltwall deploy` start with a
+basic reverse-proxy wizard. That path asks for backend, browser access, target
+URL, protected routes, prices, and unprotected paths. It creates this YAML shape
+without requiring L402 caveat terminology:
 
 ```yaml
 name: pokedex-proxy
@@ -164,10 +166,6 @@ backend:
     apiKey: OPENNODE_API_KEY
 pricing:
   defaultPriceMsat: "1000"
-policy:
-  validUntilSeconds: 60
-  origin:
-    - https://boltwall-suite-playground.vercel.app
 routes:
   - path: /pokemon/*
     methods: [GET]
@@ -203,10 +201,6 @@ The same config may be written as JSON:
   },
   "pricing": {
     "defaultPriceMsat": "1000"
-  },
-  "policy": {
-    "validUntilSeconds": 60,
-    "origin": ["https://boltwall-suite-playground.vercel.app"]
   },
   "routes": [
     {
@@ -297,6 +291,14 @@ macaroon and paywall controls:
 Per-route `requires` still works and is combined with global policy
 requirements during validation.
 
+The interactive wizard asks `Configure advanced credential policy` after the
+basic proxy questions. The default answer is no for new configs. Answer yes only
+when you want to add credential expiration, bind credentials to browser
+`Origin` headers, use HODL invoices, or scope credentials to named
+services/capabilities. Service/capability scoping is behind a second prompt,
+`Scope credentials to named capabilities`, because normal reverse-proxy payment
+does not need a service scope.
+
 Normal reverse-proxy payment does not need a `service` field, a `services`
 caveat, or capability caveats. Add them only when a credential should be scoped
 to named services or service-specific operations. L402 macaroon-spec.md
@@ -309,6 +311,9 @@ Advanced service/capability policy example:
 ```yaml
 service: pokedex
 policy:
+  validUntilSeconds: 60
+  origin:
+    - https://boltwall-suite-playground.vercel.app
   capabilities: [pokedex-read]
 ```
 

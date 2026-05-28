@@ -428,35 +428,11 @@ async function promptForConfig(
       existing?.unprotectedPaths?.join(",") ?? "/healthz",
     ),
   );
-  write(stdout, "Advanced paywall policy (press Enter to skip optional caveats).\n");
-  const service = optionalInput(
-    await prompt.input(
-      "Service name for service/capability caveats (blank for none)",
-      existing?.service ?? "",
-    ),
-  );
-  const validUntilSeconds = await prompt.input(
-    "Credential lifetime in seconds (blank for no expiration caveat)",
-    existing?.policy?.validUntilSeconds === undefined
-      ? ""
-      : String(existing.policy.validUntilSeconds),
-  );
-  const origin = await prompt.input(
-    "Origin caveat origins (comma separated, blank for none)",
-    defaultOriginCaveatInput(existing),
-  );
-  const capabilities = await prompt.input(
-    "Capability caveats to mint (comma separated, blank for none)",
-    existing?.policy?.capabilities?.join(",") ?? "",
-  );
-  if (splitList(capabilities) !== undefined && service === undefined) {
-    throw new Error("Capability caveats require a service name.");
-  }
-  const hodl = await prompt.confirm("Use HODL invoices", existing?.policy?.hodl === true);
+  const advancedPolicy = await promptForAdvancedPolicy(prompt, existing, stdout);
   const input: BoltwallConfigInput = {
     name,
     targetUrl,
-    service,
+    ...advancedPolicy,
     backend: {
       kind: backendKind,
       env: configBackendEnvNames(backendKind, existing?.backend.env),
@@ -473,7 +449,6 @@ async function promptForConfig(
     ],
     challengeCompatibility: existing?.challengeCompatibility ?? "dual",
     unprotectedPaths,
-    ...promptedPolicy(existing, { validUntilSeconds, origin, capabilities, hodl }),
     forwardHeaders: existing?.forwardHeaders ?? {
       allow: ["accept", "content-type", "x-request-id"],
       deny: ["cookie", "authorization"],
@@ -487,6 +462,59 @@ async function promptForConfig(
   const path = await saveConfig(config, configPathForName(config.name ?? "default", configDir));
   write(stdout, `Saved config: ${path}\n`);
   return { config, path };
+}
+
+async function promptForAdvancedPolicy(
+  prompt: PromptDriver,
+  existing: BoltwallConfig | undefined,
+  stdout: Writable,
+): Promise<Pick<BoltwallConfigInput, "policy" | "service">> {
+  const hasExistingAdvancedPolicy = existingHasAdvancedPolicy(existing);
+  const configureAdvancedPolicy = await prompt.confirm(
+    "Configure advanced credential policy",
+    hasExistingAdvancedPolicy,
+  );
+  if (!configureAdvancedPolicy) return {};
+
+  write(stdout, "Advanced credential policy\n");
+  const validUntilSeconds = await prompt.input(
+    "Credential lifetime in seconds (blank for no expiration caveat)",
+    existing?.policy?.validUntilSeconds === undefined
+      ? ""
+      : String(existing.policy.validUntilSeconds),
+  );
+  const origin = await prompt.input(
+    "Origin-bound credential origins (comma separated, blank for none)",
+    defaultOriginCaveatInput(existing),
+  );
+  const hodl = await prompt.confirm("Use HODL invoices", existing?.policy?.hodl === true);
+  const scopedCredentials = await prompt.confirm(
+    "Scope credentials to named capabilities",
+    existing?.service !== undefined || existing?.policy?.capabilities !== undefined,
+  );
+  if (!scopedCredentials) {
+    return promptedPolicy(existing, { validUntilSeconds, origin, capabilities: "", hodl });
+  }
+
+  const service = optionalInput(
+    await prompt.input("Credential service scope name", existing?.service ?? ""),
+  );
+  const capabilities = await prompt.input(
+    "Capabilities this credential grants (comma separated, blank for none)",
+    existing?.policy?.capabilities?.join(",") ?? "",
+  );
+  if (splitList(capabilities) !== undefined && service === undefined) {
+    throw new Error("Capability scoping requires a service name.");
+  }
+
+  return {
+    ...(service === undefined ? {} : { service }),
+    ...promptedPolicy(existing, { validUntilSeconds, origin, capabilities, hodl }),
+  };
+}
+
+function existingHasAdvancedPolicy(existing: BoltwallConfig | undefined): boolean {
+  return existing?.policy !== undefined || existing?.service !== undefined;
 }
 
 function addCorsOrigins(config: BoltwallConfig, origins: string[]): BoltwallConfig {
