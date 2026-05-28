@@ -106,18 +106,32 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc");
     await page.click("[data-testid='demo-copy-invoice']");
     await expect.poll(() => readClipboard(page)).toBe("lnbc1demo");
+    await expect(page.locator("[data-testid='demo-copy-invoice']")).toHaveText("✓");
+    await expect(page.locator("[data-testid='demo-copy-invoice']")).toHaveAttribute(
+      "aria-label",
+      "Invoice copied",
+    );
     await expect(page.getByText("Invoice copied")).toBeVisible();
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
       "L402 challenge captured",
     );
     await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Parse L402");
-    await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("Copy");
+    await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("⧉");
+    await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveAttribute(
+      "aria-label",
+      "Copy challenge",
+    );
     await page.getByText("Show WWW-Authenticate").click();
     await expect(page.locator("[data-testid='demo-raw-www-authenticate']")).toHaveText(
       'L402 macaroon="abc", invoice="lnbc1demo"',
     );
     await page.click("[data-testid='demo-copy-challenge']");
     await expect.poll(() => readClipboard(page)).toBe('L402 macaroon="abc", invoice="lnbc1demo"');
+    await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("✓");
+    await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveAttribute(
+      "aria-label",
+      "Challenge copied",
+    );
     await expect(page.getByText("Challenge copied")).toBeVisible();
     await page.click("[data-testid='demo-pay-webln']");
 
@@ -135,6 +149,11 @@ test.describe("panels / demo", () => {
     );
     await page.click("[data-testid='demo-copy-credential']");
     await expect.poll(() => readClipboard(page)).toBe(`L402 abc:${TEST_PREIMAGE}`);
+    await expect(page.locator("[data-testid='demo-copy-credential']")).toHaveText("✓");
+    await expect(page.locator("[data-testid='demo-copy-credential']")).toHaveAttribute(
+      "aria-label",
+      "Credential copied",
+    );
     await expect(page.getByText("Credential copied")).toBeVisible();
     await expect(page.locator("[data-testid='status-pill']")).toHaveText("loaded");
     await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute("data-state", "pass");
@@ -177,7 +196,7 @@ test.describe("panels / demo", () => {
 
     await expect(page).toHaveURL(/\/p\/validate\?validate\.token=/);
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
       "white-space",
@@ -228,9 +247,7 @@ test.describe("panels / demo", () => {
 
     await expect(page).toHaveURL(/\/p\/parse\?.*parse-token\.macaroon=/);
     await expect(page).toHaveURL(/from-challenge\.challenge=/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      CAVEATED_MACAROON.slice(0, 8),
-    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='challenge-input']")).toHaveValue(
       `L402 macaroon="${CAVEATED_MACAROON}", invoice="lnbc1demo"`,
@@ -238,16 +255,12 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(CAVEATED_MACAROON);
 
     await page.reload();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      CAVEATED_MACAROON.slice(0, 8),
-    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
 
     await page.goBack();
     await expect(page).toHaveURL(/\/p\/demo/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      CAVEATED_MACAROON.slice(0, 8),
-    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
   });
 
@@ -466,7 +479,7 @@ test.describe("panels / demo", () => {
     expect(acceptedAuthorization).toBe(`L402 def:${TEST_PREIMAGE}`);
   });
 
-  test("can load a Workbench macaroon into the custom credential", async ({ page }) => {
+  test("can load a parsed macaroon into the custom credential", async ({ page }) => {
     const fixtureHeader = 'L402 macaroon="abc", invoice="lnbc1demo"';
     let authorizedRequests = 0;
     await page.route(PROTECTED_RE, async (route, request) => {

@@ -825,7 +825,7 @@ export function Demo() {
                     cursor: workbenchMemory?.macaroon ? "pointer" : "not-allowed",
                   }}
                 >
-                  Use Workbench macaroon
+                  Use parsed macaroon
                 </button>
                 <button
                   type="button"
@@ -981,8 +981,8 @@ export function Demo() {
                 </code>
                 <button
                   type="button"
-                  aria-label="Copy invoice"
-                  title="Copy invoice"
+                  aria-label={copiedTarget === "invoice" ? "Invoice copied" : "Copy invoice"}
+                  title={copiedTarget === "invoice" ? "Invoice copied" : "Copy invoice"}
                   data-testid="demo-copy-invoice"
                   onClick={() => {
                     void copyText(challenge.invoice, "invoice");
@@ -996,9 +996,18 @@ export function Demo() {
                     borderRadius: 4,
                     fontSize: "var(--size-16)",
                     cursor: "pointer",
+                    transition:
+                      "background-color 160ms ease, border-color 160ms ease, color 160ms ease",
+                    ...(copiedTarget === "invoice"
+                      ? {
+                          background: "var(--color-accent-soft)",
+                          color: "var(--color-accent)",
+                          border: "1px solid var(--color-accent)",
+                        }
+                      : {}),
                   }}
                 >
-                  {copiedTarget === "invoice" ? "OK" : "⧉"}
+                  {copiedTarget === "invoice" ? "✓" : "⧉"}
                 </button>
               </div>
               <CopyFeedback active={copiedTarget === "invoice"}>Invoice copied</CopyFeedback>
@@ -1248,9 +1257,12 @@ function ArtifactCard({
             onClick={() => {
               void onCopy(artifact.rawAuthenticate, "challenge");
             }}
+            ariaLabel={copiedTarget === "challenge" ? "Challenge copied" : "Copy challenge"}
+            title={copiedTarget === "challenge" ? "Challenge copied" : "Copy challenge"}
+            copied={copiedTarget === "challenge"}
             subtle
           >
-            {copiedTarget === "challenge" ? "Copied" : "Copy"}
+            {copiedTarget === "challenge" ? "✓" : "⧉"}
           </ArtifactButton>
         </ArtifactActions>
         <CopyFeedback active={copiedTarget === "challenge"}>Challenge copied</CopyFeedback>
@@ -1297,9 +1309,12 @@ function ArtifactCard({
           onClick={() => {
             void onCopy(artifact.credential.authorization, "credential");
           }}
+          ariaLabel={copiedTarget === "credential" ? "Credential copied" : "Copy credential"}
+          title={copiedTarget === "credential" ? "Credential copied" : "Copy credential"}
+          copied={copiedTarget === "credential"}
           subtle
         >
-          {copiedTarget === "credential" ? "Copied" : "Copy"}
+          {copiedTarget === "credential" ? "✓" : "⧉"}
         </ArtifactButton>
         {rejected ? (
           <ArtifactButton
@@ -1445,6 +1460,8 @@ function CopyFeedback({ active, children }: { active: boolean; children: ReactNo
         minHeight: 16,
         color: active ? "var(--color-accent)" : "transparent",
         fontSize: "var(--size-12)",
+        opacity: active ? 1 : 0,
+        transition: "opacity 180ms ease",
       }}
     >
       {active ? children : ""}
@@ -1634,29 +1651,48 @@ function ArtifactActions({ children }: { children: ReactNode }) {
 
 function ArtifactButton({
   children,
+  ariaLabel,
+  copied = false,
   onClick,
   subtle = false,
   testId,
+  title,
 }: {
   children: ReactNode;
+  ariaLabel?: string;
+  copied?: boolean;
   onClick: () => void;
   subtle?: boolean;
   testId: string;
+  title?: string;
 }) {
   return (
     <button
       type="button"
+      aria-label={ariaLabel}
       onClick={onClick}
       data-testid={testId}
+      title={title}
       style={{
         padding: "7px 12px",
-        background: subtle ? "var(--color-surface)" : "var(--color-primary)",
-        color: subtle ? "var(--color-text)" : "var(--color-surface)",
-        border: "1px solid var(--color-border)",
+        minWidth: ariaLabel?.startsWith("Copy") || ariaLabel?.endsWith("copied") ? 38 : undefined,
+        background: copied
+          ? "var(--color-accent-soft)"
+          : subtle
+            ? "var(--color-surface)"
+            : "var(--color-primary)",
+        color: copied
+          ? "var(--color-accent)"
+          : subtle
+            ? "var(--color-text)"
+            : "var(--color-surface)",
+        border: copied ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
         borderRadius: 4,
         fontSize: "var(--size-12)",
         fontWeight: 500,
         cursor: "pointer",
+        textAlign: "center",
+        transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease",
       }}
     >
       {children}

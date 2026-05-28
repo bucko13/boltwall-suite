@@ -128,12 +128,6 @@ export function WorkbenchMemoryStrip() {
             testId="workbench-memory-challenge"
           />
           <MemoryChip
-            label="macaroon"
-            value={memory.macaroon}
-            onClear={() => memory.setMacaroon(null)}
-            testId="workbench-memory-macaroon"
-          />
-          <MemoryChip
             label="credential"
             value={memory.credential}
             onClear={() => memory.setCredential(null)}
@@ -141,7 +135,7 @@ export function WorkbenchMemoryStrip() {
           />
         </div>
 
-        {memory.signingKey || memory.challenge || memory.macaroon || memory.credential ? (
+        {memory.signingKey || memory.challenge || memory.credential ? (
           <button
             type="button"
             onClick={memory.clear}
