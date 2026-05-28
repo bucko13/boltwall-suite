@@ -351,10 +351,24 @@ describe("boltwall CLI", () => {
     expect(saved).toContain("hodl: true");
   });
 
-  test("deploy --config --yes validates before setting Vercel env vars", async () => {
+  test("deploy --config --yes fails fast without prompting for missing secrets", async () => {
     const dir = await fixtureDir("deploy-missing-env");
     const configPath = join(dir, "boltwall.yaml");
-    await writeFile(configPath, yamlConfig());
+    await writeFile(
+      configPath,
+      [
+        "name: lnd-proxy",
+        "targetUrl: https://pokeapi.co/api/v2",
+        "backend:",
+        "  kind: lnd",
+        "pricing:",
+        '  defaultPriceMsat: "1000"',
+        "routes:",
+        "  - path: /pokemon/*",
+        "    methods: [GET]",
+        '    priceMsat: "1000"',
+      ].join("\n"),
+    );
     const runner = new MockRunner();
     const stdout = new CaptureStream();
     const stderr = new CaptureStream();
@@ -370,7 +384,12 @@ describe("boltwall CLI", () => {
     });
 
     expect(code).toBe(1);
-    expect(stderr.text()).toContain("unexpected prompt");
+    expect(stderr.text()).toContain("Missing required deploy environment variables");
+    expect(stderr.text()).toContain("LND_SOCKET");
+    expect(stderr.text()).toContain("LND_TLS_CERT");
+    expect(stderr.text()).toContain("LND_MACAROON");
+    expect(stderr.text()).toContain("without `--yes`");
+    expect(stderr.text()).not.toContain("unexpected prompt");
     expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
   });
 
@@ -429,7 +448,7 @@ describe("boltwall CLI", () => {
     const runner = new MockRunner();
 
     const code = await runCli({
-      argv: ["deploy", "--config", configPath, "--yes"],
+      argv: ["deploy", "--config", configPath],
       stderr,
       configDir: dir,
       env: {},

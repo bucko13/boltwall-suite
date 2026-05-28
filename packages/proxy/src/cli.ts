@@ -154,7 +154,7 @@ async function deployCommand(
   const production = flags.boolean.has("prod") || flags.boolean.has("production");
   const yes = flags.boolean.has("yes");
   const config = await ensureDeployMetadata(loaded, options.prompt, options.stdout, !yes);
-  const secretValues = await promptForSecrets(config, options.prompt, options.env);
+  const secretValues = await promptForSecrets(config, options.prompt, options.env, !yes);
   const validationEnv = { ...options.env, ...secretValues };
   validateConfig(config, validationEnv);
   writeValidationSummary(options.stdout, config);
@@ -609,12 +609,18 @@ async function promptForSecrets(
   config: BoltwallConfig,
   prompt: PromptDriver,
   env: Record<string, string | undefined>,
+  promptForMissing = true,
 ): Promise<Record<string, string>> {
   const values: Record<string, string> = {};
+  const missing: string[] = [];
   const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
   for (const [key, name] of requiredEnvEntries(config, vars)) {
     if (env[name] !== undefined && env[name]!.trim() !== "") continue;
     const description = backendEnvDescription(config.backend.kind, key);
+    if (!promptForMissing) {
+      missing.push(`${name} (${description})`);
+      continue;
+    }
     const value = await prompt.secret(`${name} (${description}; not saved to config)`);
     if (value.trim() === "") {
       throw new Error(
@@ -622,6 +628,12 @@ async function promptForSecrets(
       );
     }
     values[name] = value;
+  }
+  if (missing.length > 0) {
+    throw new Error(
+      `Missing required deploy environment variables: ${missing.join(", ")}. ` +
+        "Set them in the current environment, or run `boltwall deploy` without `--yes` to enter values interactively.",
+    );
   }
   return values;
 }
