@@ -200,6 +200,8 @@ export function Demo() {
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
   const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
+  const [endpointSettingsOpen, setEndpointSettingsOpen] = useState(false);
+  const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -552,20 +554,15 @@ export function Demo() {
             {busy ? "Loading..." : "Get Random Pokemon"}
           </button>
 
-          <details data-testid="demo-endpoint-settings" style={{ order: 30 }}>
-            <summary
-              style={{
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "5px 0",
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontWeight: 600,
-              }}
-            >
+          <details
+            data-testid="demo-endpoint-settings"
+            open={endpointSettingsOpen}
+            onToggle={(event) => setEndpointSettingsOpen(event.currentTarget.open)}
+            style={{ order: 30 }}
+          >
+            <DisclosureSummary iconTestId="demo-endpoint-settings-icon" open={endpointSettingsOpen}>
               Use a different endpoint
-            </summary>
+            </DisclosureSummary>
             <label
               style={{
                 display: "flex",
@@ -617,20 +614,15 @@ export function Demo() {
             </div>
           ) : null}
 
-          <details data-testid="demo-custom-credential" style={{ order: 31 }}>
-            <summary
-              style={{
-                cursor: "pointer",
-                display: "inline-flex",
-                alignItems: "center",
-                padding: "5px 0",
-                fontSize: "var(--size-13)",
-                color: "var(--color-text)",
-                fontWeight: 600,
-              }}
-            >
+          <details
+            data-testid="demo-custom-credential"
+            open={customCredentialOpen}
+            onToggle={(event) => setCustomCredentialOpen(event.currentTarget.open)}
+            style={{ order: 31 }}
+          >
+            <DisclosureSummary iconTestId="demo-custom-credential-icon" open={customCredentialOpen}>
               Use an existing L402
-            </summary>
+            </DisclosureSummary>
             <div
               style={{
                 display: "flex",
@@ -1307,6 +1299,57 @@ function ArtifactCard({
         value={artifact.credential.authorization}
       />
     </ArtifactShell>
+  );
+}
+
+function DisclosureSummary({
+  children,
+  iconTestId,
+  open,
+}: {
+  children: ReactNode;
+  iconTestId: string;
+  open: boolean;
+}) {
+  return (
+    <summary
+      style={{
+        cursor: "pointer",
+        display: "inline-flex",
+        alignItems: "center",
+        gap: 6,
+        padding: "5px 0",
+        fontSize: "var(--size-13)",
+        color: "var(--color-text)",
+        fontWeight: 600,
+        listStyle: "none",
+      }}
+    >
+      <span
+        aria-hidden="true"
+        data-testid={iconTestId}
+        data-state={open ? "open" : "closed"}
+        style={{
+          display: "inline-flex",
+          alignItems: "center",
+          justifyContent: "center",
+          width: 16,
+          height: 16,
+        }}
+      >
+        <span
+          style={{
+            width: 6,
+            height: 6,
+            borderRight: "1.5px solid var(--color-dim)",
+            borderBottom: "1.5px solid var(--color-dim)",
+            transform: open ? "rotate(45deg)" : "rotate(-45deg)",
+            transition: "transform 120ms ease",
+          }}
+        />
+      </span>
+      <span>{children}</span>
+    </summary>
   );
 }
 

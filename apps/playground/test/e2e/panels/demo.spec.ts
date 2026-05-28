@@ -27,10 +27,24 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-endpoint-input']")).not.toBeVisible();
     await expect(
       page.locator("[data-testid='demo-endpoint-settings']").locator("summary"),
-    ).toHaveText("Use a different endpoint");
+    ).toContainText("Use a different endpoint");
     await expect(
       page.locator("[data-testid='demo-custom-credential']").locator("summary"),
-    ).toHaveText("Use an existing L402");
+    ).toContainText("Use an existing L402");
+    await expect(page.locator("[data-testid='demo-endpoint-settings-icon']")).toHaveAttribute(
+      "data-state",
+      "closed",
+    );
+    await expect(page.locator("[data-testid='demo-custom-credential-icon']")).toHaveAttribute(
+      "data-state",
+      "closed",
+    );
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await expect(page.locator("[data-testid='demo-endpoint-settings-icon']")).toHaveAttribute(
+      "data-state",
+      "open",
+    );
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pokemon']")).toBeVisible();
