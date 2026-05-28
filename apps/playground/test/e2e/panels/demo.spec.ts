@@ -179,6 +179,13 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='challenge-input']")).toHaveValue(
       'L402 macaroon="abc", invoice="lnbc1demo"',
     );
+
+    await page.goBack();
+    await expect(page).toHaveURL(/\/p\/demo/);
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
+      "L402 challenge captured",
+    );
+    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Parse L402");
   });
 
   test("opens created credential in Validate through Workbench", async ({ page }) => {
@@ -214,6 +221,13 @@ test.describe("panels / demo", () => {
     await expect(page).toHaveURL(/\/p\/demo/);
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
+      "Credential created",
+    );
+    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText("Validate L402");
+    await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveText(
+      "Parse L402",
+    );
 
     await page.click("[data-testid='workbench-memory-clear-all']");
     await page.reload();
@@ -221,6 +235,7 @@ test.describe("panels / demo", () => {
       "empty",
     );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("empty");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toHaveCount(0);
   });
 
   test("shows captured L402 caveats with an expiration timer", async ({ page }) => {

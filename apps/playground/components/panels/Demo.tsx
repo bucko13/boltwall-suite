@@ -232,6 +232,29 @@ export function Demo() {
       ? { ...cachedCredential, source: "paid" as const }
       : null;
   const activeCredential = matchingCustomCredential ?? matchingCachedCredential;
+  const workbenchArtifact = useMemo<CapturedArtifact | null>(() => {
+    if (!workbenchMemory) return null;
+    const credential = workbenchMemory.credential.trim();
+    if (credential !== "") {
+      try {
+        const sourceChallenge = workbenchMemory.challenge.trim();
+        return {
+          kind: "credential",
+          outcome: "created",
+          credential: parsePastedCredential(credential),
+          ...(sourceChallenge ? { sourceChallenge } : {}),
+        };
+      } catch {
+        return null;
+      }
+    }
+    const challenge = workbenchMemory.challenge.trim();
+    if (challenge !== "") {
+      return { kind: "challenge", rawAuthenticate: challenge };
+    }
+    return null;
+  }, [workbenchMemory]);
+  const visibleArtifact = capturedArtifact ?? workbenchArtifact;
 
   async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
@@ -1177,9 +1200,9 @@ export function Demo() {
             </div>
           ) : null}
 
-          {capturedArtifact ? (
+          {visibleArtifact ? (
             <ArtifactCard
-              artifact={capturedArtifact}
+              artifact={visibleArtifact}
               onCopy={copyText}
               onOpenParse={openParseWithChallenge}
               onOpenMacaroonParse={openParseWithMacaroon}
