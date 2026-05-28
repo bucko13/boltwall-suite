@@ -6,3 +6,5 @@ export * from "./identifiers";
 export * from "./caveats";
 export * from "./attenuation-chains";
 export * from "./macaroons";
+export * from "./cross-parser";
+export * from "./lsat-js-compat";

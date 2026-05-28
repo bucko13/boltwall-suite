@@ -19,11 +19,12 @@ It covers:
 - Aperture services/capabilities/timeout/unknown-caveat verification behavior
   from `l402/satisfier_test.go` and `l402/caveat_test.go`.
 
-## Live Server Fixture
+## Live Interop Fixture
 
-The Docker files in this directory are retained as a draft for the live-server
-compatibility pass, when end-to-end validation can run against real Aperture,
-Docker, and regtest LND together.
+The Docker files in this directory support live Aperture interoperability
+testing against a real Aperture proxy and regtest LND. This path is intentionally
+separate from default unit tests because it needs Docker, LND credentials, and
+live Lightning invoices.
 
 1. Start or reuse a regtest LND whose RPC port is reachable from Docker as
    `host.docker.internal:10009`.
@@ -34,7 +35,14 @@ Docker, and regtest LND together.
    export LND_MACAROON_DIR=/absolute/path/to/lnd/data/chain/bitcoin/regtest
    ```
 
-3. Start the fixture:
+3. Run the live interop script from the repo root:
+
+   ```sh
+   packages/test-fixtures/aperture-smoke/run-interop.sh
+   ```
+
+   The script starts the Docker stack and runs the guarded l402 interop suite.
+   To start only the fixture manually:
 
    ```sh
    docker compose -f packages/test-fixtures/aperture-smoke/docker-compose.yml up --build

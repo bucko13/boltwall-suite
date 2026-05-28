@@ -26,7 +26,8 @@ export const legacyLsatAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "lsat-multi-macaroon",
-    source: "L402 protocol-specification.md §10 + multi-macaroon §5 (hand-authored)",
+    source:
+      "L402 protocol-specification.md §10 Backwards Compatibility plus §5.3 Grammar (macaroons = base64 *(\",\" base64))",
     header: `LSAT ${SPEC_EXAMPLE_MACAROON},${SPEC_EXAMPLE_MACAROON_2}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: true,
@@ -39,7 +40,8 @@ export const legacyLsatAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "lsat-mixed-case",
-    source: "L402 protocol-specification.md §10 (case-insensitive scheme keyword)",
+    source:
+      "L402 protocol-specification.md §10 Backwards Compatibility (legacy scheme accepted)",
     header: `Lsat ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: true,

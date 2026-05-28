@@ -1,7 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
-import { crossParserRoundTripFixtures } from "../../test-fixtures/src/cross-parser";
-import { lsatJsCompatFixtures } from "../../test-fixtures/src/lsat-js-compat";
+import {
+  crossParserRoundTripFixtures,
+  lsatJsCompatFixtures,
+} from "@boltwall/test-fixtures";
 import { buildAuthenticateHeaders } from "../src/build-authenticate-headers";
 import { buildAuthorizationHeader } from "../src/build-authorization-header";
 import { parseAuthenticateHeader } from "../src/parse-authenticate-header";

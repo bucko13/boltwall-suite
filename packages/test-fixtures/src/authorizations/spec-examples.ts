@@ -25,8 +25,8 @@ export interface AuthorizationFixture {
       };
 }
 
-// 64 hex chars (= 32 bytes). Spec: L402 protocol-specification.md §5
-// describes preimage as the lightning payment preimage (32 bytes) hex-encoded.
+// 64 hex chars (= 32 bytes). L402 protocol-specification.md §5.2
+// Credentials describes the payment preimage as hex-encoded.
 export const SPEC_EXAMPLE_PREIMAGE =
   "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef";
 
@@ -35,7 +35,7 @@ export const SPEC_EXAMPLE_MACAROON_2 = "AwIBaWQDAgQyAAAA"; // a second well-shap
 export const specAuthorizationFixtures: AuthorizationFixture[] = [
   {
     name: "spec-5-single-macaroon",
-    source: "L402 protocol-specification.md §5 The L402 Authentication Scheme",
+    source: "L402 protocol-specification.md §5.2 Credentials (Authorization)",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: true,
@@ -48,7 +48,8 @@ export const specAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "spec-5-case-insensitive-scheme",
-    source: "L402 protocol-specification.md §5 (case-insensitive scheme keyword)",
+    source:
+      "L402 protocol-specification.md §5 The L402 Authentication Scheme (case-insensitive scheme keyword)",
     header: `l402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: true,
@@ -61,7 +62,7 @@ export const specAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "spec-5-uppercase-preimage-hex",
-    source: "L402 protocol-specification.md §5 (hex is case-insensitive)",
+    source: "L402 protocol-specification.md §5.3 Grammar (preimage = 1*HEXDIG)",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE.toUpperCase()}`,
     expected: {
       ok: true,

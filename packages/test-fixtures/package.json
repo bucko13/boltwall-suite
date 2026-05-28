@@ -16,7 +16,7 @@
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"test-fixtures: no tests yet\""
+    "test": "bun src/validate-fixtures.ts"
   },
   "devDependencies": {
     "@boltwall/eslint-config": "workspace:*",

@@ -6,12 +6,12 @@ import {
 } from "./spec-examples";
 
 // Adversarial vectors hand-authored against L402 protocol-specification.md
-// §5. Parser failure modes are covered here so conformance checks can assert
-// stable error categories.
+// §5.3 Grammar. Parser failure modes are covered here so conformance checks
+// can assert stable error categories.
 export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   {
     name: "missing-scheme",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: `${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -20,7 +20,8 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "wrong-scheme-bearer",
-    source: "hand-authored adversarial vector against L402 §5",
+    source:
+      "hand-authored adversarial vector against L402 protocol-specification.md §5 The L402 Authentication Scheme",
     header: `Bearer ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -29,7 +30,7 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "no-colon-separator",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -38,7 +39,8 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "preimage-not-hex",
-    source: "hand-authored adversarial vector against L402 §5 (preimage = 32 bytes hex)",
+    source:
+      "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar (preimage = 1*HEXDIG)",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:not-hex-${"x".repeat(56)}`,
     expected: {
       ok: false,
@@ -47,7 +49,8 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "preimage-too-short",
-    source: "hand-authored adversarial vector against L402 §5 (preimage MUST be 32 bytes)",
+    source:
+      "hand-authored adversarial vector against L402 protocol-specification.md §5.2 Credentials (Authorization)",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:abcdef`,
     expected: {
       ok: false,
@@ -56,7 +59,8 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "preimage-too-long",
-    source: "hand-authored adversarial vector against L402 §5 (preimage MUST be 32 bytes)",
+    source:
+      "hand-authored adversarial vector against L402 protocol-specification.md §5.2 Credentials (Authorization)",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}aa`,
     expected: {
       ok: false,
@@ -65,7 +69,7 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "empty-macaroons-list",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: `L402 :${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -74,7 +78,7 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "empty-macaroon-in-list",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: `L402 ${SPEC_EXAMPLE_MACAROON},:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -83,7 +87,8 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "non-base64-macaroon",
-    source: "hand-authored adversarial vector against L402 §5 (macaroon MUST be base64)",
+    source:
+      "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar (base64 alphabet)",
     header: `L402 not-base64***:${SPEC_EXAMPLE_PREIMAGE}`,
     expected: {
       ok: false,
@@ -92,7 +97,7 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "empty-header",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: "",
     expected: {
       ok: false,
@@ -101,7 +106,7 @@ export const malformedAuthorizationFixtures: AuthorizationFixture[] = [
   },
   {
     name: "missing-preimage",
-    source: "hand-authored adversarial vector against L402 §5",
+    source: "hand-authored adversarial vector against L402 protocol-specification.md §5.3 Grammar",
     header: `L402 ${SPEC_EXAMPLE_MACAROON}:`,
     expected: {
       ok: false,
