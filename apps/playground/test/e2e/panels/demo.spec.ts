@@ -6,6 +6,7 @@ const POKEMON_RE = /https:\/\/pokeapi\.co\/api\/v2\/pokemon\/\d+$/;
 const PROTECTED_ENDPOINT = "https://boltwall.example.test/pokemon/25";
 const PROTECTED_RE = /https:\/\/boltwall\.example\.test\/pokemon\/\d+$/;
 const TEST_PREIMAGE = "00".repeat(32);
+const DEFAULT_CHALLENGE = 'L402 macaroon="abc", invoice="lnbc1demo"';
 const CAVEATED_MACAROON =
   "AgJCAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzAAISc2VydmljZXM9cG9rZWRleDowAAIZcG9rZWRleF9jYXBhYmlsaXRpZXM9cmVhZAACJHZhbGlkLXVudGlsPTIwMzUtMDEtMDFUMDA6MDA6MDAuMDAwWgAABiDi4gvyy2wrfYkMkvxk7vKV2f8qFlyH7KXdAQk40OwxPQ==";
 
@@ -176,6 +177,8 @@ test.describe("panels / demo", () => {
 
     await expect(page).toHaveURL(/\/p\/validate\?validate\.token=/);
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       `L402 abc:${TEST_PREIMAGE}`,
     );
@@ -203,7 +206,15 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-caveat-timer-0']")).toContainText(/expires in/);
     await page.click("[data-testid='demo-open-parse-credential']");
 
-    await expect(page).toHaveURL(/\/p\/parse\?parse-token\.macaroon=/);
+    await expect(page).toHaveURL(/\/p\/parse\?.*parse-token\.macaroon=/);
+    await expect(page).toHaveURL(/from-challenge\.challenge=/);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      CAVEATED_MACAROON.slice(0, 8),
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='challenge-input']")).toHaveValue(
+      `L402 macaroon="${CAVEATED_MACAROON}", invoice="lnbc1demo"`,
+    );
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(CAVEATED_MACAROON);
   });
 
@@ -631,7 +642,7 @@ function pokemonPayload(overrides: Partial<{ id: number; name: string }> = {}) {
 
 async function routeProtectedPokemon(
   page: import("@playwright/test").Page,
-  challengeHeader = 'L402 macaroon="abc", invoice="lnbc1demo"',
+  challengeHeader = DEFAULT_CHALLENGE,
 ) {
   await page.route(PROTECTED_RE, async (route, request) => {
     const authorization = request.headers().authorization;

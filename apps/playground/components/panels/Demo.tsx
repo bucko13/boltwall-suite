@@ -68,7 +68,12 @@ type DemoError = {
 
 type CapturedArtifact =
   | { kind: "challenge"; rawAuthenticate: string }
-  | { kind: "credential"; outcome: "created" | "rejected"; credential: PaidCredential };
+  | {
+      kind: "credential";
+      outcome: "created" | "rejected";
+      credential: PaidCredential;
+      sourceChallenge?: string;
+    };
 
 type CopyTarget = "invoice" | "challenge" | "credential";
 
@@ -349,13 +354,23 @@ export function Demo() {
     router.push(`/p/parse?from-challenge.challenge=${encodeURIComponent(rawAuthenticate)}`);
   }
 
-  function openParseWithMacaroon(macaroon: string) {
+  function openParseWithMacaroon(macaroon: string, sourceChallenge?: string) {
     workbenchMemory?.setMacaroon(macaroon);
+    if (sourceChallenge) {
+      workbenchMemory?.setChallenge(sourceChallenge);
+      router.push(
+        `/p/parse?parse-token.macaroon=${encodeURIComponent(macaroon)}&from-challenge.challenge=${encodeURIComponent(sourceChallenge)}`,
+      );
+      return;
+    }
     router.push(`/p/parse?parse-token.macaroon=${encodeURIComponent(macaroon)}`);
   }
 
-  function openValidateWithCredential(credential: PaidCredential) {
+  function openValidateWithCredential(credential: PaidCredential, sourceChallenge?: string) {
     workbenchMemory?.setCredential(credential.authorization);
+    if (sourceChallenge) {
+      workbenchMemory?.setChallenge(sourceChallenge);
+    }
     router.push(`/p/validate?validate.token=${encodeURIComponent(credential.authorization)}`);
   }
 
@@ -416,6 +431,7 @@ export function Demo() {
         kind: "credential",
         outcome: "created",
         credential: result.credential,
+        sourceChallenge: challenge.rawAuthenticate,
       });
       setCachedCredential({
         endpointTemplate: challenge.endpointTemplate,
@@ -434,6 +450,7 @@ export function Demo() {
       kind: "credential",
       outcome: "rejected",
       credential: result.credential,
+      sourceChallenge: challenge.rawAuthenticate,
     });
     setStatus({
       kind: "error",
@@ -1206,8 +1223,8 @@ function ArtifactCard({
   artifact: CapturedArtifact;
   onCopy: (value: string, target: CopyTarget) => void | Promise<void>;
   onOpenParse: (rawAuthenticate: string) => void;
-  onOpenMacaroonParse: (macaroon: string) => void;
-  onOpenValidate: (credential: PaidCredential) => void;
+  onOpenMacaroonParse: (macaroon: string, sourceChallenge?: string) => void;
+  onOpenValidate: (credential: PaidCredential, sourceChallenge?: string) => void;
   onFetchFreshChallenge: () => void;
   copiedTarget: CopyTarget | null;
 }) {
@@ -1262,13 +1279,15 @@ function ArtifactCard({
       <ArtifactActions>
         <ArtifactButton
           testId="demo-open-validate"
-          onClick={() => onOpenValidate(artifact.credential)}
+          onClick={() => onOpenValidate(artifact.credential, artifact.sourceChallenge)}
         >
           Validate L402
         </ArtifactButton>
         <ArtifactButton
           testId="demo-open-parse-credential"
-          onClick={() => onOpenMacaroonParse(artifact.credential.macaroon)}
+          onClick={() =>
+            onOpenMacaroonParse(artifact.credential.macaroon, artifact.sourceChallenge)
+          }
           subtle
         >
           Parse L402
