@@ -1,6 +1,7 @@
 "use client";
 
-import { useEffect, useMemo, useState } from "react";
+import { useRouter } from "next/navigation";
+import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   FetchPaidResourceError,
@@ -39,6 +40,7 @@ type Pokemon = {
 type ChallengeState = {
   endpoint: string;
   endpointTemplate: string;
+  rawAuthenticate: string;
   invoice: string;
   macaroon: string;
   scheme: "L402" | "LSAT";
@@ -61,6 +63,10 @@ type DemoError = {
   title: string;
   details: string[];
 };
+
+type CapturedArtifact =
+  | { kind: "challenge"; rawAuthenticate: string }
+  | { kind: "credential"; outcome: "created" | "rejected"; credential: PaidCredential };
 
 function getWebLn(): WebLnHandle | null {
   if (typeof window === "undefined") return null;
@@ -151,7 +157,8 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
     }
     if (error.diagnostic.kind === "payment-challenge-missing") {
       return {
-        title: "The endpoint returned HTTP 402, but no readable L402 challenge was present.",
+        title:
+          "The endpoint returned an L402 payment response, but no readable challenge was present.",
         details: [
           ...commonDetails,
           "Return a WWW-Authenticate header and expose it to this playground origin.",
@@ -159,7 +166,8 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
       };
     }
     return {
-      title: "The endpoint returned HTTP 402, but the L402 challenge could not be parsed.",
+      title:
+        "The endpoint returned an L402 payment response, but the challenge could not be parsed.",
       details: [...commonDetails, `Parser detail: ${error.diagnostic.message}`],
     };
   }
@@ -167,6 +175,7 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
 }
 
 export function Demo() {
+  const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
   const [endpointOverride, setEndpointOverride] = useState("");
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
@@ -178,6 +187,7 @@ export function Demo() {
   const [customPreimage, setCustomPreimage] = useState("");
   const [customScheme, setCustomScheme] = useState<"L402" | "LSAT">("L402");
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
+  const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -213,6 +223,13 @@ export function Demo() {
           : withAuthorization(pokemonRequestInit(), credential),
       );
       if (credential !== null && result.status === "error" && result.response.status === 401) {
+        if (credential) {
+          setCapturedArtifact({
+            kind: "credential",
+            outcome: "rejected",
+            credential,
+          });
+        }
         if (active?.source === "custom") {
           const text = await result.response.text();
           setStatus({
@@ -298,6 +315,24 @@ export function Demo() {
     setCustomPreimage("");
   }
 
+  async function copyText(value: string) {
+    try {
+      await navigator.clipboard.writeText(value);
+    } catch {
+      // Copy affordances are progressive enhancement; keep the flow usable.
+    }
+  }
+
+  function openParseWithChallenge(rawAuthenticate: string) {
+    workbenchMemory?.setChallenge(rawAuthenticate);
+    router.push("/p/parse");
+  }
+
+  function openValidateWithCredential(credential: PaidCredential) {
+    workbenchMemory?.setCredential(credential.authorization);
+    router.push("/p/validate");
+  }
+
   async function payWithWebLn() {
     if (status.kind !== "awaiting-payment") return;
     const webln = getWebLn();
@@ -351,6 +386,11 @@ export function Demo() {
       preimage,
     );
     if (result.status === "paid") {
+      setCapturedArtifact({
+        kind: "credential",
+        outcome: "created",
+        credential: result.credential,
+      });
       setCachedCredential({
         endpointTemplate: challenge.endpointTemplate,
         credential: result.credential,
@@ -364,6 +404,11 @@ export function Demo() {
       return;
     }
     const text = await result.response.text();
+    setCapturedArtifact({
+      kind: "credential",
+      outcome: "rejected",
+      credential: result.credential,
+    });
     setStatus({
       kind: "error",
       error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
@@ -394,12 +439,17 @@ export function Demo() {
       return;
     }
     setWebLnDetected(getWebLn() !== null);
+    setCapturedArtifact({
+      kind: "challenge",
+      rawAuthenticate: result.challenge.rawAuthenticate,
+    });
     setStatus({
       kind: "awaiting-payment",
       id,
       challenge: {
         endpoint,
         endpointTemplate,
+        rawAuthenticate: result.challenge.rawAuthenticate,
         invoice: result.challenge.invoice,
         macaroon: result.challenge.macaroon,
         scheme: result.challenge.scheme,
@@ -420,11 +470,11 @@ export function Demo() {
           : "idle";
   const statusLabel =
     status.kind === "idle"
-      ? "ready"
+      ? "ready to fetch"
       : status.kind === "fetching"
         ? "fetching"
         : status.kind === "awaiting-payment"
-          ? "payment"
+          ? "L402 payment"
           : status.kind === "paying"
             ? "paying"
             : status.kind === "ok"
@@ -862,20 +912,50 @@ export function Demo() {
               }}
             >
               <strong>Payment required for Pokemon #{challengePokemonId}.</strong>
-              <code
-                data-testid="demo-invoice"
+              <div
                 style={{
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                  fontSize: "var(--size-12)",
-                  wordBreak: "break-all",
-                  background: "var(--color-surface)",
-                  padding: "8px 10px",
-                  borderRadius: 4,
-                  border: "1px solid var(--color-border)",
+                  display: "grid",
+                  gridTemplateColumns: "minmax(0, 1fr) auto",
+                  gap: 8,
+                  alignItems: "stretch",
                 }}
               >
-                {challenge.invoice}
-              </code>
+                <code
+                  data-testid="demo-invoice"
+                  style={{
+                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                    fontSize: "var(--size-12)",
+                    wordBreak: "break-all",
+                    background: "var(--color-surface)",
+                    padding: "8px 10px",
+                    borderRadius: 4,
+                    border: "1px solid var(--color-border)",
+                  }}
+                >
+                  {challenge.invoice}
+                </code>
+                <button
+                  type="button"
+                  aria-label="Copy invoice"
+                  title="Copy invoice"
+                  data-testid="demo-copy-invoice"
+                  onClick={() => {
+                    void copyText(challenge.invoice);
+                  }}
+                  style={{
+                    width: 38,
+                    minWidth: 38,
+                    background: "var(--color-surface)",
+                    color: "var(--color-text)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-16)",
+                    cursor: "pointer",
+                  }}
+                >
+                  ⧉
+                </button>
+              </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"
@@ -1042,74 +1122,248 @@ export function Demo() {
             </div>
           ) : null}
 
-          {challenge ? (
-            <details data-testid="demo-l402-details">
-              <summary
-                style={{
-                  cursor: "pointer",
-                  fontSize: "var(--size-12)",
-                  color: "var(--color-dim)",
-                }}
-              >
-                L402 challenge
-              </summary>
-              <div
-                data-testid="demo-l402-challenge"
-                style={{
-                  display: "grid",
-                  gridTemplateColumns: "96px minmax(0, 1fr)",
-                  gap: "6px 12px",
-                  marginTop: 8,
-                  padding: "12px 14px",
-                  background: "var(--color-accent-soft)",
-                  border: "1px solid var(--color-accent)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-13)",
-                }}
-              >
-                <span style={{ color: "var(--color-dim)" }}>scheme</span>
-                <span data-testid="demo-scheme">{challenge.scheme}</span>
-                <span style={{ color: "var(--color-dim)" }}>invoice</span>
-                <span
-                  data-testid="demo-protocol-invoice"
-                  style={{
-                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                    fontSize: "var(--size-12)",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {challenge.invoice}
-                </span>
-                <span style={{ color: "var(--color-dim)" }}>macaroon</span>
-                <span
-                  data-testid="demo-protocol-macaroon"
-                  style={{
-                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                    fontSize: "var(--size-12)",
-                    wordBreak: "break-all",
-                  }}
-                >
-                  {challenge.macaroon}
-                </span>
-              </div>
-            </details>
+          {capturedArtifact ? (
+            <ArtifactCard
+              artifact={capturedArtifact}
+              onCopy={copyText}
+              onOpenParse={openParseWithChallenge}
+              onOpenValidate={openValidateWithCredential}
+              onFetchFreshChallenge={() => {
+                void fetchFreshChallenge();
+              }}
+            />
           ) : null}
         </div>
       }
       code={
-        <CodeSnippet
-          language="typescript"
-          contract="recipe"
-          template={`const id = Math.floor(Math.random() * {{maxId}}) + 1;\nconst endpoint = {{endpointTemplate}}.replace("{id}", String(id));\nconst init = { headers: { accept: "application/json" }, cache: "no-store" };\nconst credential = cachedCredential?.endpointTemplate === {{endpointTemplate}}\n  ? cachedCredential.credential\n  : null;\nconst result = await fetchPaidResource(endpoint, credential\n  ? withAuthorization(init, credential)\n  : init,\n);\n\nif (result.status === "challenge") {\n  // Pay invoice, then cache Authorization per L402 protocol-specification.md §8.\n}`}
-          values={{
-            maxId: String(MAX_POKEMON_ID),
-            endpointTemplate: JSON.stringify(endpointTemplate),
-          }}
-        />
+        <details data-testid="demo-recipe-code">
+          <summary
+            style={{
+              cursor: "pointer",
+              padding: "8px 16px",
+              borderTop: "1px solid var(--color-border)",
+              color: "var(--color-dim)",
+              fontSize: "var(--size-12)",
+            }}
+          >
+            Recipe code
+          </summary>
+          <CodeSnippet
+            language="typescript"
+            contract="recipe"
+            template={`const id = Math.floor(Math.random() * {{maxId}}) + 1;\nconst endpoint = {{endpointTemplate}}.replace("{id}", String(id));\nconst init = { headers: { accept: "application/json" }, cache: "no-store" };\nconst credential = cachedCredential?.endpointTemplate === {{endpointTemplate}}\n  ? cachedCredential.credential\n  : null;\nconst result = await fetchPaidResource(endpoint, credential\n  ? withAuthorization(init, credential)\n  : init,\n);\n\nif (result.status === "challenge") {\n  // Pay invoice, then cache Authorization per L402 protocol-specification.md §8.\n}`}
+            values={{
+              maxId: String(MAX_POKEMON_ID),
+              endpointTemplate: JSON.stringify(endpointTemplate),
+            }}
+          />
+        </details>
       }
     />
   );
 }
+
+function ArtifactCard({
+  artifact,
+  onCopy,
+  onOpenParse,
+  onOpenValidate,
+  onFetchFreshChallenge,
+}: {
+  artifact: CapturedArtifact;
+  onCopy: (value: string) => void | Promise<void>;
+  onOpenParse: (rawAuthenticate: string) => void;
+  onOpenValidate: (credential: PaidCredential) => void;
+  onFetchFreshChallenge: () => void;
+}) {
+  if (artifact.kind === "challenge") {
+    return (
+      <ArtifactShell testId="demo-captured-challenge" title="L402 challenge captured">
+        <p style={artifactTextStyle}>
+          The proxy returned a WWW-Authenticate header. Parse it to inspect the invoice and
+          macaroon.
+        </p>
+        <ArtifactActions>
+          <ArtifactButton
+            testId="demo-open-parse"
+            onClick={() => onOpenParse(artifact.rawAuthenticate)}
+          >
+            Open Parse
+          </ArtifactButton>
+          <ArtifactButton
+            testId="demo-copy-challenge"
+            onClick={() => {
+              void onCopy(artifact.rawAuthenticate);
+            }}
+            subtle
+          >
+            Copy L402 challenge
+          </ArtifactButton>
+        </ArtifactActions>
+        <RawArtifactDetails
+          label="Show WWW-Authenticate"
+          testId="demo-raw-www-authenticate"
+          value={artifact.rawAuthenticate}
+        />
+      </ArtifactShell>
+    );
+  }
+
+  const rejected = artifact.outcome === "rejected";
+  return (
+    <ArtifactShell
+      testId={rejected ? "demo-rejected-credential" : "demo-created-credential"}
+      title={rejected ? "Credential rejected" : "Credential created"}
+    >
+      <p style={artifactTextStyle}>
+        {rejected
+          ? "The proxy rejected this Authorization header. Validate it or fetch a fresh challenge."
+          : "The retry used an Authorization header. Validate it or copy it for another client."}
+      </p>
+      <ArtifactActions>
+        <ArtifactButton
+          testId="demo-open-validate"
+          onClick={() => onOpenValidate(artifact.credential)}
+        >
+          Open Validate
+        </ArtifactButton>
+        <ArtifactButton
+          testId="demo-copy-credential"
+          onClick={() => {
+            void onCopy(artifact.credential.authorization);
+          }}
+          subtle
+        >
+          Copy credential
+        </ArtifactButton>
+        {rejected ? (
+          <ArtifactButton
+            testId="demo-artifact-fetch-fresh-challenge"
+            onClick={onFetchFreshChallenge}
+            subtle
+          >
+            Fetch fresh challenge
+          </ArtifactButton>
+        ) : null}
+      </ArtifactActions>
+      <RawArtifactDetails
+        label="Show Authorization"
+        testId="demo-raw-authorization"
+        value={artifact.credential.authorization}
+      />
+    </ArtifactShell>
+  );
+}
+
+function ArtifactShell({
+  children,
+  testId,
+  title,
+}: {
+  children: ReactNode;
+  testId: string;
+  title: string;
+}) {
+  return (
+    <section
+      data-testid={testId}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 8,
+        padding: "12px 14px",
+        background: "var(--color-surface-alt)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 4,
+        fontSize: "var(--size-13)",
+      }}
+    >
+      <strong>{title}</strong>
+      {children}
+    </section>
+  );
+}
+
+function ArtifactActions({ children }: { children: ReactNode }) {
+  return <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>{children}</div>;
+}
+
+function ArtifactButton({
+  children,
+  onClick,
+  subtle = false,
+  testId,
+}: {
+  children: ReactNode;
+  onClick: () => void;
+  subtle?: boolean;
+  testId: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      data-testid={testId}
+      style={{
+        padding: "7px 12px",
+        background: subtle ? "var(--color-surface)" : "var(--color-primary)",
+        color: subtle ? "var(--color-text)" : "var(--color-surface)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 4,
+        fontSize: "var(--size-12)",
+        fontWeight: 500,
+        cursor: "pointer",
+      }}
+    >
+      {children}
+    </button>
+  );
+}
+
+function RawArtifactDetails({
+  label,
+  testId,
+  value,
+}: {
+  label: string;
+  testId: string;
+  value: string;
+}) {
+  return (
+    <details>
+      <summary
+        style={{
+          cursor: "pointer",
+          color: "var(--color-dim)",
+          fontSize: "var(--size-12)",
+        }}
+      >
+        {label}
+      </summary>
+      <code
+        data-testid={testId}
+        style={{
+          display: "block",
+          marginTop: 8,
+          padding: "8px 10px",
+          background: "var(--color-surface)",
+          border: "1px solid var(--color-border)",
+          borderRadius: 4,
+          fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+          fontSize: "var(--size-12)",
+          wordBreak: "break-all",
+        }}
+      >
+        {value}
+      </code>
+    </details>
+  );
+}
+
+const artifactTextStyle = {
+  margin: 0,
+  color: "var(--color-dim)",
+} satisfies CSSProperties;
 
 function pokemonRequestInit(): RequestInit {
   return {

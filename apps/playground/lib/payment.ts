@@ -43,7 +43,7 @@ const HEX_RE = /^[0-9a-fA-F]+$/;
  */
 export type FetchPaidResult =
   | { status: "ok"; response: Response }
-  | { status: "challenge"; challenge: L402ChallengeFields }
+  | { status: "challenge"; challenge: L402ChallengeFields & { rawAuthenticate: string } }
   | { status: "error"; response: Response };
 
 export type PaidCredential = {
@@ -243,7 +243,7 @@ export function parsePastedPreimage(input: string): string {
   return trimmed.toLowerCase();
 }
 
-function pickChallenge(headers: Headers): L402ChallengeFields {
+function pickChallenge(headers: Headers): L402ChallengeFields & { rawAuthenticate: string } {
   const raw = headers.get("www-authenticate");
   if (raw === null || raw.trim() === "") {
     throw new FetchPaidResourceError({
@@ -274,7 +274,7 @@ function pickChallenge(headers: Headers): L402ChallengeFields {
       message: "empty-challenge-set",
     });
   }
-  return chosen;
+  return { ...chosen, rawAuthenticate: raw };
 }
 
 function assertPreimageHex(value: string): void {

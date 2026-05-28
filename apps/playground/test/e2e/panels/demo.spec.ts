@@ -1,5 +1,7 @@
 import { expect, test } from "@playwright/test";
 
+import { grantClipboard, readClipboard } from "../setup";
+
 const POKEMON_RE = /https:\/\/pokeapi\.co\/api\/v2\/pokemon\/\d+$/;
 const PROTECTED_ENDPOINT = "https://boltwall.example.test/pokemon/25";
 const PROTECTED_RE = /https:\/\/boltwall\.example\.test\/pokemon\/\d+$/;
@@ -33,7 +35,7 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-l402-empty']")).toContainText(
       "no L402 challenge returned",
     );
-    await expect(page.locator("[data-testid='demo-l402-details']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toHaveCount(0);
     await expect(page.locator("[data-testid='status-pill']")).toHaveText("unprotected");
     await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute("data-state", "warn");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText(
@@ -59,7 +61,11 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-pokemon-image']")).toBeVisible();
   });
 
-  test("WebLN-mock path: protected endpoint pays and renders Pokemon", async ({ page }) => {
+  test("WebLN-mock path: protected endpoint pays and renders Pokemon", async ({
+    page,
+    context,
+  }) => {
+    await grantClipboard(context);
     await installWebLnStub(page);
     await routeProtectedPokemon(page);
 
@@ -70,20 +76,68 @@ test.describe("panels / demo", () => {
 
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc");
-    await page.locator("[data-testid='demo-l402-details']").locator("summary").click();
-    await expect(page.locator("[data-testid='demo-l402-challenge']")).toBeVisible();
-    await expect(page.locator("[data-testid='demo-scheme']")).toHaveText("L402");
-    await expect(page.locator("[data-testid='demo-protocol-invoice']")).toContainText("lnbc");
-    await expect(page.locator("[data-testid='demo-protocol-macaroon']")).toHaveText("abc");
+    await page.click("[data-testid='demo-copy-invoice']");
+    await expect.poll(() => readClipboard(page)).toBe("lnbc1demo");
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
+      "L402 challenge captured",
+    );
+    await page.getByText("Show WWW-Authenticate").click();
+    await expect(page.locator("[data-testid='demo-raw-www-authenticate']")).toHaveText(
+      'L402 macaroon="abc", invoice="lnbc1demo"',
+    );
     await page.click("[data-testid='demo-pay-webln']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
+      "Credential created",
+    );
+    await page.getByText("Show Authorization").click();
+    await expect(page.locator("[data-testid='demo-raw-authorization']")).toHaveText(
+      `L402 abc:${TEST_PREIMAGE}`,
+    );
+    await page.click("[data-testid='demo-copy-credential']");
+    await expect.poll(() => readClipboard(page)).toBe(`L402 abc:${TEST_PREIMAGE}`);
     await expect(page.locator("[data-testid='status-pill']")).toHaveText("loaded");
     await expect(page.locator("[data-testid='status-pill']")).toHaveAttribute("data-state", "pass");
     await expect(page.locator("[data-testid='demo-pokemon-image']")).toHaveAttribute(
       "src",
       "https://img.example.test/pikachu.png",
     );
+  });
+
+  test("opens captured L402 challenge in Parse through Workbench", async ({ page }) => {
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toBeVisible();
+
+    await page.click("[data-testid='demo-open-parse']");
+
+    await expect(page).toHaveURL(/\/p\/parse/);
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='challenge-input']")).toHaveValue(
+      'L402 macaroon="abc", invoice="lnbc1demo"',
+    );
+  });
+
+  test("opens created credential in Validate through Workbench", async ({ page }) => {
+    await installWebLnStub(page);
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
+    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await page.click("[data-testid='demo-pay-webln']");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toBeVisible();
+
+    await page.click("[data-testid='demo-open-validate']");
+
+    await expect(page).toHaveURL(/\/p\/validate/);
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
   });
 
   test("reuses a paid credential for later protected requests", async ({ page }) => {
@@ -382,6 +436,16 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
       "Custom credential rejected",
     );
+    await expect(page.locator("[data-testid='demo-rejected-credential']")).toContainText(
+      "Credential rejected",
+    );
+    await page
+      .locator("[data-testid='demo-rejected-credential']")
+      .getByText("Show Authorization")
+      .click();
+    await expect(page.locator("[data-testid='demo-raw-authorization']")).toHaveText(
+      `L402 abc:${TEST_PREIMAGE}`,
+    );
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
       "Custom L402 credential active",
     );
@@ -420,7 +484,9 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
   });
 
-  test("402 without readable challenge explains header exposure", async ({ page }) => {
+  test("L402 payment response without readable challenge explains header exposure", async ({
+    page,
+  }) => {
     await page.route(PROTECTED_RE, async (route) => {
       await route.fulfill({
         status: 402,
@@ -438,7 +504,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
-      "no readable L402 challenge",
+      "no readable challenge",
     );
     await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
       "WWW-Authenticate",
