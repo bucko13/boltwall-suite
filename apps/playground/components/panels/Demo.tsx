@@ -1164,7 +1164,7 @@ export function Demo() {
                   data-testid="demo-pokemon-name"
                   style={{
                     textTransform: "capitalize",
-                    fontSize: "var(--size-18)",
+                    fontSize: "var(--size-20)",
                     fontWeight: 700,
                   }}
                 >

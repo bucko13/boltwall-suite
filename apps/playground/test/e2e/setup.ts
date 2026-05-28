@@ -6,7 +6,7 @@ import type { BrowserContext, Page } from "@playwright/test";
 /** Set the playground theme via localStorage before navigation. */
 export function setTheme(page: Page, theme: "light" | "dark") {
   return page.addInitScript((t: string) => {
-    localStorage.setItem("bw.theme", t);
+    localStorage.setItem("playground.theme", t);
   }, theme);
 }
 

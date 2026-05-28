@@ -62,11 +62,11 @@ inline hex values in component code outside the token layer.
 | `text`        | `#0c0c0c` | Primary text, headings, raw data values                       |
 | `dim`         | `#71706a` | Labels, secondary text, dim metadata                          |
 | `primary`     | `#1d6fb8` | Primary action buttons, selected nav, focus ring              |
-| `accent`      | `#198754` | Positive status (valid signature, satisfied caveat)           |
+| `accent`      | `#0b6b3a` | Positive status (valid signature, satisfied caveat)           |
 | `accent-soft` | `#dff4e9` | Background tint for positive status pills and caveat chips    |
-| `warn`        | `#b78107` | Warning status, attention-needed indicator                    |
+| `warn`        | `#7a5700` | Warning status, attention-needed indicator                    |
 | `warn-soft`   | `#fbf0d9` | Background tint for warning pills                             |
-| `danger`      | `#c2362f` | Failed validation, tampered-segment indicator, destructive UI |
+| `danger`      | `#a92b25` | Failed validation, tampered-segment indicator, destructive UI |
 | `danger-soft` | `#fbe4e2` | Background tint for danger pills and danger chip backgrounds  |
 
 The top of the light page (the surface visible on first paint) is `#fafaf9` —
@@ -89,12 +89,12 @@ a stripe-segment color and lives in §6's table.
 | `text`        | `#ececea` | Primary text, headings, raw data values                         |
 | `dim`         | `#8b8a85` | Labels, secondary text, dim metadata                            |
 | `primary`     | `#8ab4f8` | Primary action buttons, selected nav, focus ring                |
-| `accent`      | `#198754` | Positive status (identical to light — green is theme-stable)    |
-| `accent-soft` | `#dff4e9` | Reserved; in dark theme use 12% `accent` over `surface` instead |
-| `warn`        | `#b78107` | Warning status                                                  |
-| `warn-soft`   | `#fbf0d9` | Reserved; in dark theme use 12% `warn` over `surface` instead   |
-| `danger`      | `#c2362f` | Failed validation                                               |
-| `danger-soft` | `#fbe4e2` | Reserved; in dark theme use 12% `danger` over `surface` instead |
+| `accent`      | `#5ee58a` | Positive status                                                 |
+| `accent-soft` | `#dff4e9` | Reserved; in dark theme use 14% `accent` over `surface` instead |
+| `warn`        | `#f3c65e` | Warning status                                                  |
+| `warn-soft`   | `#fbf0d9` | Reserved; in dark theme use 14% `warn` over `surface` instead   |
+| `danger`      | `#ff8a80` | Failed validation                                               |
+| `danger-soft` | `#fbe4e2` | Reserved; in dark theme use 14% `danger` over `surface` instead |
 
 Outermost frame background in dark is `#0c0d0c`. This is the page-frame
 canvas and may be applied as `--color-page` or by mapping `surface-alt` to
@@ -105,8 +105,8 @@ vs-cell separation is preserved.
 
 **Soft tints in dark theme.** The light theme soft tints (`accent-soft`,
 `warn-soft`, `danger-soft`) are too bright for dark surfaces. Implementations
-MUST replace them with 12% alpha overlays of the corresponding solid color
-(`color-mix(in srgb, var(--color-accent) 12%, transparent)` or equivalent).
+MUST replace them with 14% alpha overlays of the corresponding solid color
+(`color-mix(in srgb, var(--color-accent) 14%, transparent)` or equivalent).
 The token names remain the same so that consumer cells do not branch on
 theme.
 
@@ -323,10 +323,10 @@ Reports the runtime state of a Cell or operation.
 
 | State     | Light fill    | Dark fill                            | Text color |
 | --------- | ------------- | ------------------------------------ | ---------- |
-| `ok`      | `accent-soft` | `color-mix(accent 12%, transparent)` | `accent`   |
+| `ok`      | `accent-soft` | `color-mix(accent 14%, transparent)` | `accent`   |
 | `pending` | `surface-alt` | `surface-alt`                        | `dim`      |
-| `warn`    | `warn-soft`   | `color-mix(warn 12%, transparent)`   | `warn`     |
-| `error`   | `danger-soft` | `color-mix(danger 12%, transparent)` | `danger`   |
+| `warn`    | `warn-soft`   | `color-mix(warn 14%, transparent)`   | `warn`     |
+| `error`   | `danger-soft` | `color-mix(danger 14%, transparent)` | `danger`   |
 
 The status pill lives in the Cell header, right of the view-mode toggle.
 

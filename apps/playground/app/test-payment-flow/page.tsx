@@ -20,10 +20,10 @@ export default function TestPaymentFlowPage() {
         gap: 16,
       }}
     >
-      <h1 style={{ margin: 0, fontSize: "var(--size-18)" }}>Payment flow test harness</h1>
+      <h1 style={{ margin: 0, fontSize: "var(--size-20)" }}>Payment flow test harness</h1>
       <p style={{ margin: 0, color: "var(--color-dim)", fontSize: "var(--size-13)" }}>
-        Drives the L402 challenge → pay → retry flow against{" "}
-        <code>/api/pokemon/1</code>. Test-only — not linked from the nav.
+        Drives the L402 challenge → pay → retry flow against <code>/api/pokemon/1</code>. Test-only
+        — not linked from the nav.
       </p>
       <PaymentFlow endpoint="/api/pokemon/1" label="Get Pokemon #1" />
     </main>

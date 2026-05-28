@@ -22,7 +22,10 @@ const NAV_ITEMS: NavItem[] = [
 ];
 
 const META_LINKS = [
-  { label: "docs", href: "#" },
+  {
+    label: "docs",
+    href: "https://github.com/bucko13/boltwall-suite/blob/main/docs/playground-design-system.md",
+  },
   {
     label: "spec",
     href: "https://github.com/lightninglabs/L402/blob/master/protocol-specification.md",
@@ -144,8 +147,8 @@ export function Nav() {
           <li key={link.label}>
             <a
               href={link.href}
-              target={link.href === "#" ? undefined : "_blank"}
-              rel={link.href === "#" ? undefined : "noreferrer"}
+              target="_blank"
+              rel="noreferrer"
               style={{
                 fontSize: "var(--size-12)",
                 color: "var(--color-dim)",
@@ -202,12 +205,7 @@ export function Nav() {
 
           <div className="playground-mobile-nav-meta">
             {META_LINKS.map((link) => (
-              <a
-                key={link.label}
-                href={link.href}
-                target={link.href === "#" ? undefined : "_blank"}
-                rel={link.href === "#" ? undefined : "noreferrer"}
-              >
+              <a key={link.label} href={link.href} target="_blank" rel="noreferrer">
                 {link.label}
               </a>
             ))}

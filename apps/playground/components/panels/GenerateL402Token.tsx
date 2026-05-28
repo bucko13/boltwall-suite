@@ -130,7 +130,7 @@ export function GenerateL402Token() {
               <StatusPill state={status} details={error}>
                 {statusLabel}
               </StatusPill>
-              <CopyUrlButton />
+              <CopyUrlButton sensitiveStateWarning="This share URL can include a root key. Share only with trusted recipients." />
             </>
           }
         />

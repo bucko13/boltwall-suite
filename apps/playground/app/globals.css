@@ -33,11 +33,11 @@ html[data-theme="dark"] {
   --color-dim: #8b8a85;
   --color-primary: #8ab4f8;
   --color-accent: #5ee58a;
-  --color-accent-soft: color-mix(in srgb, #5ee58a 14%, transparent);
+  --color-accent-soft: color-mix(in srgb, var(--color-accent) 14%, transparent);
   --color-warn: #f3c65e;
-  --color-warn-soft: color-mix(in srgb, #f3c65e 14%, transparent);
+  --color-warn-soft: color-mix(in srgb, var(--color-warn) 14%, transparent);
   --color-danger: #ff8a80;
-  --color-danger-soft: color-mix(in srgb, #ff8a80 14%, transparent);
+  --color-danger-soft: color-mix(in srgb, var(--color-danger) 14%, transparent);
   color-scheme: dark;
 }
 

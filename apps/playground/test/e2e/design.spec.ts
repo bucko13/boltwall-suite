@@ -4,7 +4,7 @@ test.describe("/design route", () => {
   test("all primitives render in light theme", async ({ page }) => {
     // Start in light mode
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "light");
+      localStorage.setItem("playground.theme", "light");
     });
     await page.goto("/design");
 
@@ -22,7 +22,7 @@ test.describe("/design route", () => {
 
   test("all primitives render in dark theme", async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "dark");
+      localStorage.setItem("playground.theme", "dark");
     });
     await page.goto("/design");
 
@@ -42,7 +42,7 @@ test.describe("/design route", () => {
 
   test("theme toggle switches theme", async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "light");
+      localStorage.setItem("playground.theme", "light");
     });
     await page.goto("/design");
 
@@ -59,7 +59,7 @@ test.describe("/design route", () => {
     await page.goto("/design");
 
     // Force light baseline via evaluate (addInitScript re-runs on reload, so avoid it here)
-    await page.evaluate(() => localStorage.setItem("bw.theme", "light"));
+    await page.evaluate(() => localStorage.setItem("playground.theme", "light"));
     await page.reload();
     await expect(page.locator("html")).toHaveAttribute("data-theme", "light");
 
@@ -74,7 +74,7 @@ test.describe("/design route", () => {
 
   test("focus-visible style exists on a sample button", async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "light");
+      localStorage.setItem("playground.theme", "light");
     });
     await page.goto("/design");
 
@@ -88,7 +88,7 @@ test.describe("/design route", () => {
 
   test("code-snippet updates within 200ms of input change", async ({ page }) => {
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "light");
+      localStorage.setItem("playground.theme", "light");
     });
     await page.goto("/design");
 
@@ -101,13 +101,10 @@ test.describe("/design route", () => {
     await expect(snippet).toContainText("test-macaroon-value", { timeout: 200 });
   });
 
-  test("code-snippet copy button writes rendered text to clipboard", async ({
-    page,
-    context,
-  }) => {
+  test("code-snippet copy button writes rendered text to clipboard", async ({ page, context }) => {
     await context.grantPermissions(["clipboard-read", "clipboard-write"]);
     await page.addInitScript(() => {
-      localStorage.setItem("bw.theme", "light");
+      localStorage.setItem("playground.theme", "light");
     });
     await page.goto("/design");
 

@@ -251,7 +251,7 @@ export function ValidateL402() {
               <StatusPill state={status} details={error}>
                 {statusLabel}
               </StatusPill>
-              <CopyUrlButton />
+              <CopyUrlButton sensitiveStateWarning="This share URL can include preimages or full credentials. Share only with trusted recipients." />
             </>
           }
         />

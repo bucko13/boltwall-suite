@@ -227,7 +227,7 @@ export function ParseToken() {
               <StatusPill state={status} details={error}>
                 {statusLabel}
               </StatusPill>
-              <CopyUrlButton />
+              <CopyUrlButton sensitiveStateWarning="This share URL can include full credentials. Share only with trusted recipients." />
             </>
           }
         />
