@@ -134,4 +134,34 @@ test.describe("panels / caveats — Workbench memory", () => {
     );
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("valid-until");
   });
+
+  test("current caveat checks do not show a remembered credential as macaroon input", async ({
+    page,
+  }) => {
+    await page.addInitScript(() => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({
+          signingKey: "",
+          macaroon: "",
+          challenge: 'L402 macaroon="abc", invoice="lnbc1demo"',
+          credential: `L402 abc:${"00".repeat(32)}`,
+        }),
+      );
+    });
+
+    await page.goto("/p/caveats");
+    await page.click("[data-testid='caveats-add-kind-time-limit']");
+    await page.fill("[data-testid='expiration-seconds-input']", "3600");
+    await page.click("[data-testid='expiration-compute']");
+    await page.click("[data-testid='caveats-mode-check']");
+
+    await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
+      "Source: current caveats",
+    );
+    await expect(page.locator("[data-testid='satisfy-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toContainText(
+      "Current caveats",
+    );
+  });
 });

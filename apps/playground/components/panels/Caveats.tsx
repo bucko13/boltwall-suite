@@ -257,6 +257,7 @@ export function Caveats() {
   });
   const tokenRows = (token ?? "").trim() ? extractCaveatsFromMacaroon((token ?? "").trim()) : [];
   const visibleRows = activeMode === "check" && rows.length === 0 ? tokenRows : rows;
+  const checkToken = rows.length > 0 ? "" : (token ?? "");
   const visibleSerialized = visibleRows.map((r) =>
     serializeCaveat({ condition: r.condition, value: r.value }),
   );
@@ -517,7 +518,7 @@ export function Caveats() {
             <CheckMode
               caveatCount={visibleRows.length}
               caveatSource={visibleSource}
-              token={token ?? ""}
+              token={checkToken}
               setToken={(value) => {
                 setToken(value);
                 setResults(null);

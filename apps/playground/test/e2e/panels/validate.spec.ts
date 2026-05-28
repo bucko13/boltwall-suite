@@ -51,6 +51,26 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("invalid");
   });
 
+  test("credential checks do not dead-end without a root key", async ({ page }) => {
+    await page.fill(
+      "[data-testid='validate-token-input']",
+      `Authorization: L402 ${FIXTURE_MACAROON}:${WRONG_PREIMAGE}`,
+    );
+    await page.click("[data-testid='validate-verify']");
+
+    await expect(page.locator("[data-testid='validate-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Identifier decoded",
+    );
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Preimage matches paymentHash",
+    );
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Macaroon signature not checked",
+    );
+  });
+
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
     // Navigate with params pre-set in URL so nuqs state is populated immediately
     const url =

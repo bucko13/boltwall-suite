@@ -2,6 +2,7 @@
 
 import {
   decodeIdentifier,
+  parseAuthorizationHeader,
   parseAuthenticateHeader,
   parseCaveat,
   type MacaroonIdentifierV0,
@@ -43,10 +44,18 @@ function normalizeChallengeInput(input: string): string {
 
 function extractMacaroonInput(input: string): {
   macaroon: string;
-  source: "macaroon" | "challenge";
+  source: "macaroon" | "challenge" | "credential";
 } {
   const trimmed = input.trim();
   if (!trimmed) return { macaroon: "", source: "macaroon" };
+
+  try {
+    const parsed = parseAuthorizationHeader(trimmed.replace(/^Authorization:\s*/i, ""));
+    const macaroon = parsed.macaroons[0];
+    if (macaroon) return { macaroon, source: "credential" };
+  } catch {
+    // Challenge and raw macaroon inputs are handled below.
+  }
 
   try {
     const challenges = parseAuthenticateHeader(normalizeChallengeInput(trimmed));
@@ -234,7 +243,7 @@ export function ParseToken() {
               gap: 4,
             }}
           >
-            Base64 macaroon or L402 challenge
+            Base64 macaroon, L402 challenge, or Authorization credential
             <textarea
               value={inputValue}
               onChange={(e) => {

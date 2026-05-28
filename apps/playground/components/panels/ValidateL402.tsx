@@ -100,11 +100,6 @@ export function ValidateL402() {
       setChecks(null);
       return;
     }
-    if (!(rootKeyHex ?? "").trim() || !/^[0-9a-fA-F]{64}$/.test((rootKeyHex ?? "").trim())) {
-      setError("Root key must be 64 hex chars.");
-      setChecks(null);
-      return;
-    }
     if (!preimage || !/^[0-9a-fA-F]{64}$/.test(preimage)) {
       setError("Preimage must be 64 hex chars.");
       setChecks(null);
@@ -155,11 +150,28 @@ export function ValidateL402() {
       });
     }
 
+    const rootKey = (rootKeyHex ?? "").trim();
+    if (!rootKey || !/^[0-9a-fA-F]{64}$/.test(rootKey)) {
+      if (credentialInput.source !== "credential") {
+        setError("Root key must be 64 hex chars.");
+        setChecks(null);
+        return;
+      }
+      newChecks.push({
+        label: "Macaroon signature not checked",
+        pass: true,
+        detail: "Paste the minting root key to verify the macaroon signature.",
+      });
+      setChecks(newChecks);
+      setError(null);
+      return;
+    }
+
     // Step 3: full macaroon verification
     try {
-      const rootKey = hexToBytes((rootKeyHex ?? "").trim());
+      const rootKeyBytes = hexToBytes(rootKey);
       const store = new InMemoryRootKeyStore();
-      await store.put(tokenId, rootKey);
+      await store.put(tokenId, rootKeyBytes);
 
       const result: VerifyMacaroonResult = await verifyMacaroon({
         macaroons,
