@@ -10,11 +10,18 @@ let baseUrl: string;
 test.beforeAll(async () => {
   server = createServer(async (request, response) => {
     const pathname = new URL(request.url ?? "/", "http://127.0.0.1").pathname;
-    if (pathname !== "/testing/index.js") {
+    const relativePath = decodeURIComponent(pathname).replace(/^\/+/, "");
+    if (!relativePath.endsWith(".js") || relativePath.includes("..")) {
       response.writeHead(404).end();
       return;
     }
-    const body = await readFile(join(process.cwd(), "dist/testing/index.js"));
+    let body: Uint8Array;
+    try {
+      body = await readFile(join(process.cwd(), "dist", relativePath));
+    } catch {
+      response.writeHead(404).end();
+      return;
+    }
     response.writeHead(200, {
       "access-control-allow-origin": "*",
       "content-type": "text/javascript; charset=utf-8",
@@ -44,9 +51,7 @@ test.afterAll(async () => {
   });
 });
 
-test("imports MockAdapter from the built testing subpath in Chromium", async ({
-  page,
-}) => {
+test("imports MockAdapter from the built testing subpath in Chromium", async ({ page }) => {
   await page.setContent(`
     <script type="module">
       import { MockAdapter } from "${baseUrl}/testing/index.js";

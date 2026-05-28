@@ -15,7 +15,7 @@ the acceptance criteria for that work are not met.**
 | `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push                                           |
 | `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                                                      |
 | `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push                                           |
-| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push                                           |
+| `bun run test:browser`                                | Browser import checks for built browser-supported package entrypoints   | Built packages (`bun run build`)       | ✓ every push                                           |
 | `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate                             |
 | `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs from this repo; fork PRs skipped |
 | `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow                               |
@@ -92,32 +92,43 @@ optional `CODECOV_TOKEN` repository secret when configured.
 
 ## Browser Runtime Tests
 
-**What:** Verifies the `@boltwall/l402` built ESM bundle imports and executes
-correctly in a real Chromium browser via Playwright. Catches bundler shims,
-Node.js-only API leakage (`Buffer`, `process`, `crypto` node: prefix), and
-runtime behavior differences between Node and browser.
+**What:** Verifies built browser-supported package entrypoints import and
+execute correctly in a real Chromium browser via Playwright. Catches bundler
+shims, Node.js-only API leakage (`Buffer`, `process`, `crypto` node: prefix),
+and runtime behavior differences between Node and browser.
 
 This is distinct from unit tests: even if unit tests pass, the built bundle can
 fail to import or silently misbehave in a browser environment.
 
-**Location:** `packages/l402/test/browser/import.spec.ts`
+**Location:**
+
+- `packages/l402/test/browser/import.spec.ts` — `@boltwall/l402` browser bundle
+- `packages/adapters/test/browser/import.spec.ts` — `@boltwall/adapters/testing`
+  browser-safe test double entrypoint
 
 **Run:**
 
 ```sh
-# From repo root — turbo builds l402 first automatically:
+# From repo root — turbo builds the filtered package first automatically:
 bun run test:browser --filter @boltwall/l402
+bun run test:browser --filter @boltwall/adapters
 
-# Or manually from packages/l402:
+# Or run every package browser import gate:
+bun run test:browser
+
+# Or manually from a package:
 bun run build && bun run test:browser
 ```
 
-**Prerequisites:** Built l402 bundle (turbo handles this automatically).
+**Prerequisites:** Built package bundles (turbo handles this automatically).
 
-**CI:** Runs on every push as the `Browser import` step in `ci.yml`.
+**CI:** Runs on every push as the `Browser import (@boltwall/l402)` and
+`Browser import (@boltwall/adapters)` steps in `ci.yml`.
 
 **When required:** Any change to `@boltwall/l402` that touches runtime
-behavior, exports, or dependencies. See the expectations table below.
+behavior, exports, or dependencies, and any change to browser-supported
+`@boltwall/adapters` entrypoints such as `@boltwall/adapters/testing`. See the
+expectations table below.
 
 ---
 
@@ -311,18 +322,19 @@ when the size budget becomes a required stabilization gate.
 
 ## Expectations By Change Type
 
-| Change type                           | Required                                                               |
-| ------------------------------------- | ---------------------------------------------------------------------- |
-| Bug fix                               | Failing regression unit test before the fix, green after               |
-| New caveat helper                     | Positive and negative vectors; attenuation chain where applicable      |
-| New backend adapter                   | Capability flags, mock parity, unsupported capability rejection        |
-| New public API                        | Typed signature, JSDoc, compiling README example                       |
-| Wire-format change                    | Spec citation, conformance fixtures, positive and negative round trips |
-| Cross-runtime `@boltwall/l402` change | `bun run test:browser` + ESM bundle review for Node-only leakage       |
-| Playground UI change                  | Playwright e2e for the flow; desktop + mobile smoke                    |
-| Pricing or invoice change             | `bigint` round trip and invoice amount verification                    |
-| Security boundary                     | Explicit test that proves the boundary holds                           |
-| New test surface or runner            | Update this document (see below)                                       |
+| Change type                                  | Required                                                                                     |
+| -------------------------------------------- | -------------------------------------------------------------------------------------------- |
+| Bug fix                                      | Failing regression unit test before the fix, green after                                     |
+| New caveat helper                            | Positive and negative vectors; attenuation chain where applicable                            |
+| New backend adapter                          | Capability flags, mock parity, unsupported capability rejection                              |
+| New public API                               | Typed signature, JSDoc, compiling README example                                             |
+| Wire-format change                           | Spec citation, conformance fixtures, positive and negative round trips                       |
+| Cross-runtime `@boltwall/l402` change        | `bun run test:browser --filter @boltwall/l402` + ESM bundle review for Node-only leakage     |
+| Browser-supported adapters entrypoint change | `bun run test:browser --filter @boltwall/adapters` + ESM bundle review for Node-only leakage |
+| Playground UI change                         | Playwright e2e for the flow; desktop + mobile smoke                                          |
+| Pricing or invoice change                    | `bigint` round trip and invoice amount verification                                          |
+| Security boundary                            | Explicit test that proves the boundary holds                                                 |
+| New test surface or runner                   | Update this document (see below)                                                             |
 
 ---
 

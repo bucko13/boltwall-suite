@@ -56,8 +56,11 @@ jobs:
       - name: Test
         run: bun run test
 
-      - name: Browser import
+      - name: Browser import (@boltwall/l402)
         run: bun run test:browser --filter @boltwall/l402
+
+      - name: Browser import (@boltwall/adapters)
+        run: bun run test:browser --filter @boltwall/adapters
 
       - name: Build
         run: bun run build
