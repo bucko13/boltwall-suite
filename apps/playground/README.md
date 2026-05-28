@@ -26,7 +26,16 @@ bun run build
 bun run lint
 bun run typecheck
 bun run test:e2e
+bun run test:a11y
+bun run build && bun run lhci:a11y
 ```
+
+`test:e2e` runs the full Playwright workbench suite. `test:a11y` runs the
+Playwright accessibility subset in `test/e2e/lighthouse.spec.ts`, covering the
+primary routes in light and dark themes with axe WCAG 2.1 AA checks.
+`lhci:a11y` runs Lighthouse CI against the production server configured by
+`lighthouserc.json`; build the app first so `bun run start` has a `.next`
+production output to serve.
 
 ## Playground direction
 

@@ -17,6 +17,8 @@ the acceptance criteria for that work are not met.**
 | `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push                                           |
 | `bun run test:browser`                                | Browser import checks for built browser-supported package entrypoints   | Built packages (`bun run build`)       | ✓ every push                                           |
 | `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate                             |
+| `bun run test:a11y` (from `apps/playground`)          | Playground axe accessibility checks for primary routes and themes       | Node.js (dev server auto-started)      | Planned stabilization gate                             |
+| `bun run lhci:a11y` (from `apps/playground`)          | Playground Lighthouse CI accessibility score against production build   | Built playground (`bun run build`)     | Planned stabilization gate                             |
 | `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs from this repo; fork PRs skipped |
 | `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow                               |
 | `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | ✓ every push/PR (non-blocking)                         |
@@ -157,6 +159,38 @@ bun run test:e2e
 ```
 
 **Prerequisites:** None — Playwright config starts the Next.js dev server automatically.
+
+**CI:** Planned for the stabilization gate. Not yet in `ci.yml`.
+
+## Playground Accessibility Tests
+
+**What:** Accessibility checks for the playground workbench. The fast local
+surface is a Playwright spec that runs axe against the primary playground routes
+in light and dark themes, failing on critical or serious WCAG 2.1 AA
+violations. The Lighthouse CI surface audits the same route set against a
+production Next.js server and asserts an accessibility score of at least 0.9.
+
+**Location:**
+
+- `apps/playground/test/e2e/lighthouse.spec.ts` — axe checks run by Playwright
+- `apps/playground/lighthouserc.json` — Lighthouse CI route list, server, and
+  accessibility score assertion
+
+**Run:**
+
+```sh
+# From apps/playground:
+bun run test:a11y
+
+# Lighthouse CI requires a production build before lighthouserc.json starts
+# `bun run start`:
+bun run build
+bun run lhci:a11y
+```
+
+**Prerequisites:** `test:a11y` starts the Next.js dev server automatically via
+the Playwright config. `lhci:a11y` requires an existing playground production
+build, then `lighthouserc.json` starts `bun run start` for collection.
 
 **CI:** Planned for the stabilization gate. Not yet in `ci.yml`.
 
