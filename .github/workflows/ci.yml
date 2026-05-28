@@ -79,7 +79,7 @@ jobs:
 
       - name: Lighthouse a11y
         working-directory: apps/playground
-        run: bunx @lhci/cli autorun
+        run: bun run lhci:a11y
         env:
           LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
 

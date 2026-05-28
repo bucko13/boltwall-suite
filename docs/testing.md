@@ -10,19 +10,19 @@ the acceptance criteria for that work are not met.**
 
 ## Quick Reference
 
-| Command                                               | What it covers                                                          | Prerequisites                          | Runs in CI?                |
-| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | -------------------------- |
-| `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push               |
-| `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                          |
-| `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push               |
-| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push               |
-| `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate |
-| `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs      |
-| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow   |
-| `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | Manual                     |
-| `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | Manual                     |
-| `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push               |
-| `bun run lint:fix`                                    | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None                                   | ✗ never                    |
+| Command                                               | What it covers                                                          | Prerequisites                          | Runs in CI?                                            |
+| ----------------------------------------------------- | ----------------------------------------------------------------------- | -------------------------------------- | ------------------------------------------------------ |
+| `bun run test`                                        | Unit tests, all packages                                                | None                                   | ✓ every push                                           |
+| `bun run test --filter @boltwall/l402`                | l402 unit tests only                                                    | None                                   | ✓                                                      |
+| `bun run test:coverage`                               | Package unit coverage with informational thresholds                     | Built packages                         | ✓ every push                                           |
+| `bun run test:browser`                                | l402 ESM bundle import in Chromium                                      | Built l402 (`bun run build`)           | ✓ every push                                           |
+| `bun run test:e2e` (from `apps/playground`)           | Playground UI flows end-to-end                                          | Node.js (dev server auto-started)      | Planned stabilization gate                             |
+| `bun run test:interop` (from `packages/l402`)         | Aperture live protocol interop                                          | Docker + LND regtest node              | ✓ on l402/fixture PRs from this repo; fork PRs skipped |
+| `bun run test:integration` (from `packages/adapters`) | OpenNode / BTCPay / Voltage LND live adapter integration                | Per-adapter env vars (skipped without) | Planned nightly workflow                               |
+| `bun run package-health`                              | publint + arethetypeswrong                                              | Built packages                         | ✓ every push/PR (non-blocking)                         |
+| `bun run size`                                        | @boltwall/l402 bundle size budget                                       | Built l402                             | ✓ every push/PR (non-blocking)                         |
+| `bun run lint`                                        | ESLint check-mode across all packages                                   | None                                   | ✓ every push                                           |
+| `bun run lint:fix`                                    | ESLint fix-mode (autofixes `import/order`, formatting) — **local only** | None                                   | ✗ never                                                |
 
 `bun run lint` is the gate. `bun run lint:fix` is the local autofix helper —
 run it when ESLint reports `... potentially fixable with the --fix option`,
@@ -212,8 +212,10 @@ docker compose \
 
 **CI:** `.github/workflows/compat-aperture.yml` — triggers on PRs that touch
 `packages/l402/**`, `packages/test-fixtures/**`, or the workflow file itself,
-and on `workflow_dispatch`. Requires `LND_TLS_CERT_PATH` and `LND_MACAROON_DIR`
-configured as GitHub Actions secrets.
+and on `workflow_dispatch`. Same-repository PRs and manual runs require
+`LND_TLS_CERT_PATH` and `LND_MACAROON_DIR` configured as GitHub Actions secrets.
+Fork PRs do not receive repository secrets, so the workflow emits an explicit
+skip notice; a maintainer can rerun the interop workflow manually after review.
 
 ---
 
@@ -282,7 +284,9 @@ bun run package-health                           # all publishable packages
 bun run package-health --filter @boltwall/l402   # single package
 ```
 
-**CI:** Manual (not yet in `ci.yml`). Required before any publishable package release.
+**CI:** Runs in `.github/workflows/ci.yml` on push and PR as a non-blocking
+package-health job while the public API stabilizes. Required before any
+publishable package release.
 
 ---
 
@@ -299,7 +303,9 @@ bun run size --filter @boltwall/l402
 bun run size
 ```
 
-**CI:** Manual (not yet in `ci.yml`). Run before releasing `@boltwall/l402`.
+**CI:** Runs in `.github/workflows/ci.yml` on push and PR as a non-blocking
+step. Run before releasing `@boltwall/l402`; remove the non-blocking CI setting
+when the size budget becomes a required stabilization gate.
 
 ---
 

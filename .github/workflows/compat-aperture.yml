@@ -12,8 +12,19 @@ permissions:
   contents: read
 
 jobs:
+  aperture-interop-fork-notice:
+    name: Aperture Interop fork notice
+    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
+    runs-on: ubuntu-latest
+    steps:
+      - name: Explain skipped interop
+        run: |
+          echo "Aperture interop uses repository LND regtest secrets, which are not exposed to fork pull requests."
+          echo "A maintainer can run this workflow with workflow_dispatch after reviewing the fork changes."
+
   aperture-interop:
     name: Aperture Interop
+    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -33,6 +44,14 @@ jobs:
 
       - name: Build @boltwall/l402
         run: bun run build --filter @boltwall/l402
+
+      - name: Verify Aperture secrets
+        env:
+          LND_TLS_CERT_PATH: ${{ secrets.LND_TLS_CERT_PATH }}
+          LND_MACAROON_DIR: ${{ secrets.LND_MACAROON_DIR }}
+        run: |
+          test -n "$LND_TLS_CERT_PATH" || { echo "::error::LND_TLS_CERT_PATH repository secret is required for same-repo Aperture interop."; exit 1; }
+          test -n "$LND_MACAROON_DIR" || { echo "::error::LND_MACAROON_DIR repository secret is required for same-repo Aperture interop."; exit 1; }
 
       - name: Start Aperture stack
         env:

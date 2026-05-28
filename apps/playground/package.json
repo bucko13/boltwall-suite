@@ -12,7 +12,8 @@
     "typecheck": "tsc --noEmit",
     "test": "echo \"no unit tests in playground; see test:e2e\"",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
-    "test:a11y": "node node_modules/@playwright/test/cli.js test test/e2e/lighthouse.spec.ts"
+    "test:a11y": "node node_modules/@playwright/test/cli.js test test/e2e/lighthouse.spec.ts",
+    "lhci:a11y": "lhci autorun"
   },
   "dependencies": {
     "@boltwall/l402": "workspace:*",
@@ -30,6 +31,7 @@
     "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
+    "@lhci/cli": "0.15.1",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.3",

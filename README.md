@@ -36,6 +36,21 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 Install commands will be added once the API is stable enough to publish.
 
+## Quickstart
+
+Clone the repository, install with the locked Bun workspace, then run the core
+validation gates from the repo root:
+
+```sh
+git clone https://github.com/bucko13/boltwall-suite.git
+cd boltwall-suite
+bun install --frozen-lockfile
+bun run lint
+bun run typecheck
+bun run test
+bun run build
+```
+
 ## API Reference
 
 Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of `@boltwall/l402`, `@boltwall/middleware`, `@boltwall/adapters`, and `@boltwall/proxy`. Build it locally:
