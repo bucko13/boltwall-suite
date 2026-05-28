@@ -156,6 +156,18 @@ Before implementation, identify the contract for the task:
 - relevant docs
 - relevant live L402 spec sections for protocol work
 
+Prefer the repo-root `bun run <task>` commands, with Turbo filters for focused
+package work, instead of direct package scripts or one-off validation commands.
+That keeps dependency builds, task ordering, and environment shape consistent
+with CI:
+
+```sh
+bun run lint --filter @boltwall/playground
+bun run typecheck --filter @boltwall/playground
+bun run test:e2e --filter @boltwall/playground
+bun run build
+```
+
 Run only the gates required for the change. For docs/skill-only edits, validation
 can be review plus any fresh-agent exercise requested by the task. If validation
 fails, stop and report the failure; do not close the task.
@@ -246,10 +258,17 @@ workflow but do not define policy. Run each with `--help` before use.
 .agents/skills/boltwall-workflow/scripts/start-task --task <id> --paths <path> --worktree <path> --branch <branch> --dry-run
 .agents/skills/boltwall-workflow/scripts/handoff-template --task <id>
 .agents/skills/boltwall-workflow/scripts/landing-checklist --task <id> --dry-run
+.agents/skills/boltwall-workflow/scripts/kill-known-process --name "<command-substring>" --dry-run
 .agents/skills/boltwall-workflow/scripts/validate-contract --task <id>
 .agents/skills/boltwall-workflow/scripts/spec-change-check --dry-run
 .agents/skills/boltwall-workflow/scripts/agent-policy-check
 ```
+
+Use `kill-known-process` for a stuck local process that you started or the owner
+identified. Prefer `--name "<command-substring>"`; the helper finds matching
+PIDs, refuses multiple matches unless `--all` is passed, prints the command
+line, and sends the requested signal. Do not use ad hoc `kill` commands for
+routine stuck local process cleanup.
 
 The scripts are helpers, not policy. If script output conflicts with
 `AGENTS.md` or `docs/agent-worktrees.md`, follow the docs and update the script.

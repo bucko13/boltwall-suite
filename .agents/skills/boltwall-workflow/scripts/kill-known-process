@@ -1,0 +1,137 @@
+#!/usr/bin/env sh
+set -eu
+
+usage() {
+  cat <<'USAGE'
+Usage: kill-known-process --name <command-substring> [--all] [--signal <name-or-number>] [--dry-run] [--help]
+       kill-known-process --pid <pid> [--signal <name-or-number>] [--dry-run] [--help]
+
+Find a known local process by command substring, then stop the matching PID.
+This is for processes the agent started or that the owner explicitly identified,
+such as a stuck git/ssh auth command.
+
+By default, --name must match exactly one process. If multiple processes are
+expected, pass --all.
+
+Examples:
+  kill-known-process --name "git pull --ff-only"
+  kill-known-process --name "git-upload-pack 'bucko13/boltwall-suite.git'"
+  kill-known-process --name "next dev" --all --dry-run
+  kill-known-process --pid 90510
+USAGE
+}
+
+pid=""
+name=""
+signal="TERM"
+dry_run=0
+kill_all=0
+
+while [ "$#" -gt 0 ]; do
+  case "$1" in
+    --pid)
+      pid="${2:-}"
+      shift 2
+      ;;
+    --name)
+      name="${2:-}"
+      shift 2
+      ;;
+    --signal)
+      signal="${2:-}"
+      shift 2
+      ;;
+    --all)
+      kill_all=1
+      shift
+      ;;
+    --dry-run)
+      dry_run=1
+      shift
+      ;;
+    --help|-h)
+      usage
+      exit 0
+      ;;
+    *)
+      echo "Unknown argument: $1" >&2
+      usage >&2
+      exit 2
+      ;;
+  esac
+done
+
+if [ -z "$pid" ] && [ -z "$name" ]; then
+  usage >&2
+  exit 2
+fi
+
+if [ -n "$pid" ] && [ -n "$name" ]; then
+  echo "Use either --name or --pid, not both." >&2
+  exit 2
+fi
+
+if [ -n "$pid" ]; then
+  case "$pid" in
+    *[!0-9]*|"")
+      echo "Invalid --pid: $pid" >&2
+      exit 2
+      ;;
+  esac
+
+  command_line="$(ps -p "$pid" -o command= 2>/dev/null || true)"
+
+  if [ -z "$command_line" ]; then
+    echo "No process found for pid $pid." >&2
+    exit 1
+  fi
+
+  echo "Matched pid $pid: $command_line"
+
+  if [ "$dry_run" -eq 1 ]; then
+    echo "Dry run: would send SIG$signal to pid $pid."
+    exit 0
+  fi
+
+  kill "-$signal" "$pid"
+  echo "Sent SIG$signal to pid $pid."
+  exit 0
+fi
+
+matches="$(
+  ps -axo pid=,ppid=,command= | awk -v pat="$name" -v self="$$" '
+    {
+      pid = $1
+      ppid = $2
+      command = $0
+      sub(/^[[:space:]]*[0-9]+[[:space:]]*[0-9]+[[:space:]]*/, "", command)
+      if (pid != self && ppid != self && index(command, pat) > 0 && index(command, "kill-known-process") == 0 && index(command, "awk -v pat") == 0) {
+        print pid "\t" command
+      }
+    }
+  '
+)"
+
+if [ -z "$matches" ]; then
+  echo "No process matched: $name" >&2
+  exit 1
+fi
+
+count="$(printf '%s\n' "$matches" | awk 'NF { count += 1 } END { print count + 0 }')"
+
+if [ "$count" -gt 1 ] && [ "$kill_all" -ne 1 ]; then
+  echo "Refusing to kill multiple matches without --all:" >&2
+  printf '%s\n' "$matches" >&2
+  exit 1
+fi
+
+printf '%s\n' "$matches" | while IFS="$(printf '\t')" read -r matched_pid command_line; do
+  [ -n "$matched_pid" ] || continue
+  echo "Matched pid $matched_pid: $command_line"
+  if [ "$dry_run" -eq 1 ]; then
+    echo "Dry run: would send SIG$signal to pid $matched_pid."
+  else
+    kill "-$signal" "$matched_pid"
+    echo "Sent SIG$signal to pid $matched_pid."
+  fi
+done
