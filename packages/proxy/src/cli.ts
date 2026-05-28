@@ -582,6 +582,9 @@ async function ensureDeployMetadata(
 ): Promise<BoltwallConfig> {
   const config = loaded.config;
   const fallbackProjectName = config.deploy.projectName ?? config.name ?? "boltwall-proxy";
+  if (config.deploy.projectName !== undefined && !promptForMissing) {
+    return config;
+  }
   if (config.deploy.projectName === undefined && !promptForMissing) {
     const next = parseBoltwallConfig({
       ...config,
@@ -612,7 +615,13 @@ async function promptForSecrets(
   for (const [key, name] of requiredEnvEntries(config, vars)) {
     if (env[name] !== undefined && env[name]!.trim() !== "") continue;
     const description = backendEnvDescription(config.backend.kind, key);
-    values[name] = await prompt.secret(`${name} (${description}; not saved to config)`);
+    const value = await prompt.secret(`${name} (${description}; not saved to config)`);
+    if (value.trim() === "") {
+      throw new Error(
+        `${name} is required. Paste the value at the hidden prompt, then press Enter.`,
+      );
+    }
+    values[name] = value;
   }
   return values;
 }
@@ -826,7 +835,8 @@ export class ReadlinePrompt implements PromptDriver {
   }
 
   async secret(message: string): Promise<string> {
-    write(this.outputStream, `${message}: `);
+    write(this.outputStream, `${message}\n`);
+    write(this.outputStream, "Paste value, then press Enter. Input is hidden: ");
     const rl = createMaskedInterface({
       input: this.inputStream,
       output: this.outputStream,

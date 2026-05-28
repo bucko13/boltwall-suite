@@ -36,7 +36,8 @@ describe("boltwall CLI", () => {
     const prompt = new ReadlinePrompt(Readable.from(["secret-api-key\n"]), stdout);
 
     await expect(prompt.secret("OPENNODE_API_KEY")).resolves.toBe("secret-api-key");
-    expect(stdout.text()).toContain("OPENNODE_API_KEY:");
+    expect(stdout.text()).toContain("OPENNODE_API_KEY");
+    expect(stdout.text()).toContain("Input is hidden");
     expect(stdout.text()).not.toContain("secret-api-key");
   });
 
@@ -420,6 +421,32 @@ describe("boltwall CLI", () => {
     expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
   });
 
+  test("deploy rejects blank secret prompt values before writing Vercel env vars", async () => {
+    const dir = await fixtureDir("deploy-blank-secret");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const stderr = new CaptureStream();
+    const runner = new MockRunner();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      stderr,
+      configDir: dir,
+      env: {},
+      runner,
+      prompt: new ScriptedPrompt({
+        input: [],
+        secret: [""],
+        confirm: [],
+        select: [],
+      }),
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("OPENNODE_API_KEY is required");
+    expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);
+  });
+
   test("deploy --config --yes sets Vercel env vars and deploys without final confirmation", async () => {
     const dir = await fixtureDir("deploy");
     const configPath = join(dir, "boltwall.yaml");
@@ -482,6 +509,31 @@ describe("boltwall CLI", () => {
       ],
       stdin: "https://boltwall-suite-playground.vercel.app\n",
     });
+    expect(runner.commands.at(-1)?.args).toEqual([
+      "deploy",
+      "--cwd",
+      join(dir, "deployments", "pokedex"),
+      "--yes",
+    ]);
+  });
+
+  test("deploy --config --yes does not prompt when Vercel project name exists", async () => {
+    const dir = await fixtureDir("deploy-existing-project");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig({ deployProjectName: "existing-proxy" }));
+    const stdout = new CaptureStream();
+    const runner = new MockRunner();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      stdout,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(0);
     expect(runner.commands.at(-1)?.args).toEqual([
       "deploy",
       "--cwd",
@@ -763,7 +815,12 @@ class ScriptedPrompt implements PromptDriver {
 }
 
 function yamlConfig(
-  options: { name?: string; policy?: boolean; requireHodl?: boolean } = {},
+  options: {
+    name?: string;
+    policy?: boolean;
+    requireHodl?: boolean;
+    deployProjectName?: string;
+  } = {},
 ): string {
   return [
     `name: ${options.name ?? "pokedex"}`,
@@ -794,6 +851,9 @@ function yamlConfig(
     "  allowMethods: [GET, OPTIONS]",
     "  allowHeaders: [Authorization, Content-Type]",
     "  maxAgeSeconds: 600",
+    ...(options.deployProjectName === undefined
+      ? []
+      : ["deploy:", "  target: vercel", `  projectName: ${options.deployProjectName}`]),
   ].join("\n");
 }
 
