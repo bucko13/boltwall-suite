@@ -28,6 +28,18 @@ test.describe("panels / parse-token", () => {
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
   });
 
+  test("decode accepts a full L402 challenge", async ({ page }) => {
+    await page.fill(
+      "[data-testid='parse-token-input']",
+      `WWW-Authenticate: L402 macaroon="${FIXTURE_MACAROON}", invoice="lnbc1demo"`,
+    );
+    await page.click("[data-testid='parse-token-decode']");
+
+    await expect(page.locator("[data-testid='parse-token-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='parse-token-payment-hash']")).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
+  });
+
   test("stripe view shows macaroon-stripe primitive", async ({ page }) => {
     await page.fill("[data-testid='parse-token-input']", FIXTURE_MACAROON);
     await page.click("[data-testid='parse-token-decode']");

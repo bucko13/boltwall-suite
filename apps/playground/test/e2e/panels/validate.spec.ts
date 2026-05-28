@@ -36,6 +36,21 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("invalid");
   });
 
+  test("verify accepts a full Authorization credential", async ({ page }) => {
+    await page.fill(
+      "[data-testid='validate-token-input']",
+      `Authorization: L402 ${FIXTURE_MACAROON}:${WRONG_PREIMAGE}`,
+    );
+    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='validate-verify']");
+
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Preimage matches paymentHash",
+    );
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("invalid");
+  });
+
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
     // Navigate with params pre-set in URL so nuqs state is populated immediately
     const url =

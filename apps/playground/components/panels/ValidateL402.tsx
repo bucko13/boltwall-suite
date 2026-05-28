@@ -2,6 +2,7 @@
 
 import {
   decodeIdentifier,
+  parseAuthorizationHeader,
   verifyMacaroon,
   verifyPreimage,
   InMemoryRootKeyStore,
@@ -10,7 +11,7 @@ import {
 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
@@ -43,7 +44,28 @@ type CheckItem = {
   detail?: string;
 };
 
+function normalizeAuthorizationInput(input: string): string {
+  return input.replace(/^Authorization:\s*/i, "").trim();
+}
+
+function extractCredentialInput(input: string): {
+  macaroons: string[];
+  preimage: string | null;
+  source: "macaroon" | "credential";
+} {
+  const trimmed = input.trim();
+  if (!trimmed) return { macaroons: [], preimage: null, source: "macaroon" };
+
+  try {
+    const parsed = parseAuthorizationHeader(normalizeAuthorizationInput(trimmed));
+    return { macaroons: parsed.macaroons, preimage: parsed.preimage || null, source: "credential" };
+  } catch {
+    return { macaroons: [trimmed], preimage: null, source: "macaroon" };
+  }
+}
+
 export function ValidateL402() {
+  const workbenchMemory = useWorkbenchMemory();
   const [token, setToken] = useRememberedStringInput("token", {
     panel: PANEL,
     field: "macaroon",
@@ -67,9 +89,14 @@ export function ValidateL402() {
   const [tamperedToken, setTamperedToken] = useState<string | null>(null);
 
   async function runVerify(overrideToken?: string) {
-    const mac = overrideToken ?? (token ?? "").trim();
+    const rawTokenInput =
+      (overrideToken ?? (token ?? "").trim()) || workbenchMemory?.credential.trim() || "";
+    const credentialInput = extractCredentialInput(rawTokenInput);
+    const macaroons = credentialInput.macaroons;
+    const preimage = credentialInput.preimage ?? (preimageHex ?? "").trim();
+    const mac = macaroons[0] ?? "";
     if (!mac) {
-      setError("Paste a base64-encoded macaroon.");
+      setError("Paste a base64-encoded macaroon or full Authorization credential.");
       setChecks(null);
       return;
     }
@@ -78,7 +105,7 @@ export function ValidateL402() {
       setChecks(null);
       return;
     }
-    if (!(preimageHex ?? "").trim() || !/^[0-9a-fA-F]{64}$/.test((preimageHex ?? "").trim())) {
+    if (!preimage || !/^[0-9a-fA-F]{64}$/.test(preimage)) {
       setError("Preimage must be 64 hex chars.");
       setChecks(null);
       return;
@@ -113,7 +140,7 @@ export function ValidateL402() {
     try {
       const preimageOk = verifyPreimage({
         paymentHash,
-        preimage: (preimageHex ?? "").trim(),
+        preimage,
       });
       newChecks.push({
         label: "Preimage matches paymentHash",
@@ -135,8 +162,8 @@ export function ValidateL402() {
       await store.put(tokenId, rootKey);
 
       const result: VerifyMacaroonResult = await verifyMacaroon({
-        macaroons: [mac],
-        preimage: (preimageHex ?? "").trim(),
+        macaroons,
+        preimage,
         rootKeyStore: store,
         satisfiers: [validUntilSatisfier()],
         context: { now: new Date() },
@@ -161,7 +188,10 @@ export function ValidateL402() {
 
   function handleTamper() {
     // Flip the last byte of the base64 to invalidate the signature
-    const t = (token ?? "").trim();
+    const credentialInput = extractCredentialInput(
+      (token ?? "").trim() || workbenchMemory?.credential.trim() || "",
+    );
+    const t = credentialInput.macaroons[0] ?? "";
     if (!t) return;
     const bytes = Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
     if (bytes.length >= 1) {
@@ -177,6 +207,7 @@ export function ValidateL402() {
 
   function reset() {
     setToken(null);
+    workbenchMemory?.setCredential(null);
     setRootKeyHex(null);
     setPreimageHex(null);
     setChecks(null);
@@ -188,9 +219,14 @@ export function ValidateL402() {
   const allPass = checks?.every((c) => c.pass) ?? false;
   const status = error ? "fail" : checks ? (allPass ? "pass" : "fail") : "idle";
   const statusLabel = error ? "error" : checks ? (allPass ? "valid" : "invalid") : "idle";
-  const tokenLiteral = JSON.stringify((token ?? "").trim() || "<base64 macaroon>");
+  const inputValue =
+    tampered && tamperedToken ? tamperedToken : (token ?? "") || workbenchMemory?.credential || "";
+  const extractedInput = extractCredentialInput(inputValue);
+  const tokenLiteral = JSON.stringify(extractedInput.macaroons[0] ?? "<base64 macaroon>");
   const rootKeyLiteral = JSON.stringify((rootKeyHex ?? "").trim() || "<64-char hex key>");
-  const preimageLiteral = JSON.stringify((preimageHex ?? "").trim() || "<64-char hex preimage>");
+  const preimageLiteral = JSON.stringify(
+    (extractedInput.preimage ?? (preimageHex ?? "").trim()) || "<64-char hex preimage>",
+  );
 
   return (
     <Cell
@@ -219,17 +255,18 @@ export function ValidateL402() {
               gap: 4,
             }}
           >
-            Macaroon (base64)
+            Macaroon or Authorization credential
             <textarea
-              value={tampered && tamperedToken ? tamperedToken : (token ?? "")}
+              value={inputValue}
               onChange={(e) => {
                 setToken(e.target.value);
+                workbenchMemory?.setCredential(null);
                 setTampered(false);
                 setTamperedToken(null);
                 setChecks(null);
                 setError(null);
               }}
-              placeholder="AGIAJEemVQUTEyNCR0exk7ek90Cg=="
+              placeholder="L402 AGIAJEemVQ...:<64-char preimage>"
               data-testid="validate-token-input"
               rows={2}
               style={{

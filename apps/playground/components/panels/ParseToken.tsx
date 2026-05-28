@@ -1,9 +1,14 @@
 "use client";
 
-import { decodeIdentifier, parseCaveat, type MacaroonIdentifierV0 } from "@boltwall/l402";
+import {
+  decodeIdentifier,
+  parseAuthenticateHeader,
+  parseCaveat,
+  type MacaroonIdentifierV0,
+} from "@boltwall/l402";
 import { useState } from "react";
 
-import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
+import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -30,6 +35,30 @@ function base64ToBytes(b64: string): Uint8Array {
     bytes[i] = binStr.charCodeAt(i);
   }
   return bytes;
+}
+
+function normalizeChallengeInput(input: string): string {
+  return input.replace(/^WWW-Authenticate:\s*/i, "").trim();
+}
+
+function extractMacaroonInput(input: string): {
+  macaroon: string;
+  source: "macaroon" | "challenge";
+} {
+  const trimmed = input.trim();
+  if (!trimmed) return { macaroon: "", source: "macaroon" };
+
+  try {
+    const challenges = parseAuthenticateHeader(normalizeChallengeInput(trimmed));
+    const challenge = challenges.find((entry) => entry.scheme === "L402") ?? challenges[0];
+    if (challenge?.macaroon) {
+      return { macaroon: challenge.macaroon, source: "challenge" };
+    }
+  } catch {
+    // Plain macaroon input is still the primary Parse workflow.
+  }
+
+  return { macaroon: trimmed, source: "macaroon" };
 }
 
 /**
@@ -121,6 +150,7 @@ function buildStripeSegments(
 }
 
 export function ParseToken() {
+  const workbenchMemory = useWorkbenchMemory();
   const [token, setToken] = useRememberedStringInput("token", {
     panel: PANEL,
     field: "macaroon",
@@ -141,14 +171,16 @@ export function ParseToken() {
   const [error, setError] = useState<string | null>(null);
 
   function parse() {
-    if (!(token ?? "").trim()) {
-      setError("Paste a base64-encoded macaroon.");
+    const input = (token ?? "").trim() || workbenchMemory?.challenge.trim() || "";
+    const extracted = extractMacaroonInput(input);
+    if (!extracted.macaroon) {
+      setError("Paste a base64-encoded macaroon or WWW-Authenticate L402 challenge.");
       setParseResult(null);
       return;
     }
     try {
-      const id = decodeIdentifier((token ?? "").trim());
-      const macBytes = base64ToBytes((token ?? "").trim());
+      const id = decodeIdentifier(extracted.macaroon);
+      const macBytes = base64ToBytes(extracted.macaroon);
       const caveats = extractRawCaveats(macBytes);
       // Last 32 bytes of V2 binary = signature (after tag 0x03)
       const sigBytes =
@@ -163,6 +195,7 @@ export function ParseToken() {
 
   function reset() {
     setToken(null);
+    workbenchMemory?.setChallenge(null);
     setParseResult(null);
     setError(null);
   }
@@ -170,7 +203,9 @@ export function ParseToken() {
   const status = error ? "fail" : parseResult ? "pass" : "idle";
   const statusLabel = error ? "error" : parseResult ? "decoded" : "idle";
   const activeView = (viewMode as ViewModeValue) || "raw";
-  const tokenLiteral = JSON.stringify((token ?? "").trim() || "<base64 macaroon>");
+  const inputValue = (token ?? "") || workbenchMemory?.challenge || "";
+  const extractedInput = extractMacaroonInput(inputValue);
+  const tokenLiteral = JSON.stringify(extractedInput.macaroon || "<base64 macaroon>");
 
   return (
     <Cell
@@ -199,15 +234,16 @@ export function ParseToken() {
               gap: 4,
             }}
           >
-            Base64-encoded macaroon
+            Base64 macaroon or L402 challenge
             <textarea
-              value={token ?? ""}
+              value={inputValue}
               onChange={(e) => {
                 setToken(e.target.value);
+                workbenchMemory?.setChallenge(null);
                 setParseResult(null);
                 setError(null);
               }}
-              placeholder="AGIAJEemVQUTEyNCR0exk7ek90Cg=="
+              placeholder='L402 macaroon="AGIAJEemVQ...", invoice="lnbc1..."'
               data-testid="parse-token-input"
               rows={3}
               style={{
@@ -359,7 +395,7 @@ export function ParseToken() {
               {activeView === "stripe" && (
                 <MacaroonStripe
                   segments={buildStripeSegments(
-                    token ?? "",
+                    extractedInput.macaroon,
                     parseResult.id,
                     parseResult.caveats,
                     parseResult.sigBytes,
