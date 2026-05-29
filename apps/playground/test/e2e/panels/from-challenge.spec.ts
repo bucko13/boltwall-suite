@@ -27,7 +27,7 @@ test.describe("panels / from-challenge", () => {
     await expect(page.locator("[data-testid='challenge-scheme']")).toContainText("L402");
     await expect(page.locator("[data-testid='status-pill']").first()).toContainText("1 challenge");
     await expect(page.locator("[data-testid='challenge-next-actions']")).toContainText(
-      "Remembered parts",
+      "Challenge artifacts",
     );
     await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("AGIA");
     await expect(page.locator("[data-testid='challenge-store-macaroon']")).toHaveCount(0);

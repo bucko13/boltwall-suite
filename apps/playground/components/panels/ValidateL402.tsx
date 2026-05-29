@@ -318,7 +318,7 @@ export function ValidateL402() {
               gap: 4,
             }}
           >
-            Macaroon material or Authorization credential
+            Raw macaroon or Authorization credential
             <textarea
               value={inputValue}
               onChange={(e) => {

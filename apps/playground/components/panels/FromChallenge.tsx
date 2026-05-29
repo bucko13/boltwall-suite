@@ -313,7 +313,7 @@ export function FromChallenge() {
                     fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
                   }}
                 >
-                  Remembered parts
+                  Challenge artifacts
                 </div>
                 <div
                   style={{

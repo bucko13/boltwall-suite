@@ -793,7 +793,7 @@ export function Demo() {
                   fontSize: "var(--size-12)",
                 }}
               >
-                L402 Authorization value
+                Authorization credential
                 <textarea
                   value={customAuthorization}
                   onChange={(event) => setCustomAuthorization(event.target.value)}
@@ -838,7 +838,7 @@ export function Demo() {
                     cursor: customAuthorization.trim() === "" ? "not-allowed" : "pointer",
                   }}
                 >
-                  Use Authorization
+                  Use credential
                 </button>
               </div>
               <div
