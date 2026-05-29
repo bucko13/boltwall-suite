@@ -46,6 +46,11 @@ function normalizeAuthorizationInput(input: string): string {
   return input.replace(/^Authorization:\s*/i, "").trim();
 }
 
+function isCredentialLikeInput(input: string): boolean {
+  const normalized = normalizeAuthorizationInput(input);
+  return /^(L402|LSAT)\s+/i.test(normalized) && !/\bmacaroon=/i.test(normalized);
+}
+
 function extractCredentialInput(input: string): {
   token: L402 | null;
   macaroons: string[];
@@ -55,20 +60,32 @@ function extractCredentialInput(input: string): {
   const trimmed = input.trim();
   if (!trimmed) return { token: null, macaroons: [], preimage: null, source: "macaroon" };
 
-  try {
-    const token = L402.fromToken(normalizeAuthorizationInput(trimmed));
-    return {
-      token,
-      macaroons: token.macaroons,
-      preimage: token.paymentPreimage ?? null,
-      source: "credential",
-    };
-  } catch (error) {
-    if (error instanceof Error && error.message === "empty-macaroons") {
-      return { token: null, macaroons: [], preimage: null, source: "credential" };
+  if (isCredentialLikeInput(trimmed)) {
+    try {
+      const token = L402.fromToken(normalizeAuthorizationInput(trimmed));
+      return {
+        token,
+        macaroons: token.macaroons,
+        preimage: token.paymentPreimage ?? null,
+        source: "credential",
+      };
+    } catch (error) {
+      if (error instanceof Error && error.message === "empty-macaroons") {
+        return { token: null, macaroons: [], preimage: null, source: "credential" };
+      }
     }
+  }
+
+  try {
     return {
-      token: new L402({ macaroons: [trimmed] }),
+      token: L402.fromMacaroon(trimmed),
+      macaroons: [trimmed],
+      preimage: null,
+      source: "macaroon",
+    };
+  } catch {
+    return {
+      token: null,
       macaroons: [trimmed],
       preimage: null,
       source: "macaroon",

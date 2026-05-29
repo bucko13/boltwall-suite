@@ -123,7 +123,7 @@ export function GenerateL402Token() {
     <Cell
       header={
         <HeaderRow
-          title="Generate L402 Token"
+          title="Generate Macaroon"
           subtitle="Mint a macaroon from a root key and BOLT 11 invoice"
           trailing={
             <>

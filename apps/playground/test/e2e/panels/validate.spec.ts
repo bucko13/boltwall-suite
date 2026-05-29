@@ -114,6 +114,9 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
 
     await page.getByTestId("nav-link-parse").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(

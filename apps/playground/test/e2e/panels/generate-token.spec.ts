@@ -69,10 +69,25 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
 
     expect(macaroon).toBeTruthy();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
 
     await page.goto("/p/parse");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
+  });
+
+  test("clearing remembered macaroon clears carried parse input", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).not.toContainText(
+      "empty",
+    );
+
+    await page.click("[data-testid='workbench-memory-macaroon-clear']");
+    await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
   });
 });
