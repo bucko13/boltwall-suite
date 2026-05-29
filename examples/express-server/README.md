@@ -47,27 +47,35 @@ WWW_AUTH=$(curl -si http://localhost:3000/paid/data | grep -i www-authenticate |
 MACAROON=$(echo "$WWW_AUTH" | grep -oP 'macaroon="\K[^"]+')
 ```
 
-### Step 3 — Simulate payment (MockAdapter only)
+### Step 3 — Pay the invoice (concept)
 
-`MockAdapter` exposes a `settle(paymentHash, preimage)` test helper, but for
-this walkthrough we use a simple Node script to simulate payment:
+To pass the gate, a credential must carry a preimage whose SHA-256 hash equals
+the invoice's payment hash, and the backend must report that invoice as settled.
+With a real Lightning wallet you get both for free: you pay the BOLT 11 invoice,
+the wallet hands you the preimage, and your LND node marks the invoice settled.
 
-```ts
-// settle.ts — run with: bun run settle.ts
-import { MockAdapter } from "@boltwall/adapters/testing";
+`MockAdapter` does not move money, so there is no wire-level "pay" step you can
+curl against this server: its `settle(paymentHash, preimage)` helper must be
+called on the *same in-process backend instance* the server holds, with a
+matching preimage/hash pair. Driving that requires code, not curl — so Step 4
+below cannot be completed against the mock-backed server as written.
 
-// In a real app the backend instance is shared; here we demo the concept.
-const PAYMENT_HASH = process.argv[2]; // from the invoice
-const PREIMAGE = "0".repeat(64);      // 32-byte zero preimage for demo
+For paths you can actually run end to end:
 
-console.log("Preimage:", PREIMAGE);
-console.log("(In production: the wallet pays the BOLT 11 invoice and returns the preimage.)");
-```
+- **In-process (no node):** `packages/middleware/test/express.test.ts` builds a
+  real Express app, seeds an invoice with `createInvoice(...)`, settles it with
+  `backend.settle(paymentHash, preimage)` using a known preimage fixture, and
+  asserts the retried request succeeds. Run it with `bun test` from
+  `packages/middleware`.
+- **Real Lightning (full pay/retry):** the
+  [local regtest workflow](../../docs/local-regtest-proxy-playground.md) starts
+  a two-node LND topology, pays the invoice from a second node, and retries with
+  the resulting credential.
 
-For a real Lightning wallet, pay the BOLT 11 invoice and capture the preimage
-it returns on settlement.
+### Step 4 — Retry with credential (real backend)
 
-### Step 4 — Retry with credential
+Once the invoice is settled and you hold its preimage, the protected endpoint
+returns the data:
 
 ```bash
 curl -H "Authorization: L402 $MACAROON:<preimage-hex>" \

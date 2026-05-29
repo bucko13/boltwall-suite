@@ -57,6 +57,9 @@ Thumbs.db
 .cache/
 .parcel-cache/
 
+# Local data stores
+storage.sqlite3
+
 # Lockfile policy: keep root bun.lockb committed.
 # (Don't add it here — listed for clarity only.)
 

@@ -36,6 +36,13 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 These packages are not yet published to npm; clone the repo to use them (see Quickstart).
 
+**Which one do I use?**
+
+- Protect an Express/Next.js/Hono endpoint → `@boltwall/middleware` + `@boltwall/adapters`
+- Parse, mint, or verify L402 headers and credentials → `@boltwall/l402`
+- Put a payment gate in front of an existing API without changing it → `@boltwall/proxy`
+- Just try the full challenge → pay → retry flow → the [playground](https://boltwall-suite-playground.vercel.app)
+
 ## Quickstart
 
 The fastest way to see L402 in action is the playground:

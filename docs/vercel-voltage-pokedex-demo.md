@@ -11,6 +11,9 @@ follow it end to end, but every value here is yours to change.
 
 ## Prerequisites
 
+[Voltage](https://voltageapp.io) is a hosted LND provider: it runs the Lightning
+node for you and exposes a REST endpoint and macaroon you can reach from Vercel.
+
 - Bun installed.
 - Vercel CLI installed and authenticated (`vercel login`).
 - A running LND node with inbound liquidity to receive test payments, and a
