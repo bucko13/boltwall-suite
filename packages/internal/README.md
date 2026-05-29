@@ -8,7 +8,6 @@ external dependency.
 
 What belongs here:
 
-- Base64url helpers
 - Hex and `Uint8Array` conversion helpers
 - Constant-time byte comparison for browser-safe code paths
 - Price-unit helpers under `@boltwall/internal/numeric` for sats, millisats,
@@ -21,6 +20,8 @@ What does not belong here:
 - Macaroon codec implementations
 - Large parsers or framework-specific integration code
 - Build or lint configuration
+
+Base64url handling currently lives in `@boltwall/l402` rather than here.
 
 Cross-runtime rules:
 
