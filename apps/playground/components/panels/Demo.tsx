@@ -193,6 +193,56 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
   return messageError(error instanceof Error ? error.message : String(error));
 }
 
+// Persist the earned credential and its endpoint so navigating away and back
+// keeps endpoint access without re-paying. sessionStorage (per-tab) matches the
+// Workbench memory lifetime; transient status/artifact are intentionally not
+// persisted and are re-derived by the next fetch.
+const DEMO_SESSION_STORAGE_KEY = "bw.demo-session";
+
+type PersistedDemoSession = {
+  endpointOverride: string;
+  credentialSlot: CredentialSlot | null;
+};
+
+function isCredentialSlot(value: unknown): value is CredentialSlot {
+  if (typeof value !== "object" || value === null) return false;
+  const slot = value as Record<string, unknown>;
+  if (slot.source !== "custom" && slot.source !== "paid") return false;
+  if (typeof slot.endpointTemplate !== "string") return false;
+  const credential = slot.credential as Record<string, unknown> | null;
+  if (typeof credential !== "object" || credential === null) return false;
+  return typeof credential.authorization === "string" && typeof credential.macaroon === "string";
+}
+
+function readStoredDemoSession(): PersistedDemoSession | null {
+  if (typeof window === "undefined") return null;
+  try {
+    const raw = window.sessionStorage.getItem(DEMO_SESSION_STORAGE_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as Partial<PersistedDemoSession>;
+    const endpointOverride =
+      typeof parsed.endpointOverride === "string" ? parsed.endpointOverride : "";
+    const credentialSlot = isCredentialSlot(parsed.credentialSlot) ? parsed.credentialSlot : null;
+    if (!endpointOverride && !credentialSlot) return null;
+    return { endpointOverride, credentialSlot };
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredDemoSession(session: PersistedDemoSession) {
+  if (typeof window === "undefined") return;
+  try {
+    if (!session.endpointOverride && !session.credentialSlot) {
+      window.sessionStorage.removeItem(DEMO_SESSION_STORAGE_KEY);
+      return;
+    }
+    window.sessionStorage.setItem(DEMO_SESSION_STORAGE_KEY, JSON.stringify(session));
+  } catch {
+    // sessionStorage is a progressive enhancement; keep the demo usable without it.
+  }
+}
+
 export function Demo() {
   const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
@@ -209,10 +259,28 @@ export function Demo() {
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
   const [endpointSettingsOpen, setEndpointSettingsOpen] = useState(false);
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
+  const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
   }, []);
+
+  // Restore a previously paid/custom credential and its endpoint on mount so a
+  // returning user keeps access. Hydrate from storage before the persistence
+  // effect runs (gated on demoSessionHydrated) so defaults never overwrite it.
+  useEffect(() => {
+    const stored = readStoredDemoSession();
+    if (stored) {
+      setEndpointOverride(stored.endpointOverride);
+      setCredentialSlot(stored.credentialSlot);
+    }
+    setDemoSessionHydrated(true);
+  }, []);
+
+  useEffect(() => {
+    if (!demoSessionHydrated) return;
+    writeStoredDemoSession({ endpointOverride, credentialSlot });
+  }, [credentialSlot, demoSessionHydrated, endpointOverride]);
 
   useEffect(() => {
     if (copiedTarget === null) return;
