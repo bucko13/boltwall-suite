@@ -15,6 +15,7 @@ import { MacaroonStripe, type MacaroonSegments } from "../../components/ui/macar
 import { StatusPill, type StatusPillState } from "../../components/ui/status-pill";
 import { TruncMiddle } from "../../components/ui/trunc-middle";
 import { ViewModeToggle } from "../../components/ui/view-mode-toggle";
+import { hexToBytes } from "../../lib/hex";
 
 const SAMPLE_MACAROON =
   "MDAxYWxvY2F0aW9uIGxzYXQuYm9sdHdhbGwuaW8KMDAyNGlkZW50aWZpZXIgYjEyM2YwMDljYWZlYmFiZTU1NTU2NjY2N2YwMQowMDIzY2lkIGV4cGlyZXM9MjAyNi0wMS0wMVQwMDowMDowMFoKMDAxYWNpZCBpcD0xMC4wLjAuMQowMDJmc2lnbmF0dXJlIDdkOWMxMzMyZmFhZGRlY2FmZTk5OTljYWZlZGVhZGJlZWY1NTY2NzcwMDhkCg";
@@ -109,14 +110,6 @@ function PrimitiveRow({
       </div>
     </div>
   );
-}
-
-function hexToBytes(hex: string): Uint8Array {
-  const bytes = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return bytes;
 }
 
 // Fixture from @boltwall/test-fixtures macaroonCodecFixtures[1]

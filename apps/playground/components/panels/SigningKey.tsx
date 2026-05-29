@@ -2,6 +2,7 @@
 
 import { useState } from "react";
 
+import { bytesToHex } from "../../lib/hex";
 import { useRememberedStringInput } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
@@ -12,10 +13,6 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle } from "./panel-styles";
 
 const PANEL = "signing-key";
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export function SigningKey() {
   const [key, setKey] = useRememberedStringInput("key", {

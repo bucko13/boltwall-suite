@@ -3,6 +3,7 @@
 import { L402, type MacaroonInspection } from "@boltwall/l402";
 import { useState } from "react";
 
+import { bytesToHex } from "../../lib/hex";
 import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
@@ -18,10 +19,6 @@ import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 const PANEL = "parse-token";
 
 type ViewModeValue = "raw" | "json" | "stripe";
-
-function bytesToHex(b: Uint8Array): string {
-  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 function normalizeChallengeInput(input: string): string {
   return input.replace(/^WWW-Authenticate:\s*/i, "").trim();

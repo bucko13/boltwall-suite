@@ -9,6 +9,7 @@ import {
 } from "@boltwall/l402";
 import { useState } from "react";
 
+import { bytesToHex, hexToBytes } from "../../lib/hex";
 import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -19,22 +20,6 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "validate";
-
-function hexToBytes(hex: string): Uint8Array {
-  const cleaned = hex.trim().toLowerCase();
-  if (cleaned.length % 2 !== 0) throw new Error("Odd-length hex");
-  const bytes = new Uint8Array(cleaned.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    const b = parseInt(cleaned.slice(i * 2, i * 2 + 2), 16);
-    if (isNaN(b)) throw new Error("Invalid hex char");
-    bytes[i] = b;
-  }
-  return bytes;
-}
-
-function bytesToHex(b: Uint8Array): string {
-  return Array.from(b, (x) => x.toString(16).padStart(2, "0")).join("");
-}
 
 type CheckItem = {
   label: string;

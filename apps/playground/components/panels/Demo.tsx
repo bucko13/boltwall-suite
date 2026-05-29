@@ -45,7 +45,12 @@ type ChallengeState = {
   endpointTemplate: string;
 } & PaidChallenge;
 
-type CachedCredentialState = {
+// One credential slot per endpoint. The slot is a discriminated value: a
+// credential is either pasted by the user ("custom") or earned by paying a
+// challenge ("paid"). It is scoped to the endpoint it was captured for so a
+// stale credential never leaks across endpoints.
+type CredentialSlot = {
+  source: "custom" | "paid";
   endpointTemplate: string;
   credential: PaidCredential;
 };
@@ -194,8 +199,7 @@ export function Demo() {
   const [endpointOverride, setEndpointOverride] = useState("");
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
   const [pastedPreimage, setPastedPreimage] = useState("");
-  const [cachedCredential, setCachedCredential] = useState<CachedCredentialState | null>(null);
-  const [customCredential, setCustomCredential] = useState<CachedCredentialState | null>(null);
+  const [credentialSlot, setCredentialSlot] = useState<CredentialSlot | null>(null);
   const [customAuthorization, setCustomAuthorization] = useState("");
   const [customMacaroon, setCustomMacaroon] = useState("");
   const [customPreimage, setCustomPreimage] = useState("");
@@ -221,15 +225,12 @@ export function Demo() {
     [endpointOverride],
   );
   const usingConfiguredEndpoint = endpointOverride.trim() !== "" || CONFIGURED_DEMO_ENDPOINT !== "";
-  const matchingCustomCredential =
-    customCredential?.endpointTemplate === endpointTemplate
-      ? { ...customCredential, source: "custom" as const }
-      : null;
-  const matchingCachedCredential =
-    cachedCredential?.endpointTemplate === endpointTemplate
-      ? { ...cachedCredential, source: "paid" as const }
-      : null;
-  const activeCredential = matchingCustomCredential ?? matchingCachedCredential;
+  // The slot only counts as active when it was captured for the current
+  // endpoint. A freshly pasted custom credential wins over a cached paid one
+  // for the same endpoint because pasting replaces the whole slot (see
+  // adoptCustomCredential), so precedence falls out of the single-slot model.
+  const activeCredential =
+    credentialSlot?.endpointTemplate === endpointTemplate ? credentialSlot : null;
   const workbenchArtifact = useMemo<CapturedArtifact | null>(() => {
     if (!workbenchMemory) return null;
     const credential = workbenchMemory.credential.trim();
@@ -294,7 +295,7 @@ export function Demo() {
           });
           return;
         }
-        setCachedCredential(null);
+        setCredentialSlot(null);
         await handleFetchResult(
           id,
           endpoint,
@@ -304,11 +305,7 @@ export function Demo() {
         return;
       }
       if (credential !== null && result.status === "challenge") {
-        if (active?.source === "custom") {
-          setCustomCredential(null);
-        } else {
-          setCachedCredential(null);
-        }
+        setCredentialSlot(null);
       }
       await handleFetchResult(id, endpoint, result, credential !== null && result.status === "ok");
     } catch (error) {
@@ -320,16 +317,20 @@ export function Demo() {
   }
 
   async function fetchFreshChallenge() {
-    setCustomCredential(null);
+    setCredentialSlot(null);
     await getPokemon(false);
+  }
+
+  // A freshly pasted custom credential takes the slot outright, evicting any
+  // cached paid credential for the endpoint.
+  function adoptCustomCredential(credential: PaidCredential) {
+    setCredentialSlot({ source: "custom", endpointTemplate, credential });
+    setStatus({ kind: "idle" });
   }
 
   function useFullCustomCredential() {
     try {
-      const credential = parsePastedCredential(customAuthorization);
-      setCustomCredential({ endpointTemplate, credential });
-      setCachedCredential(null);
-      setStatus({ kind: "idle" });
+      adoptCustomCredential(parsePastedCredential(customAuthorization));
     } catch (error) {
       setStatus({
         kind: "error",
@@ -340,10 +341,9 @@ export function Demo() {
 
   function useCustomCredentialParts() {
     try {
-      const credential = buildPastedCredentialParts(customMacaroon, customPreimage, customScheme);
-      setCustomCredential({ endpointTemplate, credential });
-      setCachedCredential(null);
-      setStatus({ kind: "idle" });
+      adoptCustomCredential(
+        buildPastedCredentialParts(customMacaroon, customPreimage, customScheme),
+      );
     } catch (error) {
       setStatus({
         kind: "error",
@@ -357,11 +357,28 @@ export function Demo() {
     setCustomMacaroon(workbenchMemory.macaroon);
   }
 
-  function clearCustomCredential() {
-    setCustomCredential(null);
+  // Reset the raw paste inputs that buffer an in-progress custom credential.
+  function clearCustomBuffers() {
     setCustomAuthorization("");
     setCustomMacaroon("");
     setCustomPreimage("");
+  }
+
+  // The custom-credential banner's Clear: drop the slot and its editing buffer.
+  function clearCustomCredential() {
+    setCredentialSlot(null);
+    clearCustomBuffers();
+  }
+
+  // Changing the endpoint invalidates every credential we hold for the old one.
+  // Clear the whole slot (custom or paid) and the raw paste inputs so no stale
+  // credential state can leak across endpoints. (Transient status/artifact are
+  // intentionally left alone — the next fetch replaces them, and clearing them
+  // on every keystroke would dismiss an in-progress payment challenge while the
+  // user edits the URL.)
+  function resetCredentialStateForEndpoint() {
+    setCredentialSlot(null);
+    clearCustomBuffers();
   }
 
   async function copyText(value: string, target: CopyTarget) {
@@ -465,7 +482,8 @@ export function Demo() {
       });
       workbenchMemory?.setCredential(result.credential.authorization);
       workbenchMemory?.setChallenge(challenge.rawAuthenticate);
-      setCachedCredential({
+      setCredentialSlot({
+        source: "paid",
         endpointTemplate: challenge.endpointTemplate,
         credential: result.credential,
       });
@@ -633,8 +651,7 @@ export function Demo() {
                 placeholder={CONFIGURED_DEMO_ENDPOINT || PUBLIC_POKEMON_ENDPOINT_TEMPLATE}
                 onChange={(event) => {
                   setEndpointOverride(event.target.value);
-                  setCachedCredential(null);
-                  setCustomCredential(null);
+                  resetCredentialStateForEndpoint();
                 }}
                 data-testid="demo-endpoint-input"
                 style={{
@@ -894,7 +911,7 @@ export function Demo() {
             </div>
           </details>
 
-          {customCredential ? (
+          {credentialSlot?.source === "custom" ? (
             <div
               data-testid="demo-custom-credential-status"
               style={{
@@ -907,7 +924,7 @@ export function Demo() {
                 order: 12,
               }}
             >
-              <span>Custom {customCredential.credential.scheme} credential active.</span>
+              <span>Custom {credentialSlot.credential.scheme} credential active.</span>
               <button
                 type="button"
                 onClick={clearCustomCredential}
@@ -945,7 +962,7 @@ export function Demo() {
             </div>
           ) : null}
 
-          {cachedCredential && !matchingCustomCredential ? (
+          {credentialSlot?.source === "paid" ? (
             <div
               data-testid="demo-credential-status"
               style={{
@@ -958,10 +975,10 @@ export function Demo() {
                 order: 12,
               }}
             >
-              <span>Paid {cachedCredential.credential.scheme} credential cached for reuse.</span>
+              <span>Paid {credentialSlot.credential.scheme} credential cached for reuse.</span>
               <button
                 type="button"
-                onClick={() => setCachedCredential(null)}
+                onClick={() => setCredentialSlot(null)}
                 data-testid="demo-clear-credential"
                 style={{
                   padding: "4px 8px",

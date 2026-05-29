@@ -1,30 +1,14 @@
 "use client";
 
-import { useEffect, useState } from "react";
-
-type Theme = "light" | "dark";
+import { useTheme } from "./theme-provider";
 
 export function ThemeToggle() {
-  const [theme, setTheme] = useState<Theme | null>(null);
-
-  useEffect(() => {
-    const current = document.documentElement.getAttribute("data-theme");
-    setTheme(current === "dark" ? "dark" : "light");
-  }, []);
+  const { theme, setTheme } = useTheme();
 
   function flip() {
-    const next: Theme = theme === "dark" ? "light" : "dark";
-    document.documentElement.setAttribute("data-theme", next);
-    try {
-      window.localStorage.setItem("playground.theme", next);
-    } catch {
-      // ignore quota/security errors — toggle still works in-session
-    }
-    setTheme(next);
+    setTheme(theme === "dark" ? "light" : "dark");
   }
 
-  // Render a stable placeholder until we know which theme is active to avoid
-  // a flicker mismatch between server and client.
   const label = theme === "dark" ? "Switch to light theme" : "Switch to dark theme";
 
   return (

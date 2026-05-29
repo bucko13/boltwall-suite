@@ -3,6 +3,7 @@
 import { decodeBolt11Invoice, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
 import { useEffect, useState } from "react";
 
+import { bytesToHex, hexToBytes } from "../../lib/hex";
 import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
@@ -16,22 +17,6 @@ import { panelInputStyle } from "./panel-styles";
 const PANEL = "from-invoice";
 const MISSING_KEY_ERROR = "Paste a 64-char hex root key.";
 const INVALID_KEY_ERROR = "Root key must be exactly 64 hex characters (32 bytes).";
-
-function hexToBytes(hex: string): Uint8Array {
-  const cleaned = hex.trim().toLowerCase();
-  if (cleaned.length % 2 !== 0) throw new Error("Odd-length hex");
-  const bytes = new Uint8Array(cleaned.length / 2);
-  for (let i = 0; i < bytes.length; i++) {
-    const b = parseInt(cleaned.slice(i * 2, i * 2 + 2), 16);
-    if (isNaN(b)) throw new Error("Invalid hex char");
-    bytes[i] = b;
-  }
-  return bytes;
-}
-
-function bytesToHex(bytes: Uint8Array): string {
-  return Array.from(bytes, (b) => b.toString(16).padStart(2, "0")).join("");
-}
 
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();

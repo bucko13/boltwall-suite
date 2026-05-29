@@ -3,6 +3,8 @@
  */
 import type { BrowserContext, Page } from "@playwright/test";
 
+export { hexToBytes } from "../../lib/hex";
+
 /** Set the playground theme via localStorage before navigation. */
 export function setTheme(page: Page, theme: "light" | "dark") {
   return page.addInitScript((t: string) => {
@@ -28,13 +30,4 @@ export function panelUrl(panel: string, params: Record<string, string> = {}): st
   const q = new URLSearchParams(params);
   const qs = q.toString();
   return `/p/${panel}${qs ? `?${qs}` : ""}`;
-}
-
-/** Decode hex string to Uint8Array (Node-side utility for test setup). */
-export function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) {
-    out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  }
-  return out;
 }
