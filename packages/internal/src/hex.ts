@@ -30,6 +30,7 @@ export function bytesToHex(bytes: Uint8Array): string {
  * or corrupt result.
  *
  * @throws {RangeError} when `hex.length` is odd or any character is non-hex.
+ * @example hexToBytes("abcd") // Uint8Array([0xab, 0xcd])
  */
 export function hexToBytes(hex: string): Uint8Array {
   if (hex.length % 2 !== 0) {
@@ -61,6 +62,8 @@ export function hexToBytes(hex: string): Uint8Array {
  * @param hex - Hex-encoded input.
  * @param label - Optional label woven into error messages (defaults to `"value"`).
  * @throws {RangeError} when the input is not exactly 64 hex characters.
+ * @example hexToBytes32("00".repeat(32)) // 32-byte Uint8Array of zeros
+ * @example hexToBytes32("ab", "payment hash") // throws RangeError: payment hash must be 32 bytes
  */
 export function hexToBytes32(hex: string, label = "value"): Uint8Array {
   if (hex.length !== PAYMENT_HASH_HEX_LENGTH) {

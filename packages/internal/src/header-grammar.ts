@@ -83,6 +83,15 @@ function isWs(ch: string | undefined): boolean {
  *   backslash at EOF does not start an escape)
  * - `expected-comma-or-eof` — after a param value, the next byte is neither
  *   `,` nor end of input
+ *
+ * @example
+ * tokenizeHttpAuth('L402 macaroon="abc", invoice="lnbc1"', {
+ *   knownSchemes: ["l402"],
+ * });
+ * // [{ scheme: "l402", params: [
+ * //   { name: "macaroon", value: "abc" },
+ * //   { name: "invoice", value: "lnbc1" },
+ * // ] }]
  */
 export function tokenizeHttpAuth(
   input: string,

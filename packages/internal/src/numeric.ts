@@ -79,6 +79,13 @@ function btcNumberToMsats(value: number): bigint {
 
 /**
  * Convert a whole-satoshi amount into canonical bigint millisatoshis.
+ *
+ * Millisatoshis are the single internal unit so amounts compose without float
+ * rounding; `number` inputs must be whole satoshis (fractional sats have no
+ * representation here — use {@link msats} for sub-sat precision).
+ *
+ * @throws {RangeError} when `value` is fractional or negative.
+ * @example sats(1) // 1000n
  */
 export function sats(value: number | bigint): bigint {
   const amount = toWholeBigInt(value, "sats");
@@ -88,6 +95,13 @@ export function sats(value: number | bigint): bigint {
 
 /**
  * Mark an already-canonical millisatoshi amount as a price amount.
+ *
+ * Identity pass-through (no scaling) that exists for call-site readability and
+ * to enforce the non-negative invariant shared by all amount constructors;
+ * takes `bigint` only, since msats is the finest unit and never fractional.
+ *
+ * @throws {RangeError} when `value` is negative.
+ * @example msats(1500n) // 1500n
  */
 export function msats(value: bigint): bigint {
   assertNonNegative(value);
@@ -96,6 +110,16 @@ export function msats(value: bigint): bigint {
 
 /**
  * Convert a BTC amount into canonical bigint millisatoshis.
+ *
+ * Fractional `number` BTC is supported, but only when it lands on a whole
+ * millisatoshi within IEEE-754 safe-integer range; sub-msat or float-imprecise
+ * values throw rather than silently rounding. `bigint` inputs are treated as
+ * whole BTC.
+ *
+ * @throws {RangeError} when `value` is negative, non-finite, or does not resolve
+ *   to a safe whole millisatoshi amount.
+ * @example btc(1) // 100_000_000_000n
+ * @example btc(0.00000000001) // 1n
  */
 export function btc(value: number | bigint): bigint {
   if (typeof value === "number") {
@@ -109,6 +133,13 @@ export function btc(value: number | bigint): bigint {
 
 /**
  * Convert whole satoshis to millisatoshis.
+ *
+ * Pure scaling (×1000) for callers that already hold a `bigint` sat count;
+ * unlike {@link sats} it accepts no `number`, so there is no whole-number check
+ * to perform.
+ *
+ * @throws {RangeError} when `value` is negative.
+ * @example satsToMsats(5n) // 5000n
  */
 export function satsToMsats(value: bigint): bigint {
   assertNonNegative(value);
@@ -117,6 +148,13 @@ export function satsToMsats(value: bigint): bigint {
 
 /**
  * Split a millisatoshi amount into whole satoshis plus the leftover msat remainder.
+ *
+ * Returns the remainder rather than rounding so the conversion is lossless and
+ * callers decide how to present sub-sat dust (Lightning amounts are not always
+ * whole sats).
+ *
+ * @throws {RangeError} when `value` is negative.
+ * @example msatsToSats(2500n) // { sats: 2n, msatRemainder: 500n }
  */
 export function msatsToSats(value: bigint): { sats: bigint; msatRemainder: bigint } {
   assertNonNegative(value);
@@ -129,6 +167,17 @@ export function msatsToSats(value: bigint): { sats: bigint; msatRemainder: bigin
 
 /**
  * Parse a user-facing amount string into canonical bigint millisatoshis.
+ *
+ * Accepts an optional trailing unit (`sat`/`sats`, `msat`/`msats`, `btc`),
+ * defaulting to `defaultUnit` when absent. Deliberately rejects signs, grouping
+ * commas, and scientific notation so ambiguous or locale-specific input fails
+ * loudly rather than being silently coerced; precision finer than 1 msat also
+ * throws.
+ *
+ * @throws {RangeError} on empty, malformed, signed, or sub-msat-precision input,
+ *   or an unsupported unit.
+ * @example parseAmount("100") // 100_000n  (defaults to sats)
+ * @example parseAmount("1.5 btc") // 150_000_000_000n
  */
 export function parseAmount(input: string, defaultUnit: AmountUnit = "sats"): bigint {
   const trimmed = input.trim();
@@ -173,6 +222,14 @@ export function parseAmount(input: string, defaultUnit: AmountUnit = "sats"): bi
 
 /**
  * Format millisatoshis as a sats string with up to 3 decimal places.
+ *
+ * Renders sub-sat msat remainder as trailing decimals (3 max, since 1000 msat =
+ * 1 sat) with trailing zeros stripped, so whole-sat amounts have no decimal
+ * point. Inverse of `parseAmount(s, "sats")`.
+ *
+ * @throws {RangeError} when `value` is negative.
+ * @example formatSats(2500n) // "2.5"
+ * @example formatSats(3000n) // "3"
  */
 export function formatSats(value: bigint): string {
   assertNonNegative(value);
@@ -191,6 +248,15 @@ export function formatSats(value: bigint): string {
 
 /**
  * Format millisatoshis as a BTC string with up to 11 decimal places.
+ *
+ * 11 decimals because 1 BTC = 100_000_000_000 msat, so msat-level precision
+ * extends three places past the usual 8-decimal sat representation; trailing
+ * zeros are stripped and whole-BTC amounts have no decimal point. Inverse of
+ * `parseAmount(s, "btc")`.
+ *
+ * @throws {RangeError} when `value` is negative.
+ * @example formatBtc(100_000_000_000n) // "1"
+ * @example formatBtc(1n) // "0.00000000001"
  */
 export function formatBtc(value: bigint): string {
   assertNonNegative(value);
