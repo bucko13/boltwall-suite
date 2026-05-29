@@ -96,8 +96,9 @@ the workflows that exercise the suite the way a user will:
   the 402 challenge, pay from the second node, and retry with the L402
   credential.
 - [Vercel + Voltage Pokedex proxy workflow](./docs/vercel-voltage-pokedex-demo.md):
-  deploy a `boltwall` proxy to Vercel with a Voltage LND backend, configure the
-  production playground to use that proxy endpoint, and verify the live
+  deploy a `boltwall` proxy to Vercel against a Voltage-hosted LND node (a plain
+  LND node consumed via the standard `lnd` backend), configure the production
+  playground to use that proxy endpoint, and verify the live
   challenge/payment/retry path.
 
 Package-specific details live in package READMEs:
@@ -107,7 +108,8 @@ Package-specific details live in package READMEs:
 - [`@boltwall/middleware`](./packages/middleware/README.md) for protecting an
   HTTP endpoint (Web Fetch core plus Express/Next.js/Hono usage).
 - [`@boltwall/adapters`](./packages/adapters/README.md) for Lightning backend
-  setup, including Voltage LND env handling.
+  setup, including the `lnd` backend used for self-hosted and Voltage-hosted
+  LND nodes.
 - [`@boltwall/proxy`](./packages/proxy/README.md) for CLI config, local proxy
   dev, Vercel deploys, header forwarding, and backend env names.
 - [`@boltwall/playground`](./apps/playground/README.md) for the configurable

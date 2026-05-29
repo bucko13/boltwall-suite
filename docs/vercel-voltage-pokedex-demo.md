@@ -1,10 +1,11 @@
-# Deploy an L402 proxy to Vercel (Voltage LND)
+# Deploy an L402 proxy to Vercel (Voltage-hosted LND node)
 
 This runbook deploys an `@boltwall/proxy` in front of an existing HTTP API on
-Vercel, backed by a [Voltage](https://voltageapp.io)-hosted LND node, and walks
-the full challenge → pay → retry path. Voltage is the primary example because it
-gives you a hosted LND endpoint reachable from Vercel; self-hosted LND works the
-same way (see the note below).
+Vercel, backed by an LND node hosted on [Voltage](https://voltageapp.io), and
+walks the full challenge → pay → retry path. A Voltage node is a plain LND node,
+so it is consumed through the standard `lnd` backend; Voltage is the primary
+example because it gives you a hosted LND endpoint reachable from Vercel.
+Self-hosted LND works exactly the same way — same backend, same env vars.
 
 The example protects the public PokeAPI (`https://pokeapi.co/api/v2`) so you can
 follow it end to end, but every value here is yours to change.
@@ -12,44 +13,43 @@ follow it end to end, but every value here is yours to change.
 ## Prerequisites
 
 [Voltage](https://voltageapp.io) is a hosted LND provider: it runs the Lightning
-node for you and exposes a REST endpoint and macaroon you can reach from Vercel.
+node for you and exposes a gRPC endpoint, TLS certificate, and macaroon you can
+reach from Vercel.
 
 - Bun installed.
 - Vercel CLI installed and authenticated (`vercel login`).
 - A running LND node with inbound liquidity to receive test payments, and a
-  macaroon permitted to create and look up invoices. With Voltage, the node API
-  base URL and macaroon come from the Voltage dashboard.
+  macaroon permitted to create and look up invoices. With Voltage, the gRPC
+  host, admin macaroon, and TLS certificate come from the Voltage dashboard.
 - A local checkout of this repository if you are deploying the workspace
   `@boltwall/proxy` before it is published.
 
 References: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy) — stdout is
 the deployment URL, `--prod` deploys to production, and `vercel env add NAME
 --sensitive` stores a value with hidden contents. [Voltage LND node
-API](https://docs.voltage.cloud/lnd-node-api) — REST is on port `8080`, the base
-URL is unique per node, and macaroons are credentials to be treated like
-passwords.
-
-Self-hosted LND uses the same flow with the `lnd` backend instead of
-`voltage-lnd`: env names `LND_SOCKET`, `LND_TLS_CERT`, and `LND_MACAROON`. The
-socket must be reachable from Vercel and the TLS certificate must match the host
-name clients use.
+API](https://docs.voltage.cloud/lnd-node-api) — the node host is unique per node
+and macaroons are credentials to be treated like passwords.
 
 ## 1. Prepare LND credentials
 
-Collect these from your node (the Voltage dashboard, or your own LND):
+The `lnd` backend (`LN_BACKEND=lnd`) reads three env vars. Collect their values
+from your node — the Voltage dashboard, or your own LND:
 
-- `VOLTAGE_LND_BASE_URL`: node API host or URL, for example
-  `node-name.m.voltageapp.io` or `https://node-name.m.voltageapp.io`.
-- `VOLTAGE_LND_MACAROON`: macaroon as a hex string.
-- `VOLTAGE_LND_CERT`: TLS certificate value. Some Voltage HTTP integrations do
-  not need a cert, but the adapter env contract still requires the variable.
+- `LND_SOCKET`: the gRPC endpoint as `host:port`. For a Voltage node this is
+  `<node-name>.m.voltageapp.io:10009`. Use the **gRPC host on port `10009`**, not
+  the dashboard's REST URL (port `8080`) — the adapter speaks gRPC, and pointing
+  it at the REST port will fail to connect.
+- `LND_MACAROON`: the admin macaroon content (base64). Copy it from the Voltage
+  dashboard.
+- `LND_TLS_CERT`: the TLS certificate content (base64 or PEM). Copy it from the
+  Voltage dashboard.
 
 Export them only in the local shell that runs validation/deploy:
 
 ```sh
-export VOLTAGE_LND_BASE_URL="<your-voltage-node-host-or-url>"
-export VOLTAGE_LND_MACAROON="<hex-macaroon>"
-export VOLTAGE_LND_CERT="<certificate-value>"
+export LND_SOCKET="<node-name>.m.voltageapp.io:10009"
+export LND_MACAROON="<base64-macaroon>"
+export LND_TLS_CERT="<base64-or-pem-certificate>"
 ```
 
 Do not commit these values, paste them into client-side code, or store them in
@@ -73,7 +73,7 @@ client origin):
 | Prompt                                      | Answer                                                              |
 | ------------------------------------------- | ------------------------------------------------------------------- |
 | Config name                                 | `voltage-pokedex-proxy`                                             |
-| Lightning backend                           | `voltage-lnd`                                                       |
+| Lightning backend                           | `lnd`                                                              |
 | Allow browser JavaScript clients            | `yes` (only if a browser client will read the challenge)            |
 | Allowed browser origins                     | the origin that will read the challenge, e.g. `https://your-app.example` |
 | Upstream target URL                         | `https://pokeapi.co/api/v2`                                         |

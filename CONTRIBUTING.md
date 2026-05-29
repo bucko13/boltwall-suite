@@ -48,7 +48,7 @@ Unit tests run with `bun run test` and gate every push. A few surfaces need infr
 | `bun run test:browser` | built browser bundles import cleanly in Chromium | nothing (turbo builds first) |
 | `bun run test:e2e` (`apps/playground`) | playground UI flows | nothing (dev server auto-starts) |
 | `bun run test:interop` (`packages/l402`) | Aperture wire-format interop | **Docker + an LND regtest node** |
-| `bun run test:integration` (`packages/adapters`) | live OpenNode / BTCPay / Voltage adapters | **per-adapter credentials** (skipped without) |
+| `bun run test:integration` (`packages/adapters`) | live OpenNode / BTCPay adapters | **per-adapter credentials** (skipped without) |
 | `bun run package-health` · `bun run size` | publint + are-the-types-wrong · l402 bundle budget | built packages |
 
 Setup for the infra-dependent suites (`test:interop`, `test:integration`) lives
