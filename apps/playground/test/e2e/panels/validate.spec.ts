@@ -105,7 +105,7 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
   });
 
-  test("saved token and signing key are restored from earlier panels", async ({ page }) => {
+  test("saved macaroon and signing key are filled from Workbench explicitly", async ({ page }) => {
     await page.goto("/p/generate");
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
@@ -119,8 +119,9 @@ test.describe("panels / validate", () => {
     );
 
     await page.getByTestId("nav-link-parse").click();
-    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
-      macaroon?.trim() ?? "",
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
     );
 
     await page.getByTestId("nav-link-caveats").click();
@@ -134,6 +135,10 @@ test.describe("panels / validate", () => {
     );
 
     await page.getByRole("link", { name: "Validate" }).click();
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
+    await page.click("[data-testid='validate-fill-key']");
+    await page.click("[data-testid='validate-fill-macaroon']");
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
@@ -141,6 +146,22 @@ test.describe("panels / validate", () => {
 
     await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
+
+    await page.click("[data-testid='validate-fill-macaroon']");
+    await page.click("[data-testid='validate-fill-key']");
+    await page.click("[data-testid='validate-clear-both']");
+    await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "macaroon: empty",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
+      "signing key: empty",
+    );
   });
 
   test("URL params override remembered values", async ({ page }) => {
@@ -150,6 +171,6 @@ test.describe("panels / validate", () => {
 
     await page.goto(`/p/validate?validate.key=${URL_KEY}`);
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(URL_KEY);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("ffffffff");
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
   });
 });

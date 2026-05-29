@@ -54,7 +54,7 @@ test.describe("panels / parse-token", () => {
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
   });
 
-  test("decode accepts a macaroon minted in the generate panel", async ({ page }) => {
+  test("generated macaroon stays in Workbench until explicitly filled", async ({ page }) => {
     await page.goto("/p/generate");
     await page.fill(
       "[data-testid='generate-token-key-input']",
@@ -69,6 +69,11 @@ test.describe("panels / parse-token", () => {
     );
 
     await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
+    await page.click("[data-testid='parse-token-fill-macaroon']");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
@@ -77,6 +82,37 @@ test.describe("panels / parse-token", () => {
     await expect(page.locator("[data-testid='parse-token-output']")).toBeVisible();
     await expect(page.locator("[data-testid='parse-token-payment-hash']")).toBeVisible();
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
+  });
+
+  test("clear page leaves Workbench macaroon available, clear both removes it", async ({
+    page,
+  }) => {
+    await page.goto("/p/generate");
+    await page.fill(
+      "[data-testid='generate-token-key-input']",
+      "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
+    );
+    await page.click("[data-testid='generate-token-mint']");
+    const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
+
+    await page.goto("/p/parse");
+    await page.click("[data-testid='parse-token-fill-macaroon']");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
+      macaroon?.trim() ?? "",
+    );
+
+    await page.click("[data-testid='parse-token-reset']");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
+
+    await page.click("[data-testid='parse-token-fill-macaroon']");
+    await page.click("[data-testid='parse-token-clear-both']");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "macaroon: empty",
+    );
   });
 
   test("decode treats generated-looking base64 as a raw macaroon", async ({ page }) => {

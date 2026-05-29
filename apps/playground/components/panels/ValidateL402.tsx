@@ -9,7 +9,7 @@ import {
 } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { CopyUrlButton } from "../ui/copy-url-button";
@@ -93,17 +93,34 @@ function extractCredentialInput(input: string): {
   }
 }
 
+function workbenchButtonStyle(enabled: boolean) {
+  return {
+    padding: "4px 8px",
+    background: enabled ? "var(--color-surface)" : "var(--color-surface-alt)",
+    color: enabled ? "var(--color-text)" : "var(--color-dim)",
+    border: "1px solid var(--color-border)",
+    borderRadius: 4,
+    fontSize: "var(--size-11)",
+    fontWeight: 500,
+    cursor: enabled ? "pointer" : "not-allowed",
+  } as const;
+}
+
 export function ValidateL402() {
   const workbenchMemory = useWorkbenchMemory();
-  const [token, setToken] = useRememberedStringInput("token", {
-    panel: PANEL,
-    field: "macaroon",
-  });
+  const [token, setToken] = useUrlInput<string>(
+    "token",
+    (raw) => raw ?? "",
+    (v) => v || null,
+    { panel: PANEL },
+  );
 
-  const [rootKeyHex, setRootKeyHex] = useRememberedStringInput("key", {
-    panel: PANEL,
-    field: "signingKey",
-  });
+  const [rootKeyHex, setRootKeyHex] = useUrlInput<string>(
+    "key",
+    (raw) => raw ?? "",
+    (v) => v || null,
+    { panel: PANEL },
+  );
 
   const [preimageHex, setPreimageHex] = useUrlInput<string>(
     "preimage",
@@ -118,8 +135,7 @@ export function ValidateL402() {
   const [tamperedToken, setTamperedToken] = useState<string | null>(null);
 
   async function runVerify(overrideToken?: string) {
-    const rawTokenInput =
-      (overrideToken ?? (token ?? "").trim()) || workbenchMemory?.credential.trim() || "";
+    const rawTokenInput = overrideToken ?? (token ?? "").trim();
     const credentialInput = extractCredentialInput(rawTokenInput);
     const credentialToken = credentialInput.token;
     const macaroons = credentialToken?.macaroons ?? credentialInput.macaroons;
@@ -230,9 +246,7 @@ export function ValidateL402() {
 
   function handleTamper() {
     // Flip the last byte of the base64 to invalidate the signature
-    const credentialInput = extractCredentialInput(
-      (token ?? "").trim() || workbenchMemory?.credential.trim() || "",
-    );
+    const credentialInput = extractCredentialInput((token ?? "").trim());
     const t = credentialInput.macaroons[0] ?? "";
     if (!t) return;
     const bytes = Uint8Array.from(atob(t), (c) => c.charCodeAt(0));
@@ -247,9 +261,8 @@ export function ValidateL402() {
     runVerify(newB64);
   }
 
-  function reset() {
+  function clearPage() {
     setToken(null);
-    workbenchMemory?.setCredential(null);
     setRootKeyHex(null);
     setPreimageHex(null);
     setChecks(null);
@@ -258,17 +271,40 @@ export function ValidateL402() {
     setTamperedToken(null);
   }
 
+  function clearBoth() {
+    clearPage();
+    workbenchMemory?.setMacaroon(null);
+    workbenchMemory?.setCredential(null);
+    workbenchMemory?.setSigningKey(null);
+  }
+
+  function fillTokenFromWorkbench(value: string) {
+    setToken(value);
+    setTampered(false);
+    setTamperedToken(null);
+    setChecks(null);
+    setError(null);
+  }
+
+  function fillKeyFromWorkbench(value: string) {
+    setRootKeyHex(value);
+    setChecks(null);
+    setError(null);
+  }
+
   const allPass = checks?.every((c) => c.pass) ?? false;
   const status = error ? "fail" : checks ? (allPass ? "pass" : "fail") : "idle";
   const statusLabel = error ? "error" : checks ? (allPass ? "valid" : "invalid") : "idle";
-  const inputValue =
-    tampered && tamperedToken ? tamperedToken : (token ?? "") || workbenchMemory?.credential || "";
+  const inputValue = tampered && tamperedToken ? tamperedToken : (token ?? "");
   const extractedInput = extractCredentialInput(inputValue);
   const tokenLiteral = JSON.stringify(extractedInput.macaroons[0] ?? "<base64 macaroon>");
   const rootKeyLiteral = JSON.stringify((rootKeyHex ?? "").trim() || "<64-char hex key>");
   const preimageLiteral = JSON.stringify(
     (extractedInput.preimage ?? (preimageHex ?? "").trim()) || "<64-char hex preimage>",
   );
+  const rememberedMacaroon = workbenchMemory?.macaroon.trim() ?? "";
+  const rememberedCredential = workbenchMemory?.credential.trim() ?? "";
+  const rememberedSigningKey = workbenchMemory?.signingKey.trim() ?? "";
 
   return (
     <Cell
@@ -328,6 +364,47 @@ export function ValidateL402() {
               </span>
             ) : null}
           </label>
+
+          <div
+            data-testid="validate-workbench-actions"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "var(--size-11)",
+              color: "var(--color-dim)",
+            }}
+          >
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
+            <button
+              type="button"
+              onClick={() => fillTokenFromWorkbench(rememberedMacaroon)}
+              disabled={!rememberedMacaroon}
+              data-testid="validate-fill-macaroon"
+              style={workbenchButtonStyle(Boolean(rememberedMacaroon))}
+            >
+              Fill macaroon
+            </button>
+            <button
+              type="button"
+              onClick={() => fillTokenFromWorkbench(rememberedCredential)}
+              disabled={!rememberedCredential}
+              data-testid="validate-fill-credential"
+              style={workbenchButtonStyle(Boolean(rememberedCredential))}
+            >
+              Fill credential
+            </button>
+            <button
+              type="button"
+              onClick={() => fillKeyFromWorkbench(rememberedSigningKey)}
+              disabled={!rememberedSigningKey}
+              data-testid="validate-fill-key"
+              style={workbenchButtonStyle(Boolean(rememberedSigningKey))}
+            >
+              Fill key
+            </button>
+          </div>
 
           <label
             style={{
@@ -418,7 +495,7 @@ export function ValidateL402() {
             </button>
             <button
               type="button"
-              onClick={reset}
+              onClick={clearPage}
               data-testid="validate-reset"
               style={{
                 padding: "6px 12px",
@@ -431,7 +508,24 @@ export function ValidateL402() {
                 cursor: "pointer",
               }}
             >
-              Reset
+              Clear page
+            </button>
+            <button
+              type="button"
+              onClick={clearBoth}
+              data-testid="validate-clear-both"
+              style={{
+                padding: "6px 12px",
+                background: "var(--color-surface)",
+                color: "var(--color-dim)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 4,
+                fontSize: "var(--size-13)",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Clear both
             </button>
           </div>
 

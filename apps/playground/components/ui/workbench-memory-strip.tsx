@@ -1,5 +1,7 @@
 "use client";
 
+import { useState } from "react";
+
 import { useWorkbenchMemory } from "../../lib/url-state";
 
 function truncMiddle(value: string, head = 8, tail = 8) {
@@ -19,6 +21,19 @@ function MemoryChip({
   testId: string;
 }) {
   const hasValue = value.length > 0;
+  const [copied, setCopied] = useState(false);
+
+  async function copyValue() {
+    if (!hasValue) return;
+    try {
+      await navigator.clipboard.writeText(value);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1200);
+    } catch {
+      setCopied(false);
+    }
+  }
+
   return (
     <span
       data-testid={testId}
@@ -48,24 +63,44 @@ function MemoryChip({
         {label}: {hasValue ? truncMiddle(value) : "empty"}
       </span>
       {hasValue ? (
-        <button
-          type="button"
-          onClick={onClear}
-          data-testid={`${testId}-clear`}
-          aria-label={`Clear remembered ${label}`}
-          style={{
-            padding: "0 4px",
-            borderRadius: 3,
-            color: "var(--color-accent)",
-            border: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
-            background: "var(--color-surface)",
-            fontSize: "var(--size-10)",
-            lineHeight: 1.4,
-            whiteSpace: "nowrap",
-          }}
-        >
-          clear
-        </button>
+        <>
+          <button
+            type="button"
+            onClick={copyValue}
+            data-testid={`${testId}-copy`}
+            aria-label={`Copy remembered ${label}`}
+            style={{
+              padding: "0 4px",
+              borderRadius: 3,
+              color: "var(--color-accent)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+              background: "var(--color-surface)",
+              fontSize: "var(--size-10)",
+              lineHeight: 1.4,
+              whiteSpace: "nowrap",
+            }}
+          >
+            {copied ? "copied" : "copy"}
+          </button>
+          <button
+            type="button"
+            onClick={onClear}
+            data-testid={`${testId}-clear`}
+            aria-label={`Clear remembered ${label}`}
+            style={{
+              padding: "0 4px",
+              borderRadius: 3,
+              color: "var(--color-accent)",
+              border: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
+              background: "var(--color-surface)",
+              fontSize: "var(--size-10)",
+              lineHeight: 1.4,
+              whiteSpace: "nowrap",
+            }}
+          >
+            clear
+          </button>
+        </>
       ) : null}
     </span>
   );

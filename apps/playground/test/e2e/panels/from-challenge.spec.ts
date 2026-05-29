@@ -48,6 +48,8 @@ test.describe("panels / from-challenge", () => {
 
     await page.getByTestId("nav-link-parse").click();
     await expect(page).toHaveURL(/\/p\/parse/);
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await page.click("[data-testid='parse-token-fill-macaroon']");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       /AGIAJEemVQUTEyNCR0exk7ek90Cg==/,
     );

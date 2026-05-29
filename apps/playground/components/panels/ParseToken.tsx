@@ -3,7 +3,7 @@
 import { L402, type MacaroonInspection } from "@boltwall/l402";
 import { useState } from "react";
 
-import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -88,12 +88,27 @@ function buildStripeSegments(inspection: MacaroonInspection): MacaroonSegments {
   };
 }
 
+function workbenchButtonStyle(enabled: boolean) {
+  return {
+    padding: "4px 8px",
+    background: enabled ? "var(--color-surface)" : "var(--color-surface-alt)",
+    color: enabled ? "var(--color-text)" : "var(--color-dim)",
+    border: "1px solid var(--color-border)",
+    borderRadius: 4,
+    fontSize: "var(--size-11)",
+    fontWeight: 500,
+    cursor: enabled ? "pointer" : "not-allowed",
+  } as const;
+}
+
 export function ParseToken() {
   const workbenchMemory = useWorkbenchMemory();
-  const [token, setToken] = useRememberedStringInput("token", {
-    panel: PANEL,
-    field: "macaroon",
-  });
+  const [token, setToken] = useUrlInput<string>(
+    "token",
+    (raw) => raw ?? "",
+    (v) => v || null,
+    { panel: PANEL },
+  );
 
   const [viewMode, setViewMode] = useUrlInput<string>(
     "view",
@@ -108,7 +123,7 @@ export function ParseToken() {
   const [error, setError] = useState<string | null>(null);
 
   function parse() {
-    const input = (token ?? "").trim() || workbenchMemory?.challenge.trim() || "";
+    const input = (token ?? "").trim();
     const extracted = extractMacaroonInput(input);
     if (!extracted.macaroon) {
       setError("Paste a base64-encoded macaroon or WWW-Authenticate L402 challenge.");
@@ -125,9 +140,21 @@ export function ParseToken() {
     }
   }
 
-  function reset() {
+  function clearPage() {
     setToken(null);
+    setParseResult(null);
+    setError(null);
+  }
+
+  function clearBoth() {
+    clearPage();
+    workbenchMemory?.setMacaroon(null);
     workbenchMemory?.setChallenge(null);
+    workbenchMemory?.setCredential(null);
+  }
+
+  function fillFromWorkbench(value: string) {
+    setToken(value);
     setParseResult(null);
     setError(null);
   }
@@ -135,9 +162,12 @@ export function ParseToken() {
   const status = error ? "fail" : parseResult ? "pass" : "idle";
   const statusLabel = error ? "error" : parseResult ? "decoded" : "idle";
   const activeView = (viewMode as ViewModeValue) || "raw";
-  const inputValue = (token ?? "") || workbenchMemory?.challenge || "";
+  const inputValue = token ?? "";
   const extractedInput = extractMacaroonInput(inputValue);
   const tokenLiteral = JSON.stringify(extractedInput.macaroon || "<base64 macaroon>");
+  const rememberedMacaroon = workbenchMemory?.macaroon.trim() ?? "";
+  const rememberedChallenge = workbenchMemory?.challenge.trim() ?? "";
+  const rememberedCredential = workbenchMemory?.credential.trim() ?? "";
 
   return (
     <Cell
@@ -184,6 +214,47 @@ export function ParseToken() {
             />
           </label>
 
+          <div
+            data-testid="parse-token-workbench-actions"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "var(--size-11)",
+              color: "var(--color-dim)",
+            }}
+          >
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
+            <button
+              type="button"
+              onClick={() => fillFromWorkbench(rememberedMacaroon)}
+              disabled={!rememberedMacaroon}
+              data-testid="parse-token-fill-macaroon"
+              style={workbenchButtonStyle(Boolean(rememberedMacaroon))}
+            >
+              Fill macaroon
+            </button>
+            <button
+              type="button"
+              onClick={() => fillFromWorkbench(rememberedChallenge)}
+              disabled={!rememberedChallenge}
+              data-testid="parse-token-fill-challenge"
+              style={workbenchButtonStyle(Boolean(rememberedChallenge))}
+            >
+              Fill challenge
+            </button>
+            <button
+              type="button"
+              onClick={() => fillFromWorkbench(rememberedCredential)}
+              disabled={!rememberedCredential}
+              data-testid="parse-token-fill-credential"
+              style={workbenchButtonStyle(Boolean(rememberedCredential))}
+            >
+              Fill credential
+            </button>
+          </div>
+
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
             <button
               type="button"
@@ -204,7 +275,7 @@ export function ParseToken() {
             </button>
             <button
               type="button"
-              onClick={reset}
+              onClick={clearPage}
               data-testid="parse-token-reset"
               style={{
                 padding: "6px 12px",
@@ -217,7 +288,24 @@ export function ParseToken() {
                 cursor: "pointer",
               }}
             >
-              Reset
+              Clear page
+            </button>
+            <button
+              type="button"
+              onClick={clearBoth}
+              data-testid="parse-token-clear-both"
+              style={{
+                padding: "6px 12px",
+                background: "var(--color-surface)",
+                color: "var(--color-dim)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 4,
+                fontSize: "var(--size-13)",
+                fontWeight: 500,
+                cursor: "pointer",
+              }}
+            >
+              Clear both
             </button>
             {parseResult ? (
               <ViewModeToggle

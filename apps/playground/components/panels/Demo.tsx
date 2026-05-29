@@ -389,11 +389,11 @@ export function Demo() {
     if (sourceChallenge) {
       workbenchMemory?.setChallenge(sourceChallenge);
       router.push(
-        `/p/parse?parse-token.macaroon=${encodeURIComponent(macaroon)}&from-challenge.challenge=${encodeURIComponent(sourceChallenge)}`,
+        `/p/parse?parse-token.token=${encodeURIComponent(macaroon)}&from-challenge.challenge=${encodeURIComponent(sourceChallenge)}`,
       );
       return;
     }
-    router.push(`/p/parse?parse-token.macaroon=${encodeURIComponent(macaroon)}`);
+    router.push(`/p/parse?parse-token.token=${encodeURIComponent(macaroon)}`);
   }
 
   function openValidateWithCredential(credential: PaidCredential, sourceChallenge?: string) {

@@ -63,7 +63,7 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(snippet).not.toContainText("getRandomValues");
   });
 
-  test("minted macaroon carries into parse panel", async ({ page }) => {
+  test("minted macaroon is available to fill the parse panel from Workbench", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
@@ -74,12 +74,14 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     );
 
     await page.goto("/p/parse");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await page.click("[data-testid='parse-token-fill-macaroon']");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
   });
 
-  test("clearing remembered macaroon clears carried parse input", async ({ page }) => {
+  test("clearing remembered macaroon disables Workbench fill for parse", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='workbench-memory-macaroon']")).not.toContainText(
@@ -89,5 +91,6 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await page.click("[data-testid='workbench-memory-macaroon-clear']");
     await page.goto("/p/parse");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='parse-token-fill-macaroon']")).toBeDisabled();
   });
 });

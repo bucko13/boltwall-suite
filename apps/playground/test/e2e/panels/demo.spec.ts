@@ -206,7 +206,9 @@ test.describe("panels / demo", () => {
 
     await expect(page).toHaveURL(/\/p\/validate\?validate\.token=/);
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "macaroon: empty",
+    );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
       "white-space",
@@ -263,9 +265,11 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-caveat-timer-0']")).toContainText(/expires in/);
     await page.click("[data-testid='demo-open-parse-credential']");
 
-    await expect(page).toHaveURL(/\/p\/parse\?.*parse-token\.macaroon=/);
+    await expect(page).toHaveURL(/\/p\/parse\?.*parse-token\.token=/);
     await expect(page).toHaveURL(/from-challenge\.challenge=/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "AgJCAAAi",
+    );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='challenge-input']")).toHaveValue(
       `L402 macaroon="${CAVEATED_MACAROON}", invoice="lnbc1demo"`,
@@ -273,12 +277,16 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(CAVEATED_MACAROON);
 
     await page.reload();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "AgJCAAAi",
+    );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
 
     await page.goBack();
     await expect(page).toHaveURL(/\/p\/demo/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "AgJCAAAi",
+    );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
   });
 
@@ -527,7 +535,7 @@ test.describe("panels / demo", () => {
     await page.goto("/p/parse");
     await page.fill("[data-testid='challenge-input']", fixtureHeader);
     await page.click("[data-testid='challenge-parse']");
-    await page.click("[data-testid='challenge-store-macaroon']");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("abc");
 
     await page.getByTestId("nav-link-demo").click();
     await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
