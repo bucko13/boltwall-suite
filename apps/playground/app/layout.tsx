@@ -6,6 +6,7 @@ import type { ReactNode } from "react";
 import l402Package from "../../../packages/l402/package.json";
 import { Nav } from "../components/ui/nav";
 import { ThemeProvider, themeBootstrapScript } from "../components/ui/theme-provider";
+import { playgroundThemeCss } from "../lib/theme-tokens";
 import playgroundPackage from "../package.json";
 
 import "./globals.css";
@@ -148,6 +149,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
       suppressHydrationWarning
     >
       <head>
+        <style
+          id="playground-theme-tokens"
+          dangerouslySetInnerHTML={{ __html: playgroundThemeCss }}
+        />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
       <body>

@@ -6,10 +6,12 @@ description: Normative design system for the Boltwall playground (the local L402
 # Playground Design System
 
 Normative specification for the Boltwall playground local L402 workbench.
-Downstream implementation work reads this document as the single source of
-truth. The illustrative HTML references in
-`apps/playground/design/reference/` are visual evidence; this document is
-normative when the two ever disagree.
+Downstream implementation work reads this document for design intent and
+interaction rules. Exact theme token values live in
+`apps/playground/lib/theme-tokens.ts`, which is the canonical code source for
+light/dark mappings and type-scale custom properties. The illustrative HTML
+references in `apps/playground/design/reference/` are visual evidence; this
+document is normative for behavior and composition when the two ever disagree.
 
 ## 1. Principles
 
@@ -47,62 +49,40 @@ the principle wins over the rule.
 
 ## 3. Color tokens
 
-Token names are stable. The spec lists 12 tokens; light and dark theme each
-assigns one hex value to each token. The hex values below are extracted from
-`apps/playground/design/reference/tokens.html`. Implementations MUST use these
-token names in CSS custom properties (`--color-text`, etc.) and MUST NOT
-inline hex values in component code outside the token layer.
+Token names are stable. Implementations MUST use these token names in CSS custom
+properties (`--color-text`, etc.) and MUST NOT inline hex values in component
+code outside the token layer. Exact light/dark values are defined in
+`apps/playground/lib/theme-tokens.ts`; update that module first, then adjust
+this document only when token intent or usage changes.
 
-### 3.1 Light theme
+### 3.1 Token roles
 
-| Token         | Hex       | Usage                                                         |
-| ------------- | --------- | ------------------------------------------------------------- |
-| `surface`     | `#ffffff` | Cell background, default page-content surface                 |
-| `surface-alt` | `#f4f4f2` | Page background, recessed wells, code-strip background        |
-| `border`      | `#e7e5e0` | Cell border, header-row underline, divider hairlines          |
-| `text`        | `#0c0c0c` | Primary text, headings, raw data values                       |
-| `dim`         | `#71706a` | Labels, secondary text, dim metadata                          |
-| `primary`     | `#1d6fb8` | Primary action buttons, selected nav, focus ring              |
-| `accent`      | `#0b6b3a` | Positive status (valid signature, satisfied caveat)           |
-| `accent-soft` | `#dff4e9` | Background tint for positive status pills and caveat chips    |
-| `warn`        | `#7a5700` | Warning status, attention-needed indicator                    |
-| `warn-soft`   | `#fbf0d9` | Background tint for warning pills                             |
-| `danger`      | `#a92b25` | Failed validation, tampered-segment indicator, destructive UI |
-| `danger-soft` | `#fbe4e2` | Background tint for danger pills and danger chip backgrounds  |
+| Token         | Usage                                                         |
+| ------------- | ------------------------------------------------------------- |
+| `surface`     | Cell background, default page-content surface                 |
+| `surface-alt` | Page background, recessed wells, code-strip background        |
+| `page`        | Outermost page-frame canvas                                   |
+| `border`      | Cell border, header-row underline, divider hairlines          |
+| `text`        | Primary text, headings, raw data values                       |
+| `dim`         | Labels, secondary text, dim metadata                          |
+| `primary`     | Primary action buttons, selected nav, focus ring              |
+| `accent`      | Positive status (valid signature, satisfied caveat)           |
+| `accent-soft` | Background tint for positive status pills and caveat chips    |
+| `warn`        | Warning status, attention-needed indicator                    |
+| `warn-soft`   | Background tint for warning pills                             |
+| `danger`      | Failed validation, tampered-segment indicator, destructive UI |
+| `danger-soft` | Background tint for danger pills and danger chip backgrounds  |
 
-The top of the light page (the surface visible on first paint) is `#fafaf9` —
-this is the page-frame outermost background and is identical to `surface-alt`
-for implementation purposes; production may either map `surface-alt` to
-`#fafaf9` or use `#f4f4f2` for recessed wells. The reference HTML uses both
-shades but with the same role.
+`surface-alt` and `page` are intentionally separate: `page` is the outermost
+frame visible on first paint, while `surface-alt` is for recessed wells and
+code-strip backgrounds. Preserve that two-shade page-vs-cell separation in both
+themes.
 
 A secondary purple accent `#8a3aa8` appears in the reference for the macaroon
 stripe `seg-caveat` segment (see §6). It is not a top-level color token; it is
 a stripe-segment color and lives in §6's table.
 
 ### 3.2 Dark theme
-
-| Token         | Hex       | Usage                                                           |
-| ------------- | --------- | --------------------------------------------------------------- |
-| `surface`     | `#121412` | Cell background                                                 |
-| `surface-alt` | `#171918` | Page background, recessed wells, code-strip background          |
-| `border`      | `#22251f` | Cell border, header-row underline, divider hairlines            |
-| `text`        | `#ececea` | Primary text, headings, raw data values                         |
-| `dim`         | `#8b8a85` | Labels, secondary text, dim metadata                            |
-| `primary`     | `#8ab4f8` | Primary action buttons, selected nav, focus ring                |
-| `accent`      | `#5ee58a` | Positive status                                                 |
-| `accent-soft` | `#dff4e9` | Reserved; in dark theme use 14% `accent` over `surface` instead |
-| `warn`        | `#f3c65e` | Warning status                                                  |
-| `warn-soft`   | `#fbf0d9` | Reserved; in dark theme use 14% `warn` over `surface` instead   |
-| `danger`      | `#ff8a80` | Failed validation                                               |
-| `danger-soft` | `#fbe4e2` | Reserved; in dark theme use 14% `danger` over `surface` instead |
-
-Outermost frame background in dark is `#0c0d0c`. This is the page-frame
-canvas and may be applied as `--color-page` or by mapping `surface-alt` to
-`#0c0d0c` and introducing an intermediate well shade. The reference HTML uses
-`#0c0d0c` for the canvas and `#171918` for inset wells; implementations are
-free to use either as `surface-alt` so long as a consistent two-shade page-
-vs-cell separation is preserved.
 
 **Soft tints in dark theme.** The light theme soft tints (`accent-soft`,
 `warn-soft`, `danger-soft`) are too bright for dark surfaces. Implementations
@@ -144,23 +124,25 @@ theme.
 
 ### 4.2 Size scale
 
-The exact size scale is fixed; do not introduce intermediate sizes.
+The exact size scale is fixed in `apps/playground/lib/theme-tokens.ts`; do not
+introduce intermediate sizes in component code. Use the named custom properties
+for their intended roles:
 
-| Token         | Size (px) | Role                                                |
-| ------------- | --------- | --------------------------------------------------- |
-| `--size-10`   | 10        | Micro labels (rare, only inside chips)              |
-| `--size-11`   | 11        | Sub-label, footnote, status-pill caption            |
-| `--size-12`   | 12        | Body label, table column header                     |
-| `--size-12-5` | 12.5      | Inline metadata adjacent to mono code (alignment)   |
-| `--size-13`   | 13        | Default body sans                                   |
-| `--size-13-5` | 13.5      | Mono raw values (matches body height when rendered) |
-| `--size-14`   | 14        | Cell header title, primary button label             |
-| `--size-15`   | 15        | Larger body, panel intro prose                      |
-| `--size-16`   | 16        | Section heading inside a Cell                       |
-| `--size-20`   | 20        | Subsection heading                                  |
-| `--size-28`   | 28        | Page title                                          |
-| `--size-36`   | 36        | Hero numeric / large mono in stripe inspector       |
-| `--size-44`   | 44        | Reserved; demo/Hero only                            |
+| Token         | Role                                                |
+| ------------- | --------------------------------------------------- |
+| `--size-10`   | Micro labels (rare, only inside chips)              |
+| `--size-11`   | Sub-label, footnote, status-pill caption            |
+| `--size-12`   | Body label, table column header                     |
+| `--size-12-5` | Inline metadata adjacent to mono code (alignment)   |
+| `--size-13`   | Default body sans                                   |
+| `--size-13-5` | Mono raw values (matches body height when rendered) |
+| `--size-14`   | Cell header title, primary button label             |
+| `--size-15`   | Larger body, panel intro prose                      |
+| `--size-16`   | Section heading inside a Cell                       |
+| `--size-20`   | Subsection heading                                  |
+| `--size-28`   | Page title                                          |
+| `--size-36`   | Hero numeric / large mono in stripe inspector       |
+| `--size-44`   | Reserved; demo/Hero only                            |
 
 ### 4.3 Weights and tracking
 
