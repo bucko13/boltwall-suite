@@ -223,7 +223,16 @@ export function useUrlInput<T>(
 
 export function useRememberedStringInput(
   key: string,
-  options: UrlInputOptions & { field: WorkbenchMemoryField },
+  options: UrlInputOptions & {
+    field: WorkbenchMemoryField;
+    /**
+     * Optional validity gate. When provided, a non-empty value is only written
+     * to Workbench memory once it passes; partial or invalid input is left out
+     * of memory instead of storing a half-typed value. The URL value (and the
+     * panel's controlled input) still tracks every keystroke either way.
+     */
+    validate?: (value: string) => boolean;
+  },
 ) {
   const memory = useWorkbenchMemory();
   const [urlValue, setUrlValue] = useUrlInput<string>(
@@ -236,12 +245,31 @@ export function useRememberedStringInput(
   const value = urlValue ?? memoryValue;
   const previousMemoryValue = useRef(memoryValue);
 
+  const validate = options.validate;
+  const commitToMemory = useCallback(
+    (next: string | null) => {
+      if (!next) {
+        // Cleared input clears the remembered field.
+        setMemoryValue(memory, options.field, null);
+        return;
+      }
+      if (validate && !validate(next)) {
+        // Partial / invalid input: leave Workbench memory untouched. Do not
+        // clear here — clearing fires the memory-clear cascade below and would
+        // wipe the in-progress input the user is still typing.
+        return;
+      }
+      setMemoryValue(memory, options.field, next);
+    },
+    [memory, options.field, validate],
+  );
+
   useEffect(() => {
     const memoryWasJustCleared = Boolean(previousMemoryValue.current && !memoryValue);
     if (urlValue && !memoryWasJustCleared) {
-      setMemoryValue(memory, options.field, urlValue);
+      commitToMemory(urlValue);
     }
-  }, [memory, memoryValue, options.field, urlValue]);
+  }, [commitToMemory, memoryValue, urlValue]);
 
   useEffect(() => {
     if (previousMemoryValue.current && !memoryValue && urlValue) {
@@ -263,7 +291,7 @@ export function useRememberedStringInput(
   }, [options.field, setUrlValue]);
 
   function setValue(next: string | null) {
-    setMemoryValue(memory, options.field, next);
+    commitToMemory(next);
     return setUrlValue(next);
   }
 

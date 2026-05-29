@@ -21,11 +21,27 @@ type ParsedChallenge = {
   scheme: "L402" | "LSAT";
 };
 
+/**
+ * Whether a raw textarea value parses as an L402 challenge. Used to keep
+ * half-typed input out of Workbench memory until it is actually a challenge.
+ */
+function isParseableChallenge(raw: string): boolean {
+  const header = raw.trim().replace(/^WWW-Authenticate:\s*/i, "");
+  if (!header) return false;
+  try {
+    L402.fromHeader(header);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
 export function FromChallenge() {
   const workbenchMemory = useWorkbenchMemory();
   const [challenge, setChallenge] = useRememberedStringInput("challenge", {
     panel: PANEL,
     field: "challenge",
+    validate: isParseableChallenge,
   });
 
   const [fields, setFields] = useState<ParsedChallenge[] | null>(null);

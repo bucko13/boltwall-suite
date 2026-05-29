@@ -56,6 +56,26 @@ test.describe("panels / from-challenge", () => {
     expect(macaroon).toContain("AGIA");
   });
 
+  test("partial input stays out of Workbench until it is a valid challenge", async ({ page }) => {
+    // A half-typed header is not yet a parseable challenge.
+    await page.fill("[data-testid='challenge-input']", 'L402 macaroon="AGIA');
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText(
+      "challenge: empty",
+    );
+
+    // Completing it to a valid challenge populates Workbench memory.
+    await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+
+    // Editing back to an invalid fragment leaves the input intact and does not
+    // overwrite memory with the partial value.
+    await page.fill("[data-testid='challenge-input']", "not-a-challenge");
+    await expect(page.locator("[data-testid='challenge-input']")).toHaveValue("not-a-challenge");
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).not.toContainText(
+      "not-a-challenge",
+    );
+  });
+
   test("invalid header shows error", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", "Bearer not-l402");
     await page.click("[data-testid='challenge-parse']");
