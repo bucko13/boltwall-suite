@@ -26,7 +26,10 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-shared-list']")).toBeVisible();
     await expect(page.locator("[data-testid='caveats-empty']")).toContainText("No caveats");
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText("const caveats = []");
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+      "const encodedCaveats = []",
+    );
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText("Caveat.decode");
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("pokedex:0");
   });
 
@@ -39,8 +42,10 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-output']")).toContainText(
       "services=pokedex:0",
     );
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText('"services"');
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText('"pokedex:0"');
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
+      '"services=pokedex:0"',
+    );
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText("Caveat.decode");
   });
 
   test("add two caveats then remove first", async ({ page }) => {

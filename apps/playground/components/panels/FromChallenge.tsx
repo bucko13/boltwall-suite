@@ -1,10 +1,6 @@
 "use client";
 
-import {
-  decodeIdentifier,
-  parseAuthenticateHeader,
-  type L402ChallengeFields,
-} from "@boltwall/l402";
+import { decodeIdentifier, L402 } from "@boltwall/l402";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 
@@ -21,6 +17,11 @@ import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 
 const PANEL = "from-challenge";
 
+type ParsedChallenge = {
+  token: L402;
+  scheme: "L402" | "LSAT";
+};
+
 export function FromChallenge() {
   const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
@@ -29,7 +30,7 @@ export function FromChallenge() {
     field: "challenge",
   });
 
-  const [fields, setFields] = useState<L402ChallengeFields[] | null>(null);
+  const [fields, setFields] = useState<ParsedChallenge[] | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<number>(0);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
@@ -42,8 +43,10 @@ export function FromChallenge() {
       return;
     }
     try {
-      const parsed = parseAuthenticateHeader((challenge ?? "").trim());
-      setFields(parsed);
+      const raw = (challenge ?? "").trim();
+      const header = raw.replace(/^WWW-Authenticate:\s*/i, "");
+      const token = L402.fromHeader(header);
+      setFields([{ token, scheme: /\bL402\s+/i.test(header) ? "L402" : "LSAT" }]);
       setSelectedField(0);
       setError(null);
       setCopyState("idle");
@@ -64,8 +67,8 @@ export function FromChallenge() {
   }
 
   function rememberMacaroon() {
-    if (!current?.macaroon) return;
-    workbenchMemory?.setMacaroon(current.macaroon);
+    if (!current?.token.macaroon) return;
+    workbenchMemory?.setMacaroon(current.token.macaroon);
     setMemoryState("stored");
   }
 
@@ -75,11 +78,15 @@ export function FromChallenge() {
   }
 
   async function copyInvoice() {
-    if (!current?.invoice) return;
+    if (!current?.token.invoice) return;
     try {
-      await navigator.clipboard.writeText(current.invoice);
+      await navigator.clipboard.writeText(current.token.invoice);
       setCopyState("copied");
-    } catch {
+    } catch (error) {
+      if (error instanceof DOMException || error instanceof Error) {
+        setCopyState("failed");
+        return;
+      }
       setCopyState("failed");
     }
   }
@@ -95,16 +102,19 @@ export function FromChallenge() {
   const challengeLiteral = JSON.stringify((challenge ?? "").trim() || "<WWW-Authenticate value>");
 
   let stripeSegments: MacaroonSegments | null = null;
-  if (current?.macaroon) {
+  if (current?.token.macaroon) {
     try {
-      const id = decodeIdentifier(current.macaroon);
+      const id = decodeIdentifier(current.token.macaroon);
       stripeSegments = {
         identifier: id.paymentHash,
         location: "",
         caveats: [],
         signature: id.tokenId,
       };
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "unsupported-identifier-version") {
+        stripeSegments = null;
+      }
       stripeSegments = null;
     }
   }
@@ -273,11 +283,11 @@ export function FromChallenge() {
                 </span>
                 <span style={{ color: "var(--color-dim)" }}>macaroon</span>
                 <span data-testid="challenge-macaroon">
-                  <TruncMiddle value={current.macaroon || "(empty)"} head={12} tail={8} />
+                  <TruncMiddle value={current.token.macaroon || "(empty)"} head={12} tail={8} />
                 </span>
                 <span style={{ color: "var(--color-dim)" }}>invoice</span>
                 <span data-testid="challenge-invoice">
-                  <TruncMiddle value={current.invoice || "(empty)"} head={12} tail={8} />
+                  <TruncMiddle value={current.token.invoice || "(empty)"} head={12} tail={8} />
                 </span>
               </div>
 
@@ -312,7 +322,7 @@ export function FromChallenge() {
                   <button
                     type="button"
                     onClick={rememberMacaroon}
-                    disabled={!current.macaroon}
+                    disabled={!current.token.macaroon}
                     data-testid="challenge-store-macaroon"
                     title="Save this parsed macaroon in Workbench memory for other panels."
                     style={{
@@ -323,7 +333,7 @@ export function FromChallenge() {
                       borderRadius: 4,
                       fontSize: "var(--size-12)",
                       fontWeight: 500,
-                      cursor: current.macaroon ? "pointer" : "not-allowed",
+                      cursor: current.token.macaroon ? "pointer" : "not-allowed",
                     }}
                   >
                     Store macaroon
@@ -331,7 +341,7 @@ export function FromChallenge() {
                   <button
                     type="button"
                     onClick={useMacaroonInParseToken}
-                    disabled={!current.macaroon}
+                    disabled={!current.token.macaroon}
                     data-testid="challenge-use-parse-token"
                     title="Save this parsed macaroon, then open the token parser with it prefilled."
                     style={{
@@ -342,7 +352,7 @@ export function FromChallenge() {
                       borderRadius: 4,
                       fontSize: "var(--size-12)",
                       fontWeight: 600,
-                      cursor: current.macaroon ? "pointer" : "not-allowed",
+                      cursor: current.token.macaroon ? "pointer" : "not-allowed",
                     }}
                   >
                     Use in Token parser
@@ -350,7 +360,7 @@ export function FromChallenge() {
                   <button
                     type="button"
                     onClick={copyInvoice}
-                    disabled={!current.invoice}
+                    disabled={!current.token.invoice}
                     data-testid="challenge-copy-invoice"
                     title="Copy the Lightning invoice from this challenge."
                     style={{
@@ -361,7 +371,7 @@ export function FromChallenge() {
                       borderRadius: 4,
                       fontSize: "var(--size-12)",
                       fontWeight: 500,
-                      cursor: current.invoice ? "pointer" : "not-allowed",
+                      cursor: current.token.invoice ? "pointer" : "not-allowed",
                     }}
                   >
                     Copy invoice
@@ -389,7 +399,7 @@ export function FromChallenge() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { parseAuthenticateHeader } from "@boltwall/l402";\n\nconst header = {{challengeLiteral}};\nconst challenges = parseAuthenticateHeader(header);\n// -> [{ scheme, macaroon, invoice }, ...]`}
+          template={`import { L402 } from "@boltwall/l402";\n\nconst header = {{challengeLiteral}};\nconst token = L402.fromHeader(header);\n// token.macaroon, token.invoice\nconst preimage = "<64-char hex preimage>";\ntoken.setPreimage(preimage);\nconst authorization = token.toAuthorizationHeader();`}
           values={{
             challengeLiteral,
           }}

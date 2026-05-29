@@ -371,11 +371,14 @@ export default function DesignPage() {
   );
 }
 
-const SNIPPET_TEMPLATE = `// Build an L402 Authorization header
-const header = buildAuthorizationHeader({
+const SNIPPET_TEMPLATE = `import { L402 } from "@boltwall/l402";
+
+// Build an L402 Authorization header
+const token = new L402({
   macaroons: "{{macaroon}}",
-  preimage:  "{{preimage}}",
-});`;
+  paymentPreimage: "{{preimage}}",
+});
+const header = token.toAuthorizationHeader();`;
 
 function CodeSnippetDemo() {
   const [macaroon, setMacaroon] = useState("AgEDbHRu…");

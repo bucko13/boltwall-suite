@@ -1,11 +1,6 @@
 "use client";
 
-import {
-  inspectMacaroon,
-  parseAuthorizationHeader,
-  parseAuthenticateHeader,
-  type MacaroonInspection,
-} from "@boltwall/l402";
+import { L402, type MacaroonInspection } from "@boltwall/l402";
 import { useState } from "react";
 
 import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
@@ -33,31 +28,34 @@ function normalizeChallengeInput(input: string): string {
 }
 
 function extractMacaroonInput(input: string): {
+  token: L402 | null;
   macaroon: string;
   source: "macaroon" | "challenge" | "credential";
 } {
   const trimmed = input.trim();
-  if (!trimmed) return { macaroon: "", source: "macaroon" };
+  if (!trimmed) return { token: null, macaroon: "", source: "macaroon" };
 
   try {
-    const parsed = parseAuthorizationHeader(trimmed.replace(/^Authorization:\s*/i, ""));
-    const macaroon = parsed.macaroons[0];
-    if (macaroon) return { macaroon, source: "credential" };
-  } catch {
+    const token = L402.fromToken(trimmed.replace(/^Authorization:\s*/i, ""));
+    return { token, macaroon: token.macaroon, source: "credential" };
+  } catch (credentialError) {
+    if (credentialError instanceof Error && credentialError.message === "empty-macaroons") {
+      return { token: null, macaroon: "", source: "credential" };
+    }
     // Challenge and raw macaroon inputs are handled below.
   }
 
   try {
-    const challenges = parseAuthenticateHeader(normalizeChallengeInput(trimmed));
-    const challenge = challenges.find((entry) => entry.scheme === "L402") ?? challenges[0];
-    if (challenge?.macaroon) {
-      return { macaroon: challenge.macaroon, source: "challenge" };
+    const token = L402.fromHeader(normalizeChallengeInput(trimmed));
+    return { token, macaroon: token.macaroon, source: "challenge" };
+  } catch (challengeError) {
+    if (challengeError instanceof Error && challengeError.message === "empty-header") {
+      return { token: null, macaroon: "", source: "challenge" };
     }
-  } catch {
     // Plain macaroon input is still the primary Parse workflow.
   }
 
-  return { macaroon: trimmed, source: "macaroon" };
+  return { token: new L402({ macaroons: trimmed }), macaroon: trimmed, source: "macaroon" };
 }
 
 function buildStripeSegments(inspection: MacaroonInspection): MacaroonSegments {
@@ -97,7 +95,9 @@ export function ParseToken() {
       return;
     }
     try {
-      const inspection = inspectMacaroon(extracted.macaroon);
+      const inspection =
+        extracted.token?.inspectMacaroon() ??
+        new L402({ macaroons: extracted.macaroon }).inspectMacaroon();
       setParseResult({ inspection });
       setError(null);
     } catch (e) {
@@ -316,7 +316,7 @@ export function ParseToken() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { inspectMacaroon } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst inspection = inspectMacaroon(macaroon);\n// -> { identifier, caveats, signature }`}
+          template={`import { L402 } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst token = L402.fromMacaroon(macaroon);\nconst inspection = token.inspectMacaroon();\n// -> { identifier, caveats, signature }`}
           values={{
             tokenLiteral,
           }}

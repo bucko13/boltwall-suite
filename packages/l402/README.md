@@ -40,14 +40,13 @@ payment request). The client pays the invoice, receives the **preimage** (proof
 of payment), then retries with an `Authorization` header.
 
 ```ts
-import { parseAuthenticateHeader } from "@boltwall/l402";
+import { L402 } from "@boltwall/l402";
 
 const header = `L402 macaroon="AGIAJEemVQUTEyNCR0exk7ek90Cg==", invoice="lnbc1500n1pw5kjhmpp5..."`;
-const challenges = parseAuthenticateHeader(header);
+const token = L402.fromHeader(header);
 
-console.log(challenges[0]?.scheme);   // "L402"
-console.log(challenges[0]?.macaroon); // "AGIAJEemVQUTEyNCR0exk7ek90Cg=="
-console.log(challenges[0]?.invoice);  // "lnbc1500n1pw5kjhmpp5..."
+console.log(token.macaroon); // "AGIAJEemVQUTEyNCR0exk7ek90Cg=="
+console.log(token.invoice); // "lnbc1500n1pw5kjhmpp5..."
 ```
 
 The parser also accepts legacy `LSAT` challenges so migration clients can
@@ -56,10 +55,10 @@ handle old servers, but new servers should emit `L402` by default.
 ## Quick start: emit a payment challenge
 
 ```ts
-import { buildAuthenticateHeaders } from "@boltwall/l402";
+import { L402 } from "@boltwall/l402";
 
-const headers = buildAuthenticateHeaders({
-  macaroon: "AGIAJEemVQUTEyNCR0exk7ek90Cg==",
+const token = new L402({
+  macaroons: "AGIAJEemVQUTEyNCR0exk7ek90Cg==",
   invoice: "lnbc1500n1pw5kjhmpp5...",
 });
 
@@ -67,7 +66,7 @@ const responseHeaders = new Headers();
 
 // Default server emission follows L402 protocol-specification.md §10:
 // LSAT first for legacy clients, then L402 for current clients.
-for (const value of headers) {
+for (const value of token.toAuthenticateHeaders()) {
   responseHeaders.append("WWW-Authenticate", value);
 }
 ```
@@ -78,18 +77,18 @@ does not need legacy LSAT challenge compatibility.
 ## Quick start: build a paid retry credential
 
 ```ts
-import { buildAuthorizationHeader, parseAuthorizationHeader } from "@boltwall/l402";
+import { L402 } from "@boltwall/l402";
 
-const authorization = buildAuthorizationHeader({
-  macaroons: ["AGIAJEemVQUTEyNCR0exk7ek90Cg=="],
-  preimage: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
+const token = new L402({
+  macaroons: "AGIAJEemVQUTEyNCR0exk7ek90Cg==",
+  paymentPreimage: "1234567890abcdef1234567890abcdef1234567890abcdef1234567890abcdef",
 });
+const authorization = token.toAuthorizationHeader();
 
-const credential = parseAuthorizationHeader(authorization);
+const credential = L402.fromToken(authorization);
 
-console.log(credential.scheme);           // "L402"
 console.log(credential.macaroons.length); // 1
-console.log(credential.preimage.length);  // 64
+console.log(credential.paymentPreimage?.length); // 64
 ```
 
 The preimage is bearer-sensitive proof of payment. Do not log it at info level
@@ -159,11 +158,10 @@ Use the root package export for all supported APIs:
 ```ts
 import {
   L402,
-  buildAuthenticateHeaders,
-  buildAuthorizationHeader,
   decodeBolt11Invoice,
   decodeIdentifier,
   mintMacaroon,
+  Caveat,
   parseAuthenticateHeader,
   parseAuthorizationHeader,
   verifyMacaroon,
@@ -172,15 +170,17 @@ import {
 
 The current public surface groups as:
 
+- **Object workflow:** `L402`, `Caveat`
 - **Header helpers:** `parseAuthenticateHeader`, `buildAuthenticateHeaders`,
-  `parseAuthorizationHeader`, `buildAuthorizationHeader`
+  `parseAuthorizationHeader`, `buildAuthorizationHeader` for low-level parser
+  and conformance work
 - **Invoice and identifier helpers:** `decodeBolt11Invoice`, `decodeIdentifier`
 - **Macaroon helpers:** `mintMacaroon`, `verifyMacaroon`,
   `InMemoryRootKeyStore`, `RootKeyStore` interface
 - **Caveat helpers:** `parseCaveat`, `serializeCaveat`, `servicesCaveat`,
   `capabilitiesCaveat`, `constraintCaveat`, and satisfier factories for
   services, capabilities, origin, route, and `valid-until`
-- **Compatibility helpers:** `L402`, `expirationCaveat`, `expirationSatisfier`
+- **Compatibility helpers:** `expirationCaveat`, `expirationSatisfier`
 
 There are no public `@boltwall/l402/*` subpaths. Pricing amounts
 are millisatoshis as `bigint` (e.g. `DecodedInvoice.amountMsat`).
@@ -235,4 +235,3 @@ caveat shape. Prefer the standard `valid-until` caveat and
 `validUntilSatisfier` for new macaroons. L402 protocol-specification.md §10
 requires accepting legacy `LSAT` credentials, but the package does not expose
 a broad `@boltwall/l402/legacy` public subpath.
-

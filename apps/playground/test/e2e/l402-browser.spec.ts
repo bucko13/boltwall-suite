@@ -77,7 +77,7 @@ test.describe("L402 browser validation / playground bundle", () => {
     await expect(page.locator("[data-testid='l402-test-ready']")).toBeVisible();
   });
 
-  test("parseAuthenticateHeader parses L402 challenge", async ({ page }) => {
+  test("low-level parseAuthenticateHeader parses L402 challenge", async ({ page }) => {
     const result = await page.evaluate((header: string) => {
       return window.__l402!.parseAuthenticateHeader(header);
     }, challengeFixture.header);
@@ -85,7 +85,7 @@ test.describe("L402 browser validation / playground bundle", () => {
     expect(result).toEqual(challengeExpectedFields);
   });
 
-  test("parseAuthorizationHeader parses multi-macaroon credential", async ({ page }) => {
+  test("low-level parseAuthorizationHeader parses multi-macaroon credential", async ({ page }) => {
     const result = await page.evaluate((header: string) => {
       return window.__l402!.parseAuthorizationHeader(header);
     }, authorizationFixture.header);
@@ -138,6 +138,43 @@ test.describe("L402 browser validation / playground bundle", () => {
     expect(result.credential).toEqual({
       macaroons: authorizationExpectedFields.macaroons,
       authorizationHeader: authorizationFixture.header,
+    });
+  });
+
+  test("Caveat class workflow decodes and serializes caveats", async ({ page }) => {
+    const result = await page.evaluate(() => {
+      const decoded = window.__l402!.Caveat.decode("services=pokedex:0");
+      const validUntil = window.__l402!.validUntil({ iso: "2030-01-01T00:00:00.000Z" });
+      const rawComparator = new window.__l402!.Caveat("expiration", "1577228778197", "<");
+      return {
+        decoded: {
+          condition: decoded.condition,
+          value: decoded.value,
+          comparator: decoded.comparator,
+          encoded: decoded.encode(),
+        },
+        validUntil: {
+          condition: validUntil.condition,
+          value: validUntil.value,
+          encoded: validUntil.encode(),
+        },
+        rawComparator: rawComparator.encode(),
+      };
+    });
+
+    expect(result).toEqual({
+      decoded: {
+        condition: "services",
+        value: "pokedex:0",
+        comparator: "=",
+        encoded: "services=pokedex:0",
+      },
+      validUntil: {
+        condition: "valid-until",
+        value: "2030-01-01T00:00:00.000Z",
+        encoded: "valid-until=2030-01-01T00:00:00.000Z",
+      },
+      rawComparator: "expiration<1577228778197",
     });
   });
 

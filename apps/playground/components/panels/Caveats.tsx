@@ -2,8 +2,7 @@
 
 import {
   Caveat,
-  inspectMacaroon,
-  parseCaveat,
+  L402,
   servicesSatisfier,
   validUntil,
   validUntilSatisfier,
@@ -57,8 +56,8 @@ function jsonToRows(raw: string | null): CaveatRow[] {
     ) {
       return parsed as CaveatRow[];
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    if (error instanceof SyntaxError) return [];
   }
   return [];
 }
@@ -83,8 +82,8 @@ function jsonToSatisfiers(raw: string | null): SatisfierRow[] {
     ) {
       return parsed as SatisfierRow[];
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    if (error instanceof SyntaxError) return [];
   }
   return [];
 }
@@ -99,8 +98,11 @@ function parseAddKind(raw: string | null): AddKind {
 
 function extractCaveatsFromMacaroon(macaroon: string): CaveatRow[] {
   try {
-    return inspectMacaroon(macaroon).caveats.map(({ condition, value }) => ({ condition, value }));
-  } catch {
+    return L402.fromMacaroon(macaroon)
+      .getCaveats()
+      .map(({ condition, value }) => ({ condition, value }));
+  } catch (error) {
+    if (error instanceof Error && error.message === "empty-macaroons") return [];
     return [];
   }
 }
@@ -135,8 +137,9 @@ async function runSatisfiers(
           matched = true;
           break;
         }
-      } catch {
-        /* ignore */
+      } catch (error) {
+        result[key] = "unsatisfied";
+        if (error instanceof Error && error.message.startsWith("invalid-")) break;
       }
     }
     result[key] = matched ? "matched" : "unsatisfied";
@@ -217,9 +220,9 @@ export function Caveats() {
       return;
     }
     try {
-      const serialized = `${draft.condition.trim()}=${draft.value}`;
-      parseCaveat(serialized);
+      const caveat = new Caveat(draft.condition.trim(), draft.value);
       const newRows = [...rows, { condition: draft.condition.trim(), value: draft.value }];
+      caveat.encode();
       saveRows(newRows);
       setDraft({ condition: "", value: "" });
       setDraftError(null);
@@ -495,10 +498,10 @@ export function Caveats() {
               ? `import { Caveat } from "@boltwall/l402";\n\nconst encodedCaveats = {{encodedCaveatsLiteral}};\nconst caveats = encodedCaveats.map(Caveat.decode);\nconst serialized = caveats.map((caveat) => caveat.encode());`
               : activeMode === "add" && activeAddKind === "time-limit"
                 ? expirationResult
-                  ? `import { Caveat } from "@boltwall/l402";\n\nconst caveat = new Caveat("valid-until", {{caveatValueLiteral}});`
+                  ? `import { validUntil } from "@boltwall/l402";\n\nconst caveat = validUntil({ iso: {{caveatValueLiteral}} });`
                   : `import { validUntil } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat = validUntil({ seconds: ttlSeconds });`
                 : satisfierRows.length > 0
-                  ? `import { Caveat, servicesSatisfier, validUntilSatisfier } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass caveats embedded in a macaroon to verifyMacaroon({ ..., satisfiers }).`
+                  ? `import { Caveat, L402, servicesSatisfier, validUntilSatisfier } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst token = L402.fromMacaroon("<base64 macaroon>");\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\nawait token.verify({\n  preimage: "<64-char hex preimage>",\n  rootKeyStore,\n  satisfiers,\n  context: { now: new Date() },\n});`
                   : `import { Caveat } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst satisfiers = [];\n\n// Add satisfiers to check these caveats.`
           }
           values={{

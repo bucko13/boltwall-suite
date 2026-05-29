@@ -70,9 +70,8 @@ test.describe("panels / caveats — time limit preset", () => {
     expect(isoValue).toBeDefined();
 
     await expect(page.locator("[data-testid='code-snippet-contract']")).toContainText("exact code");
-    await expect(page.locator("[data-testid='code-snippet']")).toContainText(
-      `value: "${isoValue}"`,
-    );
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText(`iso: "${isoValue}"`);
+    await expect(page.locator("[data-testid='code-snippet']")).toContainText("validUntil");
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("Date.now()");
   });
 

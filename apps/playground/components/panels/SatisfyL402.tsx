@@ -2,7 +2,7 @@
 
 import {
   Caveat,
-  inspectMacaroon,
+  L402,
   servicesSatisfier,
   validUntilSatisfier,
   type CaveatSatisfier,
@@ -49,16 +49,19 @@ function jsonToRows(raw: string | null): SatisfierRow[] {
     ) {
       return parsed as SatisfierRow[];
     }
-  } catch {
-    /* ignore */
+  } catch (error) {
+    if (error instanceof SyntaxError) return [];
   }
   return [];
 }
 
 function extractCaveatsFromMacaroon(macaroon: string): Array<{ condition: string; value: string }> {
   try {
-    return inspectMacaroon(macaroon).caveats.map(({ condition, value }) => ({ condition, value }));
-  } catch {
+    return L402.fromMacaroon(macaroon)
+      .getCaveats()
+      .map(({ condition, value }) => ({ condition, value }));
+  } catch (error) {
+    if (error instanceof Error && error.message === "empty-macaroons") return [];
     return [];
   }
 }
@@ -95,8 +98,9 @@ async function runSatisfiers(
           matched = true;
           break;
         }
-      } catch {
-        /* ignore */
+      } catch (error) {
+        result[key] = "unsatisfied";
+        if (error instanceof Error && error.message.startsWith("invalid-")) break;
       }
     }
     result[key] = matched ? "matched" : "unsatisfied";
@@ -422,8 +426,8 @@ export function SatisfyL402() {
           contract="exact"
           template={
             hasSatisfiers
-              ? `import { validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
-              : `const satisfiers = [];\n\n// Pass to verifyMacaroon({ ..., satisfiers })`
+              ? `import { L402, validUntilSatisfier, servicesSatisfier } from "@boltwall/l402";\n\nconst token = L402.fromMacaroon("<base64 macaroon>");\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\nawait token.verify({\n  preimage: "<64-char hex preimage>",\n  rootKeyStore,\n  satisfiers,\n  context: { now: new Date() },\n});`
+              : `const satisfiers = [];\n\n// Add satisfiers, then pass them to L402#verify(...).`
           }
           values={{ satisfiersSource }}
         />

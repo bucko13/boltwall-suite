@@ -8,6 +8,7 @@ import {
   retryWithCredential,
   withAuthorization,
   type FetchPaidResult,
+  type PaidChallenge,
   type PaidCredential,
 } from "../lib/payment";
 
@@ -36,7 +37,7 @@ function getWebLn(): WebLnHandle | null {
 type Status =
   | { kind: "idle" }
   | { kind: "fetching" }
-  | { kind: "awaiting-payment"; invoice: string; macaroon: string; scheme: "L402" | "LSAT" }
+  | { kind: "awaiting-payment"; challenge: PaidChallenge }
   | { kind: "paying" }
   | { kind: "ok"; body: string }
   | { kind: "error"; message: string };
@@ -108,12 +109,12 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       setStatus({ kind: "error", message: "WebLN not detected" });
       return;
     }
-    const { invoice, macaroon, scheme } = status;
+    const { challenge } = status;
     setStatus({ kind: "paying" });
     try {
       await webln.enable();
-      const { preimage } = await webln.sendPayment(invoice);
-      await retryAndRender({ macaroon, scheme }, preimage);
+      const { preimage } = await webln.sendPayment(challenge.invoice);
+      await retryAndRender(challenge, preimage);
     } catch (error) {
       setStatus({
         kind: "error",
@@ -134,10 +135,10 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       });
       return;
     }
-    const { macaroon, scheme } = status;
+    const { challenge } = status;
     setStatus({ kind: "paying" });
     try {
-      await retryAndRender({ macaroon, scheme }, preimage);
+      await retryAndRender(challenge, preimage);
     } catch (error) {
       setStatus({
         kind: "error",
@@ -146,11 +147,8 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     }
   }
 
-  async function retryAndRender(
-    challenge: { macaroon: string; scheme: "L402" | "LSAT" },
-    preimage: string,
-  ) {
-    const result = await retryWithCredential(endpoint, {}, { ...challenge, invoice: "" }, preimage);
+  async function retryAndRender(challenge: PaidChallenge, preimage: string) {
+    const result = await retryWithCredential(endpoint, {}, challenge, preimage);
     if (result.status === "paid") {
       setCachedCredential({ endpoint, credential: result.credential });
       const body = await result.response.text();
@@ -182,9 +180,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     setPastedPreimage("");
     setStatus({
       kind: "awaiting-payment",
-      invoice: result.challenge.invoice,
-      macaroon: result.challenge.macaroon,
-      scheme: result.challenge.scheme,
+      challenge: result.challenge,
     });
   }
 
@@ -288,7 +284,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
               border: "1px solid var(--color-border)",
             }}
           >
-            {status.invoice}
+            {status.challenge.invoice}
           </code>
 
           <button

@@ -12,18 +12,13 @@
  *    `Authorization` header from the challenge + preimage and retries.
  *
  * Wire-format work delegated to `@boltwall/l402`:
- * - `parseAuthenticateHeader` handles dual LSAT-first/L402-second
- *   challenges (L402 protocol-specification.md §10).
- * - `buildAuthorizationHeader` formats the `macaroon:preimage` credential
+ * - `L402.fromHeader` handles dual LSAT-first/L402-second challenges as one
+ *   logical credential offer (L402 protocol-specification.md §10).
+ * - `L402#toAuthorizationHeader` formats the `macaroon:preimage` credential
  *   and prefixes the correct scheme keyword.
  */
 
-import {
-  buildAuthorizationHeader,
-  parseAuthenticateHeader,
-  parseAuthorizationHeader,
-  type L402ChallengeFields,
-} from "@boltwall/l402";
+import { L402 } from "@boltwall/l402";
 
 /**
  * 32 bytes encoded as hex.
@@ -43,8 +38,16 @@ const HEX_RE = /^[0-9a-fA-F]+$/;
  */
 export type FetchPaidResult =
   | { status: "ok"; response: Response }
-  | { status: "challenge"; challenge: L402ChallengeFields & { rawAuthenticate: string } }
+  | { status: "challenge"; challenge: PaidChallenge }
   | { status: "error"; response: Response };
+
+export type PaidChallenge = {
+  token: L402;
+  rawAuthenticate: string;
+  scheme: "L402" | "LSAT";
+  macaroon: string;
+  invoice: string;
+};
 
 export type PaidCredential = {
   authorization: string;
@@ -135,7 +138,7 @@ export async function fetchPaidResource(
 export async function retryWithCredential(
   url: string,
   init: RequestInit,
-  challenge: L402ChallengeFields,
+  challenge: PaidChallenge,
   preimage: string,
   fetchImpl: typeof fetch = globalThis.fetch.bind(globalThis),
 ): Promise<RetryResult> {
@@ -155,18 +158,15 @@ export async function retryWithCredential(
  * @throws when `preimage` is not a 32-byte hex string.
  */
 export function buildPaidCredential(
-  challenge: Pick<L402ChallengeFields, "macaroon" | "scheme">,
+  challenge: Pick<PaidChallenge, "macaroon" | "scheme">,
   preimage: string,
 ): PaidCredential {
   assertPreimageHex(preimage);
   const normalizedPreimage = preimage.toLowerCase();
   const macaroons = [challenge.macaroon];
+  const token = new L402({ macaroons, paymentPreimage: normalizedPreimage });
   return {
-    authorization: buildAuthorizationHeader({
-      macaroons,
-      preimage: normalizedPreimage,
-      legacy: challenge.scheme === "LSAT",
-    }),
+    authorization: token.toAuthorizationHeader({ legacy: challenge.scheme === "LSAT" }),
     scheme: challenge.scheme,
     macaroon: challenge.macaroon,
     macaroons,
@@ -188,17 +188,18 @@ export function withAuthorization(init: RequestInit, credential: PaidCredential)
  * §8 defines reuse of the resulting bearer credential until server rejection.
  */
 export function parsePastedCredential(input: string): PaidCredential {
-  const fields = parseAuthorizationHeader(normalizePastedCredentialInput(input));
-  const preimage = fields.preimage.toLowerCase();
+  const normalized = normalizePastedCredentialInput(input);
+  const token = L402.fromToken(normalized);
+  const preimage = token.paymentPreimage?.toLowerCase();
+  if (preimage === undefined) {
+    throw new Error("missing-preimage");
+  }
+  const scheme = /^LSAT\s+/i.test(normalized) ? "LSAT" : "L402";
   return {
-    authorization: buildAuthorizationHeader({
-      macaroons: fields.macaroons,
-      preimage,
-      legacy: fields.scheme === "LSAT",
-    }),
-    scheme: fields.scheme,
-    macaroon: fields.macaroons[0]!,
-    macaroons: fields.macaroons,
+    authorization: token.toAuthorizationHeader({ legacy: scheme === "LSAT" }),
+    scheme,
+    macaroon: token.macaroon,
+    macaroons: token.macaroons,
     preimage,
   };
 }
@@ -219,13 +220,9 @@ export function buildPastedCredentialParts(
   preimage: string,
   scheme: "L402" | "LSAT" = "L402",
 ): PaidCredential {
-  return parsePastedCredential(
-    buildAuthorizationHeader({
-      macaroons: macaroon.trim(),
-      preimage: parsePastedPreimage(preimage),
-      legacy: scheme === "LSAT",
-    }),
-  );
+  const normalizedPreimage = parsePastedPreimage(preimage);
+  const token = new L402({ macaroons: macaroon.trim(), paymentPreimage: normalizedPreimage });
+  return parsePastedCredential(token.toAuthorizationHeader({ legacy: scheme === "LSAT" }));
 }
 
 /**
@@ -243,7 +240,7 @@ export function parsePastedPreimage(input: string): string {
   return trimmed.toLowerCase();
 }
 
-function pickChallenge(headers: Headers): L402ChallengeFields & { rawAuthenticate: string } {
+function pickChallenge(headers: Headers): PaidChallenge {
   const raw = headers.get("www-authenticate");
   if (raw === null || raw.trim() === "") {
     throw new FetchPaidResourceError({
@@ -251,9 +248,9 @@ function pickChallenge(headers: Headers): L402ChallengeFields & { rawAuthenticat
       status: 402,
     });
   }
-  let challenges: L402ChallengeFields[];
+  let token: L402;
   try {
-    challenges = parseAuthenticateHeader(raw);
+    token = L402.fromHeader(raw);
   } catch (error) {
     throw new FetchPaidResourceError(
       {
@@ -264,17 +261,14 @@ function pickChallenge(headers: Headers): L402ChallengeFields & { rawAuthenticat
       { cause: error },
     );
   }
-  // Per L402 spec §10: prefer L402 over LSAT when both are advertised.
-  const l402 = challenges.find((c) => c.scheme === "L402");
-  const chosen = l402 ?? challenges[0];
-  if (chosen === undefined) {
-    throw new FetchPaidResourceError({
-      kind: "payment-challenge-invalid",
-      status: 402,
-      message: "empty-challenge-set",
-    });
-  }
-  return { ...chosen, rawAuthenticate: raw };
+  const scheme = /\bL402\s+/i.test(raw) ? "L402" : "LSAT";
+  return {
+    token,
+    rawAuthenticate: raw,
+    scheme,
+    macaroon: token.macaroon,
+    invoice: token.invoice ?? "",
+  };
 }
 
 function assertPreimageHex(value: string): void {

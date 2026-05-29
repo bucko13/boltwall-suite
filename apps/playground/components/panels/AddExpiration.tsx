@@ -184,7 +184,7 @@ export function AddExpiration() {
           contract={result ? "exact" : "recipe"}
           template={
             result
-              ? `import { Caveat } from "@boltwall/l402";\n\nconst caveat = new Caveat("valid-until", {{caveatValueLiteral}});`
+              ? `import { validUntil } from "@boltwall/l402";\n\nconst caveat = validUntil({ iso: {{caveatValueLiteral}} });`
               : `import { validUntil } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat = validUntil({ seconds: ttlSeconds });`
           }
           values={{ seconds: ttlSecondsLiteral, caveatValueLiteral }}

@@ -1,6 +1,6 @@
 "use client";
 
-import { inspectMacaroon, parseAuthenticateHeader } from "@boltwall/l402";
+import { L402 } from "@boltwall/l402";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
@@ -13,6 +13,7 @@ import {
   retryWithCredential,
   withAuthorization,
   type FetchPaidResult,
+  type PaidChallenge,
   type PaidCredential,
 } from "../../lib/payment";
 import { useWorkbenchMemory } from "../../lib/url-state";
@@ -42,11 +43,7 @@ type Pokemon = {
 type ChallengeState = {
   endpoint: string;
   endpointTemplate: string;
-  rawAuthenticate: string;
-  invoice: string;
-  macaroon: string;
-  scheme: "L402" | "LSAT";
-};
+} & PaidChallenge;
 
 type CachedCredentialState = {
   endpointTemplate: string;
@@ -110,7 +107,8 @@ function endpointForPokemon(template: string, id: number): string {
       url.pathname = url.pathname.replace(/\/\d+\/?$/, `/${String(id)}`);
     }
     return url.toString();
-  } catch {
+  } catch (error) {
+    if (error instanceof URIError) return trimmed;
     return trimmed;
   }
 }
@@ -244,7 +242,10 @@ export function Demo() {
           credential: parsePastedCredential(credential),
           ...(sourceChallenge ? { sourceChallenge } : {}),
         };
-      } catch {
+      } catch (error) {
+        if (error instanceof Error) {
+          return null;
+        }
         return null;
       }
     }
@@ -367,7 +368,13 @@ export function Demo() {
     try {
       await navigator.clipboard.writeText(value);
       setCopiedTarget(target);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error) {
+        setStatus({
+          kind: "error",
+          error: messageError(error.message),
+        });
+      }
       // Copy affordances are progressive enhancement; keep the flow usable.
     }
   }
@@ -521,6 +528,7 @@ export function Demo() {
         endpoint,
         endpointTemplate,
         rawAuthenticate: result.challenge.rawAuthenticate,
+        token: result.challenge.token,
         invoice: result.challenge.invoice,
         macaroon: result.challenge.macaroon,
         scheme: result.challenge.scheme,
@@ -1502,12 +1510,16 @@ function extractCaveatSummaries(input: string): CaveatSummary[] {
   if (macaroon === "") return [];
 
   try {
-    return inspectMacaroon(macaroon).caveats.map((caveat) => ({
-      ...caveat,
-      label: formatCaveatLabel(caveat.condition, caveat.value),
-      expiresAtMs: parseCaveatExpiration(caveat.condition, caveat.value),
-    }));
-  } catch {
+    return L402.fromMacaroon(macaroon)
+      .getCaveats()
+      .map((caveat) => ({
+        condition: caveat.condition,
+        value: caveat.value,
+        label: formatCaveatLabel(caveat.condition, caveat.value),
+        expiresAtMs: parseCaveatExpiration(caveat.condition, caveat.value),
+      }));
+  } catch (error) {
+    if (error instanceof Error && error.message === "empty-macaroons") return [];
     return [];
   }
 }
@@ -1517,16 +1529,20 @@ function extractMacaroonForInspection(input: string): string {
   if (trimmed === "") return "";
 
   try {
-    const challenges = parseAuthenticateHeader(trimmed.replace(/^WWW-Authenticate:\s*/i, ""));
-    const challenge = challenges.find((entry) => entry.scheme === "L402") ?? challenges[0];
-    return challenge?.macaroon ?? "";
-  } catch {
+    return L402.fromHeader(trimmed.replace(/^WWW-Authenticate:\s*/i, "")).macaroon;
+  } catch (challengeError) {
+    if (challengeError instanceof Error && challengeError.message === "empty-header") return "";
     // Fall through to Authorization or raw macaroon input.
   }
 
-  const authorization = trimmed.replace(/^Authorization:\s*/i, "");
-  const authMatch = /^(?:L402|LSAT)\s+([^:\s]+)(?::[0-9a-fA-F]{64})?$/u.exec(authorization);
-  if (authMatch?.[1]) return authMatch[1];
+  try {
+    return L402.fromToken(trimmed.replace(/^Authorization:\s*/i, "")).macaroon;
+  } catch (authorizationError) {
+    if (authorizationError instanceof Error && authorizationError.message === "empty-macaroons") {
+      return "";
+    }
+  }
+
   return trimmed;
 }
 
