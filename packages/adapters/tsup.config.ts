@@ -4,7 +4,6 @@ export default defineConfig({
   entry: [
     "src/index.ts",
     "src/lnd/index.ts",
-    "src/voltage-lnd/index.ts",
     "src/opennode/index.ts",
     "src/btcpay/index.ts",
     "src/testing/index.ts",

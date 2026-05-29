@@ -67,8 +67,7 @@ export class LndAdapterError extends Error {
 /**
  * Injection point for the `lightning` package gRPC client surface.
  *
- * Exposed for adapter profiles (e.g. `createVoltageLndAdapter`) and unit
- * tests that need to substitute the gRPC client. Production callers should
+ * Exposed for unit tests that need to substitute the gRPC client. Production callers should
  * not pass an `LndApi`; the default `lightning`-package implementation is
  * used when the second `LndAdapter` constructor argument is omitted.
  */

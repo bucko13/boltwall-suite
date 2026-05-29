@@ -28,7 +28,6 @@ assertBackendSupports(backend, { hodl: true });
 ## Adapter entrypoints
 
 - `@boltwall/adapters/lnd`
-- `@boltwall/adapters/voltage-lnd`
 - `@boltwall/adapters/opennode`
 - `@boltwall/adapters/btcpay`
 - `@boltwall/adapters/testing`
@@ -63,57 +62,10 @@ For Boltwall's local regtest helpers, `LND_TLS_CERT` is certificate content and
 base64. Path-based interop tooling should use explicit path variable names such
 as `LND_TLS_CERT_PATH`.
 
-## Voltage-hosted LND
-
-`@boltwall/adapters/voltage-lnd` is a thin profile/factory over the LND adapter
-for Voltage Cloud hosted nodes. Voltage exposes the full LND gRPC + REST API
-([Voltage LND Node API docs](https://docs.voltage.cloud/lnd-node-api)), so the
-returned adapter is an ordinary `LndAdapter` with the same capability surface
-(`hodl`, `cancelInvoice`, `streamingInvoices`, `customDescription`). No LND
-behavior is duplicated.
-
-```ts
-import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
-
-const backend = createVoltageLndAdapter({
-  baseUrl: process.env.VOLTAGE_LND_BASE_URL!,
-  macaroon: process.env.VOLTAGE_LND_MACAROON!,
-  cert: process.env.VOLTAGE_LND_CERT!,
-});
-```
-
-Or, with the bundled typed env loader:
-
-```ts
-import { createVoltageLndAdapterFromEnv } from "@boltwall/adapters/voltage-lnd";
-
-const backend = createVoltageLndAdapterFromEnv();
-```
-
-### Configuration shape
-
-- `VOLTAGE_LND_BASE_URL` — bare host (`node.m.voltageapp.io`), `host:port`, or
-  full `https://…` URL from the Voltage dashboard's "Node Details" tile. The
-  factory normalizes to `host:10009` for gRPC. The documented REST port
-  ([8080](https://docs.voltage.cloud/rest-api-examples)) is substituted with
-  the gRPC port (`10009`) silently because the underlying adapter speaks gRPC.
-- `VOLTAGE_LND_MACAROON` — admin macaroon as a lowercase hex string from the
-  dashboard's "Admin Macaroon" tile. See
-  [Voltage LND Node API](https://docs.voltage.cloud/lnd-node-api).
-- `VOLTAGE_LND_CERT` — TLS certificate provided by the Voltage dashboard.
-  Both raw base64 and full PEM-with-headers forms are accepted; the
-  underlying `lightning` package normalizes them.
-
-`loadVoltageLndEnv` throws a `VoltageLndEnvError` that does not echo macaroon
-or cert values in error messages.
-
-### Capability flags
-
-Voltage's documentation describes the LND surface as "the full LND API (gRPC and
-REST)" with no capability restrictions vs a self-managed LND node, so this
-profile inherits `LndAdapter.capabilities` unchanged. If a future Voltage tier
-restricts an LND RPC, override the capability surface at the
-`assertBackendSupports` call site rather than forking the LND adapter.
+Voltage Cloud nodes are standard LND nodes: construct `LndAdapter` directly with
+the node's gRPC socket (`<node>.m.voltageapp.io:10009`), admin macaroon, and TLS
+cert. The dashboard's REST URL (port 8080) is not the gRPC endpoint — use port
+`10009`.
 
 ## OpenNode
 
@@ -259,8 +211,8 @@ hidden from middleware and proxy public APIs.
 
 ## Live integration tests
 
-`@boltwall/adapters/test/integration/*.test.ts` exercises the OpenNode, BTCPay
-Server, and Voltage-hosted LND adapters against real provider endpoints. The
+`@boltwall/adapters/test/integration/*.test.ts` exercises the OpenNode and
+BTCPay Server adapters against real provider endpoints. The
 tests are skipped by default and run only when their per-provider env vars are
 set, so the package's regular `bun run test` stays clean and infrastructure-
 free.
@@ -270,7 +222,7 @@ bun run --cwd packages/adapters test:integration
 ```
 
 Without env vars set, every `describe` block is skipped and the suite reports
-`0 fail / 3 skip`. Required env vars per adapter:
+`0 fail / 2 skip`. Required env vars per adapter:
 
 - **OpenNode** (`opennode.test.ts`): `OPENNODE_TEST_API_KEY` (required;
   development-environment key only); `OPENNODE_TEST_BASE_URL` (optional;
@@ -279,8 +231,6 @@ Without env vars set, every `describe` block is skipped and the suite reports
 - **BTCPay Server** (`btcpay.test.ts`): `BTCPAY_TEST_BASE_URL`,
   `BTCPAY_TEST_API_KEY`, `BTCPAY_TEST_STORE_ID` (all required);
   `BTCPAY_TEST_CRYPTO_CODE` (optional, defaults to `BTC`).
-- **Voltage LND** (`voltage-lnd.test.ts`): `VOLTAGE_TEST_LND_BASE_URL`,
-  `VOLTAGE_TEST_LND_MACAROON`, `VOLTAGE_TEST_LND_CERT` (all required).
 
 Test deployment policy:
 
@@ -313,7 +263,7 @@ mapping; middleware and proxy code should not branch on provider business terms.
 
 | Provider                 | Current constraint                                                                                                           | Adapter implication                                                                                                                                                                                               |
 | ------------------------ | ---------------------------------------------------------------------------------------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- |
-| LND / Voltage-hosted LND | LND exposes gRPC/REST invoice APIs with HODL, cancel, streaming, and preimage settlement; Voltage-hosted LND is the same from the adapter boundary. | `kind: "lnd"` advertises the full capability surface: HODL, cancel, streaming invoices, custom descriptions, and preimages on settled invoices.                                                                   |
+| LND                      | LND exposes gRPC/REST invoice APIs with HODL, cancel, streaming, and preimage settlement. | `kind: "lnd"` advertises the full capability surface: HODL, cancel, streaming invoices, custom descriptions, and preimages on settled invoices.                                                                   |
 | OpenNode                 | OpenNode's charge lifecycle is provider-state driven, not HODL/preimage driven.                                              | `kind: "opennode"` advertises custom descriptions only; HODL, cancellation, and streaming are unsupported. The adapter retains the OpenNode charge ID so `lookupInvoice(paymentHash)` remains provider-neutral.   |
 | BTCPay Server            | BTCPay's store Lightning API documents `Unpaid`, `Paid`, and `Expired` statuses only; HODL, cancellation, and streams are absent. | `kind: "btcpay"` advertises custom descriptions only; HODL, cancellation, and streaming are unsupported. The adapter retains the BTCPay invoice ID so `lookupInvoice(paymentHash)` remains provider-neutral.      |
 
@@ -324,10 +274,6 @@ Official references:
 - BTCPay Server ecommerce/Greenfield integration: <https://docs.btcpayserver.org/Development/ecommerce-integration-guide/>
 - BTCPay Server Greenfield API: <https://docs.btcpayserver.org/API/Greenfield/v1/>
 - Lightning Labs LND API: <https://api.lightning.community/>
-- Voltage LND node product docs: <https://docs.voltage.cloud/>
-- Voltage LND Node API (ports, connection, admin macaroon): <https://docs.voltage.cloud/lnd-node-api>
-- Voltage REST API examples (URL template, header auth): <https://docs.voltage.cloud/rest-api-examples>
-- Voltage gRPC API examples: <https://docs.voltage.cloud/grpc-api-examples>
 
 Server-only boundary: network/payment-provider adapters are server runtime code.
 Do not import concrete adapters from playground client components or any browser

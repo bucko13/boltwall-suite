@@ -11,10 +11,6 @@
       "types": "./dist/lnd/index.d.ts",
       "import": "./dist/lnd/index.js"
     },
-    "./voltage-lnd": {
-      "types": "./dist/voltage-lnd/index.d.ts",
-      "import": "./dist/voltage-lnd/index.js"
-    },
     "./opennode": {
       "types": "./dist/opennode/index.d.ts",
       "import": "./dist/opennode/index.js"
