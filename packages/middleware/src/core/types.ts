@@ -82,7 +82,21 @@ export interface MinimalLogger {
   error(obj: object, msg?: string): void;
 }
 
-/** No-op logger for contexts where logging is explicitly disabled. */
+/**
+ * No-op logger that discards every call.
+ *
+ * Use this as the {@link L402Config.logger} default when logging must be
+ * explicitly disabled (e.g. tests, or hosts that forbid stdout writes); prefer
+ * a real logger such as `defaultLogger` in production so credential redaction
+ * and observability still apply.
+ *
+ * @example
+ * ```ts
+ * import { noopLogger } from "@boltwall/middleware";
+ * const logger: MinimalLogger = noopLogger;
+ * logger.info({ kind: "payment-required" }, "discarded");
+ * ```
+ */
 export const noopLogger: MinimalLogger = {
   info: () => {},
   warn: () => {},

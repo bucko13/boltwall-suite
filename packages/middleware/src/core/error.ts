@@ -37,6 +37,22 @@ export class L402Error extends Error {
   override readonly cause: unknown;
   readonly headers: Record<string, string | string[]> | undefined;
 
+  /**
+   * Construct a discriminated L402 error carrying the `kind` that drives the
+   * HTTP status (via {@link l402ErrorToStatus}) and any response headers.
+   *
+   * Pass `opts.headers` only for `payment-required` — it carries the
+   * WWW-Authenticate challenge that the gate copies onto the 402 response;
+   * other kinds map to error statuses with no challenge.
+   *
+   * @example
+   * ```ts
+   * const challenge = 'LSAT macaroon="AGIAJEemVQU...", invoice="lnbc1..."';
+   * throw new L402Error("payment-required", "credential absent", {
+   *   headers: { "WWW-Authenticate": challenge },
+   * });
+   * ```
+   */
   constructor(kind: L402ErrorKind, message: string, opts: L402ErrorOptions = {}) {
     super(message);
     this.name = "L402Error";
