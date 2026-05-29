@@ -22,6 +22,7 @@ import {
   validUntil,
 } from "@boltwall/l402";
 import { MockAdapter } from "@boltwall/adapters/testing";
+import { hexToBytes } from "@boltwall/internal";
 import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
 import {
@@ -38,12 +39,6 @@ const preimageFixture = specPreimageFixtures.find((f) => f.name === "zero-preima
 const PREIMAGE_HEX = preimageFixture.preimageHex;
 const PAYMENT_HASH_HEX = preimageFixture.paymentHashHex;
 const AMOUNT_MSAT = 1_000n;
-
-function hexToBytes(hex: string): Uint8Array {
-  const out = new Uint8Array(hex.length / 2);
-  for (let i = 0; i < out.length; i++) out[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);
-  return out;
-}
 
 const ROOT_KEY = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
 const TOKEN_ID = new Uint8Array(32).fill(0x42);
