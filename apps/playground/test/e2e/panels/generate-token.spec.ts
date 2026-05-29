@@ -31,6 +31,21 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("error");
   });
 
+  test("generated signing key clears a stale missing-key mint error", async ({ page }) => {
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='generate-token-error']")).toContainText(
+      "Paste a 64-char hex root key.",
+    );
+    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("error");
+
+    await page.click("[data-testid='signing-key-generate']");
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(
+      /^[0-9a-f]{64}$/,
+    );
+    await expect(page.locator("[data-testid='generate-token-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("idle");
+  });
+
   test("reset clears output", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(2);

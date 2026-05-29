@@ -1,7 +1,7 @@
 "use client";
 
 import { decodeBolt11Invoice, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 
 import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
@@ -14,6 +14,8 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle } from "./panel-styles";
 
 const PANEL = "from-invoice";
+const MISSING_KEY_ERROR = "Paste a 64-char hex root key.";
+const INVALID_KEY_ERROR = "Root key must be exactly 64 hex characters (32 bytes).";
 
 function hexToBytes(hex: string): Uint8Array {
   const cleaned = hex.trim().toLowerCase();
@@ -52,14 +54,21 @@ export function GenerateL402Token() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
 
+  useEffect(() => {
+    const keyError = error === MISSING_KEY_ERROR || error === INVALID_KEY_ERROR;
+    if (keyError && /^[0-9a-fA-F]{64}$/.test((key ?? "").trim())) {
+      setError(null);
+    }
+  }, [error, key]);
+
   function generate() {
     if (!(key ?? "").trim()) {
-      setError("Paste a 64-char hex root key.");
+      setError(MISSING_KEY_ERROR);
       setMacaroon(null);
       return;
     }
     if (!/^[0-9a-fA-F]{64}$/.test((key ?? "").trim())) {
-      setError("Root key must be exactly 64 hex characters (32 bytes).");
+      setError(INVALID_KEY_ERROR);
       setMacaroon(null);
       return;
     }
