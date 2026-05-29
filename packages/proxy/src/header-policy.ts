@@ -32,6 +32,13 @@ export function applyForwardHeaderPolicy(
   }
 }
 
+// Header patterns use case-insensitive glob matching: `*` is a wildcard that
+// can appear anywhere in a pattern and matches any run of characters (for
+// example `x-forwarded-*`, `*-token`, or `x-*-id`). This differs from route
+// `path` matching in route-matching.ts, which honors only a trailing `*` as a
+// prefix and offers RegExp for richer cases. Header names are flat tokens, so a
+// positional glob is the natural fit; route paths are hierarchical and get a
+// RegExp escape hatch instead.
 function matchesHeaderPattern(pattern: string, normalizedName: string): boolean {
   const normalizedPattern = pattern.toLowerCase();
   if (normalizedPattern === "*") return true;

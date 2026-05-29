@@ -122,6 +122,10 @@ export function createProxy(config: ProxyConfig): Express {
 
     const route = findMatchingRoute(config.routes ?? [], req);
     if (route === undefined && config.defaultPrice === undefined) {
+      // Misconfiguration path, not a paywall response: the request matched no
+      // route and there is no `defaultPrice` to fall back on, so there is no
+      // price to charge and no L402 challenge to emit. Configure a catch-all
+      // route or a `defaultPrice` to protect (and bill) unmatched paths.
       res.status(404).json({ error: "not_found" });
       return;
     }

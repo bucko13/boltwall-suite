@@ -35,6 +35,12 @@ export function findMatchingRoute(
   });
 }
 
+// Route `path` matching honors only a trailing `*` as a prefix glob (for
+// example `/api/*`); any other string is compared literally, and a RegExp is
+// the escape hatch for richer matching such as path-segment constraints. This
+// differs from header patterns in header-policy.ts, where `*` is a wildcard
+// that can appear anywhere. Route paths are hierarchical and benefit from the
+// RegExp escape hatch rather than a positional glob.
 export function isPathMatch(pattern: string | RegExp, path: string): boolean {
   if (pattern instanceof RegExp) {
     pattern.lastIndex = 0;

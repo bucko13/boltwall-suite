@@ -18,6 +18,7 @@ verification are delegated to `@boltwall/middleware`.
 - [Programmatic usage](#programmatic-usage)
 - [Environment loading](#environment-loading)
 - [CLI Config](#cli-config)
+  - [Choosing a backend](#choosing-a-backend)
   - [Backend Secret References](#backend-secret-references)
   - [Paywall Policy](#paywall-policy)
   - [Validation And Redaction](#validation-and-redaction)
@@ -49,12 +50,14 @@ boltwall dev
    secret values when prompted.
 4. Open the deployment URL printed by the CLI, or request a protected resource
    with `curl`. The first protected request returns `402 Payment Required` with
-   an L402/LSAT challenge containing a macaroon — a bearer credential token —
-   and a Lightning invoice.
-5. Pay the invoice with a wallet, combine the challenge macaroon with the
-   resulting preimage, then retry the protected request with an
-   `Authorization: L402 <macaroon>:<preimage>` header and receive the upstream
-   `200` response.
+   an L402 challenge — a `WWW-Authenticate` header carrying a macaroon and a
+   Lightning invoice. A **macaroon** is the bearer credential token issued to
+   the payer (see [What is L402?](../../README.md#what-is-l402)).
+5. Pay the invoice with a wallet. Paying it yields a **preimage** — the payment
+   secret the Lightning node returns on settlement, which proves the invoice was
+   paid. Combine the challenge macaroon with that preimage, then retry the
+   protected request with an `Authorization: L402 <macaroon>:<preimage>` header
+   and receive the upstream `200` response.
 
 Automation can use a checked-in, non-secret JSON or YAML config:
 
@@ -75,6 +78,11 @@ Voltage, Vercel, and the playground, start with:
 - [Vercel Voltage Pokedex demo](../../docs/vercel-voltage-pokedex-demo.md)
 
 ### How deploy works
+
+> **Prerequisites:** `boltwall deploy` shells out to the Vercel CLI, so install
+> it and sign in (`npm i -g vercel` then `vercel login`) before running the
+> deploy command. The preflight check below fails fast if the CLI is missing or
+> unauthenticated.
 
 `boltwall deploy` runs a preflight check to confirm the Vercel CLI is available
 and authenticated, then loads or creates a saved config under
@@ -113,12 +121,18 @@ after the initial deploy. The updated config is printed for confirmation; run
 When embedding the proxy in an existing Express app, construct a backend adapter
 and root key store explicitly:
 
+> **Note:** `InMemoryRootKeyStore` holds root keys in process memory and does
+> not support per-credential revocation. To invalidate credentials you must
+> rotate the deployment root key and restart/redeploy the proxy (see below).
+
 ```ts
 import { createProxy } from "@boltwall/proxy";
 import { InMemoryRootKeyStore } from "@boltwall/l402";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 
 const backend = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
+// No per-credential revocation: invalidating credentials requires rotating
+// the root key and restarting/redeploying. See the note above.
 const rootKeyStore = new InMemoryRootKeyStore();
 
 const app = createProxy({
@@ -268,6 +282,13 @@ The same config may be written as JSON:
 }
 ```
 
+Wildcards work differently on the two config surfaces. Route `path` values
+honor a `*` only as a trailing prefix (for example `/pokemon/*`); every other
+string matches literally, and programmatic routes can pass a `RegExp` for
+segment-level matching. `forwardHeaders.allow` and `forwardHeaders.deny`
+patterns are case-insensitive globs where `*` is a wildcard that can appear
+anywhere (for example `x-forwarded-*`, `*-token`, or `x-*-id`).
+
 Saved configs live under `~/.config/boltwall/` by default. The interactive
 deploy command lets you use an existing config, edit one, or create a new one
 when multiple saved configs exist. `boltwall config list` prints saved config
@@ -278,6 +299,22 @@ Supported backend kinds are `lnd`, `voltage-lnd`, `opennode`, and `btcpay`.
 `boltwall validate` constructs the selected adapter, verifies required env vars,
 and checks backend capability flags. `boltwall dev` and `boltwall deploy` run
 the same validation before starting a local server or writing Vercel state.
+
+### Choosing a backend
+
+| Backend       | Hosting               | You need                                              | Pick it when                                                                  |
+| ------------- | --------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
+| `lnd`         | Self-hosted           | A reachable LND node, its TLS cert, and a macaroon    | You run your own LND and want direct gRPC/socket access to it.                |
+| `voltage-lnd` | Managed LND (Voltage) | A Voltage node's REST URL, TLS cert, and macaroon     | You want your own LND without operating the host — Voltage runs the node.     |
+| `opennode`    | Managed (custodial)   | An OpenNode API key                                   | You want the fastest start and are fine with a custodial provider holding funds. |
+| `btcpay`      | Self-hosted (BTCPay)  | A BTCPay Server URL, API key, and store ID            | You already run BTCPay, or want a self-hosted, non-custodial gateway with a UI. |
+
+Rules of thumb: choose `opennode` for the least operational work, `voltage-lnd`
+to keep your own node without running the host, and `lnd` or `btcpay` when you
+self-host. `lnd`, `voltage-lnd`, and `btcpay` are non-custodial (you hold the
+funds); `opennode` is custodial. HODL invoices require a backend that supports
+them — see the capability flags in [Backend Secret References](#backend-secret-references)
+and [Paywall Policy](#paywall-policy).
 
 ### Backend Secret References
 
@@ -370,6 +407,10 @@ credential-like output from failed Vercel commands.
 - Missing credentials return `402 Payment Required` with the default dual
   challenge shape from `@boltwall/middleware`: `LSAT` first, then `L402`, per
   `L402 protocol-specification.md §10`.
+- A request that matches no route and has no `defaultPrice` to fall back on
+  returns `404 Not Found` rather than a `402` challenge. There is no price to
+  charge and no challenge to emit. Configure a catch-all route or a
+  `defaultPrice` so unmatched paths are protected and billed.
 - Paid retries accept either `Authorization: L402 <macaroon>:<preimage>` or the
   legacy `Authorization: LSAT <macaroon>:<preimage>` form.
 - Route prices can be static millisatoshis or resolved per Express request.
