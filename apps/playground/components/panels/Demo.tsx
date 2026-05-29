@@ -415,6 +415,7 @@ export function Demo() {
 
   function openValidateWithCredential(credential: PaidCredential, sourceChallenge?: string) {
     workbenchMemory?.setCredential(credential.authorization);
+    workbenchMemory?.setMacaroon(credential.macaroon);
     if (sourceChallenge) {
       workbenchMemory?.setChallenge(sourceChallenge);
     }
@@ -482,6 +483,7 @@ export function Demo() {
       });
       workbenchMemory?.setCredential(result.credential.authorization);
       workbenchMemory?.setChallenge(challenge.rawAuthenticate);
+      workbenchMemory?.setMacaroon(result.credential.macaroon);
       setCredentialSlot({
         source: "paid",
         endpointTemplate: challenge.endpointTemplate,
@@ -504,6 +506,7 @@ export function Demo() {
     });
     workbenchMemory?.setCredential(result.credential.authorization);
     workbenchMemory?.setChallenge(challenge.rawAuthenticate);
+    workbenchMemory?.setMacaroon(result.credential.macaroon);
     setStatus({
       kind: "error",
       error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
@@ -539,6 +542,9 @@ export function Demo() {
       rawAuthenticate: result.challenge.rawAuthenticate,
     });
     workbenchMemory?.setChallenge(result.challenge.rawAuthenticate);
+    // The macaroon is carried by both the challenge and (later) the credential,
+    // so surface it in Workbench memory as soon as either becomes available.
+    workbenchMemory?.setMacaroon(result.challenge.macaroon);
     setStatus({
       kind: "awaiting-payment",
       id,

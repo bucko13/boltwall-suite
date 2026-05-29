@@ -139,6 +139,11 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
+    // The macaroon is shared by the challenge and the credential, so it is
+    // auto-filled into Workbench memory alongside them.
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "macaroon: abc",
+    );
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
       "Credential created",
     );
@@ -174,6 +179,10 @@ test.describe("panels / demo", () => {
     await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toBeVisible();
+    // The macaroon is auto-filled from the challenge as soon as the 402 is captured.
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      "macaroon: abc",
+    );
 
     await page.click("[data-testid='demo-open-parse']");
 
@@ -207,7 +216,7 @@ test.describe("panels / demo", () => {
     await expect(page).toHaveURL(/\/p\/validate\?validate\.token=/);
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: empty",
+      "macaroon: abc",
     );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
