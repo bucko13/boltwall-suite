@@ -77,7 +77,10 @@ function MemoryChip({
               background: "var(--color-surface)",
               fontSize: "var(--size-10)",
               lineHeight: 1.4,
+              width: "6ch",
+              textAlign: "center",
               whiteSpace: "nowrap",
+              flexShrink: 0,
             }}
           >
             {copied ? "copied" : "copy"}

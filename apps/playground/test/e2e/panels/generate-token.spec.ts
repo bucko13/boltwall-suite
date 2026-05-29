@@ -93,4 +93,35 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
     await expect(page.locator("[data-testid='parse-token-fill-macaroon']")).toBeDisabled();
   });
+
+  test("Workbench copy feedback keeps the chip layout stable", async ({ page }) => {
+    await page.evaluate(() => {
+      Object.defineProperty(navigator, "clipboard", {
+        configurable: true,
+        value: { writeText: async () => undefined },
+      });
+    });
+
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+
+    const chip = page.locator("[data-testid='workbench-memory-macaroon']");
+    const copyButton = page.locator("[data-testid='workbench-memory-macaroon-copy']");
+    await expect(copyButton).toHaveText("copy");
+
+    const beforeButton = await copyButton.boundingBox();
+    const beforeChip = await chip.boundingBox();
+    expect(beforeButton).toBeTruthy();
+    expect(beforeChip).toBeTruthy();
+
+    await copyButton.click();
+    await expect(copyButton).toHaveText("copied");
+
+    const afterButton = await copyButton.boundingBox();
+    const afterChip = await chip.boundingBox();
+    expect(afterButton).toBeTruthy();
+    expect(afterChip).toBeTruthy();
+    expect(Math.abs((afterButton?.width ?? 0) - (beforeButton?.width ?? 0))).toBeLessThan(0.5);
+    expect(Math.abs((afterChip?.height ?? 0) - (beforeChip?.height ?? 0))).toBeLessThan(0.5);
+  });
 });
