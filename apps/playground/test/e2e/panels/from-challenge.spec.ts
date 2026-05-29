@@ -27,30 +27,26 @@ test.describe("panels / from-challenge", () => {
     await expect(page.locator("[data-testid='challenge-scheme']")).toContainText("L402");
     await expect(page.locator("[data-testid='status-pill']").first()).toContainText("1 challenge");
     await expect(page.locator("[data-testid='challenge-next-actions']")).toContainText(
-      "Next steps",
+      "Remembered parts",
     );
-    await expect(page.locator("[data-testid='challenge-store-macaroon']")).toContainText(
-      "Store macaroon",
-    );
-    await expect(page.locator("[data-testid='challenge-use-parse-token']")).toContainText(
-      "Use in Token parser",
-    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("AGIA");
+    await expect(page.locator("[data-testid='challenge-store-macaroon']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='challenge-use-parse-token']")).toHaveCount(0);
     await expect(page.locator("[data-testid='challenge-copy-invoice']")).toContainText(
       "Copy invoice",
     );
   });
 
-  test("stores parsed macaroon and opens the token parser with it prefilled", async ({ page }) => {
+  test("parsing a challenge remembers its macaroon for the parser", async ({ page }) => {
     await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
     await page.click("[data-testid='challenge-parse']");
 
     const macaroon = await page.locator("[data-testid='challenge-macaroon']").textContent();
-    await page.click("[data-testid='challenge-store-macaroon']");
     await expect(page.locator("[data-testid='challenge-next-action-status']")).toContainText(
-      "Macaroon stored",
+      "Macaroon is stored",
     );
 
-    await page.click("[data-testid='challenge-use-parse-token']");
+    await page.getByTestId("nav-link-parse").click();
     await expect(page).toHaveURL(/\/p\/parse/);
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(
       /AGIAJEemVQUTEyNCR0exk7ek90Cg==/,

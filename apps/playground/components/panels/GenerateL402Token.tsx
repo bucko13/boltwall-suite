@@ -124,7 +124,7 @@ export function GenerateL402Token() {
       header={
         <HeaderRow
           title="Generate Macaroon"
-          subtitle="Mint a macaroon from a root key and BOLT 11 invoice"
+          subtitle="Mint bare macaroon material from a root key and optional invoice hash"
           trailing={
             <>
               <StatusPill state={status} details={error}>
@@ -176,7 +176,7 @@ export function GenerateL402Token() {
           >
             BOLT 11 invoice{" "}
             <span style={{ fontWeight: 400 }}>
-              (optional; leaves a random payment hash if empty)
+              (optional; a challenge pairs the macaroon with an invoice)
             </span>
             <input
               type="text"

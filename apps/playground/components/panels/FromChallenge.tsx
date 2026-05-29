@@ -1,7 +1,6 @@
 "use client";
 
 import { decodeIdentifier, L402 } from "@boltwall/l402";
-import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { useRememberedStringInput, useWorkbenchMemory } from "../../lib/url-state";
@@ -23,7 +22,6 @@ type ParsedChallenge = {
 };
 
 export function FromChallenge() {
-  const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
   const [challenge, setChallenge] = useRememberedStringInput("challenge", {
     panel: PANEL,
@@ -34,7 +32,6 @@ export function FromChallenge() {
   const [error, setError] = useState<string | null>(null);
   const [selectedField, setSelectedField] = useState<number>(0);
   const [copyState, setCopyState] = useState<"idle" | "copied" | "failed">("idle");
-  const [memoryState, setMemoryState] = useState<"idle" | "stored">("idle");
 
   function parse() {
     if (!(challenge ?? "").trim()) {
@@ -46,14 +43,15 @@ export function FromChallenge() {
       const raw = (challenge ?? "").trim();
       const header = raw.replace(/^WWW-Authenticate:\s*/i, "");
       const token = L402.fromHeader(header);
+      workbenchMemory?.setMacaroon(token.macaroon);
       setFields([{ token, scheme: /\bL402\s+/i.test(header) ? "L402" : "LSAT" }]);
       setSelectedField(0);
       setError(null);
       setCopyState("idle");
-      setMemoryState("idle");
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setFields(null);
+      workbenchMemory?.setMacaroon(null);
     }
   }
 
@@ -63,18 +61,7 @@ export function FromChallenge() {
     setError(null);
     setSelectedField(0);
     setCopyState("idle");
-    setMemoryState("idle");
-  }
-
-  function rememberMacaroon() {
-    if (!current?.token.macaroon) return;
-    workbenchMemory?.setMacaroon(current.token.macaroon);
-    setMemoryState("stored");
-  }
-
-  function useMacaroonInParseToken() {
-    rememberMacaroon();
-    router.push("/p/parse");
+    workbenchMemory?.setMacaroon(null);
   }
 
   async function copyInvoice() {
@@ -154,7 +141,7 @@ export function FromChallenge() {
                 setFields(null);
                 setError(null);
                 setCopyState("idle");
-                setMemoryState("idle");
+                workbenchMemory?.setMacaroon(null);
               }}
               placeholder='L402 macaroon="...", invoice="lnbc..."'
               data-testid="challenge-input"
@@ -223,7 +210,7 @@ export function FromChallenge() {
                   onClick={() => {
                     setSelectedField(i);
                     setCopyState("idle");
-                    setMemoryState("idle");
+                    workbenchMemory?.setMacaroon(f.token.macaroon);
                   }}
                   style={{
                     padding: "4px 10px",
@@ -310,7 +297,7 @@ export function FromChallenge() {
                     fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
                   }}
                 >
-                  Next steps
+                  Remembered parts
                 </div>
                 <div
                   style={{
@@ -319,44 +306,6 @@ export function FromChallenge() {
                     gap: 8,
                   }}
                 >
-                  <button
-                    type="button"
-                    onClick={rememberMacaroon}
-                    disabled={!current.token.macaroon}
-                    data-testid="challenge-store-macaroon"
-                    title="Save this parsed macaroon in Workbench memory for other panels."
-                    style={{
-                      padding: "6px 10px",
-                      background: "var(--color-surface)",
-                      color: "var(--color-text)",
-                      border: "1px solid var(--color-border)",
-                      borderRadius: 4,
-                      fontSize: "var(--size-12)",
-                      fontWeight: 500,
-                      cursor: current.token.macaroon ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    Store macaroon
-                  </button>
-                  <button
-                    type="button"
-                    onClick={useMacaroonInParseToken}
-                    disabled={!current.token.macaroon}
-                    data-testid="challenge-use-parse-token"
-                    title="Save this parsed macaroon, then open the token parser with it prefilled."
-                    style={{
-                      padding: "6px 10px",
-                      background: "var(--color-primary)",
-                      color: "var(--color-surface)",
-                      border: "none",
-                      borderRadius: 4,
-                      fontSize: "var(--size-12)",
-                      fontWeight: 600,
-                      cursor: current.token.macaroon ? "pointer" : "not-allowed",
-                    }}
-                  >
-                    Use in Token parser
-                  </button>
                   <button
                     type="button"
                     onClick={copyInvoice}
@@ -384,9 +333,7 @@ export function FromChallenge() {
                     color: copyState === "failed" ? "var(--color-danger)" : "var(--color-dim)",
                   }}
                 >
-                  {memoryState === "stored"
-                    ? "Macaroon stored in Workbench memory for Token parser and Validate."
-                    : "Store the macaroon to reuse it in Token parser or Validate."}
+                  Macaroon is stored in Workbench memory; invoice remains part of this challenge.
                   {copyState === "copied" ? " Invoice copied." : null}
                   {copyState === "failed" ? " Invoice copy failed." : null}
                 </div>

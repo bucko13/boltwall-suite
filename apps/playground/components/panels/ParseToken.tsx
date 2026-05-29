@@ -1,6 +1,6 @@
 "use client";
 
-import { inspectMacaroon, L402, type MacaroonInspection } from "@boltwall/l402";
+import { L402, type MacaroonInspection } from "@boltwall/l402";
 import { useState } from "react";
 
 import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
@@ -116,7 +116,7 @@ export function ParseToken() {
       return;
     }
     try {
-      const inspection = inspectMacaroon(extracted.macaroon);
+      const inspection = L402.fromMacaroon(extracted.macaroon).inspectMacaroon();
       setParseResult({ inspection });
       setError(null);
     } catch (e) {
@@ -143,8 +143,8 @@ export function ParseToken() {
     <Cell
       header={
         <HeaderRow
-          title="Parse Token"
-          subtitle="Decode a base64 macaroon: identifier fields, caveats, signature"
+          title="Parse Macaroon"
+          subtitle="Decode a macaroon, or extract one from a challenge or credential"
           trailing={
             <>
               <StatusPill state={status} details={error}>
@@ -166,7 +166,7 @@ export function ParseToken() {
               gap: 4,
             }}
           >
-            Base64 macaroon, L402 challenge, or Authorization credential
+            Macaroon, WWW-Authenticate challenge, or Authorization credential
             <textarea
               value={inputValue}
               onChange={(e) => {
@@ -175,7 +175,7 @@ export function ParseToken() {
                 setParseResult(null);
                 setError(null);
               }}
-              placeholder='L402 macaroon="AGIAJEemVQ...", invoice="lnbc1..."'
+              placeholder='AGIA... or L402 macaroon="AGIA...", invoice="lnbc1..."'
               data-testid="parse-token-input"
               rows={3}
               style={{
@@ -335,7 +335,7 @@ export function ParseToken() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { inspectMacaroon } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst inspection = inspectMacaroon(macaroon);\n// -> { identifier, caveats, signature }`}
+          template={`import { L402 } from "@boltwall/l402";\n\nconst macaroon = {{tokenLiteral}};\nconst inspection = L402.fromMacaroon(macaroon).inspectMacaroon();\n// -> { identifier, caveats, signature }`}
           values={{
             tokenLiteral,
           }}

@@ -123,6 +123,16 @@ test.describe("panels / validate", () => {
       macaroon?.trim() ?? "",
     );
 
+    await page.getByTestId("nav-link-caveats").click();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
+
+    await page.getByTestId("nav-link-demo").click();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
+      macaroon?.slice(0, 8) ?? "",
+    );
+
     await page.getByRole("link", { name: "Validate" }).click();
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(

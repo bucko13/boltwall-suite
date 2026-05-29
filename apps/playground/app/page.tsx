@@ -4,12 +4,12 @@ const HOME_PANELS = [
   {
     slug: "generate",
     label: "Generate",
-    description: "Create the key material and token used to authorize a paid request.",
+    description: "Mint bare macaroon material from a root key and optional invoice hash.",
   },
   {
     slug: "parse",
     label: "Parse",
-    description: "Inspect incoming protocol material before deciding what to do next.",
+    description: "Inspect a macaroon, challenge, or credential without changing its state.",
   },
   {
     slug: "caveats",
