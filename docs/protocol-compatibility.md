@@ -208,8 +208,9 @@ per-capability `<capability>_valid_until=<unix-ts>` constraints via
 
 The legacy `expiration=<unix-ms>` caveat helpers (`expirationCaveat`,
 `expirationSatisfier`) are re-exported from the main `@boltwall/l402` entry
-(implemented under `packages/l402/src/legacy/`) for verifying existing
-LSAT-style macaroons during migration. New code should use `valid-until`. See
+(implemented in `packages/l402/src/caveats.ts` and
+`packages/l402/src/satisfiers.ts`) for verifying existing LSAT-style macaroons
+during migration. New code should use `valid-until`. See
 `docs/migration-from-boltwall.md` → Expiration caveat.
 
 ### Unknown-caveat behavior

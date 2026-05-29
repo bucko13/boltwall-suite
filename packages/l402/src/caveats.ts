@@ -64,6 +64,10 @@ export class Caveat {
     return validUntil(args);
   }
 
+  static expiration(unixMs: number): Caveat {
+    return expirationCaveat(unixMs);
+  }
+
   static origin(allowed: string | string[]): Caveat {
     return originCaveat(allowed);
   }
@@ -160,6 +164,23 @@ export function validUntil(args: ValidUntilArg): Caveat {
     value = args.date.toISOString();
   }
   return new Caveat("valid-until", value);
+}
+
+/**
+ * Build an `expiration=<unix-ms>` caveat.
+ *
+ * New L402 macaroons should use the standard `valid-until=<ISO-8601>` caveat
+ * through `validUntil(...)`. This helper is supported for imported LSAT-style
+ * macaroons that already use the `expiration` condition. L402
+ * protocol-specification.md §10 requires servers to accept legacy LSAT
+ * credentials alongside current L402 credentials.
+ */
+export function expirationCaveat(unixMs: number): Caveat {
+  if (!Number.isFinite(unixMs)) {
+    throw new Error("invalid-expiration");
+  }
+
+  return new Caveat("expiration", String(unixMs));
 }
 
 /**

@@ -74,10 +74,7 @@ export function capabilitiesSatisfier(
   return {
     condition: `${service}_capabilities`,
     satisfyPrevious(previous, next) {
-      return isStringSubset(
-        parseCsvValue(next.value),
-        parseCsvValue(previous.value),
-      );
+      return isStringSubset(parseCsvValue(next.value), parseCsvValue(previous.value));
     },
     satisfyFinal(caveat) {
       return parseCsvValue(caveat.value).includes(requiredCapability);
@@ -108,22 +105,43 @@ export function validUntilSatisfier(): CaveatSatisfier {
 }
 
 /**
+ * Creates a satisfier for the `expiration` caveat.
+ *
+ * The value is a Unix timestamp in milliseconds. Final verification requires
+ * the current time to be strictly earlier than the timestamp; attenuation may
+ * shorten validity but never extend it.
+ *
+ * New L402 macaroons should use the standard `valid-until=<ISO-8601>` caveat
+ * and `validUntilSatisfier()`. This satisfier is supported for imported
+ * LSAT-style macaroons that already carry `expiration` caveats. L402
+ * protocol-specification.md §10 requires servers to accept legacy LSAT
+ * credentials alongside current L402 credentials.
+ */
+export function expirationSatisfier(): CaveatSatisfier {
+  return {
+    condition: "expiration",
+    satisfyPrevious(previous, next) {
+      return parseExpirationUnixMs(next.value) <= parseExpirationUnixMs(previous.value);
+    },
+    satisfyFinal(caveat, context) {
+      const now = context.now ?? new Date();
+      return now.getTime() < parseExpirationUnixMs(caveat.value);
+    },
+  };
+}
+
+/**
  * Creates a satisfier for the `origin` caveat.
  *
  * Final verification requires the request `Origin` header to appear in the
  * caveat value and, unless `allowedOrigins` is `"any"`, in the caller policy.
  * Attenuation only allows later origin lists to be subsets of earlier ones.
  */
-export function originSatisfier(
-  allowedOrigins: string[] | "any",
-): CaveatSatisfier {
+export function originSatisfier(allowedOrigins: string[] | "any"): CaveatSatisfier {
   return {
     condition: "origin",
     satisfyPrevious(previous, next) {
-      return isStringSubset(
-        parseCsvValue(next.value),
-        parseCsvValue(previous.value),
-      );
+      return isStringSubset(parseCsvValue(next.value), parseCsvValue(previous.value));
     },
     satisfyFinal(caveat, context) {
       const origin = context.request?.headers.get("Origin");
@@ -175,10 +193,7 @@ export function routeSatisfier(allowedRoutes: string[]): CaveatSatisfier {
   return {
     condition: "route",
     satisfyPrevious(previous, next) {
-      return isStringSubset(
-        parseCsvValue(next.value),
-        parseCsvValue(previous.value),
-      );
+      return isStringSubset(parseCsvValue(next.value), parseCsvValue(previous.value));
     },
     satisfyFinal(caveat, context) {
       if (context.request === undefined) {
@@ -186,9 +201,7 @@ export function routeSatisfier(allowedRoutes: string[]): CaveatSatisfier {
       }
       const path = new URL(context.request.url).pathname;
       const caveatRoutes = parseCsvValue(caveat.value);
-      return (
-        matchesAnyRoute(path, caveatRoutes) && matchesAnyRoute(path, allowedRoutes)
-      );
+      return matchesAnyRoute(path, caveatRoutes) && matchesAnyRoute(path, allowedRoutes);
     },
   };
 }
@@ -229,6 +242,19 @@ function parseTimestamp(value: string): number {
   return timestamp;
 }
 
+function parseExpirationUnixMs(value: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new Error("invalid-expiration");
+  }
+
+  const unixMs = Number(value);
+  if (!Number.isSafeInteger(unixMs)) {
+    throw new Error("invalid-expiration");
+  }
+
+  return unixMs;
+}
+
 function forwardedForIp(request: Request | undefined): string | undefined {
   const header = request?.headers.get("x-forwarded-for");
   return header?.split(",")[0]?.trim();
@@ -242,14 +268,9 @@ function normalizeIp(value: string): string {
   return ip;
 }
 
-function isServiceSubset(
-  candidate: ServiceCaveatEntry[],
-  allowed: ServiceCaveatEntry[],
-): boolean {
+function isServiceSubset(candidate: ServiceCaveatEntry[], allowed: ServiceCaveatEntry[]): boolean {
   return candidate.every((next) =>
-    allowed.some(
-      (previous) => previous.name === next.name && previous.tier === next.tier,
-    ),
+    allowed.some((previous) => previous.name === next.name && previous.tier === next.tier),
   );
 }
 

@@ -13,6 +13,7 @@ export {
   Caveat,
   capabilitiesCaveat,
   constraintCaveat,
+  expirationCaveat,
   ipCaveat,
   originCaveat,
   parseCaveat,
@@ -74,6 +75,7 @@ export {
 
 export {
   capabilitiesSatisfier,
+  expirationSatisfier,
   ipSatisfier,
   originSatisfier,
   routeSatisfier,
@@ -82,5 +84,3 @@ export {
   type CaveatContext,
   type CaveatSatisfier,
 } from "./satisfiers";
-
-export { expirationCaveat, expirationSatisfier } from "./legacy";
