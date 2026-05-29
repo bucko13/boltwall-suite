@@ -1,3 +1,5 @@
+import { base64ToBytes } from "./internal/base64";
+
 /**
  * Decoded v0 L402 macaroon identifier.
  */
@@ -52,19 +54,6 @@ export function decodeIdentifier(macaroon: string): MacaroonIdentifierV0 {
     paymentHash: identifier.slice(2, 2 + HASH_LENGTH),
     tokenId: identifier.slice(2 + HASH_LENGTH),
   };
-}
-
-function base64ToBytes(input: string): Uint8Array {
-  try {
-    const binary = atob(input);
-    const out = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      out[i] = binary.charCodeAt(i);
-    }
-    return out;
-  } catch {
-    throw new Error("invalid-macaroon-base64");
-  }
 }
 
 function extractV2Identifier(bytes: Uint8Array): Uint8Array {

@@ -98,10 +98,10 @@ part of the public object workflow; use the Replacement column instead.
 | `ServiceClassOptions`                                        | `src/service.ts`             | `replace-with-migration` | plain `{ name: string; tier: number }`                                                                           | Use replacement                        | No exported service class options type is needed. Helper inputs use plain objects.                                                                                                                                                                                                            |
 | `SERVICES_CAVEAT_CONDITION`                                  | `src/service.ts`             | `drop`                   | string literal `"services"` or `servicesCaveat(...)`                                                             | Not exposed                            | Condition constants are not part of the public API. Prefer helper factories for construction.                                                                                                                                                                                                 |
 | `SERVICE_CAPABILITIES_SUFFIX`                                | `src/service.ts`             | `drop`                   | string literal `"_capabilities"` or `capabilitiesCaveat(...)`                                                    | Not exposed                            | Suffix constants are not part of the public API. Prefer helper factories for construction.                                                                                                                                                                                                    |
-| `decodeServicesCaveat(s)`                                    | `src/service.ts`             | `preserve-compatible`    | `parseServicesCaveatValue(s)`                                                                                    | Implemented services parser            | Should throw typed/short errors, return array only, not `Service[] \| Error`.                                                                                                                                                                                                                 |
-| `encodeServicesCaveatValue(services)`                        | `src/service.ts`             | `preserve-compatible`    | `serializeServicesCaveatValue(services)`                                                                         | Implemented services serializer        | Current `servicesCaveat` covers construction but not public decode.                                                                                                                                                                                                                           |
+| `decodeServicesCaveat(s)`                                    | `src/service.ts`             | `preserve-compatible`    | `parseCaveat(s)` for `{ condition, value }`; `inspectMacaroon(...)` for a diagnostic caveat view                | Not exposed                            | No public structured `services` value parser. The structured `name:tier` parse is private to `servicesSatisfier(...)`. Build with `servicesCaveat(...)`; read raw values with `parseCaveat(...)`.                                                                                              |
+| `encodeServicesCaveatValue(services)`                        | `src/service.ts`             | `preserve-compatible`    | `servicesCaveat(services)`                                                                                       | Implemented                            | `servicesCaveat([{ name, tier }, ...])` builds the `services=name:tier,...` caveat. There is no separate value-only serializer; `serializeCaveat(...)` emits the full caveat string.                                                                                                          |
 | `createNewCapabilitiesCaveat(serviceName, capabilities?)`    | `src/service.ts`             | `preserve-compatible`    | `capabilitiesCaveat(serviceName, capabilities)`                                                                  | Implemented                            | Current helper is L402-native and plain-data based.                                                                                                                                                                                                                                           |
-| `decodeCapabilitiesValue(value)`                             | `src/service.ts`             | `preserve-compatible`    | `parseCapabilitiesCaveatValue(value)`                                                                            | Implemented capabilities parser        | Needed by built-in satisfiers.                                                                                                                                                                                                                                                                |
+| `decodeCapabilitiesValue(value)`                             | `src/service.ts`             | `preserve-compatible`    | `parseCaveat(...)` for `{ condition, value }`; `inspectMacaroon(...)` for a diagnostic caveat view              | Not exposed                            | No public structured capabilities value parser. The comma-separated parse is private to `capabilitiesSatisfier(...)`. Build with `capabilitiesCaveat(...)`; read raw values with `parseCaveat(...)`.                                                                                          |
 | `NoServicesError`                                            | `src/service.ts`             | `replace-with-migration` | thrown short error codes                                                                                         | Use replacement                        | Legacy error classes are not exposed.                                                                                                                                                                                                                                                         |
 | `InvalidServicesError`                                       | `src/service.ts`             | `replace-with-migration` | thrown short error codes                                                                                         | Use replacement                        | Legacy error classes are not exposed.                                                                                                                                                                                                                                                         |
 | `InvalidCapabilitiesError`                                   | `src/service.ts`             | `replace-with-migration` | thrown short error codes                                                                                         | Use replacement                        | Legacy error classes are not exposed.                                                                                                                                                                                                                                                         |
@@ -121,3 +121,72 @@ The legacy implementation details should not survive: public `Buffer` types,
 `bufio.Struct` inheritance, wrapped `macaroon` library JSON classes, `number`
 sat amounts, mixed return types such as `string | boolean | Error`, and
 LSAT-only default emission.
+
+## Worked Example: A Custom Caveat Satisfier
+
+`@boltwall/l402` ships satisfiers for the standard caveats (`servicesSatisfier`,
+`originSatisfier`, `routeSatisfier`, and so on). To enforce a caveat the library
+does not cover, build the caveat, implement a `CaveatSatisfier`, and pass it to
+`verifyMacaroon`. The example below binds a credential to a single tenant id.
+
+```ts
+import {
+  Caveat,
+  mintMacaroon,
+  verifyMacaroon,
+  type CaveatSatisfier,
+  type MacaroonIdentifierV0,
+} from "@boltwall/l402";
+
+// 1. Build and attach the caveat when minting (or via L402#addFirstPartyCaveat).
+//    Standard caveats use condition=value; this one is "tenant=<id>".
+const tenantCaveat = new Caveat("tenant", "acme");
+
+const identifier: MacaroonIdentifierV0 = {
+  version: 0,
+  paymentHash, // 32 bytes
+  tokenId, // 32 bytes
+};
+
+const macaroon = mintMacaroon({
+  rootKey, // secret 32 bytes, server-side
+  identifier,
+  caveats: [tenantCaveat],
+});
+
+// 2. Implement a satisfier for that condition.
+//    satisfyPrevious enforces attenuation between repeated caveats; here a
+//    later caveat may only repeat the same tenant. satisfyFinal checks the
+//    request context (passed through verifyMacaroon's `context`).
+function tenantSatisfier(expectedTenant: string): CaveatSatisfier {
+  return {
+    condition: "tenant",
+    satisfyPrevious(previous, next) {
+      return previous.value === next.value;
+    },
+    satisfyFinal(caveat) {
+      return caveat.value === expectedTenant;
+    },
+  };
+}
+
+// 3. Pass the satisfier (alongside any standard ones) to verifyMacaroon.
+const result = await verifyMacaroon({
+  macaroons: [macaroon],
+  preimage, // 32-byte hex or bytes
+  rootKeyStore, // server-side RootKeyStore
+  satisfiers: [tenantSatisfier("acme")],
+  context: { request },
+});
+
+if (result.ok) {
+  // authorized
+} else {
+  // result.reason carries the failure code, e.g. "caveat-rejected:tenant"
+}
+```
+
+Caveats whose condition has no matching satisfier are skipped, not rejected, per
+L402 macaroon-spec.md §Verification. Declare every caveat you depend on as an
+explicit satisfier; set `strictUnknownCaveats: true` only when you want unknown
+conditions to fail closed.

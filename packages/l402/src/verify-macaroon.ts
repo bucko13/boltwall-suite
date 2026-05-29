@@ -206,7 +206,10 @@ async function verifyCaveats(args: {
       continue;
     }
     if (!(await safeSatisfyFinal(satisfier, finalCaveat, args.context))) {
-      return { ok: false, reason: `caveat-rejected:${condition}` };
+      return {
+        ok: false,
+        reason: `${VerificationFailurePrefix.CaveatRejected}${condition}`,
+      };
     }
   }
 

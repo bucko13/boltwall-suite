@@ -3,6 +3,8 @@ import { hmac } from "@noble/hashes/hmac.js";
 import { sha256 } from "@noble/hashes/sha2.js";
 import { importMacaroon } from "macaroon";
 
+import { base64ToBytes, bytesToBase64 } from "./base64";
+
 const ROOT_KEY_LENGTH = 32;
 const IDENTIFIER_V0_LENGTH = 66;
 const SIGNATURE_LENGTH = 32;
@@ -211,25 +213,4 @@ function assertUvarint(value: number): void {
   if (!Number.isSafeInteger(value) || value < 0 || value > 0xffffffff) {
     throw new RangeError(`varint ${String(value)} out of range`);
   }
-}
-
-function base64ToBytes(input: string): Uint8Array {
-  try {
-    const binary = atob(input);
-    const out = new Uint8Array(binary.length);
-    for (let i = 0; i < binary.length; i++) {
-      out[i] = binary.charCodeAt(i);
-    }
-    return out;
-  } catch {
-    throw new Error("invalid-macaroon-base64");
-  }
-}
-
-function bytesToBase64(bytes: Uint8Array): string {
-  let binary = "";
-  for (const byte of bytes) {
-    binary += String.fromCharCode(byte);
-  }
-  return btoa(binary);
 }
