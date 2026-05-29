@@ -1,6 +1,11 @@
 "use client";
 
-import { decodeBolt11Invoice, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
+import {
+  buildAuthenticateHeaders,
+  decodeBolt11Invoice,
+  mintMacaroon,
+  type MacaroonIdentifierV0,
+} from "@boltwall/l402";
 import { useEffect, useState } from "react";
 
 import { bytesToHex, hexToBytes } from "../../lib/hex";
@@ -38,6 +43,17 @@ export function GenerateL402Token() {
     tokenIdHex: string;
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [challenge, setChallenge] = useState<string | null>(null);
+
+  // The macaroon, identifier, and challenge are all derived from the current
+  // inputs; clear them together whenever an input changes or on reset.
+  function clearGenerated() {
+    setMacaroon(null);
+    setMintedIdentifier(null);
+    setChallenge(null);
+    workbenchMemory?.setMacaroon(null);
+    workbenchMemory?.setChallenge(null);
+  }
 
   useEffect(() => {
     const keyError = error === MISSING_KEY_ERROR || error === INVALID_KEY_ERROR;
@@ -60,11 +76,12 @@ export function GenerateL402Token() {
 
     try {
       const rootKey = hexToBytes((key ?? "").trim());
+      const trimmedInvoice = (invoice ?? "").trim();
 
       // Parse invoice payment hash if provided, otherwise generate random 32 bytes
       let paymentHash: Uint8Array;
-      if ((invoice ?? "").trim()) {
-        const decoded = decodeBolt11Invoice((invoice ?? "").trim());
+      if (trimmedInvoice) {
+        const decoded = decodeBolt11Invoice(trimmedInvoice);
         paymentHash = decoded.paymentHash;
       } else {
         paymentHash = new Uint8Array(32);
@@ -88,20 +105,37 @@ export function GenerateL402Token() {
         tokenIdHex: bytesToHex(tokenId),
       });
       workbenchMemory?.setMacaroon(result);
+
+      // A bare macaroon is not yet a challenge: pairing it with the invoice
+      // produces the full WWW-Authenticate value a server returns on a 402.
+      // L402 protocol-specification.md §5.1 defines the challenge shape; §10
+      // the dual LSAT-first / L402-second emission (buildAuthenticateHeaders
+      // default). Joining the two values mirrors how the same header repeated
+      // on the wire is folded into one comma-separated string.
+      if (trimmedInvoice) {
+        const challengeValue = buildAuthenticateHeaders({
+          macaroon: result,
+          invoice: trimmedInvoice,
+        }).join(", ");
+        setChallenge(challengeValue);
+        workbenchMemory?.setChallenge(challengeValue);
+      } else {
+        setChallenge(null);
+        workbenchMemory?.setChallenge(null);
+      }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setMacaroon(null);
       setMintedIdentifier(null);
+      setChallenge(null);
     }
   }
 
   function reset() {
     setKey(null);
     setInvoice(null);
-    setMacaroon(null);
-    setMintedIdentifier(null);
-    workbenchMemory?.setMacaroon(null);
+    clearGenerated();
     setError(null);
   }
 
@@ -113,12 +147,23 @@ export function GenerateL402Token() {
   const tokenIdLiteral = JSON.stringify(mintedIdentifier?.tokenIdHex ?? "");
   const hasExactMintSnippet = Boolean(macaroon && mintedIdentifier);
 
+  const hexToBytesHelper = `function hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}`;
+  const exactImport = challenge
+    ? `import { buildAuthenticateHeaders, mintMacaroon } from "@boltwall/l402";`
+    : `import { mintMacaroon } from "@boltwall/l402";`;
+  const challengeTail = challenge
+    ? `\n\n// Pair the macaroon with the invoice to emit the WWW-Authenticate\n// challenge (dual LSAT-first + L402, per L402 protocol-specification.md §10)\nconst challengeHeaders = buildAuthenticateHeaders({ macaroon, invoice });`
+    : "";
+  const exactTemplate = `${exactImport}\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });${challengeTail}`;
+  const recipeTemplate = `import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`;
+  const snippetTemplate = hasExactMintSnippet ? exactTemplate : recipeTemplate;
+
   return (
     <Cell
       header={
         <HeaderRow
           title="Generate Macaroon"
-          subtitle="Mint bare macaroon material from a root key and optional invoice hash"
+          subtitle="Mint a macaroon from a root key; add an invoice to emit a full L402 challenge"
           trailing={
             <>
               <StatusPill state={status} details={error}>
@@ -146,9 +191,7 @@ export function GenerateL402Token() {
               value={key ?? ""}
               onChange={(e) => {
                 setKey(e.target.value);
-                setMacaroon(null);
-                setMintedIdentifier(null);
-                workbenchMemory?.setMacaroon(null);
+                clearGenerated();
                 setError(null);
               }}
               placeholder="000102030405..."
@@ -177,9 +220,7 @@ export function GenerateL402Token() {
               value={invoice ?? ""}
               onChange={(e) => {
                 setInvoice(e.target.value);
-                setMacaroon(null);
-                setMintedIdentifier(null);
-                workbenchMemory?.setMacaroon(null);
+                clearGenerated();
                 setError(null);
               }}
               placeholder="lnbc1500n1..."
@@ -244,17 +285,28 @@ export function GenerateL402Token() {
               <BigBlob value={macaroon} label="Generated macaroon" />
             </div>
           ) : null}
+
+          {challenge ? (
+            <div data-testid="generate-token-challenge">
+              <BigBlob value={challenge} label="WWW-Authenticate challenge" />
+              <div
+                style={{
+                  fontSize: "var(--size-12)",
+                  color: "var(--color-dim)",
+                  marginTop: 4,
+                }}
+              >
+                Stored in Workbench memory as the challenge — open From Challenge to parse it.
+              </div>
+            </div>
+          ) : null}
         </div>
       }
       code={
         <CodeSnippet
           language="typescript"
           contract={hasExactMintSnippet ? "exact" : "recipe"}
-          template={
-            hasExactMintSnippet
-              ? `import { mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`
-              : `import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`
-          }
+          template={snippetTemplate}
           values={{
             keyLiteral,
             invoiceLiteral,

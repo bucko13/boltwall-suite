@@ -3,7 +3,9 @@
  *
  * Uses BOLT 11 invoice from @boltwall/test-fixtures. Fills the panel with a
  * fixture invoice + a known signing key, mints, and asserts the output macaroon
- * decodes to an identifier whose paymentHash matches the fixture.
+ * decodes to an identifier whose paymentHash matches the fixture. Also covers
+ * the full-challenge emission (macaroon + invoice) and its handoff into the
+ * From Challenge panel via Workbench memory.
  */
 import { expect, test } from "@playwright/test";
 
@@ -85,5 +87,50 @@ test.describe("panels / generate-from-invoice", () => {
 
     await page.click("[data-testid='generate-token-reset']");
     await expect(page.locator("[data-testid='generate-token-output']")).not.toBeVisible();
+  });
+
+  test("minting with an invoice emits a full WWW-Authenticate challenge", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
+    await page.click("[data-testid='generate-token-mint']");
+
+    const challenge = page.locator("[data-testid='generate-token-challenge']");
+    await expect(challenge).toBeVisible();
+    const text = (await challenge.textContent()) ?? "";
+    // Dual emission: legacy LSAT first, then current L402, both carrying the invoice.
+    expect(text).toContain("LSAT macaroon=");
+    expect(text).toContain("L402 macaroon=");
+    expect(text).toContain(invoiceFixture.invoice.slice(0, 12));
+
+    // The exact snippet now teaches the challenge-construction call.
+    await expect(page.locator("[data-testid='code-snippet']").first()).toContainText(
+      "buildAuthenticateHeaders",
+    );
+  });
+
+  test("minting without an invoice mints a macaroon but no challenge", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+
+    await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='generate-token-challenge']")).not.toBeVisible();
+  });
+
+  test("generated challenge hands off to From Challenge via Workbench memory", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='generate-token-challenge']")).toBeVisible();
+
+    // Workbench memory persists across navigation; From Challenge reads it back.
+    await page.goto("/p/parse");
+    const input = page.locator("[data-testid='challenge-input']");
+    await expect(input).toHaveValue(/L402 macaroon=/);
+
+    await page.click("[data-testid='challenge-parse']");
+    await expect(page.locator("[data-testid='challenge-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='challenge-invoice']")).toContainText(
+      invoiceFixture.invoice.slice(0, 12),
+    );
   });
 });
