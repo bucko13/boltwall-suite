@@ -124,7 +124,6 @@ export class LndAdapter implements LightningBackend {
    * it in production to use the `lightning` package implementation.
    *
    * @param opts - Socket, TLS cert, and admin macaroon for the node.
-   * @param api - Optional `LndApi` override for tests.
    * @throws {LndAdapterError} when the authenticated client cannot be created.
    * @example
    * ```ts
