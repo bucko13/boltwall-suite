@@ -133,7 +133,12 @@ test.describe("panels / demo", () => {
       "L402 challenge captured",
     );
     await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
-    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Parse L402");
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
+      "saved in Workbench memory",
+    );
+    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText(
+      "Open challenge in Parse",
+    );
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("⧉");
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveAttribute(
       "aria-label",
@@ -164,9 +169,14 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
       "Credential created",
     );
-    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText("Validate L402");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
+      "saved in Workbench memory",
+    );
+    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText(
+      "Open credential in Validate",
+    );
     await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveText(
-      "Parse L402",
+      "Open macaroon in Parse",
     );
     await page.getByText("Show Authorization").click();
     await expect(page.locator("[data-testid='demo-raw-authorization']")).toHaveText(
@@ -214,7 +224,9 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
       "L402 challenge captured",
     );
-    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Parse L402");
+    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText(
+      "Open challenge in Parse",
+    );
   });
 
   test("opens created credential in Validate through Workbench", async ({ page }) => {
@@ -255,9 +267,11 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
       "Credential created",
     );
-    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText("Validate L402");
+    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText(
+      "Open credential in Validate",
+    );
     await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveText(
-      "Parse L402",
+      "Open macaroon in Parse",
     );
 
     await page.click("[data-testid='workbench-memory-clear-all']");
@@ -351,7 +365,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
-      "credential cached",
+      "credential active for this endpoint",
     );
 
     await page.click("[data-testid='demo-get-pokemon']");
@@ -396,7 +410,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
-      "credential cached",
+      "credential active for this endpoint",
     );
 
     // Navigate to another panel and back; the paid credential + endpoint persist.
@@ -410,7 +424,7 @@ test.describe("panels / demo", () => {
       PROTECTED_ENDPOINT,
     );
     await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
-      "credential cached",
+      "credential active for this endpoint",
     );
 
     // Fetching again reuses the persisted credential — no fresh challenge, no re-pay.
@@ -466,7 +480,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-preimage-submit']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
-      "credential cached",
+      "credential active for this endpoint",
     );
 
     await page.click("[data-testid='demo-get-pokemon']");
@@ -486,7 +500,7 @@ test.describe("panels / demo", () => {
     await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-preimage-submit']");
     await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
-      "credential cached",
+      "credential active for this endpoint",
     );
 
     await page.fill("[data-testid='demo-endpoint-input']", "https://other.example.test/pokemon/25");
@@ -547,7 +561,7 @@ test.describe("panels / demo", () => {
     );
     await page.click("[data-testid='demo-use-custom-authorization']");
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
-      "Custom L402 credential active",
+      "Custom L402 credential active for this endpoint",
     );
 
     await page.click("[data-testid='demo-get-pokemon']");
@@ -685,7 +699,7 @@ test.describe("panels / demo", () => {
       `L402 abc:${TEST_PREIMAGE}`,
     );
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
-      "Custom L402 credential active",
+      "Custom L402 credential active for this endpoint",
     );
     await page.click("[data-testid='demo-fetch-fresh-challenge']");
 

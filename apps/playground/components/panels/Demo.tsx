@@ -957,7 +957,7 @@ export function Demo() {
                     cursor: workbenchMemory?.macaroon ? "pointer" : "not-allowed",
                   }}
                 >
-                  Use parsed macaroon
+                  Fill macaroon from Workbench
                 </button>
                 <button
                   type="button"
@@ -1003,7 +1003,9 @@ export function Demo() {
                 order: 12,
               }}
             >
-              <span>Custom {credentialSlot.credential.scheme} credential active.</span>
+              <span>
+                Custom {credentialSlot.credential.scheme} credential active for this endpoint.
+              </span>
               <button
                 type="button"
                 onClick={clearCustomCredential}
@@ -1054,7 +1056,9 @@ export function Demo() {
                 order: 12,
               }}
             >
-              <span>Paid {credentialSlot.credential.scheme} credential cached for reuse.</span>
+              <span>
+                Paid {credentialSlot.credential.scheme} credential active for this endpoint.
+              </span>
               <button
                 type="button"
                 onClick={() => setCredentialSlot(null)}
@@ -1374,7 +1378,8 @@ function ArtifactCard({
     return (
       <ArtifactShell testId="demo-captured-challenge" title="L402 challenge captured">
         <p style={artifactTextStyle}>
-          The proxy returned a challenge. Parse it to inspect the invoice and macaroon.
+          The proxy returned a challenge. It is saved in Workbench memory; opening Parse fills that
+          pane with this WWW-Authenticate value.
         </p>
         <CaveatSummaryList caveats={challengeCaveats} />
         <ArtifactActions>
@@ -1382,7 +1387,7 @@ function ArtifactCard({
             testId="demo-open-parse"
             onClick={() => onOpenParse(artifact.rawAuthenticate)}
           >
-            Parse L402
+            Open challenge in Parse
           </ArtifactButton>
           <ArtifactButton
             testId="demo-copy-challenge"
@@ -1416,8 +1421,8 @@ function ArtifactCard({
     >
       <p style={artifactTextStyle}>
         {rejected
-          ? "The proxy rejected this Authorization header. Validate it or fetch a fresh challenge."
-          : "The retry used an Authorization header. Validate it or copy it for another client."}
+          ? "The proxy rejected this Authorization header. It is saved in Workbench memory; open Validate to inspect it or fetch a fresh challenge."
+          : "The retry used an Authorization header. It is saved in Workbench memory; open Validate to inspect it or copy it for another client."}
       </p>
       <CaveatSummaryList caveats={credentialCaveats} />
       <ArtifactActions>
@@ -1425,7 +1430,7 @@ function ArtifactCard({
           testId="demo-open-validate"
           onClick={() => onOpenValidate(artifact.credential, artifact.sourceChallenge)}
         >
-          Validate L402
+          Open credential in Validate
         </ArtifactButton>
         <ArtifactButton
           testId="demo-open-parse-credential"
@@ -1434,7 +1439,7 @@ function ArtifactCard({
           }
           subtle
         >
-          Parse L402
+          Open macaroon in Parse
         </ArtifactButton>
         <ArtifactButton
           testId="demo-copy-credential"
