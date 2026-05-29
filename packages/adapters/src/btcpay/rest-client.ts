@@ -33,6 +33,11 @@ export class BtcPayAdapterError extends Error {
   }
 }
 
+/**
+ * Connection settings for the BTCPay Greenfield REST client.
+ *
+ * Holds the store-scoped credentials and routing details every request needs.
+ */
 export interface BtcPayRestClientOptions {
   /** BTCPay Server origin, optionally including a path prefix. */
   baseUrl: string;
@@ -46,6 +51,11 @@ export interface BtcPayRestClientOptions {
   fetch?: BtcPayFetch;
 }
 
+/**
+ * Request body for creating a BTCPay Greenfield Lightning invoice.
+ *
+ * Mirrors the documented Greenfield `CreateLightningInvoiceRequest` fields.
+ */
 export interface BtcPayCreateLightningInvoiceRequest {
   /**
    * Amount wrapped in a string, represented in millisatoshis.
@@ -104,6 +114,22 @@ export class BtcPayRestClient {
   readonly #cryptoCode: string;
   readonly #fetch: BtcPayFetch;
 
+  /**
+   * Build a client bound to one store and cryptocurrency code.
+   *
+   * `baseUrl` is normalized to require HTTPS (except localhost) so credentials
+   * are never sent in cleartext to a remote BTCPay instance.
+   *
+   * @example
+   * ```ts
+   * const client = new BtcPayRestClient({
+   *   baseUrl: "https://btcpay.example.com",
+   *   apiKey: process.env.BTCPAY_API_KEY!,
+   *   storeId: process.env.BTCPAY_STORE_ID!,
+   *   cryptoCode: "BTC",
+   * });
+   * ```
+   */
   constructor(opts: BtcPayRestClientOptions) {
     this.#baseUrl = normalizeBaseUrl(opts.baseUrl);
     this.#apiKey = requireNonEmpty(opts.apiKey, "apiKey");
@@ -112,6 +138,16 @@ export class BtcPayRestClient {
     this.#fetch = opts.fetch ?? globalThis.fetch.bind(globalThis);
   }
 
+  /**
+   * Call Greenfield `StoreLightningNodeApi_CreateInvoice` for this store.
+   *
+   * `body.amount` is a millisatoshi string per the Greenfield schema, not sats.
+   *
+   * @example
+   * ```ts
+   * const invoice = await client.createLightningInvoice({ amount: "1000" });
+   * ```
+   */
   async createLightningInvoice(
     body: BtcPayCreateLightningInvoiceRequest,
   ): Promise<BtcPayLightningInvoiceData> {
@@ -124,6 +160,16 @@ export class BtcPayRestClient {
     );
   }
 
+  /**
+   * Call Greenfield `StoreLightningNodeApi_GetInvoice` by opaque invoice id.
+   *
+   * The id is BTCPay's own invoice identifier, not the BOLT 11 payment hash.
+   *
+   * @example
+   * ```ts
+   * const invoice = await client.getLightningInvoice(created.id);
+   * ```
+   */
   async getLightningInvoice(providerInvoiceId: string): Promise<BtcPayLightningInvoiceData> {
     return this.#request(
       "GET",

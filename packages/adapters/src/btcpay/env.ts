@@ -54,6 +54,14 @@ export class BtcPayEnvError extends Error {
  *
  * Values are validated at process startup and error messages never include
  * secret values.
+ *
+ * @throws {BtcPayEnvError} when a required variable is missing or a value is
+ *   invalid.
+ * @example
+ * ```ts
+ * const env = loadBtcPayEnv();
+ * const adapter = createBtcPayAdapter(env);
+ * ```
  */
 export function loadBtcPayEnv(env: Record<string, string | undefined> = process.env): BtcPayEnv {
   const missing: string[] = [];

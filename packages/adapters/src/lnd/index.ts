@@ -116,6 +116,25 @@ export class LndAdapter implements LightningBackend {
   readonly #api: LndApi;
   readonly #lnd: AuthenticatedLnd;
 
+  /**
+   * Open an authenticated gRPC client to an LND node.
+   *
+   * The gRPC client is created eagerly so credential or connection problems
+   * surface at construction time. The second `api` argument is a test seam; omit
+   * it in production to use the `lightning` package implementation.
+   *
+   * @param opts - Socket, TLS cert, and admin macaroon for the node.
+   * @param api - Optional `LndApi` override for tests.
+   * @throws {LndAdapterError} when the authenticated client cannot be created.
+   * @example
+   * ```ts
+   * const adapter = new LndAdapter({
+   *   socket: process.env.LND_SOCKET!,
+   *   cert: process.env.LND_TLS_CERT!,
+   *   macaroon: process.env.LND_MACAROON!,
+   * });
+   * ```
+   */
   constructor(opts: LndAdapterOptions);
   constructor(opts: LndAdapterOptions, api: LndApi);
   constructor(opts: LndAdapterOptions, api: LndApi = defaultLndApi) {
@@ -127,6 +146,19 @@ export class LndAdapter implements LightningBackend {
     }
   }
 
+  /**
+   * Create a standard or HODL invoice on the node.
+   *
+   * A HODL invoice requires a caller-supplied `paymentHash`; LND derives a
+   * standard invoice's hash itself, so passing one there has no effect.
+   *
+   * @throws {LndAdapterError} `invalid-request` when a HODL invoice is requested
+   *   without a payment hash, or on negative amounts / non-positive expiry.
+   * @example
+   * ```ts
+   * const invoice = await adapter.createInvoice({ amountMsat: 1_000n });
+   * ```
+   */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
     const args = this.#createInvoiceArgs(request);
     try {
@@ -151,6 +183,15 @@ export class LndAdapter implements LightningBackend {
     }
   }
 
+  /**
+   * Look up an invoice on the node by its payment hash.
+   *
+   * @throws {LndAdapterError} `not-found` when the node has no such invoice.
+   * @example
+   * ```ts
+   * const lookup = await adapter.lookupInvoice(invoice.paymentHash);
+   * ```
+   */
   async lookupInvoice(paymentHash: string): Promise<InvoiceLookup> {
     try {
       const invoice = await this.#api.getInvoice({
@@ -163,6 +204,18 @@ export class LndAdapter implements LightningBackend {
     }
   }
 
+  /**
+   * Cancel an invoice, returning any accepted HODL HTLCs to the payer.
+   *
+   * LND uses the same cancel RPC for standard and HODL invoices; an already
+   * settled invoice cannot be canceled.
+   *
+   * @throws {LndAdapterError} when the node rejects the cancellation.
+   * @example
+   * ```ts
+   * await adapter.cancelInvoice(invoice.paymentHash);
+   * ```
+   */
   async cancelInvoice(paymentHash: string): Promise<void> {
     try {
       await this.#api.cancelHodlInvoice({
@@ -174,6 +227,20 @@ export class LndAdapter implements LightningBackend {
     }
   }
 
+  /**
+   * Settle a held HODL invoice by revealing its preimage.
+   *
+   * Only valid while the invoice is in the `held` state; the preimage must hash
+   * to the invoice's payment hash or LND rejects the call.
+   *
+   * @throws {LndAdapterError} when the node rejects the settlement.
+   * @example
+   * ```ts
+   * const preimageHex =
+   *   "0000000000000000000000000000000000000000000000000000000000000001";
+   * await adapter.settleHodlInvoice(preimageHex);
+   * ```
+   */
   async settleHodlInvoice(preimage: string): Promise<void> {
     try {
       await this.#api.settleHodlInvoice({
@@ -185,6 +252,21 @@ export class LndAdapter implements LightningBackend {
     }
   }
 
+  /**
+   * Stream invoice state changes from the node as an async iterable.
+   *
+   * Events are buffered in arrival order so none are dropped between yields, and
+   * the underlying gRPC subscription is canceled when iteration stops.
+   *
+   * @throws {LndAdapterError} when the subscription errors or emits an invalid
+   *   invoice update.
+   * @example
+   * ```ts
+   * for await (const update of adapter.subscribeInvoices()) {
+   *   if (update.status === "settled") break;
+   * }
+   * ```
+   */
   async *subscribeInvoices(): AsyncIterable<InvoiceLookup> {
     const subscription = this.#api.subscribeToInvoices({ lnd: this.#lnd });
     const queue: InvoiceLookup[] = [];

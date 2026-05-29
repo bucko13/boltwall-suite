@@ -112,6 +112,12 @@ export interface LightningBackend {
  * This check is intentionally synchronous so unsupported HODL, cancellation,
  * streaming, or description settings fail during boot instead of on the first
  * paid request.
+ *
+ * @throws {BackendCapabilityError} when a required capability is not advertised.
+ * @example
+ * ```ts
+ * assertBackendSupports(backend, { hodl: true, cancelInvoice: true });
+ * ```
  */
 export function assertBackendSupports(
   backend: LightningBackend,

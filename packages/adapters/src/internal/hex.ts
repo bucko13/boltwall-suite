@@ -15,6 +15,10 @@ const HEX_ALPHABET_RE = /^[0-9a-f]+$/;
  * Lowercase `value` and assert it is a non-empty hex string.
  *
  * @throws whatever `notHex` returns when `value` is not hex encoded.
+ * @example
+ * ```ts
+ * normalizeHexString("00AB", () => new Error("not hex")); // "00ab"
+ * ```
  */
 export function normalizeHexString(value: string, notHex: () => Error): string {
   const normalized = value.toLowerCase();
@@ -33,6 +37,14 @@ export function normalizeHexString(value: string, notHex: () => Error): string {
  * the wrong length.
  *
  * @throws whatever `notHex` / `notLength` return on the respective failure.
+ * @example
+ * ```ts
+ * normalizeHash32(
+ *   hash64HexChars,
+ *   () => new Error("not hex"),
+ *   () => new Error("not 32 bytes"),
+ * );
+ * ```
  */
 export function normalizeHash32(
   value: string,

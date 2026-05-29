@@ -136,6 +136,19 @@ export class OpenNodeAdapter implements LightningBackend {
   readonly #chargeStore: OpenNodeChargeStore;
   readonly #decodeInvoice: OpenNodeInvoiceDecoder;
 
+  /**
+   * Build an adapter for one OpenNode account.
+   *
+   * Unsupported `true` feature flags are rejected here so misconfigured
+   * deployments fail during boot rather than on the first paid request.
+   *
+   * @throws {OpenNodeAdapterError} when `apiKey` is empty or when HODL/streaming
+   *   features are requested.
+   * @example
+   * ```ts
+   * const adapter = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
+   * ```
+   */
   constructor(opts: OpenNodeAdapterOptions) {
     if (opts.apiKey.trim() === "") {
       throw new OpenNodeAdapterError("invalid-request", "OpenNode apiKey is required");
@@ -162,6 +175,18 @@ export class OpenNodeAdapter implements LightningBackend {
     this.#decodeInvoice = opts.decodeInvoice ?? defaultDecodeInvoice;
   }
 
+  /**
+   * Create an OpenNode charge and return its Lightning invoice.
+   *
+   * The BOLT 11 invoice is decoded locally to recover the payment hash and
+   * amount, which are then validated against the request because OpenNode keys
+   * charges by an opaque id rather than payment hash.
+   *
+   * @example
+   * ```ts
+   * const invoice = await adapter.createInvoice({ amountMsat: 1_000_000n });
+   * ```
+   */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
     if (request.hodl === true) {
       throw new OpenNodeAdapterError(
@@ -186,6 +211,19 @@ export class OpenNodeAdapter implements LightningBackend {
     };
   }
 
+  /**
+   * Look up an invoice by payment hash via its stored OpenNode charge id.
+   *
+   * Only payment hashes created by this adapter (and persisted in the charge
+   * store) are resolvable, since OpenNode's charge-info endpoint is keyed by id.
+   *
+   * @throws {OpenNodeAdapterError} `not-found` when no charge id is stored for
+   *   the payment hash.
+   * @example
+   * ```ts
+   * const lookup = await adapter.lookupInvoice(invoice.paymentHash);
+   * ```
+   */
   async lookupInvoice(paymentHash: string): Promise<InvoiceLookup> {
     const normalizedHash = normalizePaymentHash(paymentHash);
     const chargeId = await this.#chargeStore.get(normalizedHash);
@@ -215,6 +253,12 @@ export class OpenNodeAdapter implements LightningBackend {
  * Reads `OPENNODE_API_KEY` and optional `OPENNODE_BASE_URL`. The default base
  * URL is production; set `OPENNODE_BASE_URL=https://dev-api.opennode.com` when
  * using OpenNode development-environment keys.
+ *
+ * @example
+ * ```ts
+ * // Reads OPENNODE_API_KEY (and optional OPENNODE_BASE_URL) from process.env.
+ * const adapter = createOpenNodeAdapterFromEnv();
+ * ```
  */
 export function createOpenNodeAdapterFromEnv(
   env: Record<string, string | undefined> = process.env,

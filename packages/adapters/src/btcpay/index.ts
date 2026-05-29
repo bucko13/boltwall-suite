@@ -107,6 +107,23 @@ export class BtcPayAdapter implements LightningBackend {
   readonly #clock: BtcPayClock;
   readonly #providerIdsByPaymentHash = new Map<string, string>();
 
+  /**
+   * Build an adapter bound to one BTCPay store's Lightning node.
+   *
+   * Unsupported `true` feature flags are rejected here rather than at call time
+   * so misconfigured deployments fail during boot.
+   *
+   * @throws {BtcPayAdapterError} when options request HODL or streaming behavior
+   *   that the documented endpoint shape cannot provide.
+   * @example
+   * ```ts
+   * const adapter = new BtcPayAdapter({
+   *   baseUrl: "https://btcpay.example.com",
+   *   apiKey: process.env.BTCPAY_API_KEY!,
+   *   storeId: process.env.BTCPAY_STORE_ID!,
+   * });
+   * ```
+   */
   constructor(opts: BtcPayAdapterOptions) {
     if (opts.features?.hodlInvoices === true) {
       throw new BtcPayAdapterError(
@@ -133,6 +150,19 @@ export class BtcPayAdapter implements LightningBackend {
     opts.logger?.debug?.({ backend: this.kind }, "BTCPay adapter initialized");
   }
 
+  /**
+   * Create a store Lightning invoice and index its opaque BTCPay id by payment
+   * hash for later lookup.
+   *
+   * The returned amount is re-validated against the request because BTCPay echoes
+   * the amount as a millisatoshi string and callers rely on the exact match.
+   *
+   * @example
+   * ```ts
+   * const invoice = await adapter.createInvoice({ amountMsat: 1_000n });
+   * console.log(invoice.paymentRequest, invoice.paymentHash);
+   * ```
+   */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
     if (request.amountMsat < 0n) {
       throw new BtcPayAdapterError("invalid-request", "Invoice amount cannot be negative");
@@ -180,6 +210,22 @@ export class BtcPayAdapter implements LightningBackend {
     };
   }
 
+  /**
+   * Look up an invoice by payment hash via its indexed BTCPay invoice id.
+   *
+   * Only payment hashes returned by this adapter's `createInvoice` are known;
+   * BTCPay's `GetInvoice` endpoint is keyed by opaque id, not payment hash.
+   *
+   * @throws {BtcPayAdapterError} `not-found` when the payment hash was not
+   *   created by this adapter instance.
+   * @example
+   * ```ts
+   * const lookup = await adapter.lookupInvoice(invoice.paymentHash);
+   * if (lookup.status === "settled") {
+   *   // release the protected resource
+   * }
+   * ```
+   */
   async lookupInvoice(paymentHash: string): Promise<InvoiceLookup> {
     const normalizedHash = normalizePaymentHash(paymentHash);
     const providerId = this.#providerIdsByPaymentHash.get(normalizedHash);
@@ -200,6 +246,12 @@ export class BtcPayAdapter implements LightningBackend {
  * `loadBtcPayEnv`. Feature flags that this adapter cannot implement are
  * rejected by the adapter constructor so unsupported deployment config fails
  * during boot.
+ *
+ * @example
+ * ```ts
+ * // Reads BTCPAY_BASE_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID from process.env.
+ * const adapter = createBtcPayAdapterFromEnv();
+ * ```
  */
 export function createBtcPayAdapterFromEnv(
   env?: Record<string, string | undefined>,
@@ -220,6 +272,18 @@ export function createBtcPayAdapterFromEnv(
 
 /**
  * Build a BTCPay adapter from validated options.
+ *
+ * Prefer this factory over `new BtcPayAdapter(...)` so call sites depend on the
+ * `LightningBackend` contract rather than the concrete class.
+ *
+ * @example
+ * ```ts
+ * const adapter = createBtcPayAdapter({
+ *   baseUrl: "https://btcpay.example.com",
+ *   apiKey: process.env.BTCPAY_API_KEY!,
+ *   storeId: process.env.BTCPAY_STORE_ID!,
+ * });
+ * ```
  */
 export function createBtcPayAdapter(opts: BtcPayAdapterOptions): BtcPayAdapter {
   return new BtcPayAdapter(opts);

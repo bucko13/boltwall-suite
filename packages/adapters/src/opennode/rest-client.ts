@@ -1,5 +1,10 @@
 export type OpenNodeFetch = typeof globalThis.fetch;
 
+/**
+ * Subset of an OpenNode charge resource consumed by the adapter.
+ *
+ * Fields are loosely typed because the API response is validated downstream.
+ */
 export interface OpenNodeCharge {
   id?: unknown;
   status?: string;
@@ -10,6 +15,11 @@ export interface OpenNodeCharge {
   };
 }
 
+/**
+ * Connection settings for the OpenNode REST client.
+ *
+ * Carries the API credential and base URL used to authenticate every request.
+ */
 export interface OpenNodeRestClientOptions {
   apiKey: string;
   baseUrl: string;
@@ -46,6 +56,22 @@ export class OpenNodeRestClient {
   readonly #baseUrl: URL;
   readonly #fetch: OpenNodeFetch;
 
+  /**
+   * Build a client for one OpenNode account.
+   *
+   * `baseUrl` is normalized to require HTTPS so the API key is never sent in
+   * cleartext.
+   *
+   * @throws {OpenNodeApiError} when `apiKey` is empty or `baseUrl` is not an
+   *   absolute HTTPS URL.
+   * @example
+   * ```ts
+   * const client = new OpenNodeRestClient({
+   *   apiKey: process.env.OPENNODE_API_KEY!,
+   *   baseUrl: "https://api.opennode.com",
+   * });
+   * ```
+   */
   constructor(opts: OpenNodeRestClientOptions) {
     if (opts.apiKey.trim() === "") {
       throw new OpenNodeApiError("invalid-request", "OpenNode apiKey is required");
@@ -55,6 +81,16 @@ export class OpenNodeRestClient {
     this.#fetch = opts.fetch ?? globalThis.fetch;
   }
 
+  /**
+   * Call OpenNode `POST /v1/charges` and unwrap the `data` envelope.
+   *
+   * `body.amount` is in satoshis per the OpenNode charge API, not millisatoshis.
+   *
+   * @example
+   * ```ts
+   * const charge = await client.createCharge({ amount: 1000 });
+   * ```
+   */
   async createCharge(body: Record<string, unknown>): Promise<OpenNodeCharge> {
     return this.#request("/v1/charges", {
       method: "POST",
@@ -62,6 +98,16 @@ export class OpenNodeRestClient {
     });
   }
 
+  /**
+   * Call OpenNode `GET /v2/charge/{id}` and unwrap the `data` envelope.
+   *
+   * `chargeId` is OpenNode's opaque charge id, not the BOLT 11 payment hash.
+   *
+   * @example
+   * ```ts
+   * const charge = await client.getCharge(charge.id);
+   * ```
+   */
   async getCharge(chargeId: string): Promise<OpenNodeCharge> {
     return this.#request(`/v2/charge/${encodeURIComponent(chargeId)}`, {
       method: "GET",

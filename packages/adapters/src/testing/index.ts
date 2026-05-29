@@ -150,6 +150,17 @@ export class MockAdapter implements LightningBackend {
 
   /**
    * Test helper that marks an invoice settled without waiting for payment.
+   *
+   * When `preimage` is omitted a deterministic placeholder derived from the
+   * payment hash is stored, so `lookupInvoice` reports a `settled` invoice even
+   * though the placeholder does not actually hash to the payment hash.
+   *
+   * @example
+   * ```ts
+   * const invoice = await mock.createInvoice({ amountMsat: 1_000n });
+   * mock.settle(invoice.paymentHash);
+   * const lookup = await mock.lookupInvoice(invoice.paymentHash); // status: "settled"
+   * ```
    */
   settle(paymentHash: string, preimage?: string): void {
     const normalizedHash = normalizePaymentHash(paymentHash);
@@ -160,7 +171,15 @@ export class MockAdapter implements LightningBackend {
   }
 
   /**
-   * Test helper that marks a HODL invoice held after the payer's HTLC is accepted.
+   * Test helper that marks an invoice held, simulating an accepted HODL HTLC.
+   *
+   * Lets tests exercise the `held` transition without a real payer; it does not
+   * check that the invoice was created as a HODL invoice.
+   *
+   * @example
+   * ```ts
+   * mock.hold(invoice.paymentHash);
+   * ```
    */
   hold(paymentHash: string): void {
     this.#transition(paymentHash, { status: "held" });
@@ -168,6 +187,14 @@ export class MockAdapter implements LightningBackend {
 
   /**
    * Test helper that marks an invoice expired.
+   *
+   * Forces the `expired` status directly so tests need not advance a clock past
+   * the invoice's `expiresAt`.
+   *
+   * @example
+   * ```ts
+   * mock.expire(invoice.paymentHash);
+   * ```
    */
   expire(paymentHash: string): void {
     this.#transition(paymentHash, { status: "expired" });

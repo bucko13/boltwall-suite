@@ -43,6 +43,11 @@ export class OpenNodeEnvError extends Error {
  *
  * @param env - Optional record of env values; defaults to `process.env`.
  * @throws {OpenNodeEnvError} when a field is missing or invalid.
+ * @example
+ * ```ts
+ * const env = loadOpenNodeEnv();
+ * const adapter = new OpenNodeAdapter(env);
+ * ```
  */
 export function loadOpenNodeEnv(
   env: Record<string, string | undefined> = process.env,
