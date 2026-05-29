@@ -10,7 +10,6 @@ import {
   servicesSatisfier,
   validUntilSatisfier,
   verifyMacaroon,
-  type Caveat,
   type CaveatSatisfier,
 } from "../src";
 
@@ -23,8 +22,8 @@ describe("verifyMacaroon attenuation chains", () => {
   )) {
     test(`${fixture.name} verifier chain`, async () => {
       const issued = await issueMacaroon([
-        { condition: fixture.condition, value: fixture.previous },
-        { condition: fixture.condition, value: fixture.next },
+        `${fixture.condition}=${fixture.previous}`,
+        `${fixture.condition}=${fixture.next}`,
       ]);
 
       await expect(
@@ -45,9 +44,9 @@ describe("verifyMacaroon attenuation chains", () => {
 
   test("evaluates mixed attenuation chains independently", async () => {
     const issued = await issueMacaroon([
-      { condition: "services", value: "pokedex:0,proxy:0" },
-      { condition: "services", value: "pokedex:0" },
-      { condition: "valid-until", value: "2030-01-01T00:00:00.000Z" },
+      "services=pokedex:0,proxy:0",
+      "services=pokedex:0",
+      "valid-until=2030-01-01T00:00:00.000Z",
     ]);
 
     await expect(
@@ -62,14 +61,12 @@ describe("verifyMacaroon attenuation chains", () => {
   });
 });
 
-async function issueMacaroon(caveats: Caveat[]): Promise<{
+async function issueMacaroon(caveats: string[]): Promise<{
   macaroon: string;
   preimage: Uint8Array;
   rootKeyStore: InMemoryRootKeyStore;
 }> {
-  const rootKey = hexToBytes(
-    "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f",
-  );
+  const rootKey = hexToBytes("000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f");
   const tokenId = repeatedBytes(0x42);
   const preimage = repeatedBytes(0x11);
   const rootKeyStore = new InMemoryRootKeyStore();

@@ -63,11 +63,18 @@ async function createUnknownCaveatFixture(): Promise<{
         paymentHash,
         tokenId,
       },
-      caveats: [fixture.knownCaveat, fixture.unknownCaveat],
+      caveats: [
+        encodeCaveatFixture(fixture.knownCaveat),
+        encodeCaveatFixture(fixture.unknownCaveat),
+      ],
     }),
     preimage,
     rootKeyStore,
   };
+}
+
+function encodeCaveatFixture(caveat: { condition: string; value: string }): string {
+  return `${caveat.condition}=${caveat.value}`;
 }
 
 function hexToBytes(hex: string): Uint8Array {

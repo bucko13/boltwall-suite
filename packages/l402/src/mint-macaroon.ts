@@ -21,7 +21,7 @@ export interface MintMacaroonArgs {
   /** Decoded v0 identifier fields to encode into the macaroon. */
   identifier: MacaroonIdentifierV0;
   /** Optional first-party caveats to bind into the minted macaroon. */
-  caveats?: Caveat[];
+  caveats?: Array<Caveat | string>;
 }
 
 /**
@@ -41,7 +41,7 @@ export function mintMacaroon(args: MintMacaroonArgs): string {
   assertLength(args.rootKey, ROOT_KEY_LENGTH, "rootKey");
   const identifier = encodeIdentifier(args.identifier);
   const caveats = (args.caveats ?? []).map((caveat) =>
-    new TextEncoder().encode(serializeCaveat(caveat)),
+    new TextEncoder().encode(typeof caveat === "string" ? caveat : serializeCaveat(caveat)),
   );
 
   return encodeRaw(

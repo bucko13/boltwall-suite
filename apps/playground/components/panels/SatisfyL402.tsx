@@ -1,9 +1,10 @@
 "use client";
 
 import {
+  Caveat,
   inspectMacaroon,
-  validUntilSatisfier,
   servicesSatisfier,
+  validUntilSatisfier,
   type CaveatSatisfier,
 } from "@boltwall/l402";
 import { useState } from "react";
@@ -87,10 +88,9 @@ async function runSatisfiers(
           : satisfier.condition === c.condition;
       if (!condMatch) continue;
       try {
-        const ok = await satisfier.satisfyFinal(
-          { condition: c.condition, value: c.value },
-          { now: new Date() },
-        );
+        const ok = await satisfier.satisfyFinal(new Caveat(c.condition, c.value), {
+          now: new Date(),
+        });
         if (ok) {
           matched = true;
           break;

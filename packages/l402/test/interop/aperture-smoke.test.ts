@@ -102,9 +102,9 @@ describe("Aperture library vector smoke", () => {
         tokenId: APERTURE_TOKEN_ID,
       },
       caveats: [
-        { condition: "services", value: "restricted:0,other:0" },
-        { condition: "services", value: "restricted:0" },
-        { condition: "restricted_capabilities", value: "read" },
+        "services=restricted:0,other:0",
+        "services=restricted:0",
+        "restricted_capabilities=read",
       ],
     });
 
@@ -129,10 +129,7 @@ describe("Aperture library vector smoke", () => {
         paymentHash: PREIMAGE_HASH,
         tokenId: APERTURE_TOKEN_ID,
       },
-      caveats: [
-        { condition: "services", value: "restricted:0" },
-        { condition: "unknown-aperture-vector", value: "ignored" },
-      ],
+      caveats: ["services=restricted:0", "unknown-aperture-vector=ignored"],
     });
 
     await expect(
@@ -156,10 +153,7 @@ describe("Aperture library vector smoke", () => {
         paymentHash: PREIMAGE_HASH,
         tokenId: APERTURE_TOKEN_ID,
       },
-      caveats: [
-        { condition: "restricted_valid_until", value: "1000" },
-        { condition: "restricted_valid_until", value: "500" },
-      ],
+      caveats: ["restricted_valid_until=1000", "restricted_valid_until=500"],
     });
 
     await expect(

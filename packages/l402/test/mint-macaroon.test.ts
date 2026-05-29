@@ -39,9 +39,9 @@ describe("mintMacaroon", () => {
       rootKey: fixtureRootKey(),
       identifier: fixtureIdentifier(),
       caveats: [
-        { condition: "services", value: "pokedex:0,proxy:0" },
-        { condition: "pokedex_capabilities", value: "read" },
-        { condition: "pokedex_valid_until", value: "2030-01-01T00:00:00Z" },
+        "services=pokedex:0,proxy:0",
+        "pokedex_capabilities=read",
+        "pokedex_valid_until=2030-01-01T00:00:00Z",
       ],
     });
 
@@ -58,10 +58,10 @@ describe("mintMacaroon", () => {
       rootKey: fixtureRootKey(),
       identifier: fixtureIdentifier(),
       caveats: [
-        { condition: "services", value: "pokedex:0,proxy:0" },
-        { condition: "services", value: "pokedex:0" },
-        { condition: "pokedex_capabilities", value: "read" },
-        { condition: "unknown-aperture-vector", value: "ignored" },
+        "services=pokedex:0,proxy:0",
+        "services=pokedex:0",
+        "pokedex_capabilities=read",
+        "unknown-aperture-vector=ignored",
       ],
     });
 
@@ -78,7 +78,7 @@ describe("mintMacaroon", () => {
     const macaroon = mintMacaroon({
       rootKey: fixtureRootKey(),
       identifier: fixtureIdentifier(),
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
     });
     const preimage = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 

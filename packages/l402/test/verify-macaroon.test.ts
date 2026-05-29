@@ -16,7 +16,7 @@ import { decodeRaw, encodeRaw, type RawMacaroon } from "../src/internal/macaroon
 describe("verifyMacaroon", () => {
   test("accepts a single macaroon with matching signature, preimage, and caveat", async () => {
     const fixture = await createFixture({
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
     });
 
     await expect(
@@ -33,12 +33,12 @@ describe("verifyMacaroon", () => {
   test("accepts multiple macaroons bound to the same preimage", async () => {
     const first = await createFixture({
       tokenId: repeatedBytes(0x22),
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
     });
     const second = await createFixture({
       tokenId: repeatedBytes(0x33),
       paymentHash: first.paymentHash,
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
       rootKeyStore: first.rootKeyStore,
     });
 
@@ -55,7 +55,7 @@ describe("verifyMacaroon", () => {
 
   test("rejects tampered signature, identifier, and caveat bytes", async () => {
     const fixture = await createFixture({
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
     });
 
     await expect(verifyFixture(fixture, tamper(fixture.macaroon, "signature"))).resolves.toEqual({
@@ -88,7 +88,7 @@ describe("verifyMacaroon", () => {
 
   test("requires preimage by default but can verify HODL macaroon state", async () => {
     const fixture = await createFixture({
-      caveats: [{ condition: "services", value: "pokedex:0" }],
+      caveats: ["services=pokedex:0"],
     });
 
     await expect(
@@ -127,13 +127,10 @@ describe("verifyMacaroon", () => {
 
   test("rejects known caveats when final or previous checks fail", async () => {
     const finalReject = await createFixture({
-      caveats: [{ condition: "services", value: "proxy:0" }],
+      caveats: ["services=proxy:0"],
     });
     const attenuationReject = await createFixture({
-      caveats: [
-        { condition: "services", value: "pokedex:0" },
-        { condition: "services", value: "pokedex:0,proxy:0" },
-      ],
+      caveats: ["services=pokedex:0", "services=pokedex:0,proxy:0"],
     });
 
     await expect(
@@ -158,13 +155,10 @@ describe("verifyMacaroon", () => {
 
   test("rejects malformed services values without throwing", async () => {
     const finalReject = await createFixture({
-      caveats: [{ condition: "services", value: "pokedex" }],
+      caveats: ["services=pokedex"],
     });
     const attenuationReject = await createFixture({
-      caveats: [
-        { condition: "services", value: "pokedex:0" },
-        { condition: "services", value: "" },
-      ],
+      caveats: ["services=pokedex:0", "services="],
     });
 
     await expect(
@@ -189,13 +183,10 @@ describe("verifyMacaroon", () => {
 
   test("rejects malformed valid-until values without throwing", async () => {
     const finalReject = await createFixture({
-      caveats: [{ condition: "valid-until", value: "later" }],
+      caveats: ["valid-until=later"],
     });
     const attenuationReject = await createFixture({
-      caveats: [
-        { condition: "valid-until", value: "2030-01-01T00:00:00Z" },
-        { condition: "valid-until", value: "eventually" },
-      ],
+      caveats: ["valid-until=2030-01-01T00:00:00Z", "valid-until=eventually"],
     });
 
     await expect(
@@ -220,10 +211,10 @@ describe("verifyMacaroon", () => {
 
   test("rejects malformed route and capability values without throwing", async () => {
     const routeReject = await createFixture({
-      caveats: [{ condition: "route", value: "" }],
+      caveats: ["route="],
     });
     const capabilityReject = await createFixture({
-      caveats: [{ condition: "pokedex_capabilities", value: "" }],
+      caveats: ["pokedex_capabilities="],
     });
 
     await expect(
@@ -251,10 +242,7 @@ describe("verifyMacaroon", () => {
 
   test("skips unknown caveats by default and rejects them in strict mode", async () => {
     const fixture = await createFixture({
-      caveats: [
-        { condition: "services", value: "pokedex:0" },
-        { condition: "future-mode", value: "enabled" },
-      ],
+      caveats: ["services=pokedex:0", "future-mode=enabled"],
     });
 
     await expect(
@@ -280,7 +268,7 @@ describe("verifyMacaroon", () => {
 
   test("supports RegExp satisfier conditions", async () => {
     const fixture = await createFixture({
-      caveats: [{ condition: "pokedex_capabilities", value: "read" }],
+      caveats: ["pokedex_capabilities=read"],
     });
     const satisfier: CaveatSatisfier = {
       condition: /_capabilities$/,
@@ -307,7 +295,7 @@ async function createFixture(
     tokenId?: Uint8Array;
     preimage?: Uint8Array;
     paymentHash?: Uint8Array;
-    caveats?: Array<{ condition: string; value: string }>;
+    caveats?: string[];
     rootKeyStore?: InMemoryRootKeyStore;
   } = {},
 ): Promise<{

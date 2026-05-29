@@ -227,16 +227,13 @@ function flipByte(bytes: Uint8Array, index: number): Uint8Array {
   return next;
 }
 
-function parseCaveatBytes(bytes: Uint8Array): { condition: string; value: string } {
+function parseCaveatBytes(bytes: Uint8Array): string {
   const encoded = new TextDecoder().decode(bytes);
   const separatorIndex = encoded.indexOf("=");
   if (separatorIndex < 1) {
     throw new Error(`invalid caveat fixture: ${encoded}`);
   }
-  return {
-    condition: encoded.slice(0, separatorIndex),
-    value: encoded.slice(separatorIndex + 1),
-  };
+  return encoded;
 }
 
 function hexToBytes(hex: string): Uint8Array {

@@ -1,4 +1,4 @@
-import type { Caveat } from "../caveats";
+import { Caveat } from "../caveats";
 import type { CaveatSatisfier } from "../satisfiers";
 
 /**
@@ -13,10 +13,7 @@ export function expirationCaveat(unixMs: number): Caveat {
     throw new Error("invalid-expiration");
   }
 
-  return {
-    condition: "expiration",
-    value: String(unixMs),
-  };
+  return new Caveat("expiration", String(unixMs));
 }
 
 /**

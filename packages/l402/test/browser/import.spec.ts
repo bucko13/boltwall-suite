@@ -82,6 +82,8 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         preimage: fixtures.badPreimage.preimageHex,
       });
       const caveat = l402.parseCaveat("services=pokedex:0");
+      const caveatClass = new l402.Caveat("expiration", "1577228778197", "<");
+      const decodedCaveatClass = l402.Caveat.decode("services=pokedex:0");
       const tokenId = new Uint8Array(32).fill(0x22);
       const rootKey = new Uint8Array(32).fill(0x11);
       const rootKeyStore = new l402.InMemoryRootKeyStore();
@@ -93,7 +95,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           paymentHash: hexToBytes(fixtures.goodPreimage.paymentHashHex),
           tokenId,
         },
-        caveats: [{ condition: "services", value: "pokedex:0" }],
+        caveats: ["services=pokedex:0"],
       });
       const verifiedMacaroon = await l402.verifyMacaroon({
         macaroons: [mintedMacaroon],
@@ -120,6 +122,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           decodeBolt11Invoice: typeof l402.decodeBolt11Invoice,
           verifyPreimage: typeof l402.verifyPreimage,
           parseCaveat: typeof l402.parseCaveat,
+          Caveat: typeof l402.Caveat,
           inspectMacaroon: typeof l402.inspectMacaroon,
           mintMacaroon: typeof l402.mintMacaroon,
           verifyMacaroon: typeof l402.verifyMacaroon,
@@ -152,6 +155,18 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         preimageOk,
         preimageRejected,
         caveat,
+        caveatClass: {
+          condition: caveatClass.condition,
+          value: caveatClass.value,
+          comparator: caveatClass.comparator,
+          encoded: caveatClass.encode(),
+        },
+        decodedCaveatClass: {
+          condition: decodedCaveatClass.condition,
+          value: decodedCaveatClass.value,
+          comparator: decodedCaveatClass.comparator,
+          encoded: decodedCaveatClass.encode?.(),
+        },
         inspectedMintedMacaroon: {
           identifierBytesLength: inspectedMintedMacaroon.identifierBytes.length,
           signatureLength: inspectedMintedMacaroon.signature.length,
@@ -202,6 +217,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     decodeBolt11Invoice: "function",
     verifyPreimage: "function",
     parseCaveat: "function",
+    Caveat: "function",
     inspectMacaroon: "function",
     mintMacaroon: "function",
     verifyMacaroon: "function",
@@ -232,6 +248,18 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
   expect(result.preimageOk).toBe(true);
   expect(result.preimageRejected).toBe(false);
   expect(result.caveat).toEqual({ condition: "services", value: "pokedex:0" });
+  expect(result.caveatClass).toEqual({
+    condition: "expiration",
+    value: "1577228778197",
+    comparator: "<",
+    encoded: "expiration<1577228778197",
+  });
+  expect(result.decodedCaveatClass).toEqual({
+    condition: "services",
+    value: "pokedex:0",
+    comparator: "=",
+    encoded: "services=pokedex:0",
+  });
   expect(result.inspectedMintedMacaroon).toEqual({
     identifierBytesLength: 66,
     signatureLength: 32,

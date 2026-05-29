@@ -1,6 +1,6 @@
 "use client";
 
-import type { Caveat } from "@boltwall/l402";
+import { validUntil } from "@boltwall/l402";
 import { useState } from "react";
 
 import { useUrlInput } from "../../lib/url-state";
@@ -36,15 +36,11 @@ export function AddExpiration() {
       setResult(null);
       return;
     }
-    const expiresAt = new Date(Date.now() + n * 1000).toISOString();
-    const caveat: Caveat = {
-      condition: "valid-until",
-      value: expiresAt,
-    };
+    const caveat = validUntil({ seconds: n });
     setResult({
       condition: caveat.condition,
       value: caveat.value,
-      serialized: `${caveat.condition}=${caveat.value}`,
+      serialized: caveat.encode(),
     });
     setError(null);
   }
@@ -188,8 +184,8 @@ export function AddExpiration() {
           contract={result ? "exact" : "recipe"}
           template={
             result
-              ? `import type { Caveat } from "@boltwall/l402";\n\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: {{caveatValueLiteral}},\n};`
-              : `import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};`
+              ? `import { Caveat } from "@boltwall/l402";\n\nconst caveat = new Caveat("valid-until", {{caveatValueLiteral}});`
+              : `import { validUntil } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat = validUntil({ seconds: ttlSeconds });`
           }
           values={{ seconds: ttlSecondsLiteral, caveatValueLiteral }}
         />

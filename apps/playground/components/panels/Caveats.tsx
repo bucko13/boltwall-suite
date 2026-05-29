@@ -1,12 +1,12 @@
 "use client";
 
 import {
+  Caveat,
   inspectMacaroon,
   parseCaveat,
-  serializeCaveat,
   servicesSatisfier,
+  validUntil,
   validUntilSatisfier,
-  type Caveat,
   type CaveatSatisfier,
 } from "@boltwall/l402";
 import { useState } from "react";
@@ -128,10 +128,9 @@ async function runSatisfiers(
           : satisfier.condition === c.condition;
       if (!condMatch) continue;
       try {
-        const ok = await satisfier.satisfyFinal(
-          { condition: c.condition, value: c.value },
-          { now: new Date() },
-        );
+        const ok = await satisfier.satisfyFinal(new Caveat(c.condition, c.value), {
+          now: new Date(),
+        });
         if (ok) {
           matched = true;
           break;
@@ -205,9 +204,7 @@ export function Caveats() {
   const tokenRows = (token ?? "").trim() ? extractCaveatsFromMacaroon((token ?? "").trim()) : [];
   const visibleRows = activeMode === "check" && rows.length === 0 ? tokenRows : rows;
   const checkToken = rows.length > 0 ? "" : (token ?? "");
-  const visibleSerialized = visibleRows.map((r) =>
-    serializeCaveat({ condition: r.condition, value: r.value }),
-  );
+  const visibleSerialized = visibleRows.map((r) => new Caveat(r.condition, r.value).encode());
   const visibleSource = rows.length > 0 ? "current" : activeMode === "check" ? "macaroon" : "empty";
 
   function saveRows(newRows: CaveatRow[]) {
@@ -248,15 +245,11 @@ export function Caveats() {
       setExpirationResult(null);
       return;
     }
-    const expiresAt = new Date(Date.now() + n * 1000).toISOString();
-    const caveat: Caveat = {
-      condition: "valid-until",
-      value: expiresAt,
-    };
+    const caveat = validUntil({ seconds: n });
     setExpirationResult({
       condition: caveat.condition,
       value: caveat.value,
-      serialized: `${caveat.condition}=${caveat.value}`,
+      serialized: caveat.encode(),
     });
     saveRows([...rows, { condition: caveat.condition, value: caveat.value }]);
     setExpirationError(null);
@@ -314,6 +307,11 @@ export function Caveats() {
         ? rows
         : draftSnippetRows;
   const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
+  const encodedCaveatsLiteral = JSON.stringify(
+    snippetRows.map((row) => new Caveat(row.condition, row.value).encode()),
+    null,
+    2,
+  );
   const ttlSecondsLiteral = /^[0-9]+$/.test(seconds ?? "") ? (seconds ?? "") : "3600";
   const caveatValueLiteral = JSON.stringify(expirationResult?.value ?? "");
   const satisfiersSource = satisfierRows
@@ -494,17 +492,18 @@ export function Caveats() {
           }
           template={
             activeMode === "add" && activeAddKind === "custom"
-              ? `import { serializeCaveat, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst serialized = caveats.map((caveat) => serializeCaveat(caveat));`
+              ? `import { Caveat } from "@boltwall/l402";\n\nconst encodedCaveats = {{encodedCaveatsLiteral}};\nconst caveats = encodedCaveats.map(Caveat.decode);\nconst serialized = caveats.map((caveat) => caveat.encode());`
               : activeMode === "add" && activeAddKind === "time-limit"
                 ? expirationResult
-                  ? `import type { Caveat } from "@boltwall/l402";\n\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: {{caveatValueLiteral}},\n};`
-                  : `import type { Caveat } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat: Caveat = {\n  condition: "valid-until",\n  value: new Date(Date.now() + ttlSeconds * 1000).toISOString(),\n};`
+                  ? `import { Caveat } from "@boltwall/l402";\n\nconst caveat = new Caveat("valid-until", {{caveatValueLiteral}});`
+                  : `import { validUntil } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat = validUntil({ seconds: ttlSeconds });`
                 : satisfierRows.length > 0
-                  ? `import { servicesSatisfier, validUntilSatisfier, type Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass caveats embedded in a macaroon to verifyMacaroon({ ..., satisfiers }).`
-                  : `import type { Caveat } from "@boltwall/l402";\n\nconst caveats = {{caveatsLiteral}} satisfies Caveat[];\nconst satisfiers = [];\n\n// Add satisfiers to check these caveats.`
+                  ? `import { Caveat, servicesSatisfier, validUntilSatisfier } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\n// Pass caveats embedded in a macaroon to verifyMacaroon({ ..., satisfiers }).`
+                  : `import { Caveat } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst satisfiers = [];\n\n// Add satisfiers to check these caveats.`
           }
           values={{
             caveatsLiteral,
+            encodedCaveatsLiteral,
             seconds: ttlSecondsLiteral,
             caveatValueLiteral,
             satisfiersSource,

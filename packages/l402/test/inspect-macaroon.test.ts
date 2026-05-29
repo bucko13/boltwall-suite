@@ -16,10 +16,7 @@ describe("inspectMacaroon", () => {
         paymentHash,
         tokenId,
       },
-      caveats: [
-        { condition: "services", value: "pokedex:0" },
-        { condition: "pokedex_capabilities", value: "read" },
-      ],
+      caveats: ["services=pokedex:0", "pokedex_capabilities=read"],
     });
 
     const inspection = inspectMacaroon(macaroon);
@@ -29,15 +26,16 @@ describe("inspectMacaroon", () => {
     expect(bytesToHex(inspection.identifier.tokenId)).toBe(bytesToHex(tokenId));
     expect(inspection.identifierBytes).toHaveLength(66);
     expect(inspection.signature).toHaveLength(32);
-    expect(inspection.caveats.map(({ condition, value, text }) => ({ condition, value, text })))
-      .toEqual([
-        { condition: "services", value: "pokedex:0", text: "services=pokedex:0" },
-        {
-          condition: "pokedex_capabilities",
-          value: "read",
-          text: "pokedex_capabilities=read",
-        },
-      ]);
+    expect(
+      inspection.caveats.map(({ condition, value, text }) => ({ condition, value, text })),
+    ).toEqual([
+      { condition: "services", value: "pokedex:0", text: "services=pokedex:0" },
+      {
+        condition: "pokedex_capabilities",
+        value: "read",
+        text: "pokedex_capabilities=read",
+      },
+    ]);
     expect(inspection.caveats[0]?.parsed).toEqual({
       condition: "services",
       value: "pokedex:0",

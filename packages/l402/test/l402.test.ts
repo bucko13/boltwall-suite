@@ -53,7 +53,7 @@ async function mintVerifiableL402(): Promise<{
       paymentHash: hexToBytes(goodPreimageFixture.paymentHashHex),
       tokenId,
     },
-    caveats: [{ condition: "services", value: "pokedex:0" }],
+    caveats: ["services=pokedex:0"],
   });
 
   return {

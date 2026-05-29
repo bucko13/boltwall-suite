@@ -6,6 +6,7 @@ import {
   type CaveatFixture,
 } from "../../test-fixtures/src/caveats";
 import {
+  Caveat,
   capabilitiesCaveat,
   constraintCaveat,
   ipCaveat,
@@ -16,11 +17,7 @@ import {
   servicesCaveat,
   validUntil,
 } from "../src/caveats";
-import {
-  originSatisfier,
-  routeSatisfier,
-  validUntilSatisfier,
-} from "../src/satisfiers";
+import { originSatisfier, routeSatisfier, validUntilSatisfier } from "../src/satisfiers";
 
 function runFixture(fixture: CaveatFixture): void {
   if (fixture.expected.ok) {
@@ -42,6 +39,54 @@ describe("caveats / malformed fixtures", () => {
   for (const fixture of malformedCaveatFixtures) {
     test(fixture.name, () => runFixture(fixture));
   }
+});
+
+describe("Caveat class", () => {
+  test("constructs and encodes the standard condition=value form", () => {
+    const caveat = new Caveat(" services ", " pokedex:0 ");
+
+    expect(caveat).toEqual({ condition: "services", value: "pokedex:0" });
+    expect(caveat.comparator).toBe("=");
+    expect(caveat.encode()).toBe("services=pokedex:0");
+    expect(serializeCaveat(caveat)).toBe("services=pokedex:0");
+  });
+
+  test("decodes standard caveats and preserves equals signs in values", () => {
+    const caveat = Caveat.decode("metadata=a=b=c");
+
+    expect(caveat).toEqual({ condition: "metadata", value: "a=b=c" });
+    expect(caveat.comparator).toBe("=");
+    expect(caveat.encode()).toBe("metadata=a=b=c");
+  });
+
+  test("supports legacy comparator caveats at the object layer", () => {
+    const lessThan = new Caveat("expiration", "1577228778197", "<");
+    const greaterThan = Caveat.decode("quota>10");
+
+    expect(lessThan).toEqual({ condition: "expiration", value: "1577228778197" });
+    expect(lessThan.comparator).toBe("<");
+    expect(lessThan.encode()).toBe("expiration<1577228778197");
+    expect(greaterThan).toEqual({ condition: "quota", value: "10" });
+    expect(greaterThan.comparator).toBe(">");
+    expect(serializeCaveat(greaterThan)).toBe("quota>10");
+  });
+
+  test("rejects empty conditions and invalid comparators", () => {
+    expect(() => new Caveat(" ", "x")).toThrow("empty-caveat-condition");
+    expect(() => new Caveat("condition", "x", ":" as "=")).toThrow("invalid-caveat-comparator");
+  });
+
+  test("static factories mirror helper factories", () => {
+    expect(Caveat.services([{ name: "pokedex", tier: 0 }]).encode()).toBe("services=pokedex:0");
+    expect(Caveat.capabilities("pokedex", ["read"]).encode()).toBe("pokedex_capabilities=read");
+    expect(Caveat.constraint("request", "max-count", "10").encode()).toBe("request_max-count=10");
+    expect(Caveat.validUntil({ iso: "2030-01-01T00:00:00.000Z" }).encode()).toBe(
+      "valid-until=2030-01-01T00:00:00.000Z",
+    );
+    expect(Caveat.origin("https://example.com").encode()).toBe("origin=https://example.com");
+    expect(Caveat.ip("1.2.3.4").encode()).toBe("ip=1.2.3.4");
+    expect(Caveat.route("/api/*").encode()).toBe("route=/api/*");
+  });
 });
 
 describe("caveats / helper constructors", () => {
@@ -79,9 +124,7 @@ describe("caveats / helper constructors", () => {
   });
 
   test("serializeCaveat rejects empty conditions", () => {
-    expect(() => serializeCaveat({ condition: " ", value: "x" })).toThrow(
-      "empty-caveat-condition",
-    );
+    expect(() => serializeCaveat(new Caveat(" ", "x"))).toThrow("empty-caveat-condition");
   });
 });
 

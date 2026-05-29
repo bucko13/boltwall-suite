@@ -5,6 +5,7 @@ import {
   buildAuthorizationHeader,
   expirationCaveat,
   expirationSatisfier,
+  ipCaveat,
   ipSatisfier,
   mintMacaroon,
   routeCaveat,
@@ -108,7 +109,7 @@ describe("legacy LSAT regression suite", () => {
 
   test("legacy ip caveat accepts matching client IP from request context", async () => {
     const app = await buildLegacyRegressionApp([ipSatisfier()]);
-    const auth = legacyCredential([{ condition: "ip", value: "1.2.3.4" }]);
+    const auth = legacyCredential([ipCaveat("1.2.3.4")]);
 
     const res = await supertest(app)
       .get("/api/v1")
@@ -120,7 +121,7 @@ describe("legacy LSAT regression suite", () => {
 
   test("legacy ip caveat rejects mismatched client IP", async () => {
     const app = await buildLegacyRegressionApp([ipSatisfier()]);
-    const auth = legacyCredential([{ condition: "ip", value: "1.2.3.4" }]);
+    const auth = legacyCredential([ipCaveat("1.2.3.4")]);
 
     const res = await supertest(app)
       .get("/api/v1")

@@ -1,11 +1,97 @@
+/** Comparator accepted by the LSAT-compatible caveat object API. */
+export type CaveatComparator = "=" | "<" | ">";
+
 /**
- * A parsed first-party L402 caveat string.
+ * Runtime Caveat constructor for object-first L402 and LSAT migration code.
+ *
+ * L402 macaroon-spec.md §Caveat Format defines first-party caveats as UTF-8
+ * `condition=value` strings. The class defaults to that standard `"="`
+ * comparator while preserving `<` and `>` comparator caveats used by older
+ * LSAT object workflows at the object/macaroon layer.
  */
-export interface Caveat {
-  /** Caveat condition, the bytes before the first `=` separator. */
-  condition: string;
-  /** Caveat value, the bytes after the first `=` separator. */
-  value: string;
+export class Caveat {
+  readonly condition: string;
+  readonly value: string;
+  readonly comparator?: CaveatComparator;
+
+  constructor(condition: string, value: string, comparator: CaveatComparator = "=") {
+    const normalizedCondition = condition.trim();
+    if (normalizedCondition.length === 0) {
+      throw new Error("empty-caveat-condition");
+    }
+    assertComparator(comparator);
+
+    this.condition = normalizedCondition;
+    this.value = value.trim();
+    Object.defineProperty(this, "comparator", {
+      value: comparator,
+      enumerable: false,
+      writable: false,
+      configurable: false,
+    });
+  }
+
+  encode(): string {
+    return `${this.condition}${this.comparator ?? "="}${this.value}`;
+  }
+
+  static decode(input: string): Caveat {
+    const separator = firstComparatorIndex(input);
+    if (separator === -1) {
+      throw new Error("missing-caveat-separator");
+    }
+
+    return new Caveat(
+      input.slice(0, separator),
+      input.slice(separator + 1),
+      input[separator] as CaveatComparator,
+    );
+  }
+
+  static services(services: Array<{ name: string; tier: number }>): Caveat {
+    return servicesCaveat(services);
+  }
+
+  static capabilities(service: string, capabilities: string[]): Caveat {
+    return capabilitiesCaveat(service, capabilities);
+  }
+
+  static constraint(capability: string, key: string, value: string): Caveat {
+    return constraintCaveat(capability, key, value);
+  }
+
+  static validUntil(args: ValidUntilArg): Caveat {
+    return validUntil(args);
+  }
+
+  static origin(allowed: string | string[]): Caveat {
+    return originCaveat(allowed);
+  }
+
+  static ip(ip: string): Caveat {
+    return ipCaveat(ip);
+  }
+
+  static route(allowed: string | string[]): Caveat {
+    return routeCaveat(allowed);
+  }
+}
+
+function firstComparatorIndex(input: string): number {
+  let result = -1;
+  for (const comparator of ["=", "<", ">"] as const) {
+    const index = input.indexOf(comparator);
+    if (index !== -1 && (result === -1 || index < result)) {
+      result = index;
+    }
+  }
+  return result;
+}
+
+function assertComparator(comparator: string): asserts comparator is CaveatComparator {
+  if (comparator !== "=" && comparator !== "<" && comparator !== ">") {
+    throw new Error("invalid-caveat-comparator");
+  }
 }
 
 /**
@@ -19,71 +105,38 @@ export interface Caveat {
  * Whitespace around the separator is trimmed.
  */
 export function parseCaveat(input: string): Caveat {
-  const separator = input.indexOf("=");
-  if (separator === -1) {
-    throw new Error("missing-caveat-separator");
-  }
-
-  const condition = input.slice(0, separator).trim();
-  if (condition.length === 0) {
-    throw new Error("empty-caveat-condition");
-  }
-
-  return {
-    condition,
-    value: input.slice(separator + 1).trim(),
-  };
+  return Caveat.decode(input);
 }
 
 /**
  * Serialize one parsed caveat back to its wire string form.
  */
 export function serializeCaveat(caveat: Caveat): string {
-  const condition = caveat.condition.trim();
-  if (condition.length === 0) {
-    throw new Error("empty-caveat-condition");
-  }
-
-  return `${condition}=${caveat.value.trim()}`;
+  return caveat.encode();
 }
 
 /**
  * Build a `services=...` caveat for the services authorized by a macaroon.
  */
-export function servicesCaveat(
-  services: Array<{ name: string; tier: number }>,
-): Caveat {
-  return {
-    condition: "services",
-    value: services.map((service) => `${service.name}:${service.tier}`).join(","),
-  };
+export function servicesCaveat(services: Array<{ name: string; tier: number }>): Caveat {
+  return new Caveat(
+    "services",
+    services.map((service) => `${service.name}:${service.tier}`).join(","),
+  );
 }
 
 /**
  * Build a `<service>_capabilities=...` caveat.
  */
-export function capabilitiesCaveat(
-  service: string,
-  capabilities: string[],
-): Caveat {
-  return {
-    condition: `${service}_capabilities`,
-    value: capabilities.join(","),
-  };
+export function capabilitiesCaveat(service: string, capabilities: string[]): Caveat {
+  return new Caveat(`${service}_capabilities`, capabilities.join(","));
 }
 
 /**
  * Build a `<capability>_<constraint>=...` caveat.
  */
-export function constraintCaveat(
-  capability: string,
-  key: string,
-  value: string,
-): Caveat {
-  return {
-    condition: `${capability}_${key}`,
-    value,
-  };
+export function constraintCaveat(capability: string, key: string, value: string): Caveat {
+  return new Caveat(`${capability}_${key}`, value);
 }
 
 type ValidUntilArg = { seconds: number } | { iso: string } | { date: Date };
@@ -106,7 +159,7 @@ export function validUntil(args: ValidUntilArg): Caveat {
   } else {
     value = args.date.toISOString();
   }
-  return { condition: "valid-until", value };
+  return new Caveat("valid-until", value);
 }
 
 /**
@@ -118,7 +171,7 @@ export function validUntil(args: ValidUntilArg): Caveat {
  */
 export function originCaveat(allowed: string | string[]): Caveat {
   const origins = Array.isArray(allowed) ? allowed : [allowed];
-  return { condition: "origin", value: origins.join(",") };
+  return new Caveat("origin", origins.join(","));
 }
 
 /**
@@ -135,7 +188,7 @@ export function ipCaveat(ip: string): Caveat {
   if (value.length === 0) {
     throw new Error("invalid-ip-caveat");
   }
-  return { condition: "ip", value };
+  return new Caveat("ip", value);
 }
 
 /**
@@ -148,5 +201,5 @@ export function ipCaveat(ip: string): Caveat {
  */
 export function routeCaveat(allowed: string | string[]): Caveat {
   const routes = Array.isArray(allowed) ? allowed : [allowed];
-  return { condition: "route", value: routes.join(",") };
+  return new Caveat("route", routes.join(","));
 }

@@ -10,6 +10,7 @@ export {
 } from "./build-authorization-header";
 
 export {
+  Caveat,
   capabilitiesCaveat,
   constraintCaveat,
   ipCaveat,
@@ -19,7 +20,7 @@ export {
   serializeCaveat,
   servicesCaveat,
   validUntil,
-  type Caveat,
+  type CaveatComparator,
 } from "./caveats";
 
 export { decodeIdentifier, type MacaroonIdentifierV0 } from "./decode-identifier";
