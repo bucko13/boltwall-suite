@@ -760,14 +760,17 @@ export function Demo() {
             </div>
           ) : null}
 
+          {/* Surfaced as the first secondary option (above "Use a different
+              endpoint") so a returning payer with a credential can paste it
+              instead of re-running the pay flow. */}
           <details
             data-testid="demo-custom-credential"
             open={customCredentialOpen}
             onToggle={(event) => setCustomCredentialOpen(event.currentTarget.open)}
-            style={{ order: 31 }}
+            style={{ order: 10 }}
           >
             <DisclosureSummary iconTestId="demo-custom-credential-icon" open={customCredentialOpen}>
-              Use an existing L402
+              Use an existing L402 credential
             </DisclosureSummary>
             <div
               style={{

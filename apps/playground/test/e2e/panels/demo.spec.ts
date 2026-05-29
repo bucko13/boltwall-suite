@@ -72,6 +72,22 @@ test.describe("panels / demo", () => {
     expect(pokemonBox!.y).toBeLessThan(settingsBox!.y);
   });
 
+  test("surfaces the existing-credential option above the endpoint settings", async ({ page }) => {
+    await page.goto("/p/demo");
+    const existing = page.locator("[data-testid='demo-custom-credential']");
+    const endpointSettings = page.locator("[data-testid='demo-endpoint-settings']");
+    await expect(existing).toBeVisible();
+    await expect(endpointSettings).toBeVisible();
+    await expect(existing.locator("summary")).toContainText("Use an existing L402");
+
+    const existingBox = await existing.boundingBox();
+    const endpointBox = await endpointSettings.boundingBox();
+    expect(existingBox).not.toBeNull();
+    expect(endpointBox).not.toBeNull();
+    // "Use an existing L402 credential" sits above "Use a different endpoint".
+    expect(existingBox!.y).toBeLessThan(endpointBox!.y);
+  });
+
   test("can use an advanced explicit unprotected endpoint", async ({ page }) => {
     await page.route(/https:\/\/demo\.example\.test\/pokemon\/\d+$/, async (route) => {
       await route.fulfill({
