@@ -9,6 +9,43 @@ function truncMiddle(value: string, head = 8, tail = 8) {
   return `${value.slice(0, head)}...${value.slice(-tail)}`;
 }
 
+function CopyGlyph({ copied }: { copied: boolean }) {
+  if (copied) {
+    return (
+      <svg
+        aria-hidden="true"
+        viewBox="0 0 16 16"
+        width="12"
+        height="12"
+        fill="none"
+        stroke="currentColor"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="1.8"
+      >
+        <path d="m3 8 3 3 7-7" />
+      </svg>
+    );
+  }
+
+  return (
+    <svg
+      aria-hidden="true"
+      viewBox="0 0 16 16"
+      width="12"
+      height="12"
+      fill="none"
+      stroke="currentColor"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      strokeWidth="1.5"
+    >
+      <rect x="5" y="3" width="8" height="10" rx="1.5" />
+      <path d="M3 5.5V12a1 1 0 0 0 1 1h6.5" />
+    </svg>
+  );
+}
+
 function MemoryChip({
   label,
   value,
@@ -68,22 +105,24 @@ function MemoryChip({
             type="button"
             onClick={copyValue}
             data-testid={`${testId}-copy`}
-            aria-label={`Copy remembered ${label}`}
+            aria-label={copied ? `Copied remembered ${label}` : `Copy remembered ${label}`}
+            title={copied ? "Copied" : "Copy"}
             style={{
-              padding: "0 4px",
+              display: "inline-flex",
+              alignItems: "center",
+              justifyContent: "center",
+              width: 22,
+              height: 18,
+              padding: 0,
               borderRadius: 3,
               color: "var(--color-accent)",
               border: "1px solid color-mix(in srgb, var(--color-accent) 45%, transparent)",
               background: "var(--color-surface)",
-              fontSize: "var(--size-10)",
-              lineHeight: 1.4,
-              width: "6ch",
-              textAlign: "center",
-              whiteSpace: "nowrap",
+              boxSizing: "border-box",
               flexShrink: 0,
             }}
           >
-            {copied ? "copied" : "copy"}
+            <CopyGlyph copied={copied} />
           </button>
           <button
             type="button"

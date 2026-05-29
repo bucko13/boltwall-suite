@@ -94,7 +94,7 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='parse-token-fill-macaroon']")).toBeDisabled();
   });
 
-  test("Workbench copy feedback keeps the chip layout stable", async ({ page }) => {
+  test("Workbench copy feedback keeps the icon button layout stable", async ({ page }) => {
     await page.evaluate(() => {
       Object.defineProperty(navigator, "clipboard", {
         configurable: true,
@@ -107,7 +107,8 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
 
     const chip = page.locator("[data-testid='workbench-memory-macaroon']");
     const copyButton = page.locator("[data-testid='workbench-memory-macaroon-copy']");
-    await expect(copyButton).toHaveText("copy");
+    await expect(copyButton).toHaveAttribute("aria-label", "Copy remembered macaroon");
+    await expect(copyButton.locator("svg")).toHaveCount(1);
 
     const beforeButton = await copyButton.boundingBox();
     const beforeChip = await chip.boundingBox();
@@ -115,13 +116,15 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     expect(beforeChip).toBeTruthy();
 
     await copyButton.click();
-    await expect(copyButton).toHaveText("copied");
+    await expect(copyButton).toHaveAttribute("aria-label", "Copied remembered macaroon");
+    await expect(copyButton.locator("svg")).toHaveCount(1);
 
     const afterButton = await copyButton.boundingBox();
     const afterChip = await chip.boundingBox();
     expect(afterButton).toBeTruthy();
     expect(afterChip).toBeTruthy();
     expect(Math.abs((afterButton?.width ?? 0) - (beforeButton?.width ?? 0))).toBeLessThan(0.5);
+    expect(Math.abs((afterButton?.height ?? 0) - (beforeButton?.height ?? 0))).toBeLessThan(0.5);
     expect(Math.abs((afterChip?.height ?? 0) - (beforeChip?.height ?? 0))).toBeLessThan(0.5);
   });
 });
