@@ -18,9 +18,7 @@ from the normalized payment hash returned by BTCPay. A process restart loses
 that in-memory map, so production deployments that need lookup across restarts
 should persist the payment-hash to provider-id relation outside Boltwall.
 
-HODL invoices, invoice cancellation, and invoice streaming are disabled by
-default and are not enabled by this adapter until a deployment-specific BTCPay
-plugin or API behavior is verified and implemented.
+HODL invoices, invoice cancellation, and invoice streaming are not supported by this adapter.
 
 Skipped-by-default integration tests use these variables:
 

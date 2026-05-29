@@ -23,15 +23,13 @@ L402 is and how the packages fit together.
 - [Public API surface](#public-api-surface)
 - [Protocol behavior](#protocol-behavior)
 - [Runtime boundary](#runtime-boundary)
-- [Pending facade tokens](#pending-facade-tokens)
 - [LSAT compatibility helpers](#lsat-compatibility-helpers)
-- [BOLT 11 decoder rationale](#bolt-11-decoder-rationale)
 
 ## Installation
 
-The package is not yet published to npm. To use it today, clone the monorepo
-and follow the [root README quickstart](../../README.md#quickstart). The
-package will be published to npm as `@boltwall/l402` at the v0.1.0 release.
+This package is not yet published to npm. To use it today, clone the monorepo
+and follow the [root README quickstart](../../README.md#quickstart). It will
+publish to npm as `@boltwall/l402`.
 
 ## Quick start: parse an L402 challenge
 
@@ -102,7 +100,6 @@ or expose it outside the retry request.
 ```ts
 import { decodeBolt11Invoice } from "@boltwall/l402";
 
-// Truncated for readability; real invoices are much longer.
 const invoice = "lnbc1500n1pw5kjhmpp5...";
 const decoded = decodeBolt11Invoice(invoice);
 
@@ -153,10 +150,7 @@ const result = await verifyMacaroon({
 console.log(result.ok);
 ```
 
-The example uses deterministic test bytes for readability; the payment hash is
-`sha256` of the all-zero preimage used above. Production code must use
-cryptographically random root keys and token ids, use the real invoice payment
-hash, and store root keys server-side only.
+Use cryptographically random root keys and token IDs in production, and keep root keys server-side.
 
 ## Public API surface
 
@@ -188,7 +182,7 @@ The current public surface groups as:
   services, capabilities, origin, route, and `valid-until`
 - **Compatibility helpers:** `L402`, `expirationCaveat`, `expirationSatisfier`
 
-There are no public `@boltwall/l402/*` subpaths in v0.1.0. Pricing amounts
+There are no public `@boltwall/l402/*` subpaths. Pricing amounts
 are millisatoshis as `bigint` (e.g. `DecodedInvoice.amountMsat`).
 
 For full symbol-level detail, run `bun run docs:api` to generate the TypeDoc
@@ -223,38 +217,7 @@ Protocol compliance: see [docs/protocol-compatibility.md](../../docs/protocol-co
 
 ## Runtime boundary
 
-`@boltwall/l402` targets browser and Node runtimes. The raw macaroon codec is
-a private implementation detail implementing the L402 macaroon HMAC chain,
-first-party caveat encoding, V2 binary serialization, and signature
-verification for `mintMacaroon`, `decodeIdentifier`, and `verifyMacaroon`. It
-is intentionally not exported before v0.1.0.
-
-The private V2 codec targets the byte layout emitted and parsed by Aperture's
-`gopkg.in/macaroon.v2` dependency. The current L402 macaroon-spec.md
-§Serialization Formats / Macaroon V2 Binary Format table describes caveat
-identifier and verification-id tags differently from the Go reference codec.
-See [docs/protocol-compatibility.md](../../docs/protocol-compatibility.md) for
-the compatibility note and fixture impact.
-
-Use `mintMacaroon` and `verifyMacaroon` rather than depending on raw macaroon
-internals or the wrapped `macaroon@3.0.4` library shape. If a future release
-exposes a raw codec, that surface will need its own JSDoc, fixtures,
-compatibility notes, and API docs.
-
-## Pending facade tokens
-
-`L402.fromToken()` accepts a trailing-colon token such as `LSAT <macaroon>:`
-so legacy `lsat-js` migration code can model a macaroon whose invoice has not
-been paid yet. That object state is intentionally separate from a paid HTTP
-Authorization credential: L402 protocol-specification.md §5 defines the retry
-credential as `<macaroons>:<preimage-hex>`, and the preimage is the proof of
-payment.
-
-`L402#toToken()` throws `missing-preimage` while the object is pending. Call
-`setPreimage(preimage)` first, or use `toPendingToken()` only for explicit
-migration persistence where the value will not be sent as an Authorization
-header. `parseAuthorizationHeader()` remains strict and rejects missing or
-malformed preimages.
+`@boltwall/l402` runs in both browser and Node. Use `mintMacaroon` and `verifyMacaroon` rather than raw codec internals.
 
 ## LSAT compatibility helpers
 
@@ -273,21 +236,3 @@ caveat shape. Prefer the standard `valid-until` caveat and
 requires accepting legacy `LSAT` credentials, but the package does not expose
 a broad `@boltwall/l402/legacy` public subpath.
 
-## BOLT 11 decoder rationale
-
-The package uses [`light-bolt11-decoder`](https://github.com/fiatjaf/light-bolt11-decoder)
-(MIT, v3.2.0+) to extract amount, payment-hash, expiry, and description from
-BOLT 11 invoices embedded in L402 challenges. Decode-only is sufficient because
-servers mint invoices through their Lightning backend (`@boltwall/adapters`),
-not through a local encoder.
-
-`light-bolt11-decoder` was chosen over the library the earlier `lsat-js`
-project used (`bolt11@1.4.1`) because the older library pulls `bitcoinjs-lib`,
-`secp256k1`, and `lodash` into the bundle (~7.5 MB vs ~156 KB), uses Node
-`Buffer` in its public API, and ships encode/sign code the package never needs.
-`decodeBolt11Invoice` wraps the underlying decoder so consumers stay insulated
-from any future swap.
-
-Spec reference: [BOLT 11 — Lightning Invoice
-Encoding](https://github.com/lightning/bolts/blob/master/11-payment-encoding.md)
-§§3, 6 govern HRP / amount-encoding / TLV-tagged fields.

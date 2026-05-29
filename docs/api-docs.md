@@ -34,4 +34,4 @@ LSAT parsing or emission, Aperture interop, caveat handling, and browser versus
 Node constraints.
 
 Internal helpers need comments only when behavior is subtle. Generated docs must
-build cleanly before v0.1.0 stabilization.
+build cleanly.

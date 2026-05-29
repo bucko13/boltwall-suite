@@ -197,11 +197,10 @@ satisfiers: [validUntilSatisfier()]
 ### 5. Verify with the integration suite
 
 ```bash
-bun run test --filter @boltwall/middleware
+bun run --cwd packages/middleware test
 ```
 
-All 9 integration scenarios — including amount mismatch and expired caveats —
-must pass before cutting a release.
+The integration scenarios must pass before cutting a release.
 
 ---
 
@@ -216,8 +215,8 @@ const backend = loadBackendFromEnv(); // reads LND_SOCKET, LND_MACAROON, LND_TLS
 app.use(boltwall({ service: "my-api", backend, ... }));
 ```
 
-This helper is a convenience shim — explicitly constructing `new LndAdapter({...})`
-is the long-term recommendation.
+Prefer explicit construction with `new LndAdapter({...})`; `loadBackendFromEnv()`
+is a convenience for incremental migration.
 
 ---
 

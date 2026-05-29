@@ -14,12 +14,6 @@ New to L402? See the [project README](../../README.md#what-is-l402) for what L40
 
 ## Quick start (Express)
 
-A few terms used below:
-- **macaroon** — an HMAC-chained bearer token minted by the server and returned with the 402 challenge.
-- **caveat / satisfier** — caveats are mint-time constraints embedded in the macaroon (e.g. `valid-until`); satisfiers are their verify-time counterparts that check each caveat is still met. Both are supplied together.
-- **HODL invoice** — a Lightning invoice that stays in a "held" state until the server explicitly settles it, giving the server control over when funds are released.
-- **`InMemoryRootKeyStore`** — stores macaroon root keys in process memory. Non-persistent; not for production. Use a database-backed store in production.
-
 ```ts
 import express from "express";
 import { boltwall, validUntil } from "@boltwall/middleware/express";
@@ -39,7 +33,7 @@ app.use(
       cert: process.env.LND_TLS_CERT!,
       macaroon: process.env.LND_MACAROON!,
     }),
-    rootKeyStore: new InMemoryRootKeyStore(),
+    rootKeyStore: new InMemoryRootKeyStore(), // non-persistent; use DB in production
     price: 100_000n, // 100 sats in millisatoshis
     caveats: [validUntil({ seconds: 3600 })],
     satisfiers: [validUntilSatisfier()],
@@ -54,8 +48,7 @@ L402 credentials are bearer credentials. Production deployments must use HTTPS
 (`L402 protocol-specification.md §9.1`). If Express runs behind a TLS
 terminating proxy, configure `trust proxy` and forward `X-Forwarded-Proto:
 https`. Cleartext loopback requests (`localhost`, `127.0.0.1`, `::1`) are
-accepted for local development. For non-loopback in-process tests only, set
-`allowInsecureHttp: true` explicitly.
+accepted for local development. Set `allowInsecureHttp: true` only in tests; it is rejected on non-loopback addresses.
 
 ## Caveat factories
 
@@ -107,7 +100,6 @@ const config = {
 export async function GET(request: Request) {
   const result = await authorizeL402(request, config);
   if (!result.ok) {
-    // Copy the 402/401/502 response from the gate result
     return result.response;
   }
   return Response.json({ paid: true, paymentHash: result.context.paymentHash });
@@ -138,7 +130,6 @@ const config = { service: "my-api", backend, rootKeyStore, price: 100_000n };
 app.use("/paid/*", async (c, next) => {
   const result = await authorizeL402(c.req.raw, config);
   if (!result.ok) {
-    // Copy headers from the gate response
     result.response.headers.forEach((value, key) => c.header(key, value));
     return c.body(null, result.response.status as 402 | 401 | 502);
   }

@@ -1,32 +1,16 @@
 # Migration from lsat-js
 
-This document records the compatibility audit for the MIT-licensed
-`Tierion/lsat-js` package. It is the decision source for preserving legacy
-LSAT behavior in `@boltwall/l402` without carrying over Node-only types,
-LSAT-only naming, or behavior that conflicts with the current L402 specs.
+Moving from `Tierion/lsat-js`? This table maps each legacy API to its
+`@boltwall/l402` equivalent. The library offers a functional API rather than the
+legacy class shape, with L402-native names and `Uint8Array`/`bigint` types.
 
-> **What you can use today.** `@boltwall/l402` ships a complete *functional* API —
-> `parseAuthenticateHeader`, `parseAuthorizationHeader`, `buildAuthenticateHeaders`,
-> `buildAuthorizationHeader`, `mintMacaroon`, `verifyMacaroon`, `decodeIdentifier`,
-> `decodeBolt11Invoice`, the caveat builders and satisfiers, and the `L402` class
-> facade — all available now. Rows below marked **Future compatibility work** or
-> **Future API decision** are legacy `lsat-js` *class-method* conveniences (e.g.
-> `Lsat#getCaveats()`) that are intentionally not replicated; reach for the
-> functional equivalent in the Replacement column. This table is the audit trail
-> behind those choices, not a list of missing features.
-
-## Sources Audited
-
-- `Tierion/lsat-js` repository, `master`, public entrypoint `src/index.ts`:
-  exports `identifier`, `caveat`, `lsat`, `types`, `satisfiers`, `macaroon`,
-  and `service`.
-- `lsat-js` npm package `2.0.6`, published under MIT.
-- `Tierion/lsat-js` README API summary.
-- L402 protocol-specification.md sections 5, 6, 9, and 10.
-- L402 macaroon-spec.md sections Identifier Structure, Caveat Format,
-  Attenuation, Verification, and HTTP Header Encoding.
-
-No AGPL `boltwall` source, comments, tests, or generated docs were copied.
+`@boltwall/l402`'s functional API — `parseAuthenticateHeader`,
+`parseAuthorizationHeader`, `buildAuthenticateHeaders`, `buildAuthorizationHeader`,
+`mintMacaroon`, `verifyMacaroon`, `decodeIdentifier`, `decodeBolt11Invoice`, the
+caveat builders and satisfiers, and the `L402` class facade — is available today.
+Rows marked **Future compatibility work** or **Future API decision** are legacy
+class-method conveniences (e.g. `Lsat#getCaveats()`) that are intentionally not
+replicated; use the functional equivalent in the Replacement column.
 
 ## Decision Classes
 
@@ -125,35 +109,6 @@ No AGPL `boltwall` source, comments, tests, or generated docs were copied.
 | `decode(req)`                                                | `src/helpers.ts`             | `drop`                   | `decodeBolt11Invoice(invoice)`                                                                                   | Implemented invoice decode replacement | Wrapper around old `bolt11` library, including simnet patching, should not be public.                                                                                                                                                                                                         |
 | `getIdFromRequest(req)`                                      | `src/helpers.ts`             | `replace-with-migration` | `decodeBolt11Invoice(invoice).paymentHash`                                                                       | Implemented invoice decode replacement | Current API should return structured invoice data.                                                                                                                                                                                                                                            |
 | `stringToBytes(s)` / `utf8Encoder` / `isValue`               | `src/helpers.ts`             | `drop`                   | internal utilities if needed                                                                                     | Internal                           | Not public protocol API.                                                                                                                                                                                                                                                                      |
-
-## Required Implementation Work
-
-- The `L402` facade must cover token/challenge constructors,
-  pending/satisfied state, selected legacy-compatible properties, and tests
-  shared with functional helpers.
-- Caveat verification must cover satisfier behavior, attenuation chains, and
-  unknown-caveat skip semantics.
-- Expiration compatibility must provide the legacy `expiration` caveat helper
-  where migration requires it.
-- Macaroon compatibility must cover codec, minting, and verification
-  replacements for legacy macaroon helpers.
-- Invoice migration must move legacy `number` sats to `bigint amountMsat`
-  while preserving payment-hash access.
-
-## Testing Requirements
-
-Every `preserve-exact` and `preserve-compatible` row above needs a positive
-test and at least one negative or migration-path test in the implementation
-task that owns it. Class facade tests must include:
-
-- `L402.fromToken("LSAT M:r").toToken({ legacy: true })` preserves legacy
-  scheme emission.
-- `L402.fromToken("L402 M:r").toToken()` emits modern `L402`.
-- Multi-macaroon credentials round-trip through both functional helpers and
-  the class facade.
-- `setPreimage` rejects malformed and mismatched preimages.
-- JSON output serializes msat amounts as decimal strings if amount fields are
-  included.
 
 ## Compatibility Summary
 

@@ -11,8 +11,6 @@ truth. The illustrative HTML references in
 `apps/playground/design/reference/` are visual evidence; this document is
 normative when the two ever disagree.
 
-**Supersedes** the earlier Concept D / Color Grid visual exploration.
-
 ## 1. Principles
 
 Three rules, in order. Every later decision in this document is read through

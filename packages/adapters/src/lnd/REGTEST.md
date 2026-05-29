@@ -135,98 +135,8 @@ Scriptable maintainer steps after prerequisites:
 - Post-payment `lookupInvoice(settled)` checks.
 - HODL settle/cancel verification logic.
 
-This split is intentional for now: scripted checks are reliable once a local
+This split is intentional: scripted checks are reliable once a local
 operator has a healthy Polar network and credentials ready.
-
-## Polar Automation Feasibility
-
-### Automation constraints
-
-Polar is a GUI-first Electron app. It has no stable published CLI, and its
-internal Docker and gRPC plumbing are not documented as a scriptable API. As a
-result, several steps in the local workflow have no reliable headless path:
-
-| Verification step                     | Scriptable? | Notes                                                                                          |
-| ------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
-| Launch Polar app                      | No          | GUI app only; no supported CLI entrypoint.                                                     |
-| Bootstrap regtest network             | No          | Polar drives Docker internally, but no stable scripted entrypoint is available.                |
-| Open/fund channel in Polar            | No          | Depends on GUI or undocumented app internals.                                                  |
-| Extract server cert + admin macaroon  | Partial     | Feasible only after the operator exposes or copies the values; no stable filesystem path here. |
-| Run `LndAdapter` create/lookup checks | Yes         | Once `LND_SOCKET`, `LND_TLS_CERT`, and `LND_MACAROON` are exported, the adapter smoke runs.   |
-| Pay invoice from peer node            | Partial     | Scriptable if payer-node CLI/container access exists; otherwise manual in Polar.               |
-| HODL settle/cancel verification       | Yes         | Scriptable after the network and credentials exist.                                            |
-
-The dependable automation boundary starts _after_ a healthy local network
-already exists and credentials have been exported into env vars.
-
-## Recommended Local And CI Split
-
-### Local operator-assisted flow
-
-Keep Polar as the shortest path for a human maintainer to:
-
-1. launch the network,
-2. open/fund channels,
-3. retrieve the first cert/macaroon set,
-4. optionally pay invoices from the UI.
-
-After that setup, scripted checks should use only exported env vars and adapter
-calls.
-
-### CI/container automation path
-
-Do not build CI around Polar's desktop UI. Instead, create a dedicated
-containerized LND smoke harness that owns:
-
-1. regtest bootstrap,
-2. wallet unlock/init,
-3. channel funding/open,
-4. cert/macaroon extraction,
-5. invoice creation and payment loop,
-6. teardown or explicit reset.
-
-That harness can back both:
-
-- a local maintainer-run smoke for environments with Docker access, and
-- a skipped-by-default or explicitly gated CI/manual workflow.
-
-## Minimal Proof Sequence For The Recommended Harness
-
-Current repository command shape:
-
-```bash
-# 1. Start the regtest topology with logical node names.
-bun run bootstrap -- --nodes payer,server
-
-# 2. Fund/connect/open a channel when needed.
-bun run lightning -- ready payer server
-
-# 3. Run the LndAdapter settled-payment smoke.
-bun run smoke-adapter -- --payer payer --server server --amount-msat 1000
-
-# 4. Stop containers but preserve wallets/channels/chain state.
-bun run infra -- teardown
-
-# 5. Remove wallets/channels/chain state only when a clean reset is intended.
-bun run infra -- teardown --reset --yes
-```
-
-This proof sequence is intentionally container-first. It avoids depending on
-undocumented Polar app internals and is a better fit for maintainer-run
-automation.
-
-`teardown` uses `docker compose stop` and keeps Docker volumes intact. The
-explicit `--reset --yes` path uses `docker compose down --volumes --remove-orphans`
-and removes the local regtest wallets, channels, certs, macaroons, and chain
-state owned by this harness.
-
-## Risks And Constraints
-
-- Docker availability is the main local automation dependency.
-- LND startup and channel-confirmation timing will need explicit waits/retries.
-- Credential extraction must stay ephemeral; never commit certs or macaroons.
-- Host-specific app paths, GUI automation, and copied Polar state are too flaky
-  to make the primary verification path.
 
 ## Troubleshooting
 
@@ -249,7 +159,7 @@ state owned by this harness.
 ## Smoke Run Example
 
 ```bash
-infra/scripts/smoke-adapter --payer <payer-node> --server <server-node> --amount-msat 1000
+bun run smoke-adapter -- --payer <payer-node> --server <server-node> --amount-msat 1000
 ```
 
 Expected output shape after a successful create + pay cycle:

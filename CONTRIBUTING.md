@@ -1,8 +1,7 @@
 # Contributing
 
-Boltwall Suite is preparing for its first stable public release. Contributions
-are welcome, with a maintainer-guided process until the v0.1.0 API and deployment
-path are declared stable.
+Contributions are welcome, with maintainer review on protocol-, security-, and
+release-sensitive changes.
 
 ## Before you start
 
@@ -21,30 +20,25 @@ your PR.
 
 ## Development setup
 
-Use Bun from the repository root:
+From the repository root:
 
 ```sh
-bun install --frozen-lockfile
-bun run playground        # http://localhost:3000 — the demo workbench
+bun install
+bun run playground   # http://localhost:3000 — the demo workbench
 ```
 
-The standard checks, all from the root:
+Before opening a PR, run the full gate:
 
 ```sh
-bun run lint              # ESLint, check mode — this is the gate
-bun run typecheck
-bun run test              # unit tests, all packages
-bun run build
+bun run check   # lint, typecheck, test, build
 ```
 
-`bun run lint:fix` is the local autofix helper (import order, formatting) — run
-it when ESLint reports fixable problems, then re-run `bun run lint`. CI runs only
-check-mode `lint`, so a fix-mode mutation can never land through CI.
+`bun run lint:fix` autofixes import order and formatting locally; CI runs only
+the check-mode `lint`.
 
 ## Tests
 
-Unit tests run with `bun run test` (add `--filter @boltwall/<pkg>` for one
-package) and gate every push. A few surfaces need infrastructure, so they are
+Unit tests run with `bun run test` and gate every push. A few surfaces need infrastructure, so they are
 **opt-in** — excluded from `bun run test` and run via their own scripts:
 
 | Command | Covers | Needs |
@@ -109,8 +103,8 @@ changes small and reviewable. Rules, enforced in review:
   (default `contents: read`); justify per-job overrides inline. Only the release
   and GitHub Pages deploy jobs may hold `id-token: write`, and only on the job
   that requests it.
-- Installs use `--frozen-lockfile` under the `bunfig.toml` `ignoreScripts`
-  baseline.
+- CI installs run with `--frozen-lockfile`; locally `bun install` is enough (the
+  `bunfig.toml` `ignoreScripts` baseline applies to both).
 - `pull_request_target` needs explicit maintainer sign-off — it grants
   write-scoped tokens to untrusted PR code; default to `pull_request`.
 

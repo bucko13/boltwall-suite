@@ -22,7 +22,7 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 
 - **Protocol-correct.** The L402 spec is the source of truth. [Aperture](https://github.com/lightninglabs/aperture) (the Lightning Labs Go implementation) is the interop reference.
 - **Browser and Node.** The core protocol library runs in both. Public API uses `Uint8Array`, not `Buffer`.
-- **MIT-licensed.** Packages are intended to publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope once the API is stable.
+- **MIT-licensed.** Packages publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope.
 
 ## Packages
 
@@ -34,7 +34,7 @@ A fresh TypeScript implementation of the L402 ecosystem, modernizing the pattern
 | `@boltwall/proxy`      | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
 | `@boltwall/playground` | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
 
-Install commands will be added once the API is stable enough to publish.
+These packages are not yet published to npm; clone the repo to use them (see Quickstart).
 
 ## Quickstart
 
@@ -43,7 +43,7 @@ The fastest way to see L402 in action is the playground:
 ```sh
 git clone https://github.com/bucko13/boltwall-suite.git
 cd boltwall-suite
-bun install --frozen-lockfile
+bun install
 bun run playground       # starts the playground on http://localhost:3000
 ```
 

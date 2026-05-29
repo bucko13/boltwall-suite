@@ -298,31 +298,7 @@ regtest helper emits base64, and PEM may also be accepted by the underlying
 regtest helper emits base64. Path-based tools should use explicit path names
 such as `LND_TLS_CERT_PATH`.
 
-During `boltwall deploy`, config values become generated runtime
-environment variables such as `TARGET_URL`, `LN_BACKEND`,
-`DEFAULT_PRICE_MSAT`, `CHALLENGE_COMPATIBILITY`, `UNPROTECTED_PATHS`,
-`FORWARD_ALLOW`, `FORWARD_DENY`, `CORS_ALLOW_ORIGINS`,
-`CORS_EXPOSE_HEADERS`, `CORS_ALLOW_HEADERS`, `CORS_ALLOW_METHODS`,
-`CORS_MAX_AGE_SECONDS`, `UPSTREAM_TIMEOUT_MS`, `POLICY_VALID_UNTIL`,
-`POLICY_VALID_UNTIL_SECONDS`, `POLICY_ORIGIN`, `CAPABILITIES`, and
-`PAYWALL_HODL`. When `cors` is configured, the runtime allows only the listed
-exact origins and exposes `WWW-Authenticate` by default so browser clients can
-read L402 challenges. `POLICY_ORIGIN` is separate from CORS: it binds minted
-credentials to request `Origin` headers using an `origin=<origins>` macaroon
-caveat — a condition baked into the token that the server re-checks on every
-request. Backend secret references map to the canonical Vercel-side names above.
-For example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
-project receives `OPENNODE_API_KEY`.
-
-Generated Vercel projects additionally receive `BOLTWALL_PROXY_ROOT_KEY` as a
-sensitive Vercel environment variable. The key derivation uses that secret to
-deterministically derive a 32-byte root key for each token id, matching
-L402 macaroon-spec.md §Identifier Structure and §Minting's server-side root-key
-requirement without keeping mutable per-token storage in Vercel. This is
-sufficient for persistence across serverless instances, but it does not support
-per-credential revocation: L402 macaroon-spec.md §Revocation requires deleting
-an individual stored root key, while rotating this secret invalidates every
-credential minted by that proxy.
+`boltwall deploy` generates the Vercel runtime environment variables from the saved config; backend secret references map to canonical Vercel-side names (e.g. a local `MY_OPENNODE_SECRET` becomes `OPENNODE_API_KEY` on the deployed project).
 
 ### Paywall Policy
 
@@ -413,6 +389,3 @@ credential-like output from failed Vercel commands.
 - Upstream timeouts and upstream 5xx responses are converted to a redacted
   `502` JSON response.
 
-The implementation is re-built around the L402 specs and the local middleware
-package. It does not copy source code, comments, tests, or generated docs from
-the AGPL legacy Boltwall implementation.

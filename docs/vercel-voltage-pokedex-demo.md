@@ -78,16 +78,11 @@ client origin):
 | Protected path                              | `/pokemon/*`                                                       |
 | Protected path price in millisatoshis       | `1000`                                                             |
 | Unprotected paths                           | `/healthz`                                                         |
-| Service name for service/capability caveats | press Enter                                                        |
-| Credential lifetime in seconds              | press Enter                                                        |
-| Origin caveat origins                       | press Enter                                                        |
-| Capability caveats to mint                  | press Enter                                                        |
 | Use HODL invoices                           | `no`                                                              |
 
-Leave the service/capability prompts blank for a basic proxy. They are for
-advanced authorization policy: a service name mints a `services=<name>:0` caveat,
-and capabilities mint `<service>_capabilities=...`. The L402 macaroon spec
-(§Caveat Format) defines these caveats and (§Verification) the satisfier behavior.
+Leave the service, capability, lifetime, and origin-caveat prompts empty for a basic proxy.
+
+See [the local regtest workflow](./local-regtest-proxy-playground.md) for the advanced service/capability caveat options.
 
 ## 3. Validate the proxy config
 
