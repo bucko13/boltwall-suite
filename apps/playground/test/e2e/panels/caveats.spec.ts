@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+const FIXTURE_HEADER =
+  'L402 macaroon="AGIAJEemVQUTEyNCR0exk7ek90Cg==", invoice="lnbc1500n1pw5kjhmpp5fu6xhthlt2vucmzkx6c7wtlh2r625r30cyjsfqhu8rsx4xpz5lwqdpa2fjkzep6yptksct5yp5hxgrrv96hx6twvusycn3qv9jx7ur5d9hkugr5dusx6cqzpgfyfm86pntt8vvkvffma5qc9n50h4mvqhngadqy3ngqjcym5a"';
+
 test.describe("panels / caveats", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/caveats");
@@ -31,6 +34,20 @@ test.describe("panels / caveats", () => {
     );
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("Caveat.decode");
     await expect(page.locator("[data-testid='code-snippet']")).not.toContainText("pokedex:0");
+  });
+
+  test("navigation preserves a remembered challenge from Parse", async ({ page }) => {
+    await page.goto("/p/parse");
+    await page.fill("[data-testid='challenge-input']", FIXTURE_HEADER);
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+
+    await page.getByTestId("nav-link-caveats").click();
+    await expect(page).toHaveURL(/\/p\/caveats/);
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("empty");
+
+    await page.getByTestId("nav-link-parse").click();
+    await expect(page.locator("[data-testid='parse-token-fill-challenge']")).toBeEnabled();
   });
 
   test("add a caveat and see it in the list", async ({ page }) => {
