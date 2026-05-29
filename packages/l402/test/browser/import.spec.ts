@@ -69,6 +69,8 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
 
       const challenge = l402.parseAuthenticateHeader(fixtures.challenge.header);
       const authorization = l402.parseAuthorizationHeader(fixtures.authorization.header);
+      const objectChallenge = l402.L402.fromHeader(fixtures.challenge.header);
+      const objectCredential = l402.L402.fromToken(fixtures.authorization.header);
       const identifier = l402.decodeIdentifier(fixtures.identifier.macaroon);
       const invoice = l402.decodeBolt11Invoice(fixtures.invoice.invoice);
       const preimageOk = l402.verifyPreimage({
@@ -121,9 +123,20 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           inspectMacaroon: typeof l402.inspectMacaroon,
           mintMacaroon: typeof l402.mintMacaroon,
           verifyMacaroon: typeof l402.verifyMacaroon,
+          L402: typeof l402.L402,
         },
         challenge,
         authorization,
+        objectChallenge: {
+          macaroon: objectChallenge.macaroon,
+          invoice: objectChallenge.invoice,
+          challenge: objectChallenge.toChallenge(),
+          headers: objectChallenge.toAuthenticateHeaders(),
+        },
+        objectCredential: {
+          macaroons: objectCredential.macaroons,
+          authorization: objectCredential.toAuthorizationHeader(),
+        },
         identifier: {
           version: identifier.version,
           paymentHashHex: bytesToHex(identifier.paymentHash),
@@ -192,11 +205,22 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     inspectMacaroon: "function",
     mintMacaroon: "function",
     verifyMacaroon: "function",
+    L402: "function",
   });
 
   expect(result.challenge).toEqual(challengeFixture.expected.fields);
   expect(result.authorization.macaroons).toHaveLength(2);
   expect(result.authorization).toEqual(authorizationFixture.expected.fields);
+  expect(result.objectChallenge).toEqual({
+    macaroon: challengeFixture.expected.fields[0]?.macaroon,
+    invoice: challengeFixture.expected.fields[0]?.invoice,
+    challenge: challengeFixture.header,
+    headers: [challengeFixture.header.replace(/^L402 /, "LSAT "), challengeFixture.header],
+  });
+  expect(result.objectCredential).toEqual({
+    macaroons: authorizationFixture.expected.fields.macaroons,
+    authorization: authorizationFixture.header,
+  });
   expect(result.identifier).toEqual(identifierFixture.expected.fields);
   expect(result.invalidIdentifierReason).toBe(malformedIdentifierFixture.expected.reason);
   expect(result.invoice).toEqual({

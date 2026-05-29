@@ -94,6 +94,53 @@ test.describe("L402 browser validation / playground bundle", () => {
     expect(result).toEqual(authorizationExpectedFields);
   });
 
+  test("L402 object workflow parses challenges and serializes credentials", async ({ page }) => {
+    const result = await page.evaluate(
+      ({
+        challengeHeader,
+        authorizationHeader,
+      }: {
+        challengeHeader: string;
+        authorizationHeader: string;
+      }) => {
+        const challenge = window.__l402!.L402.fromHeader(challengeHeader);
+        const credential = window.__l402!.L402.fromToken(authorizationHeader);
+        return {
+          exported: typeof window.__l402!.L402,
+          challenge: {
+            macaroon: challenge.macaroon,
+            invoice: challenge.invoice,
+            header: challenge.toChallenge(),
+            authenticateHeaders: challenge.toAuthenticateHeaders(),
+          },
+          credential: {
+            macaroons: credential.macaroons,
+            authorizationHeader: credential.toAuthorizationHeader(),
+          },
+        };
+      },
+      {
+        challengeHeader: challengeFixture.header,
+        authorizationHeader: authorizationFixture.header,
+      },
+    );
+
+    expect(result.exported).toBe("function");
+    expect(result.challenge).toEqual({
+      macaroon: challengeExpectedFields[0]?.macaroon,
+      invoice: challengeExpectedFields[0]?.invoice,
+      header: challengeFixture.header,
+      authenticateHeaders: [
+        challengeFixture.header.replace(/^L402 /, "LSAT "),
+        challengeFixture.header,
+      ],
+    });
+    expect(result.credential).toEqual({
+      macaroons: authorizationExpectedFields.macaroons,
+      authorizationHeader: authorizationFixture.header,
+    });
+  });
+
   test("decodeIdentifier extracts paymentHash and tokenId", async ({ page }) => {
     const result = await page.evaluate((macaroon: string) => {
       const id = window.__l402!.decodeIdentifier(macaroon);

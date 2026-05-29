@@ -9,9 +9,61 @@ import {
   SPEC_EXAMPLE_MACAROON,
   SPEC_EXAMPLE_MACAROON_2,
   SPEC_EXAMPLE_PREIMAGE,
+  specPreimageFixtures,
 } from "@boltwall/test-fixtures";
 
-import { L402 } from "../src";
+import {
+  buildAuthenticateHeaders,
+  buildAuthorizationHeader,
+  InMemoryRootKeyStore,
+  L402,
+  mintMacaroon,
+  servicesSatisfier,
+  validUntil,
+} from "../src";
+
+const goodPreimageFixture = specPreimageFixtures.find(
+  (fixture) => fixture.name === "zero-preimage-canonical",
+);
+
+if (goodPreimageFixture === undefined) {
+  throw new Error("missing-l402-good-preimage-fixture");
+}
+
+function hexToBytes(hex: string): Uint8Array {
+  const out = new Uint8Array(hex.length / 2);
+  for (let i = 0; i < out.length; i++) {
+    out[i] = Number.parseInt(hex.slice(i * 2, i * 2 + 2), 16);
+  }
+  return out;
+}
+
+async function mintVerifiableL402(): Promise<{
+  l402: L402;
+  rootKeyStore: InMemoryRootKeyStore;
+}> {
+  const rootKey = new Uint8Array(32).fill(0x11);
+  const tokenId = new Uint8Array(32).fill(0x22);
+  const rootKeyStore = new InMemoryRootKeyStore();
+  await rootKeyStore.put(tokenId, rootKey);
+  const macaroon = mintMacaroon({
+    rootKey,
+    identifier: {
+      version: 0,
+      paymentHash: hexToBytes(goodPreimageFixture.paymentHashHex),
+      tokenId,
+    },
+    caveats: [{ condition: "services", value: "pokedex:0" }],
+  });
+
+  return {
+    l402: new L402({
+      macaroons: macaroon,
+      paymentPreimage: goodPreimageFixture.preimageHex,
+    }),
+    rootKeyStore,
+  };
+}
 
 describe("L402 class facade / token round trips", () => {
   test("preserves legacy LSAT emission when legacy mode is requested", () => {
@@ -22,6 +74,23 @@ describe("L402 class facade / token round trips", () => {
   test("emits modern L402 by default from a modern token", () => {
     const token = `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`;
     expect(L402.fromToken(token).toToken()).toBe(token);
+  });
+
+  test("toAuthorizationHeader matches the low-level builder", () => {
+    const l402 = L402.fromToken(`LSAT ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`);
+    expect(l402.toAuthorizationHeader()).toBe(
+      buildAuthorizationHeader({
+        macaroons: SPEC_EXAMPLE_MACAROON,
+        preimage: SPEC_EXAMPLE_PREIMAGE,
+      }),
+    );
+    expect(l402.toAuthorizationHeader({ legacy: true })).toBe(
+      buildAuthorizationHeader({
+        macaroons: SPEC_EXAMPLE_MACAROON,
+        preimage: SPEC_EXAMPLE_PREIMAGE,
+        legacy: true,
+      }),
+    );
   });
 
   test("round-trips multi-macaroon credentials", () => {
@@ -66,6 +135,44 @@ describe("L402 class facade / challenges", () => {
       `LSAT macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
     );
   });
+
+  test("emits dual authenticate headers by default for server object workflows", () => {
+    const l402 = new L402({
+      macaroons: SPEC_EXAMPLE_MACAROON,
+      invoice: SPEC_EXAMPLE_INVOICE,
+    });
+    expect(l402.toAuthenticateHeaders()).toEqual(
+      buildAuthenticateHeaders({
+        macaroon: SPEC_EXAMPLE_MACAROON,
+        invoice: SPEC_EXAMPLE_INVOICE,
+      }),
+    );
+    expect(l402.toChallenge()).toBe(
+      `L402 macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+    );
+  });
+
+  test("collapses identical dual LSAT and L402 challenges into one object", () => {
+    const dual = [
+      `LSAT macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+      `L402 macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+    ];
+    const fromArray = L402.fromHeader(dual);
+    const fromFolded = L402.fromHeader(dual.join(", "));
+
+    expect(fromArray.macaroon).toBe(SPEC_EXAMPLE_MACAROON);
+    expect(fromArray.invoice).toBe(SPEC_EXAMPLE_INVOICE);
+    expect(fromFolded.toChallenge()).toBe(fromArray.toChallenge());
+  });
+
+  test("rejects conflicting repeated challenges", () => {
+    expect(() =>
+      L402.fromHeader([
+        `LSAT macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+        `L402 macaroon="${SPEC_EXAMPLE_MACAROON_2}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+      ]),
+    ).toThrow("ambiguous-challenge");
+  });
 });
 
 describe("L402 class facade / preimage state", () => {
@@ -98,6 +205,43 @@ describe("L402 class facade / preimage state", () => {
     expect(() =>
       l402.setPreimage("ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff"),
     ).toThrow("preimage-mismatch");
+  });
+});
+
+describe("L402 class facade / macaroon object helpers", () => {
+  test("attaches invoices and inspects caveats", async () => {
+    const { l402 } = await mintVerifiableL402();
+    expect(l402.addInvoice(SPEC_EXAMPLE_INVOICE)).toBe(l402);
+    expect(l402.invoice).toBe(SPEC_EXAMPLE_INVOICE);
+    expect(l402.inspectMacaroon().identifierBytes).toHaveLength(66);
+    expect(l402.getCaveats()).toEqual([{ condition: "services", value: "pokedex:0" }]);
+  });
+
+  test("adds first-party caveats and detects expiration caveats", async () => {
+    const { l402 } = await mintVerifiableL402();
+
+    l402.addFirstPartyCaveat(validUntil({ iso: "2026-01-01T00:00:00.000Z" }));
+    l402.addFirstPartyCaveat("expiration=1767225600000");
+
+    expect(l402.getCaveats()).toEqual([
+      { condition: "services", value: "pokedex:0" },
+      { condition: "valid-until", value: "2026-01-01T00:00:00.000Z" },
+      { condition: "expiration", value: "1767225600000" },
+    ]);
+    expect(l402.isExpired(new Date("2025-12-31T23:59:59.000Z"))).toBe(false);
+    expect(l402.isExpired(new Date("2026-01-01T00:00:00.000Z"))).toBe(true);
+  });
+
+  test("delegates verification with the attached preimage", async () => {
+    const { l402, rootKeyStore } = await mintVerifiableL402();
+
+    await expect(
+      l402.verify({
+        rootKeyStore,
+        satisfiers: [servicesSatisfier("pokedex")],
+        context: {},
+      }),
+    ).resolves.toEqual({ ok: true });
   });
 });
 

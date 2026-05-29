@@ -5,10 +5,25 @@ import {
   type AuthenticateHeaderCompatibility,
 } from "./build-authenticate-headers";
 import { buildAuthorizationHeader } from "./build-authorization-header";
+import { serializeCaveat, type Caveat } from "./caveats";
 import { decodeIdentifier } from "./decode-identifier";
+import {
+  inspectMacaroon as inspectMacaroonValue,
+  type MacaroonInspection,
+} from "./inspect-macaroon";
+import {
+  addFirstPartyCaveat as addRawFirstPartyCaveat,
+  decodeRaw,
+  encodeRaw,
+} from "./internal/macaroon";
 import { parseAuthenticateHeader } from "./parse-authenticate-header";
 import { parseAuthorizationHeader } from "./parse-authorization-header";
 import { VerificationFailureReason } from "./verification-failure";
+import {
+  verifyMacaroon,
+  type VerifyMacaroonArgs,
+  type VerifyMacaroonResult,
+} from "./verify-macaroon";
 import { verifyPreimage } from "./verify-preimage";
 
 /** Constructor input for the `L402` compatibility facade. */
@@ -38,6 +53,23 @@ export interface L402ChallengeOptions {
   /** Explicit single-scheme challenge mode; dual challenges need the functional helper. */
   compatibility?: Exclude<AuthenticateHeaderCompatibility, "dual">;
 }
+
+/** Serialization options for `L402#toAuthenticateHeaders`. */
+export interface L402AuthenticateHeadersOptions {
+  /**
+   * Challenge compatibility mode.
+   *
+   * Defaults to `"dual"` so server object workflows emit `LSAT` first and
+   * `L402` second, as recommended by L402 protocol-specification.md §10.
+   */
+  compatibility?: AuthenticateHeaderCompatibility;
+}
+
+/** Verification options for `L402#verify`. */
+export type L402VerifyOptions = Omit<VerifyMacaroonArgs, "macaroons" | "preimage"> & {
+  /** Override the object's attached payment preimage. */
+  preimage?: VerifyMacaroonArgs["preimage"];
+};
 
 function normalizeMacaroons(macaroons: string | string[]): string[] {
   const normalized = Array.isArray(macaroons) ? macaroons : [macaroons];
@@ -84,6 +116,42 @@ function parsePossiblyPendingToken(token: string): {
     macaroons: parsed.macaroons,
     paymentPreimage: parsed.preimage,
   };
+}
+
+function challengeIdentity(challenge: { macaroon: string; invoice: string }): string {
+  return `${challenge.macaroon}\u0000${challenge.invoice}`;
+}
+
+function assertMacaroonIndex(macaroons: string[], index: number): string {
+  const macaroon = macaroons[index];
+  if (macaroon === undefined) {
+    throw new RangeError("macaroon-index-out-of-range");
+  }
+  return macaroon;
+}
+
+function encodeCaveatInput(caveat: Caveat | string): Uint8Array {
+  const text = typeof caveat === "string" ? caveat : serializeCaveat(caveat);
+  return new TextEncoder().encode(text);
+}
+
+function parseValidUntil(value: string): number {
+  const timestamp = Date.parse(value);
+  if (!Number.isFinite(timestamp)) {
+    throw new Error("invalid-valid-until");
+  }
+  return timestamp;
+}
+
+function parseExpirationUnixMs(value: string): number {
+  if (!/^\d+$/.test(value)) {
+    throw new Error("invalid-expiration");
+  }
+  const unixMs = Number(value);
+  if (!Number.isSafeInteger(unixMs)) {
+    throw new Error("invalid-expiration");
+  }
+  return unixMs;
 }
 
 /**
@@ -182,6 +250,10 @@ export class L402 {
     return buildAuthorizationHeader(tokenOptions);
   }
 
+  toAuthorizationHeader(options: L402TokenOptions = {}): string {
+    return this.toToken(options);
+  }
+
   toPendingToken(options: L402TokenOptions = {}): string {
     const scheme = options.legacy === true ? "LSAT" : "L402";
     return `${scheme} ${this.macaroons.join(",")}:`;
@@ -198,6 +270,70 @@ export class L402 {
       invoice: this.invoice,
       compatibility,
     })[0]!;
+  }
+
+  toAuthenticateHeaders(options: L402AuthenticateHeadersOptions = {}): string[] {
+    if (this.invoice === undefined) {
+      throw new Error("missing-invoice");
+    }
+    return buildAuthenticateHeaders({
+      macaroon: this.macaroon,
+      invoice: this.invoice,
+      compatibility: options.compatibility ?? "dual",
+    });
+  }
+
+  addInvoice(invoice: string): this {
+    this.invoice = invoice;
+    return this;
+  }
+
+  inspectMacaroon(index = 0): MacaroonInspection {
+    return inspectMacaroonValue(assertMacaroonIndex(this.macaroons, index));
+  }
+
+  getCaveats(index = 0): Caveat[] {
+    return this.inspectMacaroon(index).caveats.flatMap((caveat) =>
+      caveat.parsed === null ? [] : [caveat.parsed],
+    );
+  }
+
+  addFirstPartyCaveat(caveat: Caveat | string, index = 0): this {
+    const macaroon = assertMacaroonIndex(this.macaroons, index);
+    const raw = decodeRaw(macaroon);
+    this.macaroons[index] = encodeRaw(addRawFirstPartyCaveat(raw, encodeCaveatInput(caveat)));
+    return this;
+  }
+
+  isExpired(now: Date = new Date()): boolean {
+    const nowMs = now.getTime();
+    if (!Number.isFinite(nowMs)) {
+      throw new Error("invalid-now");
+    }
+
+    return this.getCaveats().some((caveat) => {
+      if (caveat.condition === "valid-until") {
+        return nowMs >= parseValidUntil(caveat.value);
+      }
+      if (caveat.condition === "expiration") {
+        return nowMs >= parseExpirationUnixMs(caveat.value);
+      }
+      return false;
+    });
+  }
+
+  async verify(options: L402VerifyOptions): Promise<VerifyMacaroonResult> {
+    const { preimage, ...rest } = options;
+    const args: VerifyMacaroonArgs = {
+      ...rest,
+      macaroons: this.macaroons,
+    };
+    if (preimage !== undefined) {
+      args.preimage = preimage;
+    } else if (this.paymentPreimage !== undefined) {
+      args.preimage = this.paymentPreimage;
+    }
+    return verifyMacaroon(args);
   }
 
   /**
@@ -264,19 +400,31 @@ export class L402 {
     return new L402(options);
   }
 
-  static fromChallenge(challenge: string): L402 {
+  static fromChallenge(challenge: string | string[]): L402 {
+    if (Array.isArray(challenge)) {
+      return L402.fromHeader(challenge);
+    }
     const header = /^(L402|LSAT)\s/i.test(challenge) ? challenge : `L402 ${challenge}`;
-    const parsed = parseAuthenticateHeader(header)[0];
+    return L402.fromHeader(header);
+  }
+
+  static fromHeader(header: string | string[]): L402 {
+    const parsedChallenges = parseAuthenticateHeader(header);
+    const [parsed] = parsedChallenges;
     if (parsed === undefined) {
       throw new Error("empty-header");
     }
+
+    const firstIdentity = challengeIdentity(parsed);
+    for (const challenge of parsedChallenges.slice(1)) {
+      if (challengeIdentity(challenge) !== firstIdentity) {
+        throw new Error("ambiguous-challenge");
+      }
+    }
+
     return new L402({
       macaroons: parsed.macaroon,
       invoice: parsed.invoice,
     });
-  }
-
-  static fromHeader(header: string): L402 {
-    return L402.fromChallenge(header);
   }
 }

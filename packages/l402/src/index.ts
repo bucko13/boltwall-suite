@@ -26,7 +26,14 @@ export { decodeIdentifier, type MacaroonIdentifierV0 } from "./decode-identifier
 
 export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./decode-invoice";
 
-export { L402, type L402ChallengeOptions, type L402Options, type L402TokenOptions } from "./l402";
+export {
+  L402,
+  type L402AuthenticateHeadersOptions,
+  type L402ChallengeOptions,
+  type L402Options,
+  type L402TokenOptions,
+  type L402VerifyOptions,
+} from "./l402";
 
 export {
   inspectMacaroon,
