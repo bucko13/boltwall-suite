@@ -52,7 +52,7 @@ accepted for local development. Set `allowInsecureHttp: true` only in tests; it 
 
 ## Caveat factories
 
-Imported from `@boltwall/middleware/express` (re-exported from `@boltwall/l402`):
+Imported from `@boltwall/middleware/express` (re-exported from [`@boltwall/l402`](../l402/README.md)):
 
 | Factory                   | Condition           | Example                                       |
 | ------------------------- | ------------------- | --------------------------------------------- |
@@ -151,4 +151,4 @@ See [docs/migration-from-boltwall.md](../../docs/migration-from-boltwall.md).
 
 - `express` is a peer dependency so core-only consumers do not pull it transitively.
 - `pino` is used only by the optional structured logger import path; the core no-op logger path does not import it.
-- `@boltwall/adapters` is a runtime dependency for capability checking.
+- [`@boltwall/adapters`](../adapters/README.md) is a runtime dependency for capability checking.

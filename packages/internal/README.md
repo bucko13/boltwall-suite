@@ -11,7 +11,8 @@ What belongs here:
 - Hex and `Uint8Array` conversion helpers
 - Constant-time byte comparison for browser-safe code paths
 - Price-unit helpers under `@boltwall/internal/numeric` for sats, millisats,
-  and BTC conversions shared by middleware, proxy, and adapters.
+  and BTC conversions shared by [middleware](../middleware/README.md),
+  [proxy](../proxy/README.md), and [adapters](../adapters/README.md).
 - Small parsers, tokenizers, and validators used in multiple packages
 
 What does not belong here:
@@ -21,7 +22,7 @@ What does not belong here:
 - Large parsers or framework-specific integration code
 - Build or lint configuration
 
-Base64url handling currently lives in `@boltwall/l402` rather than here.
+Base64url handling currently lives in [`@boltwall/l402`](../l402/README.md) rather than here.
 
 Cross-runtime rules:
 

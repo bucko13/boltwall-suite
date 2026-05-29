@@ -71,7 +71,7 @@ When the endpoint returns a readable `402` challenge, the demo shows the L402
 scheme, invoice, and macaroon, then lets the user retry with WebLN or by pasting
 a paid preimage manually. Protected endpoints hosted on another origin need
 CORS headers that allow the playground origin and expose `WWW-Authenticate`,
-otherwise the browser cannot read the challenge header. `@boltwall/proxy`
+otherwise the browser cannot read the challenge header. [`@boltwall/proxy`](../../packages/proxy/README.md)
 supports this with `cors.allowOrigins`; configure the local playground origin or
 hosted playground URL on the proxy deployment, not in client-side secrets.
 

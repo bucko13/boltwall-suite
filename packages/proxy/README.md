@@ -6,7 +6,7 @@ Boltwall L402 payment authentication.
 The runtime owns proxy concerns only: route selection, upstream forwarding,
 header forwarding policy, and upstream error handling. L402 challenge emission,
 credential parsing, invoice creation, macaroon caveats, satisfiers, and payment
-verification are delegated to `@boltwall/middleware`.
+verification are delegated to [`@boltwall/middleware`](../middleware/README.md).
 
 > **New to L402?** See the [project README](../../README.md#what-is-l402) for
 > what L402 is and how the packages fit together.

@@ -1,7 +1,7 @@
 # Boltwall Express Server Example
 
 A minimal Express server protected by L402 payment authentication using
-`@boltwall/middleware` with `MockAdapter` (no real Lightning node required).
+[`@boltwall/middleware`](../../packages/middleware/README.md) with `MockAdapter` (no real Lightning node required).
 
 ## What it does
 
@@ -93,7 +93,7 @@ Expected response:
 
 ## For a real Lightning node
 
-Replace `MockAdapter` with `LndAdapter` from `@boltwall/adapters/lnd`:
+Replace `MockAdapter` with `LndAdapter` from [`@boltwall/adapters/lnd`](../../packages/adapters/README.md):
 
 ```ts
 import { LndAdapter } from "@boltwall/adapters/lnd";

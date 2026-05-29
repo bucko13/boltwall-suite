@@ -18,29 +18,34 @@ L402 is the modern incarnation of what was originally called **LSAT**. The wire 
 
 ## What is Boltwall Suite?
 
-A fresh TypeScript implementation of the L402 ecosystem, modernizing the patterns from earlier projects (`lsat-js`, `boltwall`, `now-boltwall`, `lsat-playground`). Design goals:
+A fresh TypeScript implementation of the L402 ecosystem, modernizing the patterns from earlier projects (`lsat-js`, `boltwall`, `now-boltwall`, `lsat-playground`). Boltwall suite is a monorepo providing a suite of standalone tools for working with L402s either
+to build with in your own codebases (e.g. [`@boltwall/l402`](./packages/l402/README.md) or [`@boltwall/middleware`](./packages/middleware/README.md)) or as simple L402 proxy deployments to use as a paywall for existing servers. 
+
+Design goals:
 
 - **Protocol-correct.** The L402 spec is the source of truth. [Aperture](https://github.com/lightninglabs/aperture) (the Lightning Labs Go implementation) is the interop reference.
 - **Browser and Node.** The core protocol library runs in both. Public API uses `Uint8Array`, not `Buffer`.
+- **Plug and play.** Code should be easy to integrate into other compatible codebases and architectures
+- **Self-guided learning.** Easy to learn how macaroons and bitcoin powered paywalls work.
 - **MIT-licensed.** Packages publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope.
 
 ## Packages
 
 | Package                | Status  | Purpose                                                                                                  |
 | ---------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| `@boltwall/l402`       | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
-| `@boltwall/middleware` | Private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
-| `@boltwall/adapters`   | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
-| `@boltwall/proxy`      | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
-| `@boltwall/playground` | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
+| [`@boltwall/l402`](./packages/l402/README.md) | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
+| [`@boltwall/middleware`](./packages/middleware/README.md) | Private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
+| [`@boltwall/adapters`](./packages/adapters/README.md) | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
+| [`@boltwall/proxy`](./packages/proxy/README.md) | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
+| [`@boltwall/playground`](./apps/playground/README.md) | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
 
 These packages are not yet published to npm; clone the repo to use them (see Quickstart).
 
 **Which one do I use?**
 
-- Protect an Express/Next.js/Hono endpoint → `@boltwall/middleware` + `@boltwall/adapters`
-- Parse, mint, or verify L402 headers and credentials → `@boltwall/l402`
-- Put a payment gate in front of an existing API without changing it → `@boltwall/proxy`
+- Protect an Express/Next.js/Hono endpoint → [`@boltwall/middleware`](./packages/middleware/README.md) + [`@boltwall/adapters`](./packages/adapters/README.md)
+- Parse, mint, or verify L402 headers and credentials → [`@boltwall/l402`](./packages/l402/README.md)
+- Put a payment gate in front of an existing API without changing it → [`@boltwall/proxy`](./packages/proxy/README.md)
 - Just try the full challenge → pay → retry flow → the [playground](https://boltwall-suite-playground.vercel.app)
 
 ## Quickstart
@@ -64,7 +69,7 @@ tests, and the development checks.
 
 ## API Reference
 
-Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of `@boltwall/l402`, `@boltwall/middleware`, `@boltwall/adapters`, and `@boltwall/proxy`. Build it locally:
+Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of [`@boltwall/l402`](./packages/l402/README.md), [`@boltwall/middleware`](./packages/middleware/README.md), [`@boltwall/adapters`](./packages/adapters/README.md), and [`@boltwall/proxy`](./packages/proxy/README.md). Build it locally:
 
 ```sh
 bun run docs:api   # outputs a static HTML site to docs-site/
@@ -123,7 +128,7 @@ security, deployment, or public API changes.
 The playground is a Next.js/Vercel app for inspecting L402 headers, caveats,
 invoices, credentials, and payment flows. The Demo panel calls a configured
 protected endpoint and shows the response status plus any `WWW-Authenticate`
-challenge; the paid resource is served by a separately deployed `@boltwall/proxy`
+challenge; the paid resource is served by a separately deployed [`@boltwall/proxy`](./packages/proxy/README.md)
 that the playground points at via configuration. The
 [local regtest workflow](./docs/local-regtest-proxy-playground.md) walks the full
 challenge → pay → retry path end to end.
