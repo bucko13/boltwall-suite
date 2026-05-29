@@ -77,7 +77,26 @@ export interface LoadProxyEnvOptions {
   envFile?: string;
 }
 
-/** Load secret-safe proxy runtime config from exported env vars and an optional env file. */
+/**
+ * Load secret-safe proxy runtime config from exported env vars and an optional env file.
+ *
+ * The returned config omits the live backend and root-key store, so spread it
+ * into {@link ProxyConfig} alongside those constructed dependencies.
+ *
+ * @example
+ * ```ts
+ * import { createProxy, loadProxyEnv } from "@boltwall/proxy";
+ * import { InMemoryRootKeyStore } from "@boltwall/l402";
+ * import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
+ *
+ * const envConfig = loadProxyEnv({ envFile: ".env.local" });
+ * const app = createProxy({
+ *   ...envConfig,
+ *   backend: new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! }),
+ *   rootKeyStore: new InMemoryRootKeyStore(),
+ * });
+ * ```
+ */
 export function loadProxyEnv(options: LoadProxyEnvOptions = {}): ProxyEnvConfig {
   const env = options.env ?? process.env;
   const merged = options.envFile === undefined ? env : { ...readEnvFile(options.envFile), ...env };

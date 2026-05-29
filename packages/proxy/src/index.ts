@@ -89,6 +89,23 @@ export interface ProxyConfig extends Pick<
  * The proxy chooses a per-request price/caveat policy, delegates challenge and
  * credential verification to `@boltwall/middleware`, then forwards authorized
  * requests to `targetUrl` through `http-proxy-middleware`.
+ *
+ * @example
+ * ```ts
+ * import { createProxy } from "@boltwall/proxy";
+ * import { InMemoryRootKeyStore } from "@boltwall/l402";
+ * import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
+ *
+ * const app = createProxy({
+ *   targetUrl: "https://api.example.com",
+ *   backend: new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! }),
+ *   rootKeyStore: new InMemoryRootKeyStore(),
+ *   defaultPrice: 1_000n,
+ *   unprotectedPaths: ["/healthz"],
+ * });
+ *
+ * app.listen(8080);
+ * ```
  */
 export function createProxy(config: ProxyConfig): Express {
   const target = new URL(config.targetUrl);
