@@ -1,5 +1,6 @@
 import { parseAmount } from "@boltwall/internal/numeric";
 
+import { normalizeHash32, normalizeHexString } from "../internal/hex";
 import type {
   BackendCapabilities,
   BackendKind,
@@ -26,7 +27,6 @@ export {
 } from "./rest-client";
 export { BtcPayEnvError, loadBtcPayEnv, type BtcPayEnv } from "./env";
 
-const HEX_32_BYTES_LENGTH = 64;
 const DEFAULT_CRYPTO_CODE = "BTC";
 
 /**
@@ -266,19 +266,18 @@ function invoiceStatus(
 }
 
 function normalizePaymentHash(value: string): string {
-  const normalized = normalizeHex(value, "payment-hash");
-  if (normalized.length !== HEX_32_BYTES_LENGTH) {
-    throw new BtcPayAdapterError("invalid-response", "BTCPay payment hash must be 32 bytes");
-  }
-  return normalized;
+  return normalizeHash32(
+    value,
+    () => new BtcPayAdapterError("invalid-response", "BTCPay payment-hash must be hex encoded"),
+    () => new BtcPayAdapterError("invalid-response", "BTCPay payment hash must be 32 bytes"),
+  );
 }
 
 function normalizeHex(value: string, label: string): string {
-  const normalized = value.toLowerCase();
-  if (!/^[0-9a-f]+$/.test(normalized)) {
-    throw new BtcPayAdapterError("invalid-response", `BTCPay ${label} must be hex encoded`);
-  }
-  return normalized;
+  return normalizeHexString(
+    value,
+    () => new BtcPayAdapterError("invalid-response", `BTCPay ${label} must be hex encoded`),
+  );
 }
 
 function parseMsat(value: string, label: string): bigint {

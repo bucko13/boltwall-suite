@@ -17,6 +17,7 @@ import type {
   SubscribeToInvoicesInvoiceUpdatedEvent,
 } from "lightning";
 
+import { normalizeHash32, normalizeHexString } from "../internal/hex";
 import type {
   BackendCapabilities,
   BackendKind,
@@ -26,8 +27,6 @@ import type {
   InvoiceStatus,
   LightningBackend,
 } from "../types";
-
-const HEX_32_BYTES_LENGTH = 64;
 
 export interface LndAdapterOptions {
   /** LND gRPC socket, for example `127.0.0.1:10009`. */
@@ -328,19 +327,18 @@ function parseMsat(mtokens: string | number | undefined, tokens?: number): bigin
 }
 
 function normalizePaymentHash(value: string): string {
-  const normalized = normalizeHex(value, "payment-hash");
-  if (normalized.length !== HEX_32_BYTES_LENGTH) {
-    throw new LndAdapterError("invalid-request", "Payment hash must be 32 bytes");
-  }
-  return normalized;
+  return normalizeHash32(
+    value,
+    () => new LndAdapterError("invalid-request", "payment-hash must be hex encoded"),
+    () => new LndAdapterError("invalid-request", "Payment hash must be 32 bytes"),
+  );
 }
 
 function normalizeHex(value: string, label: string): string {
-  const normalized = value.toLowerCase();
-  if (!/^[0-9a-f]+$/.test(normalized)) {
-    throw new LndAdapterError("invalid-request", `${label} must be hex encoded`);
-  }
-  return normalized;
+  return normalizeHexString(
+    value,
+    () => new LndAdapterError("invalid-request", `${label} must be hex encoded`),
+  );
 }
 
 function normalizeLndError(error: unknown, message: string): LndAdapterError {

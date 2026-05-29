@@ -1,6 +1,7 @@
 import { msatsToSats, satsToMsats } from "@boltwall/internal/numeric";
 import { decodeBolt11Invoice } from "@boltwall/l402";
 
+import { normalizeHash32 } from "../internal/hex";
 import type {
   BackendCapabilities,
   BackendKind,
@@ -19,7 +20,6 @@ export { OpenNodeApiError, type OpenNodeFetch } from "./rest-client";
 const OPENNODE_DEFAULT_BASE_URL = "https://api.opennode.com";
 const OPENNODE_MIN_TTL_MINUTES = 10;
 const OPENNODE_MAX_TTL_MINUTES = 4_320;
-const HEX_32_BYTES_LENGTH = 64;
 
 export interface OpenNodeInvoiceDecoderResult {
   paymentHashHex: string;
@@ -58,6 +58,19 @@ export interface Clock {
   now(): Date;
 }
 
+export interface OpenNodeAdapterFeatures {
+  /**
+   * Reserved for deployments with verified HODL invoice support. OpenNode's
+   * documented charge lifecycle does not expose HODL/preimage settlement.
+   */
+  hodlInvoices?: boolean;
+  /**
+   * Reserved for deployments with verified invoice streaming support. The
+   * current adapter implements explicit polling lookup only.
+   */
+  streamingInvoices?: boolean;
+}
+
 export interface OpenNodeAdapterOptions {
   /** OpenNode API key. Stored privately and never exposed on the adapter. */
   apiKey: string;
@@ -76,12 +89,15 @@ export interface OpenNodeAdapterOptions {
   clock?: Clock;
   /** Reserved for future redacted operational logging. */
   logger?: SecretRedactingLogger;
+  /** Explicit deployment feature flags. Unsupported `true` flags fail at boot. */
+  features?: OpenNodeAdapterFeatures;
 }
 
 export type OpenNodeAdapterErrorKind =
   | "invalid-request"
   | "invalid-response"
   | "not-found"
+  | "unsupported-feature"
   | "opennode-error";
 
 export class OpenNodeAdapterError extends Error {
@@ -124,6 +140,18 @@ export class OpenNodeAdapter implements LightningBackend {
     if (opts.apiKey.trim() === "") {
       throw new OpenNodeAdapterError("invalid-request", "OpenNode apiKey is required");
     }
+    if (opts.features?.hodlInvoices === true) {
+      throw new OpenNodeAdapterError(
+        "unsupported-feature",
+        "OpenNode HODL invoices are not supported by the documented charge lifecycle",
+      );
+    }
+    if (opts.features?.streamingInvoices === true) {
+      throw new OpenNodeAdapterError(
+        "unsupported-feature",
+        "OpenNode invoice streaming is not implemented by this polling adapter",
+      );
+    }
 
     this.#client = new OpenNodeRestClient({
       apiKey: opts.apiKey,
@@ -136,7 +164,10 @@ export class OpenNodeAdapter implements LightningBackend {
 
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
     if (request.hodl === true) {
-      throw new OpenNodeAdapterError("invalid-request", "OpenNode does not support HODL invoices");
+      throw new OpenNodeAdapterError(
+        "unsupported-feature",
+        "OpenNode does not support HODL invoices",
+      );
     }
 
     const charge = await this.#client.createCharge(createChargeBody(request));
@@ -304,11 +335,9 @@ function requireChargeId(charge: OpenNodeCharge): string {
 }
 
 function normalizePaymentHash(value: string): string {
-  const normalized = value.toLowerCase();
-  if (normalized.length !== HEX_32_BYTES_LENGTH || !/^[0-9a-f]+$/.test(normalized)) {
-    throw new OpenNodeAdapterError("invalid-response", "Payment hash must be a 32-byte hex string");
-  }
-  return normalized;
+  const notHash32 = (): OpenNodeAdapterError =>
+    new OpenNodeAdapterError("invalid-response", "Payment hash must be a 32-byte hex string");
+  return normalizeHash32(value, notHash32, notHash32);
 }
 
 function chargeExpiresAt(charge: OpenNodeCharge): Date | undefined {

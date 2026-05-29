@@ -1,6 +1,6 @@
 import { describe, expect, test } from "bun:test";
 
-import { MockAdapter } from "../src/testing";
+import { MockAdapter, MockAdapterError } from "../src/testing";
 
 const PAYMENT_HASH =
   "1111111111111111111111111111111111111111111111111111111111111111";
@@ -96,9 +96,11 @@ describe("MockAdapter", () => {
       paymentHash: PAYMENT_HASH,
     });
 
-    await expect(adapter.settleHodlInvoice(ZERO_PREIMAGE)).rejects.toThrow(
-      "mock-hodl-preimage-mismatch",
-    );
+    await expect(adapter.settleHodlInvoice(ZERO_PREIMAGE)).rejects.toMatchObject({
+      kind: "hodl-preimage-mismatch",
+      message: "mock-hodl-preimage-mismatch",
+    });
+    await expect(adapter.settleHodlInvoice(ZERO_PREIMAGE)).rejects.toBeInstanceOf(MockAdapterError);
   });
 
   test("subscribeInvoices emits open and settled updates", async () => {

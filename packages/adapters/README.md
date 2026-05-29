@@ -169,8 +169,11 @@ subscription stream. The adapter therefore advertises:
 | Streaming invoices  | `false` | Webhooks exist, but no adapter-level stream API.     |
 | Custom descriptions | `true`  | `description` is a documented create-charge field.   |
 
-`OpenNodeAdapter#createInvoice({ hodl: true })` rejects at call time, and
-`assertBackendSupports(adapter, { hodl: true })` rejects at boot time.
+`OpenNodeAdapter#createInvoice({ hodl: true })` rejects at call time with an
+`unsupported-feature` error, and `assertBackendSupports(adapter, { hodl: true })`
+rejects at boot time. Passing `features.hodlInvoices` or
+`features.streamingInvoices` as `true` to the constructor fails at boot for the
+same reason, mirroring the BTCPay adapter.
 
 ### Lookup persistence
 
@@ -330,3 +333,10 @@ Server-only boundary: network/payment-provider adapters are server runtime code.
 Do not import concrete adapters from playground client components or any browser
 bundle. Browser-facing code should depend on protocol helpers from
 `@boltwall/l402` and test doubles from `@boltwall/adapters/testing` only.
+
+Only `@boltwall/adapters/testing` is built to run in the browser. The concrete
+adapters keep their workspace dependencies (such as `@boltwall/l402`) as bare
+external imports, so importing one directly into a browser module graph fails to
+resolve rather than silently shipping payment-provider code to a client bundle.
+The browser import suite covers both the supported `MockAdapter` path and this
+production adapter server-only surface.

@@ -83,3 +83,33 @@ test("imports MockAdapter from the built testing subpath in Chromium", async ({ 
     status: "settled",
   });
 });
+
+test("a production adapter is not browser-resolvable in Chromium", async ({ page }) => {
+  // Production adapters are server-only. Unlike the testing subpath, their build
+  // keeps workspace dependencies (e.g. `@boltwall/l402`) as bare external
+  // imports, which a browser module graph cannot resolve. This pins that
+  // server-only surface: importing a concrete adapter in the browser fails at
+  // module resolution rather than silently shipping payment-provider code to a
+  // client bundle.
+  await page.setContent(`
+    <script type="module">
+      const result = { imported: false };
+      try {
+        const mod = await import("${baseUrl}/opennode/index.js");
+        result.imported = typeof mod.OpenNodeAdapter === "function";
+      } catch (error) {
+        result.importFailed = true;
+      }
+      globalThis.__productionAdapterResult = result;
+    </script>
+  `);
+
+  const result = await page
+    .waitForFunction(() => globalThis.__productionAdapterResult)
+    .then((handle) => handle.jsonValue());
+
+  expect(result).toEqual({
+    imported: false,
+    importFailed: true,
+  });
+});

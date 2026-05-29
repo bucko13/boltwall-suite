@@ -113,7 +113,7 @@ describe("OpenNodeAdapter", () => {
     });
 
     await expect(adapter.createInvoice({ amountMsat: 1_000n, hodl: true })).rejects.toMatchObject({
-      kind: "invalid-request",
+      kind: "unsupported-feature",
       message: "OpenNode does not support HODL invoices",
     });
     await expect(adapter.createInvoice({ amountMsat: 1_001n })).rejects.toMatchObject({
@@ -252,6 +252,19 @@ describe("OpenNodeAdapter", () => {
       expect(message).not.toContain(invoice);
       expect(message).toContain("[redacted-opennode-api-key]");
       expect(message).toContain("[redacted-bolt11]");
+    }
+  });
+
+  test.each([
+    { hodlInvoices: true },
+    { streamingInvoices: true },
+  ])("rejects unsupported feature flags at construction (%o)", (features) => {
+    try {
+      new OpenNodeAdapter({ apiKey: API_KEY, features });
+      throw new Error("expected throw");
+    } catch (error) {
+      expect(error).toBeInstanceOf(OpenNodeAdapterError);
+      expect((error as OpenNodeAdapterError).kind).toBe("unsupported-feature");
     }
   });
 

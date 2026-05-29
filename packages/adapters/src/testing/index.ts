@@ -1,5 +1,6 @@
 import { bytesToHex, hexToBytes32 } from "@boltwall/internal";
 
+import { normalizeHash32, normalizeHexString } from "../internal/hex";
 import type {
   BackendCapabilities,
   BackendKind,
@@ -9,7 +10,34 @@ import type {
   LightningBackend,
 } from "../types";
 
-const HEX_32_BYTES_LENGTH = 64;
+/**
+ * Stable classification for `MockAdapter` failures. Mirrors the structured
+ * `{ kind, message, cause }` contract used by the production adapters so
+ * downstream code can inspect `.kind` uniformly.
+ */
+export type MockAdapterErrorKind =
+  | "hodl-payment-hash-required"
+  | "hodl-preimage-mismatch"
+  | "invoice-not-found"
+  | "invalid-payment-hash"
+  | "invalid-hex"
+  | "invalid-preimage";
+
+/**
+ * Error thrown by `MockAdapter`. Matches the structured-error contract of the
+ * production adapter errors (`BtcPayAdapterError`, `OpenNodeAdapterError`).
+ */
+export class MockAdapterError extends Error {
+  readonly kind: MockAdapterErrorKind;
+  override readonly cause: unknown;
+
+  constructor(kind: MockAdapterErrorKind, message: string, cause?: unknown) {
+    super(message);
+    this.name = "MockAdapterError";
+    this.kind = kind;
+    this.cause = cause;
+  }
+}
 
 interface StoredInvoice extends InvoiceLookup {
   paymentRequest: string;
@@ -44,7 +72,10 @@ export class MockAdapter implements LightningBackend {
       request.paymentHash ?? this.#nextPaymentHash(request),
     );
     if (request.hodl === true && request.paymentHash === undefined) {
-      throw new Error("mock-hodl-payment-hash-required");
+      throw new MockAdapterError(
+        "hodl-payment-hash-required",
+        "mock-hodl-payment-hash-required",
+      );
     }
 
     const expiresAt =
@@ -82,7 +113,7 @@ export class MockAdapter implements LightningBackend {
     const paymentHash = await sha256Hex(hexToBytes(preimage, "preimage"));
     const invoice = this.#invoices.get(paymentHash);
     if (invoice === undefined || invoice.hodl !== true) {
-      throw new Error("mock-hodl-preimage-mismatch");
+      throw new MockAdapterError("hodl-preimage-mismatch", "mock-hodl-preimage-mismatch");
     }
     this.#transition(paymentHash, { status: "settled", preimage: normalizeHex(preimage) });
   }
@@ -166,7 +197,7 @@ export class MockAdapter implements LightningBackend {
   #requireInvoice(paymentHash: string): StoredInvoice {
     const invoice = this.#invoices.get(normalizePaymentHash(paymentHash));
     if (invoice === undefined) {
-      throw new Error("mock-invoice-not-found");
+      throw new MockAdapterError("invoice-not-found", "mock-invoice-not-found");
     }
     return invoice;
   }
@@ -194,26 +225,22 @@ function copyLookup(invoice: InvoiceLookup): InvoiceLookup {
 }
 
 function normalizePaymentHash(value: string): string {
-  const normalized = normalizeHex(value);
-  if (normalized.length !== HEX_32_BYTES_LENGTH) {
-    throw new Error("invalid-payment-hash");
-  }
-  return normalized;
+  return normalizeHash32(
+    value,
+    () => new MockAdapterError("invalid-hex", "invalid-hex"),
+    () => new MockAdapterError("invalid-payment-hash", "invalid-payment-hash"),
+  );
 }
 
 function normalizeHex(value: string): string {
-  const normalized = value.toLowerCase();
-  if (!/^[0-9a-f]+$/.test(normalized)) {
-    throw new Error("invalid-hex");
-  }
-  return normalized;
+  return normalizeHexString(value, () => new MockAdapterError("invalid-hex", "invalid-hex"));
 }
 
 function hexToBytes(value: string, label: string): Uint8Array {
   try {
     return hexToBytes32(normalizeHex(value), label);
-  } catch {
-    throw new Error(`invalid-${label}`);
+  } catch (error) {
+    throw new MockAdapterError("invalid-preimage", `invalid-${label}`, error);
   }
 }
 
