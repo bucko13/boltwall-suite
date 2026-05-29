@@ -1,15 +1,4 @@
 export {
-  buildAuthenticateHeaders,
-  type AuthenticateHeaderCompatibility,
-  type BuildAuthenticateHeadersArgs,
-} from "./build-authenticate-headers";
-
-export {
-  buildAuthorizationHeader,
-  type BuildAuthorizationHeaderArgs,
-} from "./build-authorization-header";
-
-export {
   Caveat,
   capabilitiesCaveat,
   constraintCaveat,
@@ -24,9 +13,23 @@ export {
   type CaveatComparator,
 } from "./caveats";
 
-export { decodeIdentifier, type MacaroonIdentifierV0 } from "./decode-identifier";
+export {
+  buildAuthenticateHeaders,
+  buildAuthorizationHeader,
+  parseAuthenticateHeader,
+  parseAuthorizationHeader,
+  type AuthenticateHeaderCompatibility,
+  type BuildAuthenticateHeadersArgs,
+  type BuildAuthorizationHeaderArgs,
+  type L402ChallengeFields,
+  type L402CredentialFields,
+  type L402Scheme,
+  type ParseAuthorizationHeaderOptions,
+} from "./headers";
 
-export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./decode-invoice";
+export { Identifier, decodeIdentifier, type MacaroonIdentifierV0 } from "./identifier";
+
+export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./invoice";
 
 export {
   L402,
@@ -39,39 +42,21 @@ export {
 
 export {
   inspectMacaroon,
-  type InspectedMacaroonCaveat,
-  type MacaroonInspection,
-} from "./inspect-macaroon";
-
-export { mintMacaroon, type MintMacaroonArgs } from "./mint-macaroon";
-
-export {
-  parseAuthenticateHeader,
-  type L402ChallengeFields,
-  type L402Scheme,
-} from "./parse-authenticate-header";
-
-export {
-  parseAuthorizationHeader,
-  type L402CredentialFields,
-  type ParseAuthorizationHeaderOptions,
-} from "./parse-authorization-header";
-
-export { InMemoryRootKeyStore, type RootKeyStore } from "./root-key-store";
-
-export { verifyPreimage, type VerifyPreimageArgs } from "./verify-preimage";
-
-export {
+  mintMacaroon,
   verifyMacaroon,
-  type VerifyMacaroonArgs,
-  type VerifyMacaroonResult,
-} from "./verify-macaroon";
-
-export {
+  verifyPreimage,
   VerificationFailurePrefix,
   VerificationFailureReason,
+  type InspectedMacaroonCaveat,
+  type MacaroonInspection,
+  type MintMacaroonArgs,
   type VerificationFailureReasonValue,
-} from "./verification-failure";
+  type VerifyMacaroonArgs,
+  type VerifyMacaroonResult,
+  type VerifyPreimageArgs,
+} from "./macaroon";
+
+export { InMemoryRootKeyStore, type RootKeyStore } from "./root-key-store";
 
 export {
   capabilitiesSatisfier,

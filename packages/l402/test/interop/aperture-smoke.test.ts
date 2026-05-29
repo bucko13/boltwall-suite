@@ -13,7 +13,7 @@ import {
   type Caveat,
   type CaveatSatisfier,
 } from "../../src";
-import { decodeRaw } from "../../src/internal/macaroon";
+import { decodeRaw } from "../../src/macaroon";
 
 const APERTURE_PAYMENT_HASH = Uint8Array.from({ length: 32 }, (_, index) => index + 1);
 const APERTURE_TOKEN_ID = Uint8Array.from({ length: 32 }, (_, index) => 32 - index);

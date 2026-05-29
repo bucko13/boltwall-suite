@@ -1,30 +1,26 @@
 import { bytesToHex, hexToBytes32 } from "@boltwall/internal";
 
+import { serializeCaveat, type Caveat } from "./caveats";
 import {
   buildAuthenticateHeaders,
+  buildAuthorizationHeader,
+  parseAuthenticateHeader,
+  parseAuthorizationHeader,
   type AuthenticateHeaderCompatibility,
-} from "./build-authenticate-headers";
-import { buildAuthorizationHeader } from "./build-authorization-header";
-import { serializeCaveat, type Caveat } from "./caveats";
-import { decodeIdentifier } from "./decode-identifier";
-import {
-  inspectMacaroon as inspectMacaroonValue,
-  type MacaroonInspection,
-} from "./inspect-macaroon";
+} from "./headers";
+import { decodeIdentifier } from "./identifier";
 import {
   addFirstPartyCaveat as addRawFirstPartyCaveat,
   decodeRaw,
   encodeRaw,
-} from "./internal/macaroon";
-import { parseAuthenticateHeader } from "./parse-authenticate-header";
-import { parseAuthorizationHeader } from "./parse-authorization-header";
-import { VerificationFailureReason } from "./verification-failure";
-import {
+  inspectMacaroon as inspectMacaroonValue,
   verifyMacaroon,
+  verifyPreimage,
+  VerificationFailureReason,
+  type MacaroonInspection,
   type VerifyMacaroonArgs,
   type VerifyMacaroonResult,
-} from "./verify-macaroon";
-import { verifyPreimage } from "./verify-preimage";
+} from "./macaroon";
 
 /** Constructor input for the `L402` compatibility facade. */
 export interface L402Options {
@@ -173,6 +169,12 @@ function parseExpirationUnixMs(value: string): number {
  *   WWW-Authenticate grammar and LSAT/L402 backwards compatibility.
  * - L402 macaroon-spec.md Identifier Structure and Verification: payment hash
  *   extraction and `sha256(preimage) == payment_hash` validation.
+ *
+ * @example
+ * // Parse a challenge, attach the paid preimage, then emit the Authorization token.
+ * const l402 = L402.fromChallenge(wwwAuthenticateHeader);
+ * l402.setPreimage(preimageHex);
+ * const authorization = l402.toToken(); // "L402 <macaroon>:<preimage>"
  */
 export class L402 {
   readonly macaroons: string[];

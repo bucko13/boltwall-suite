@@ -6,7 +6,7 @@ import {
   mintMacaroon,
   parseAuthorizationHeader,
 } from "../src";
-import { decodeRaw } from "../src/internal/macaroon";
+import { decodeRaw } from "../src/macaroon";
 
 describe("mintMacaroon", () => {
   test("mints a macaroon whose v0 identifier decodes to the input", () => {

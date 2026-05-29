@@ -4,7 +4,7 @@ import {
   VerificationFailurePrefix,
   VerificationFailureReason,
   type VerificationFailureReasonValue,
-} from "../src/verification-failure";
+} from "../src/macaroon";
 
 describe("VerificationFailureReason", () => {
   test("exposes the documented runtime strings unchanged", () => {

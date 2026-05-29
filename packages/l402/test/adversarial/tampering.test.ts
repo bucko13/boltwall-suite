@@ -8,7 +8,7 @@ import {
 } from "@boltwall/test-fixtures";
 
 import { InMemoryRootKeyStore, mintMacaroon, servicesSatisfier, verifyMacaroon } from "../../src";
-import { decodeRaw, encodeRaw, type RawMacaroon } from "../../src/internal/macaroon";
+import { decodeRaw, encodeRaw, type RawMacaroon } from "../../src/macaroon";
 
 // L402 macaroon-spec.md §HMAC Chain Construction and §Verification require
 // identifier, caveat, and signature bytes to be tamper-proof through the

@@ -4,10 +4,10 @@ import {
   crossParserRoundTripFixtures,
   lsatJsCompatFixtures,
 } from "@boltwall/test-fixtures";
-import { buildAuthenticateHeaders } from "../src/build-authenticate-headers";
-import { buildAuthorizationHeader } from "../src/build-authorization-header";
-import { parseAuthenticateHeader } from "../src/parse-authenticate-header";
-import { parseAuthorizationHeader } from "../src/parse-authorization-header";
+import { buildAuthenticateHeaders } from "../src/headers";
+import { buildAuthorizationHeader } from "../src/headers";
+import { parseAuthenticateHeader } from "../src/headers";
+import { parseAuthorizationHeader } from "../src/headers";
 import { parseCaveat } from "../src/caveats";
 
 describe("lsat-js compatibility fixtures", () => {

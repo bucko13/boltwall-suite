@@ -11,7 +11,7 @@ import {
   verifyMacaroon,
   type CaveatSatisfier,
 } from "../src";
-import { decodeRaw, encodeRaw, type RawMacaroon } from "../src/internal/macaroon";
+import { decodeRaw, encodeRaw, type RawMacaroon } from "../src/macaroon";
 
 describe("verifyMacaroon", () => {
   test("accepts a single macaroon with matching signature, preimage, and caveat", async () => {

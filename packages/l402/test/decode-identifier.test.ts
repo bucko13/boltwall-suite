@@ -5,7 +5,7 @@ import {
   specIdentifierFixtures,
   type IdentifierFixture,
 } from "../../test-fixtures/src/identifiers";
-import { decodeIdentifier } from "../src/decode-identifier";
+import { decodeIdentifier } from "../src/identifier";
 
 function bytesToHex(bytes: Uint8Array): string {
   return [...bytes].map((byte) => byte.toString(16).padStart(2, "0")).join("");

@@ -9,7 +9,7 @@ import {
   mintRaw,
   verifyRawSignature,
   type RawMacaroon,
-} from "../src/internal/macaroon";
+} from "../src/macaroon";
 
 describe("MacaroonCodec / raw mint, encode, decode, verify", () => {
   for (const fixture of macaroonCodecFixtures) {

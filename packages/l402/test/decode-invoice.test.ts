@@ -1,7 +1,7 @@
 import { describe, expect, it } from "bun:test";
 import { BOLT11_SPEC_EXAMPLES } from "@boltwall/test-fixtures";
 
-import { decodeBolt11Invoice } from "../src/decode-invoice";
+import { decodeBolt11Invoice } from "../src/invoice";
 
 const BASE_DENOMINATION_INVOICE = BOLT11_SPEC_EXAMPLES.find(
   (fixture) => fixture.name === "bolt11-spec-microbtc-mainnet",

@@ -6,6 +6,9 @@ import { decode } from "light-bolt11-decoder";
  */
 export type Bolt11Network = "mainnet" | "testnet" | "signet" | "regtest";
 
+/**
+ * Narrowed BOLT 11 invoice fields used by L402 verifiers and clients.
+ */
 export interface DecodedInvoice {
   /** 32-byte BOLT 11 `p` tag payment hash. */
   paymentHash: Uint8Array;
@@ -47,6 +50,16 @@ const BOLT11_DEFAULT_EXPIRY_SECONDS = 3600;
  * The wrapped decoder validates Bech32 structure/checksum and normalizes BOLT 11
  * amount units to millisatoshis. This function narrows the result to stable
  * `@boltwall/l402` public types and keeps amounts as `bigint`.
+ *
+ * Throws synchronously on malformed input with short codes:
+ * `missing-payment-hash`, `invalid-payment-hash`, `missing-timestamp`, or
+ * `unsupported-network`, plus the Bech32 errors surfaced by the wrapped decoder.
+ *
+ * @example
+ * const invoice = decodeBolt11Invoice("lnbc1500n1...");
+ * invoice.paymentHashHex; // 64-char hex string
+ * invoice.amountMsat; // 150_000n
+ * invoice.network; // "mainnet"
  */
 export function decodeBolt11Invoice(invoice: string): DecodedInvoice {
   const decoded = decode(invoice) as DecoderResult;

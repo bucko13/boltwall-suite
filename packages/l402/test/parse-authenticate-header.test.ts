@@ -9,7 +9,7 @@ import {
   type ChallengeFixture,
 } from "@boltwall/test-fixtures";
 
-import { parseAuthenticateHeader } from "../src/parse-authenticate-header";
+import { parseAuthenticateHeader } from "../src/headers";
 
 function runFixture(fixture: ChallengeFixture): void {
   if (fixture.expected.ok) {

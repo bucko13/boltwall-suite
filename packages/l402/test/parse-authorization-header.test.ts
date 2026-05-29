@@ -11,7 +11,7 @@ import {
   type AuthorizationFixture,
 } from "@boltwall/test-fixtures";
 
-import { parseAuthorizationHeader } from "../src/parse-authorization-header";
+import { parseAuthorizationHeader } from "../src/headers";
 
 function runFixture(fixture: AuthorizationFixture): void {
   if (fixture.expected.ok) {

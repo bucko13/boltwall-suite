@@ -3,7 +3,7 @@ import { describe, expect, test } from "bun:test";
 import { malformedIdentifierFixtures } from "@boltwall/test-fixtures";
 
 import { inspectMacaroon, mintMacaroon } from "../src";
-import { encodeRaw, mintRaw } from "../src/internal/macaroon";
+import { encodeRaw, mintRaw } from "../src/macaroon";
 
 describe("inspectMacaroon", () => {
   test("returns identifier, caveat, and signature fields from a base64 V2 macaroon", () => {

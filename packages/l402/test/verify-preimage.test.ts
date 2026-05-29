@@ -10,7 +10,7 @@ import {
   type PreimageFixture,
 } from "@boltwall/test-fixtures";
 
-import { verifyPreimage } from "../src/verify-preimage";
+import { verifyPreimage } from "../src/macaroon";
 
 function hexToBytes(hex: string): Uint8Array {
   const out = new Uint8Array(hex.length / 2);
