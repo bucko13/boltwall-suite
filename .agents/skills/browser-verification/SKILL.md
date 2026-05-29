@@ -47,6 +47,17 @@ their server:
 CI=1 PLAYWRIGHT_PORT=3100 bun run --cwd apps/playground test:e2e
 ```
 
+For focused playground specs, prefer the stable helper command so local
+permission approvals can target one fixed command prefix while the port and spec
+remain arguments:
+
+```sh
+bash .agents/skills/browser-verification/scripts/playground-e2e 3100 test/e2e/panels/demo.spec.ts
+```
+
+The first argument is the Playwright dev-server port. All remaining arguments
+are passed to Playwright after `--`.
+
 ## L402 Browser Import
 
 Build the package first, then run the browser import test:

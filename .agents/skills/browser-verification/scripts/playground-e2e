@@ -1,0 +1,19 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+if [[ $# -lt 2 ]]; then
+  echo "usage: $0 <port> <playwright-spec-or-arg> [additional-playwright-args...]" >&2
+  exit 64
+fi
+
+port="$1"
+shift
+
+case "$port" in
+  ''|*[!0-9]*)
+    echo "playground-e2e: port must be numeric, got '$port'" >&2
+    exit 64
+    ;;
+esac
+
+CI=1 PLAYWRIGHT_PORT="$port" bun run --cwd apps/playground test:e2e -- "$@"

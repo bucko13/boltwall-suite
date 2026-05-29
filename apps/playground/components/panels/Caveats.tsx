@@ -205,10 +205,11 @@ export function Caveats() {
     param: "",
   });
   const tokenRows = (token ?? "").trim() ? extractCaveatsFromMacaroon((token ?? "").trim()) : [];
-  const visibleRows = activeMode === "check" && rows.length === 0 ? tokenRows : rows;
+  const baseRows = rows.length > 0 ? rows : tokenRows;
+  const visibleRows = baseRows;
   const checkToken = rows.length > 0 ? "" : (token ?? "");
   const visibleSerialized = visibleRows.map((r) => new Caveat(r.condition, r.value).encode());
-  const visibleSource = rows.length > 0 ? "current" : activeMode === "check" ? "macaroon" : "empty";
+  const visibleSource = rows.length > 0 ? "current" : tokenRows.length > 0 ? "macaroon" : "empty";
 
   function saveRows(newRows: CaveatRow[]) {
     setCaveatsJson(rowsToJson(newRows));
@@ -221,7 +222,7 @@ export function Caveats() {
     }
     try {
       const caveat = new Caveat(draft.condition.trim(), draft.value);
-      const newRows = [...rows, { condition: draft.condition.trim(), value: draft.value }];
+      const newRows = [...baseRows, { condition: draft.condition.trim(), value: draft.value }];
       caveat.encode();
       saveRows(newRows);
       setDraft({ condition: "", value: "" });
@@ -254,7 +255,7 @@ export function Caveats() {
       value: caveat.value,
       serialized: caveat.encode(),
     });
-    saveRows([...rows, { condition: caveat.condition, value: caveat.value }]);
+    saveRows([...baseRows, { condition: caveat.condition, value: caveat.value }]);
     setExpirationError(null);
   }
 
@@ -306,8 +307,8 @@ export function Caveats() {
       ? visibleRows.length > 0
         ? visibleRows
         : draftSnippetRows
-      : rows.length > 0
-        ? rows
+      : visibleRows.length > 0
+        ? visibleRows
         : draftSnippetRows;
   const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
   const encodedCaveatsLiteral = JSON.stringify(
@@ -327,7 +328,7 @@ export function Caveats() {
 
   const status = getStatus(
     activeMode,
-    rows.length,
+    visibleRows.length,
     expirationError,
     results,
     satisfyError,
@@ -335,7 +336,7 @@ export function Caveats() {
   );
   const statusLabel = getStatusLabel(
     activeMode,
-    rows.length,
+    visibleRows.length,
     expirationError,
     results,
     satisfyError,

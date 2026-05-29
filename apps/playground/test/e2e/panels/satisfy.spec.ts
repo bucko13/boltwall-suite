@@ -101,6 +101,43 @@ test.describe("panels / caveats — check mode", () => {
 });
 
 test.describe("panels / caveats — Workbench memory", () => {
+  test("add mode starts from Workbench macaroon caveats when attenuating", async ({ page }) => {
+    await page.addInitScript((macaroon) => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({
+          signingKey: "",
+          macaroon,
+          challenge: "",
+          credential: "",
+        }),
+      );
+    }, FIXTURE_MACAROON_WITH_CAVEAT);
+
+    await page.goto("/p/caveats");
+    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toContainText(
+      "Current caveats from macaroon",
+    );
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("valid-until");
+
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+
+    await expect(page.locator("[data-testid='caveats-shared-list']")).toContainText(
+      "Current caveats",
+    );
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("valid-until");
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("services=pokedex:0");
+
+    await page.click("[data-testid='caveats-mode-check']");
+    await expect(page.locator("[data-testid='satisfy-source']")).toContainText(
+      "Source: current caveats",
+    );
+    await expect(page.locator("[data-testid='satisfy-token-input']")).toHaveValue("");
+  });
+
   test("lists caveats from a Workbench macaroon as current caveats", async ({ page }) => {
     await page.addInitScript((macaroon) => {
       window.sessionStorage.setItem(
