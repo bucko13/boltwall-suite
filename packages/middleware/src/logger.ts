@@ -30,9 +30,6 @@ export const REDACTED_PATHS = [
  * Security boundary: macaroons, preimages, root keys, and payment requests
  * are redacted to [REDACTED] at all log levels. This prevents bearer
  * credentials from appearing in log aggregation pipelines.
- *
- * Per AGENTS.md security-boundaries: macaroons and preimages must not be
- * logged at info level.
  */
 export function createLogger(
   opts: { level?: string; name?: string; stream?: DestinationStream } = {},

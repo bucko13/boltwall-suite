@@ -1,16 +1,26 @@
 # `@boltwall/playground`
 
-Private Next.js App Router playground for Boltwall Suite.
+Next.js App Router workbench for the Boltwall Suite.
+
+New to L402? See the [project README](../../README.md#what-is-l402) for what L402 is and how the packages fit together.
+
+## Glossary
+
+- **L402** — an HTTP 402-based authentication protocol that gates resources behind a Lightning Network micropayment.
+- **Macaroon** — a bearer credential embedded in the L402 challenge; carries the access conditions the server will enforce.
+- **WebLN** — a browser extension API (e.g. Alby) that lets a web page request a Lightning payment from the user's wallet.
+- **Preimage** — the payment secret revealed when a Lightning invoice is settled; proves the invoice was paid.
+- **BOLT 11** — the Lightning Network invoice encoding standard; the payable invoice string in an L402 challenge is a BOLT 11 invoice.
 
 ## Purpose
 
-This app will become the interactive workbench for learning L402 by doing:
+This app is the interactive workbench for learning L402 by doing:
 
-- building, parsing, and editing L402 challenges
-- constructing and inspecting L402 credentials
-- trying those credentials against a live L402-protected endpoint
-
-The current app scaffolds the shell and local toolchain wiring.
+- **Generate** — build a well-formed L402 challenge from configurable parameters
+- **Parse** — decode any `WWW-Authenticate: L402` header into its macaroon and invoice fields
+- **Caveats** — inspect and compose first-party caveats on a macaroon
+- **Validate** — verify a credential (macaroon + preimage) satisfies the challenge conditions
+- **Demo** — request a live L402-protected endpoint, inspect the returned challenge, pay via WebLN or a pasted preimage, and view the unlocked response
 
 ## Workspace integration
 
@@ -19,6 +29,8 @@ The current app scaffolds the shell and local toolchain wiring.
 - Uses `@boltwall/prettier-config`
 
 ## Commands
+
+Run `bun install --frozen-lockfile` from the repo root (workspace install) before any of the commands below, or follow the [root quickstart](../../README.md#quickstart).
 
 ```sh
 bun run dev
@@ -39,15 +51,10 @@ production output to serve.
 
 ## Playground direction
 
-The playground is an educational L402 workbench. Users should be able to build,
-parse, and edit challenges/credentials, then use the demo panel to request a
-Pokemon resource, inspect any returned L402 challenge, pay it, retry, and see
-the unlocked response.
-
-The current first screen is a polished scaffold for that workflow. It keeps the
-legacy playground's core product model — challenge parsing, token construction,
-and live protected endpoint interaction — while the deployed proxy target is
-still landing separately.
+The playground is an educational L402 workbench. Users can build, parse, and
+edit challenges/credentials, then use the demo panel to request a Pokemon
+resource, inspect any returned L402 challenge, pay it, retry, and see the
+unlocked response.
 
 Runtime-backed proxy deployments are separate from the playground app. The demo
 panel consumes public PokeAPI or a configured endpoint; it does not mint

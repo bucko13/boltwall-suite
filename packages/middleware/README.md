@@ -2,6 +2,8 @@
 
 Node-focused L402 middleware for Boltwall Suite.
 
+New to L402? See the [project README](../../README.md#what-is-l402) for what L402 is and how the packages fit together.
+
 ## Entrypoints
 
 | Import path                    | What it exports                                       |
@@ -11,6 +13,12 @@ Node-focused L402 middleware for Boltwall Suite.
 | `@boltwall/middleware/express` | Express 4/5 adapter (`boltwall`, caveat factories)    |
 
 ## Quick start (Express)
+
+A few terms used below:
+- **macaroon** — an HMAC-chained bearer token minted by the server and returned with the 402 challenge.
+- **caveat / satisfier** — caveats are mint-time constraints embedded in the macaroon (e.g. `valid-until`); satisfiers are their verify-time counterparts that check each caveat is still met. Both are supplied together.
+- **HODL invoice** — a Lightning invoice that stays in a "held" state until the server explicitly settles it, giving the server control over when funds are released.
+- **`InMemoryRootKeyStore`** — stores macaroon root keys in process memory. Non-persistent; not for production. Use a database-backed store in production.
 
 ```ts
 import express from "express";
@@ -77,7 +85,17 @@ in any framework that speaks Web Fetch.
 ```ts
 // app/api/paid/route.ts
 import { authorizeL402 } from "@boltwall/middleware";
-import { backend, rootKeyStore } from "@/lib/boltwall"; // your singleton setup
+import { LndAdapter } from "@boltwall/adapters/lnd";
+import { InMemoryRootKeyStore } from "@boltwall/l402";
+
+// Create these once (e.g. in lib/boltwall.ts) and import as singletons.
+// InMemoryRootKeyStore is non-persistent — use a database-backed store in production.
+const backend = new LndAdapter({
+  socket: process.env.LND_SOCKET!,
+  cert: process.env.LND_TLS_CERT!,
+  macaroon: process.env.LND_MACAROON!,
+});
+const rootKeyStore = new InMemoryRootKeyStore();
 
 const config = {
   service: "my-api",
@@ -101,7 +119,17 @@ export async function GET(request: Request) {
 ```ts
 import { Hono } from "hono";
 import { authorizeL402 } from "@boltwall/middleware";
-import { backend, rootKeyStore } from "./boltwall"; // your singleton setup
+import { LndAdapter } from "@boltwall/adapters/lnd";
+import { InMemoryRootKeyStore } from "@boltwall/l402";
+
+// Create these once (e.g. in boltwall.ts) and import as singletons.
+// InMemoryRootKeyStore is non-persistent — use a database-backed store in production.
+const backend = new LndAdapter({
+  socket: process.env.LND_SOCKET!,
+  cert: process.env.LND_TLS_CERT!,
+  macaroon: process.env.LND_MACAROON!,
+});
+const rootKeyStore = new InMemoryRootKeyStore();
 
 const app = new Hono();
 

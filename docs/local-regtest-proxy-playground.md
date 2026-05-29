@@ -138,9 +138,9 @@ NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT=http://127.0.0.1:4010/pokemon/{id}
 ```
 
 Expected terminal output includes Next.js starting the playground on
-`http://localhost:3000`. If you see unrelated Agent Mail or file-reservation
-logs, the command is running in the wrong terminal process; open a fresh shell
-in the repo root and run it there.
+`http://localhost:3000`. If you see unrelated log output from another process,
+the command is running in the wrong terminal; open a fresh shell in the repo
+root and run it there.
 
 Open the local playground and go to the Demo panel:
 

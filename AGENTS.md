@@ -46,7 +46,7 @@ Use local skills when available, but keep this file's mandatory checks in view:
 
 - `.agents/skills/boltwall-workflow/SKILL.md` for startup, task claiming,
   reservations, handoff, close, commit, push, and release sequence.
-- `docs/agent-worktrees.md` for generic Git worktree mechanics.
+- `.agents/skills/boltwall-workflow/worktrees.md` for generic Git worktree mechanics.
 - `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
   after reading the relevant live L402 spec sections.
 
@@ -204,7 +204,7 @@ Frozen-lockfile CI failures are expected during the gap between a manifest wave 
 Worktrees make local installs safer, but `bun.lock` is still a single shared
 derived artifact. Do not stage it outside the reconcile task.
 
-Phase 0's `bw-f4p.24` is the canonical example.
+The dedicated `lockfile-reconcile` task is the canonical example.
 
 ---
 
@@ -219,11 +219,11 @@ Rules:
 
 1. **A task is complete without its barrel export, unless the task's exit criteria explicitly require the export.** By default, implementation tasks MAY close with their new symbols unexported from the package's public `index.ts`. The feature, fixtures, and tests landing in their own files is sufficient for `br close`. If a task's acceptance criteria explicitly name the barrel export as a deliverable, follow that.
 2. **Inline barrel edits are allowed only with a seconds-long reservation.** If a task chooses to add its own export, the reservation on the barrel must cover the full `reserve -> re-read -> edit -> commit -> release` window. Never release a barrel reservation while the barrel file remains modified in your working tree.
-3. **Defer via the phase-complete task.** Each phase has a `Phase N implementation complete` rollup task (Phase 1 = `bw-b63.15`, Phase 2 = `bw-1dl.13`, Phase 3 = `bw-2yn.7`, Phase 4 = `bw-zxk.11`). Before closing implementation work that deferred its export, append a one-line entry to that rollup task under a `### Pending barrel exports` section:
+3. **Defer via the phase-complete task.** Each phase has a `Phase N implementation complete` rollup task. Before closing implementation work that deferred its export, append a one-line entry to that rollup task under a `### Pending barrel exports` section:
 
    ```
-   - bw-b63.1 → export `decodeIdentifier`, `MacaroonIdentifierV0` from `packages/l402/src/index.ts`
-   - bw-b63.8 → export `parseCaveat`, `serializeCaveat`, `servicesCaveat`, `capabilitiesCaveat`, `constraintCaveat`, `Caveat` from `packages/l402/src/index.ts`; `caveats` fixture set from `packages/test-fixtures/src/index.ts`
+   - <task> → export `decodeIdentifier`, `MacaroonIdentifierV0` from `packages/l402/src/index.ts`
+   - <task> → export `parseCaveat`, `serializeCaveat`, `Caveat` from `packages/l402/src/index.ts`; `caveats` fixture set from `packages/test-fixtures/src/index.ts`
    ```
 
    If the section doesn't exist yet, the first task to defer creates it (`br update <phase-task> --description-append "..."` or hand-edit + `br sync`).
@@ -239,16 +239,16 @@ Hard triggers stay in this file. Longer reference material lives in focused docs
 
 | If your task touches...                                                                              | Read...                                                                                          |
 | ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| package boundaries, package roles, feature placement, or non-goals                                   | `docs/architecture.md`                                                                           |
-| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages                  | `docs/monorepo-conventions.md`                                                                   |
-| test design, validation commands, browser import checks, or e2e coverage                             | `docs/testing.md`                                                                                |
-| public exports, JSDoc, generated docs, or compatibility notes                                        | `docs/api-docs.md`                                                                               |
-| external dependency additions or shared utility placement                                            | `docs/dependency-policy.md`                                                                      |
-| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md`                                                                    |
-| playground UI, visual direction, or demo flow ergonomics                                             | `docs/playground-visual-concepts.md` and `docs/testing.md`                                       |
-| L402 wire/header/caveat/macaroon/token behavior                                                      | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow                 |
-| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees             | `.agents/skills/boltwall-workflow/SKILL.md`; `docs/agent-worktrees.md` for generic Git mechanics |
-| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags                 | `docs/github-actions-hygiene.md`                                                                 |
+| package boundaries, package roles, feature placement, or non-goals | `docs/architecture.md` |
+| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages | `CONTRIBUTING.md` (Monorepo conventions) |
+| test design, validation commands, browser import checks, or e2e coverage | `CONTRIBUTING.md` (Tests) |
+| public exports, JSDoc, generated docs, or compatibility notes | `docs/api-docs.md` |
+| external dependency additions or shared utility placement | `CONTRIBUTING.md` (Dependencies) |
+| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
+| playground UI, visual direction, or demo flow ergonomics | `.agents/skills/playground-design/SKILL.md` |
+| L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
+| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees | `.agents/skills/boltwall-workflow/SKILL.md`; `.agents/skills/boltwall-workflow/worktrees.md` for generic Git mechanics |
+| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags | `CONTRIBUTING.md` (CI & workflows) |
 
 Mandatory summaries:
 
@@ -290,7 +290,7 @@ Package-specific commands (LND regtest, aperture interop, Vercel deploy) are doc
 The contract is the union of:
 
 1. **The relevant exit criteria** for the task at hand.
-2. **Testing expectations** (see `docs/testing.md`).
+2. **Testing expectations** (see `CONTRIBUTING.md` (Tests)).
 3. **Security boundaries** (see `docs/security-boundaries.md`).
 4. **Code quality bar** (typing, `Uint8Array`, `bigint` msat, dependency policy, capability flag accuracy).
 5. **Relevant architectural docs** in `docs/` if they exist for the area being changed.
@@ -354,9 +354,9 @@ in roughly 200 lines with good unit tests. Every external dependency addition
 must justify why a small internal utility is not the better fit.
 
 Package provenance and attestations are integrity signals, not safety approval;
-dependency review still follows `docs/dependency-policy.md`.
+dependency review still follows `CONTRIBUTING.md` (Dependencies).
 
-Read `docs/dependency-policy.md` before adding dependencies or shared utilities.
+Read `CONTRIBUTING.md` (Dependencies) before adding dependencies or shared utilities.
 
 ---
 
@@ -420,11 +420,12 @@ Always follow links rather than relying on memory.
 Write tests that prove behavior. Use focused unit tests for local logic,
 integration tests for package boundaries, and e2e tests for user-visible flows.
 
-**`docs/testing.md` is the authoritative reference for every test surface in
-this repo.** Read it before picking up any work that touches tests. Any bead
-that adds a new test type, `test:*` script, runner, or infrastructure
-dependency MUST update `docs/testing.md` as part of its acceptance criteria —
-missing this update means the bead is not complete.
+The test-surface table below is the agent quick-reference; `CONTRIBUTING.md`
+(Tests) is the contributor-facing version. Read one before picking up any work
+that touches tests. Any task that adds a new test type, `test:*` script, runner,
+or infrastructure dependency MUST update both this table and `CONTRIBUTING.md`
+as part of its acceptance criteria — missing this update means the task is not
+complete.
 
 Test surfaces at a glance:
 
@@ -465,7 +466,7 @@ Mandatory workflow:
    reserved paths, intended scope, validation plan, task worktree path, and
    branch name.
 6. **Create a task worktree:** follow `.agents/skills/boltwall-workflow/SKILL.md`
-   for agent-specific sequencing and `docs/agent-worktrees.md` for Git mechanics.
+   for agent-specific sequencing and `.agents/skills/boltwall-workflow/worktrees.md` for Git mechanics.
    Keep Beads and Agent Mail in the canonical checkout; implement and validate
    in the task worktree.
 7. **Work:** re-read reserved files in the task worktree, stay in scope, check

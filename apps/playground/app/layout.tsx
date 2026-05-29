@@ -24,7 +24,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
   title: "playground",
-  description: "L402 workbench — local design preview.",
+  description: "Interactive browser tools for the L402 Lightning authentication protocol.",
 };
 
 type RootLayoutProps = {

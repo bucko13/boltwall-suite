@@ -9,7 +9,7 @@
  *   L402 protocol-specification.md §10 — dual LSAT-first/L402-second
  *     WWW-Authenticate headers for backwards compatibility (default).
  *   L402 macaroon-spec.md §Verification — HMAC chain integrity check.
- *   AGENTS.md security-boundaries — invoice amount MUST be verified.
+ *   docs/security-boundaries.md — invoice amount MUST be verified.
  */
 
 import type { InvoiceLookup } from "@boltwall/adapters";
@@ -389,11 +389,11 @@ async function getOrGenerateRootKey(
  * is confirmed. Returns { ok: false, response, error } when a 402 or 401
  * response must be sent to the client.
  *
- * Security invariants (per AGENTS.md and L402 spec):
+ * Security invariants (L402 protocol-specification.md and docs/security-boundaries.md):
  *   - 402 is emitted ONLY when the Authorization header is absent or carries
  *     a non-L402/LSAT scheme. L402 protocol-specification.md §4.1.
  *   - Invoice amount MUST match config.price. Amount mismatch is treated as
- *     invalid-credential (401). AGENTS.md security-boundaries.
+ *     invalid-credential (401).
  *   - Constant-time comparisons are handled inside verifyMacaroon /
  *     verifyPreimage upstream; this function does not compare secrets directly.
  *
@@ -531,8 +531,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
   if (verifyError !== undefined) return verifyError;
 
   // Security: verify invoice amount matches configured price.
-  // AGENTS.md security-boundaries — middleware MUST verify the bolt11 amount
-  // matches the configured price. Skipping this is an auth-bypass.
+  // The bolt11 amount MUST match config.price; skipping this is an auth-bypass.
   const amountError = await requireAmountMatch(config, request, lookup, log);
   if (amountError !== undefined) return amountError;
 

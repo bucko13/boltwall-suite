@@ -140,34 +140,24 @@ operator has a healthy Polar network and credentials ready.
 
 ## Polar Automation Feasibility
 
-Repository environment findings from 2026-05-12:
+### Automation constraints
 
-- `Polar.app` is installed locally, but there is no `polar` CLI on `PATH`.
-- There is no `lncli` on `PATH` in the checked development environment.
-- Polar appears to be an Electron app bundle with internal Docker and gRPC
-  plumbing, but no stable repo-local automation entrypoint is documented here.
-- Docker access is a prerequisite for any fully automated local network
-  bootstrap; direct Docker access was unavailable in the checked development
-  environment.
+Polar is a GUI-first Electron app. It has no stable published CLI, and its
+internal Docker and gRPC plumbing are not documented as a scriptable API. As a
+result, several steps in the local workflow have no reliable headless path:
 
-### Control-surface assessment
+| Verification step                     | Scriptable? | Notes                                                                                          |
+| ------------------------------------- | ----------- | ---------------------------------------------------------------------------------------------- |
+| Launch Polar app                      | No          | GUI app only; no supported CLI entrypoint.                                                     |
+| Bootstrap regtest network             | No          | Polar drives Docker internally, but no stable scripted entrypoint is available.                |
+| Open/fund channel in Polar            | No          | Depends on GUI or undocumented app internals.                                                  |
+| Extract server cert + admin macaroon  | Partial     | Feasible only after the operator exposes or copies the values; no stable filesystem path here. |
+| Run `LndAdapter` create/lookup checks | Yes         | Once `LND_SOCKET`, `LND_TLS_CERT`, and `LND_MACAROON` are exported, the adapter smoke runs.   |
+| Pay invoice from peer node            | Partial     | Scriptable if payer-node CLI/container access exists; otherwise manual in Polar.               |
+| HODL settle/cancel verification       | Yes         | Scriptable after the network and credentials exist.                                            |
 
-| Verification step                     | Agent-runnable through Polar today? | Why                                                                                                                     |
-| ------------------------------------- | ----------------------------------- | ----------------------------------------------------------------------------------------------------------------------- |
-| Launch Polar app                      | No reliable headless path           | GUI app is installed, but no supported CLI was found.                                                                   |
-| Bootstrap regtest network             | No reliable headless path           | Polar likely drives Docker internally, but this repo has no stable scripted entrypoint for that lifecycle.              |
-| Open/fund channel in Polar            | No reliable headless path           | This currently depends on the GUI or undocumented app internals.                                                        |
-| Extract server cert + admin macaroon  | Partial                             | Feasible only after the operator exposes or copies the values; this doc does not rely on undocumented filesystem paths. |
-| Run `LndAdapter` create/lookup checks | Yes                                 | Once `LND_SOCKET`, `LND_TLS_CERT`, and `LND_MACAROON` are exported, the adapter smoke is scriptable.                    |
-| Pay invoice from peer node            | Partial                             | Scriptable if payer-node CLI/container access exists; otherwise still manual in Polar.                                  |
-| HODL settle/cancel verification       | Yes                                 | Scriptable after the network and credentials exist.                                                                     |
-
-### Practical conclusion
-
-Polar is a good local operator tool, but it is not a good primary automation
-surface for scripted verification in this repository today. The dependable
-automation boundary starts _after_ a healthy local network already exists and
-credentials have been exported into env vars.
+The dependable automation boundary starts _after_ a healthy local network
+already exists and credentials have been exported into env vars.
 
 ## Recommended Local And CI Split
 
@@ -183,7 +173,7 @@ Keep Polar as the shortest path for a human maintainer to:
 After that setup, scripted checks should use only exported env vars and adapter
 calls.
 
-### Agent/CI automation path
+### CI/container automation path
 
 Do not build CI around Polar's desktop UI. Instead, create a dedicated
 containerized LND smoke harness that owns:
@@ -256,43 +246,21 @@ state owned by this harness.
   - payment attempted from wrong node/network,
   - payer channel unconfirmed or offline.
 
-## Recorded Manual Run
-
-Run date: 2026-05-12
-
-Command:
+## Smoke Run Example
 
 ```bash
-infra/scripts/smoke-adapter --payer carol --server david --amount-msat 1000
+infra/scripts/smoke-adapter --payer <payer-node> --server <server-node> --amount-msat 1000
 ```
 
-Topology proof:
-
-```text
-Preparing local LND topology: payer=carol server=david local_sats=1000000
-Balances before readiness:
-carol (carol): wallet_confirmed=504997999668 sat channel_local=1990060 sat channel_remote=3000 sat active_channels=2
-david (david): wallet_confirmed=70000000000 sat channel_local=3000 sat channel_remote=1990060 sat active_channels=2
-channel already active: carol -> david
-Balances after readiness:
-carol (carol): wallet_confirmed=504997999668 sat channel_local=1990060 sat channel_remote=3000 sat active_channels=2
-david (david): wallet_confirmed=70000000000 sat channel_local=3000 sat channel_remote=1990060 sat active_channels=2
-Creating invoice with LndAdapter: server=david socket=localhost:10010 amount_msat=1000
-```
-
-Adapter proof:
+Expected output shape after a successful create + pay cycle:
 
 ```text
 LndAdapter open proof:
-  payment_request=lnbcrt10n1p4q89y7pp5rhqjy54em34aldkv3cz53d80u6ylyrewepdzkryusnpfctmszp8qdp2vfhkcarhv9kxcttvdejz6ctyv9c8getj94ek6mmtv5cqzzsxqr23ssp5hmsgnyvmundlnuxljs3am8yfxadl34htm09cp2lwee8vnfwnprcs9qxpqysgq4w4n4lqmxude7atqyvx52080qqjdquypcgngc3lh8stll6zssyy32rye3w0m7lhx4me3za8qahcg96qx7exswxq84ha073tgxusfascpguy308
-  payment_hash=1dc12252b9dc6bdfb6cc8e0548b4efe689f20f2ec85a2b0c9c84c29c2f70104e amount_msat=1000 open_status=open
-Paying invoice from carol...
+  payment_request=lnbcrt10n...  amount_msat=1000  open_status=open
 LndAdapter settled proof:
-  payer=carol server=david payment_status=SETTLED_LOOKUP_CONFIRMED lookup_status=settled
-  payment_hash=1dc12252b9dc6bdfb6cc8e0548b4efe689f20f2ec85a2b0c9c84c29c2f70104e amount_msat=1000 preimage_present=true preimage_length=64
+  payment_status=SETTLED_LOOKUP_CONFIRMED  lookup_status=settled
+  amount_msat=1000  preimage_present=true  preimage_length=64
 ```
 
-Credential handling: the smoke used `lnd-env --node david --json` internally
-but did not print or persist TLS certs, macaroons, seeds, env files, or the
-settlement preimage value. The helper normalized Docker's `127.0.0.1` gRPC
-socket to `localhost:10010` for the `lightning` package TLS server-name check.
+Credential handling: the smoke script reads credentials via `lnd-env` but does
+not print or persist TLS certs, macaroons, or the settlement preimage value.

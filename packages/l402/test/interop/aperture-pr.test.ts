@@ -33,7 +33,7 @@ import {
 if (process.env.APERTURE_INTEROP !== "1") {
   throw new Error(
     "Run interop tests with: bun run test:interop (from packages/l402)\n" +
-    "Requires Docker + LND regtest. See docs/testing.md §Aperture Interop Tests.",
+    "Requires Docker + LND regtest. See CONTRIBUTING.md (Tests) and the @boltwall/l402 README.",
   );
 }
 

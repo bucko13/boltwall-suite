@@ -2,6 +2,12 @@
 
 Lightning backend adapters for Boltwall Suite.
 
+New to L402? See the [project README](../../README.md#what-is-l402) for what
+L402 is and how the packages fit together.
+
+These packages are not yet published to npm. See the
+[root quickstart](../../README.md#quickstart) for workspace setup.
+
 The root entrypoint exposes shared backend types only. Concrete adapters are
 loaded from subpath entrypoints so consumers do not pull in unused backend
 dependencies.
@@ -18,6 +24,15 @@ import { assertBackendSupports } from "@boltwall/adapters";
 
 assertBackendSupports(backend, { hodl: true });
 ```
+
+**Key terms** — _LND_: Lightning Network Daemon, the Lightning node software
+used by the `lnd` and `voltage-lnd` adapters. _Macaroon_: LND's credential
+token (analogous to a bearer token) that scopes access to LND RPCs. _BOLT 11_:
+the Lightning invoice encoding standard; payment requests starting with `ln…`
+follow this format. _Invoice_: a Lightning payment request encoding the amount
+and destination; the payer scans or pastes it to initiate payment. _Preimage_:
+the 32-byte secret whose SHA-256 hash is the payment hash; LND returns it on
+invoice settlement as cryptographic proof of payment.
 
 ## Adapter entrypoints
 

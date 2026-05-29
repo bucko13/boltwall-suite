@@ -1,8 +1,7 @@
 @import "tailwindcss";
 
 /*
- * Playground Design System tokens.
- * Source of truth: docs/playground-design-system.md.
+ * Playground Design System tokens — the source of truth for theme values.
  * Light + dark mapped onto [data-theme] on <html>.
  */
 

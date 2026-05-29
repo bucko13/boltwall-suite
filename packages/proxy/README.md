@@ -8,54 +8,53 @@ header forwarding policy, and upstream error handling. L402 challenge emission,
 credential parsing, invoice creation, macaroon caveats, satisfiers, and payment
 verification are delegated to `@boltwall/middleware`.
 
+> **New to L402?** See the [project README](../../README.md#what-is-l402) for
+> what L402 is and how the packages fit together.
+
+## Table of Contents
+
+- [CLI Quick-Start](#cli-quick-start)
+- [How deploy works](#how-deploy-works)
+- [Programmatic usage](#programmatic-usage)
+- [Environment loading](#environment-loading)
+- [CLI Config](#cli-config)
+  - [Backend Secret References](#backend-secret-references)
+  - [Paywall Policy](#paywall-policy)
+  - [Validation And Redaction](#validation-and-redaction)
+- [Compatibility behavior](#compatibility-behavior)
+
 ## CLI Quick-Start
 
-For no-code Vercel deployments, use the installable `boltwall` CLI. It creates
-or reuses a saved config under `~/.config/boltwall/`, validates the config,
-maps backend credentials to Vercel environment variables, and deploys a
-generated proxy project from package-owned code.
-
-Install the package without cloning this repository:
+Install the `boltwall` CLI globally and deploy a Vercel-hosted proxy without
+cloning this repository:
 
 ```sh
 bun add --global @boltwall/proxy
-boltwall --help
-```
-
-Make sure the Vercel CLI is available in `PATH` and authenticated before
-deploying. `boltwall deploy` checks this first, before loading or creating proxy
-config, and asks you to install the CLI or run `vercel login` if the preflight
-fails. When backend secrets are missing, `boltwall deploy` prompts for them with
-hidden input, rejects blank values, and sends them to Vercel with
-`vercel env add --sensitive`. Before writing env vars, it links the generated
-project directory with `vercel link --yes --project <name> --cwd <dir>` so a
-missing Vercel project link fails before any env writes. After preflight, it
-shells out to `vercel env add` and `vercel deploy`. Generated Vercel projects
-pin their `@boltwall/*` dependencies to the installed `@boltwall/proxy` version
-that generated the project, not to `latest`.
-
-Start the interactive deployment flow:
-
-```sh
 boltwall deploy
 ```
 
-The wizard asks for the upstream URL, protected path, Lightning backend, price,
-browser CORS policy when needed, advanced paywall policy (credential
-expiration, origin caveat, capability caveats, and HODL invoice mode), and
-Vercel project name. Select prompts show numbered choices with the default
-marked, and secret prompts mask terminal echo.
-The wizard saves non-secret metadata and environment variable names only. If a
-required backend secret is not already present in the current process, the
-wizard prompts for it and sends it to Vercel with `vercel env add --sensitive`;
-it does not silently write secret values to disk.
+For a local dev server instead of a Vercel deployment:
 
-Generated Vercel deployments also require `BOLTWALL_PROXY_ROOT_KEY`, a 32-byte
-hex deployment secret used to derive per-token L402 macaroon root keys. If the
-variable is present in the current environment, `boltwall deploy` sends that
-exact value to Vercel as a sensitive env var. If it is absent, the CLI generates
-a new 32-byte hex secret for the deployment. Persist this value outside source
-control before redeploying if existing paid credentials must continue to verify.
+```sh
+boltwall dev
+```
+
+**From zero to a paid request:**
+
+1. Run `boltwall deploy` and choose `lnd`, `voltage-lnd`, `opennode`, or
+   `btcpay`.
+2. Enter the upstream URL — the HTTP service being protected — for example
+   `https://pokeapi.co/api/v2`, and protect a path such as `/pokemon/*`.
+3. Set a small price, for example `1000` millisatoshis, then provide the backend
+   secret values when prompted.
+4. Open the deployment URL printed by the CLI, or request a protected resource
+   with `curl`. The first protected request returns `402 Payment Required` with
+   an L402/LSAT challenge containing a macaroon — a bearer credential token —
+   and a Lightning invoice.
+5. Pay the invoice with a wallet, combine the challenge macaroon with the
+   resulting preimage, then retry the protected request with an
+   `Authorization: L402 <macaroon>:<preimage>` header and receive the upstream
+   `200` response.
 
 Automation can use a checked-in, non-secret JSON or YAML config:
 
@@ -69,36 +68,58 @@ boltwall dev --config ./boltwall.yaml
 skips the final deploy confirmation; it does not skip required config or secret
 prompts if values are missing in an interactive shell.
 
-From zero to a paid request:
-
-1. Run `boltwall deploy` and choose `lnd`, `voltage-lnd`, `opennode`, or
-   `btcpay`.
-2. Enter the upstream API, for example `https://pokeapi.co/api/v2`, and protect
-   a path such as `/pokemon/*`.
-3. Set a small price, for example `1000` millisatoshis, then provide the backend
-   secret values when prompted.
-4. Open the deployment URL printed by the CLI, or request a protected resource
-   with `curl`. The first protected request returns `402 Payment Required` with
-   L402/LSAT challenges.
-5. Pay the invoice with a wallet, combine the challenge macaroon with the
-   resulting preimage, then retry the protected request with an L402/LSAT
-   `Authorization` header and receive the upstream `200` response.
-
 For full repo-level workflows that combine the proxy with local regtest LND,
 Voltage, Vercel, and the playground, start with:
 
 - [Local regtest proxy and playground](../../docs/local-regtest-proxy-playground.md)
 - [Vercel Voltage Pokedex demo](../../docs/vercel-voltage-pokedex-demo.md)
 
-Direct Vercel Deploy Button templates are not the v1 primary path. Boltwall
-needs backend-specific prompting, secret redaction, config validation, and
-Vercel environment setup that static template prompts cannot express cleanly.
+### How deploy works
 
-Programmatic usage is still available when embedding the proxy in an existing
-Express app:
+`boltwall deploy` runs a preflight check to confirm the Vercel CLI is available
+and authenticated, then loads or creates a saved config under
+`~/.config/boltwall/`. It maps backend credentials to Vercel environment
+variables, links the generated project directory with `vercel link`, writes
+secrets with `vercel env add --sensitive`, and calls `vercel deploy`. The
+wizard saves non-secret metadata and environment variable names only; it never
+writes secret values to disk.
+
+Generated Vercel projects also receive `BOLTWALL_PROXY_ROOT_KEY`, a 32-byte hex
+deployment secret used to derive per-token L402 macaroon root keys. If the
+variable is present in the current environment, `boltwall deploy` sends that
+value to Vercel as a sensitive env var. If absent, the CLI generates a new
+secret for the deployment.
+
+Generated Vercel projects pin their `@boltwall/*` dependencies to the installed
+`@boltwall/proxy` version, not to `latest`.
+
+> **Root key rotation:** rotating `BOLTWALL_PROXY_ROOT_KEY` and redeploying
+> invalidates all credentials minted by that proxy. Persist the key outside
+> source control if existing paid credentials must continue to verify.
+
+### `boltwall config allow-origin`
+
+```sh
+boltwall config allow-origin <name-or-path> <origin> [<origin>...]
+```
+
+Adds one or more browser origins to the saved config's CORS allowlist without
+re-running the full deploy wizard. Use this when you add a new frontend domain
+after the initial deploy. The updated config is printed for confirmation; run
+`boltwall deploy` again to push the change to Vercel.
+
+## Programmatic usage
+
+When embedding the proxy in an existing Express app, construct a backend adapter
+and root key store explicitly:
 
 ```ts
 import { createProxy } from "@boltwall/proxy";
+import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
+
+const backend = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
+const rootKeyStore = new InMemoryRootKeyStore();
 
 const app = createProxy({
   targetUrl: "https://api.example.com",
@@ -120,6 +141,12 @@ const app = createProxy({
 });
 ```
 
+`InMemoryRootKeyStore` holds root keys in process memory. It does not support
+per-credential revocation; to invalidate credentials, rotate
+`BOLTWALL_PROXY_ROOT_KEY` and redeploy. For other backends, import from
+`@boltwall/adapters/lnd`, `@boltwall/adapters/voltage-lnd`, or
+`@boltwall/adapters/btcpay`.
+
 `createProxy` returns an Express app. Mount it directly, or compose it inside a
 larger Express server.
 
@@ -130,14 +157,14 @@ settings:
 
 ```ts
 import { createProxy, loadProxyEnv } from "@boltwall/proxy";
+import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 
 const envConfig = loadProxyEnv({ envFile: ".env.local" });
+const backend = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
+const rootKeyStore = new InMemoryRootKeyStore();
 
-const app = createProxy({
-  ...envConfig,
-  backend,
-  rootKeyStore,
-});
+const app = createProxy({ ...envConfig, backend, rootKeyStore });
 ```
 
 Supported variables:
@@ -282,24 +309,29 @@ environment variables such as `TARGET_URL`, `LN_BACKEND`,
 exact origins and exposes `WWW-Authenticate` by default so browser clients can
 read L402 challenges. `POLICY_ORIGIN` is separate from CORS: it binds minted
 credentials to request `Origin` headers using an `origin=<origins>` macaroon
-caveat. Backend secret references map to the canonical Vercel-side names above.
+caveat — a condition baked into the token that the server re-checks on every
+request. Backend secret references map to the canonical Vercel-side names above.
 For example, a local config may read `MY_OPENNODE_SECRET`, while the deployed
 project receives `OPENNODE_API_KEY`.
 
 Generated Vercel projects additionally receive `BOLTWALL_PROXY_ROOT_KEY` as a
-sensitive Vercel environment variable. This release-MVP store uses that secret
-to deterministically derive a 32-byte root key for each token id, matching L402
-macaroon-spec.md §Identifier Structure and §Minting's server-side root-key
-requirement without keeping mutable per-token storage in Vercel. This is good
-enough for release persistence across serverless instances, but it is not a
-production revocation or rotation store: L402 macaroon-spec.md §Revocation
-requires deleting an individual stored root key, while this MVP can only rotate
-the deployment secret and invalidate every credential minted by that proxy.
+sensitive Vercel environment variable. The key derivation uses that secret to
+deterministically derive a 32-byte root key for each token id, matching
+L402 macaroon-spec.md §Identifier Structure and §Minting's server-side root-key
+requirement without keeping mutable per-token storage in Vercel. This is
+sufficient for persistence across serverless instances, but it does not support
+per-credential revocation: L402 macaroon-spec.md §Revocation requires deleting
+an individual stored root key, while rotating this secret invalidates every
+credential minted by that proxy.
 
 ### Paywall Policy
 
 The optional `policy` object is the deployment-facing surface for common
-macaroon and paywall controls:
+macaroon and paywall controls. A **macaroon** is the bearer credential token
+issued to the payer; **caveats** are conditions baked into it; a **satisfier**
+is the server-side verifier for a given caveat type. A **HODL invoice** is a
+Lightning payment held in-flight by the node until the server explicitly settles
+it, allowing the server to confirm some condition before releasing the funds.
 
 | Key                 | Effect                                                                   |
 | ------------------- | ------------------------------------------------------------------------ |

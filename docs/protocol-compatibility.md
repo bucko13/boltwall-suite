@@ -258,7 +258,7 @@ macaroons should be aware of.
 ## Aperture interop test results
 
 Two interop surfaces guard the protocol boundary against the Aperture reference
-implementation. See `docs/testing.md` for the full test-surface table.
+implementation. See [CONTRIBUTING.md](../CONTRIBUTING.md) (Tests) for the full test-surface table.
 
 ### Vector smoke (runs on every `bun test`)
 

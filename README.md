@@ -38,18 +38,22 @@ Install commands will be added once the API is stable enough to publish.
 
 ## Quickstart
 
-Clone the repository, install with the locked Bun workspace, then run the core
-validation gates from the repo root:
+The fastest way to see L402 in action is the playground:
 
 ```sh
 git clone https://github.com/bucko13/boltwall-suite.git
 cd boltwall-suite
 bun install --frozen-lockfile
-bun run lint
-bun run typecheck
-bun run test
-bun run build
+bun run playground       # starts the playground on http://localhost:3000
 ```
+
+Open <http://localhost:3000> to inspect a `WWW-Authenticate` challenge, generate
+and parse credentials, and walk a paid endpoint end to end. Packages aren't
+published yet (see the badges above) — cloning and running the playground is the
+way to explore today.
+
+Working on the suite itself? See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup,
+tests, and the development checks.
 
 ## API Reference
 
@@ -86,12 +90,16 @@ the workflows that exercise the suite the way a user will:
 
 Package-specific details live in package READMEs:
 
+- [`@boltwall/l402`](./packages/l402/README.md) for the protocol primitives:
+  parsing challenges, minting and verifying credentials, and caveat helpers.
+- [`@boltwall/middleware`](./packages/middleware/README.md) for protecting an
+  HTTP endpoint (Web Fetch core plus Express/Next.js/Hono usage).
+- [`@boltwall/adapters`](./packages/adapters/README.md) for Lightning backend
+  setup, including Voltage LND env handling.
 - [`@boltwall/proxy`](./packages/proxy/README.md) for CLI config, local proxy
   dev, Vercel deploys, header forwarding, and backend env names.
 - [`@boltwall/playground`](./apps/playground/README.md) for the configurable
   demo endpoint and browser CORS requirements.
-- [`@boltwall/adapters`](./packages/adapters/README.md) for Lightning backend
-  setup, including Voltage LND env handling.
 
 Local regtest helper scripts are available from the repo root:
 
@@ -106,12 +114,12 @@ security, deployment, or public API changes.
 ## Playground
 
 The playground is a Next.js/Vercel app for inspecting L402 headers, caveats,
-invoices, credentials, and payment flows. Today the normal Demo panel consumes a
-configured protected endpoint and displays the response status plus any
-`WWW-Authenticate` challenge. The playground does not currently host the
-production paid Pokedex resource itself; the proxy owns that runtime. The
-end-to-end docs above call out the current manual retry step and the deployed
-proxy path explicitly.
+invoices, credentials, and payment flows. The Demo panel calls a configured
+protected endpoint and shows the response status plus any `WWW-Authenticate`
+challenge; the paid resource is served by a separately deployed `@boltwall/proxy`
+that the playground points at via configuration. The
+[local regtest workflow](./docs/local-regtest-proxy-playground.md) walks the full
+challenge → pay → retry path end to end.
 
 ## Security
 

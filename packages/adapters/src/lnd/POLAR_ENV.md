@@ -40,24 +40,3 @@ export LND_SOCKET="127.0.0.1:10009"
 export LND_TLS_CERT="<base64-cert>"
 export LND_MACAROON="<base64-macaroon>"
 ```
-
-## Typed Env Plan (zod)
-
-For local helper scripts and future automation, parse env with zod instead of
-reading `process.env` ad hoc.
-
-```ts
-import { z } from "zod";
-
-export const LndEnvSchema = z.object({
-  LND_SOCKET: z.string().min(1),
-  LND_TLS_CERT: z.string().min(1),
-  LND_MACAROON: z.string().min(1),
-});
-
-export type LndEnv = z.infer<typeof LndEnvSchema>;
-export const lndEnv = LndEnvSchema.parse(process.env);
-```
-
-This should be the default for scriptable local verification once maintained
-Polar/LND checks exist.

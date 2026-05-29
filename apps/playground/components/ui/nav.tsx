@@ -23,10 +23,6 @@ const NAV_ITEMS: NavItem[] = [
 
 const META_LINKS = [
   {
-    label: "docs",
-    href: "https://github.com/bucko13/boltwall-suite/blob/main/docs/playground-design-system.md",
-  },
-  {
     label: "spec",
     href: "https://github.com/lightninglabs/L402/blob/master/protocol-specification.md",
   },

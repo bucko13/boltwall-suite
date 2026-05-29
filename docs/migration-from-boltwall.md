@@ -162,7 +162,7 @@ app.use(boltwall({
 
 // After — explicit adapter, typed config
 import { LndAdapter } from "@boltwall/adapters/lnd";
-import { validUntil, validUntilSatisfier } from "@boltwall/l402";
+import { InMemoryRootKeyStore, validUntil, validUntilSatisfier } from "@boltwall/l402";
 
 const backend = new LndAdapter({ socket: process.env.LND_SOCKET!, macaroon: process.env.LND_MACAROON! });
 

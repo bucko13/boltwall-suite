@@ -5,6 +5,16 @@ This document records the compatibility audit for the MIT-licensed
 LSAT behavior in `@boltwall/l402` without carrying over Node-only types,
 LSAT-only naming, or behavior that conflicts with the current L402 specs.
 
+> **What you can use today.** `@boltwall/l402` ships a complete *functional* API —
+> `parseAuthenticateHeader`, `parseAuthorizationHeader`, `buildAuthenticateHeaders`,
+> `buildAuthorizationHeader`, `mintMacaroon`, `verifyMacaroon`, `decodeIdentifier`,
+> `decodeBolt11Invoice`, the caveat builders and satisfiers, and the `L402` class
+> facade — all available now. Rows below marked **Future compatibility work** or
+> **Future API decision** are legacy `lsat-js` *class-method* conveniences (e.g.
+> `Lsat#getCaveats()`) that are intentionally not replicated; reach for the
+> functional equivalent in the Replacement column. This table is the audit trail
+> behind those choices, not a list of missing features.
+
 ## Sources Audited
 
 - `Tierion/lsat-js` repository, `master`, public entrypoint `src/index.ts`:

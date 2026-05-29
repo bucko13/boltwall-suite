@@ -1,3 +1,8 @@
+---
+name: playground-design
+description: Normative design system for the Boltwall playground (the local L402 workbench UI) — layout, tokens, theming, primitives, and panel conventions. Use when implementing or changing playground UI under apps/playground.
+---
+
 # Playground Design System
 
 Normative specification for the Boltwall playground local L402 workbench.
@@ -6,9 +11,7 @@ truth. The illustrative HTML references in
 `apps/playground/design/reference/` are visual evidence; this document is
 normative when the two ever disagree.
 
-**Supersedes** `docs/playground-visual-concepts.md` (Concept D / Color Grid).
-The visual-concepts doc is retained as historical reference only; see its
-"Superseded" section.
+**Supersedes** the earlier Concept D / Color Grid visual exploration.
 
 ## 1. Principles
 
@@ -479,6 +482,4 @@ To keep the spec narrow and the implementation tasks focused:
 - `apps/playground/design/reference/validate.html` — owner-supplied Validate
   screen mock. Visual source of the navigation order in §11 and the stripe
   Tamper action in §6.3.
-- `docs/playground-visual-concepts.md` — previous direction (Concept D /
-  Color Grid). Superseded.
 - Tracking reference: playground Cells + Macaroon-stripe design direction.

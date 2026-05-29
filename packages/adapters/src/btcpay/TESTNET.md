@@ -34,5 +34,5 @@ BTCPAY_TEST_CRYPTO_CODE=BTC
 Then run:
 
 ```sh
-bun run test --filter @boltwall/adapters
+bun run --cwd packages/adapters test:integration
 ```
