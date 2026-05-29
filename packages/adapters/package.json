@@ -40,7 +40,6 @@
     "package-health": "publint && sh -c 'tmp=${TMPDIR:-/tmp}/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'"
   },
   "dependencies": {
-    "@boltwall/internal": "workspace:*",
     "@boltwall/l402": "workspace:*"
   },
   "peerDependencies": {
@@ -54,6 +53,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/internal": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
     "@playwright/test": "^1.55.1",

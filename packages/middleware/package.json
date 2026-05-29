@@ -23,7 +23,7 @@
   ],
   "sideEffects": false,
   "scripts": {
-    "build": "tsup src/index.ts src/core/index.ts src/express/index.ts --format esm --dts --clean --sourcemap",
+    "build": "tsup",
     "lint": "eslint src",
     "lint:fix": "eslint src --fix",
     "typecheck": "tsc --noEmit",
@@ -33,7 +33,6 @@
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
-    "@boltwall/internal": "workspace:*",
     "@boltwall/l402": "workspace:*",
     "pino": "^10.3.1"
   },
@@ -48,6 +47,7 @@
   "devDependencies": {
     "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
+    "@boltwall/internal": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",

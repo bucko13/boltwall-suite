@@ -17,7 +17,7 @@
     "test:coverage": "turbo run test:coverage",
     "test:browser": "turbo run test:browser",
     "test:e2e": "turbo run test:e2e",
-    "package-health": "turbo run package-health",
+    "package-health": "turbo run package-health && bun scripts/check-public-package-boundaries.ts",
     "boltwall": "bun packages/proxy/src/cli.ts",
     "infra": "bash infra/scripts/run",
     "bootstrap": "bash infra/scripts/bootstrap",
