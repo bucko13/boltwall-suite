@@ -589,6 +589,8 @@ export function Demo() {
   const challengePokemonId = status.kind === "awaiting-payment" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
   const weblnDisabled = webLnDetected === false || busy;
+  const primaryActionLabel =
+    endpointTemplate === PUBLIC_POKEMON_ENDPOINT_TEMPLATE ? "Get Random Pokemon" : "Fetch Endpoint";
 
   return (
     <Cell
@@ -628,7 +630,7 @@ export function Demo() {
               order: 0,
             }}
           >
-            {busy ? "Loading..." : "Get Random Pokemon"}
+            {busy ? "Loading..." : primaryActionLabel}
           </button>
 
           <details

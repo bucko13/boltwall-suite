@@ -25,6 +25,7 @@ test.describe("panels / demo — endpoint client", () => {
     await page.goto("/p/demo");
     await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await page.fill("[data-testid='demo-endpoint-input']", endpoint);
+    await expect(page.locator("[data-testid='demo-get-pokemon']")).toHaveText("Fetch Endpoint");
     await page.click("[data-testid='demo-get-pokemon']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText(
       "configured-endpoint",

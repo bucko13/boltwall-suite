@@ -32,6 +32,7 @@ test.describe("panels / demo", () => {
     await expect(
       page.locator("[data-testid='demo-custom-credential']").locator("summary"),
     ).toContainText("Use an existing L402");
+    await expect(page.locator("[data-testid='demo-get-pokemon']")).toHaveText("Get Random Pokemon");
     await expect(page.locator("[data-testid='demo-endpoint-settings-icon']")).toHaveAttribute(
       "data-state",
       "closed",
