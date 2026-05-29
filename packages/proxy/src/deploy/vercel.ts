@@ -237,7 +237,6 @@ async function setVercelEnvironment(options: {
 
 function requiredSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNames)[] {
   if (config.backend.kind === "lnd") return ["socket", "cert", "macaroon"];
-  if (config.backend.kind === "voltage-lnd") return ["baseUrl", "macaroon", "cert"];
   if (config.backend.kind === "opennode") return ["apiKey"];
   return ["baseUrl", "apiKey", "storeId"];
 }
@@ -317,7 +316,6 @@ function generatedApiIndex(): string {
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
-import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
 
@@ -334,13 +332,6 @@ const backend = (() => {
       socket: requireEnv("LND_SOCKET"),
       cert: requireEnv("LND_TLS_CERT"),
       macaroon: requireEnv("LND_MACAROON"),
-    });
-  }
-  if (kind === "voltage-lnd") {
-    return createVoltageLndAdapter({
-      baseUrl: requireEnv("VOLTAGE_LND_BASE_URL"),
-      cert: requireEnv("VOLTAGE_LND_CERT"),
-      macaroon: requireEnv("VOLTAGE_LND_MACAROON"),
     });
   }
   if (kind === "opennode") {
@@ -361,7 +352,7 @@ const backend = (() => {
       },
     });
   }
-  throw new Error("LN_BACKEND must be lnd, voltage-lnd, opennode, or btcpay");
+  throw new Error("LN_BACKEND must be lnd, opennode, or btcpay");
 })();
 
 const app = createProxy({
@@ -503,7 +494,6 @@ function redactCommandFailure(
 function redact(value: string, sensitiveValues: readonly string[] = []): string {
   const names = [
     ...Object.values(backendEnvNames("lnd")),
-    ...Object.values(backendEnvNames("voltage-lnd")),
     ...Object.values(backendEnvNames("opennode")),
     ...Object.values(backendEnvNames("btcpay")),
   ];

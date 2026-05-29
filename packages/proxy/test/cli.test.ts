@@ -22,11 +22,11 @@ describe("boltwall CLI", () => {
     const prompt = new ReadlinePrompt(Readable.from(["2\n"]), stdout);
 
     await expect(
-      prompt.select("Lightning backend", ["voltage-lnd", "lnd", "opennode"], "lnd"),
+      prompt.select("Lightning backend", ["opennode", "lnd", "btcpay"], "lnd"),
     ).resolves.toBe("lnd");
 
     expect(stdout.text()).toContain("Lightning backend:");
-    expect(stdout.text()).toContain("  1. voltage-lnd");
+    expect(stdout.text()).toContain("  1. opennode");
     expect(stdout.text()).toContain("  2. lnd (default)");
     expect(stdout.text()).toContain("Choose lightning backend [lnd]:");
   });

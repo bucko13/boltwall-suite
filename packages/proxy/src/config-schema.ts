@@ -6,7 +6,6 @@ import {
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
-import { createVoltageLndAdapter } from "@boltwall/adapters/voltage-lnd";
 import { parseAmount } from "@boltwall/internal/numeric";
 import {
   InMemoryRootKeyStore,
@@ -22,7 +21,7 @@ import type { ProxyHttpMethod, ProxyRoute } from "./route-matching.js";
 
 import type { ProxyConfig, ProxyCorsConfig } from "./index.js";
 
-const backendKindSchema = z.enum(["lnd", "voltage-lnd", "opennode", "btcpay"]);
+const backendKindSchema = z.enum(["lnd", "opennode", "btcpay"]);
 const challengeCompatibilitySchema = z.enum(["dual", "l402-only", "lsat-only"]);
 const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
 const corsMethodSchema = z.enum(["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]);
@@ -203,14 +202,6 @@ export function createBackendFromEnv(
     });
   }
 
-  if (config.backend.kind === "voltage-lnd") {
-    return createVoltageLndAdapter({
-      baseUrl: requireEnv(env, vars.baseUrl),
-      cert: requireEnv(env, vars.cert),
-      macaroon: requireEnv(env, vars.macaroon),
-    });
-  }
-
   if (config.backend.kind === "opennode") {
     const baseUrl = optionalEnv(env, vars.baseUrl);
     return new OpenNodeAdapter({
@@ -261,18 +252,6 @@ export function backendEnvNames(
     );
   }
 
-  if (kind === "voltage-lnd") {
-    const prefix = envPrefix ?? "VOLTAGE_LND";
-    return fillEnvNames(
-      {
-        baseUrl: `${prefix}_BASE_URL`,
-        cert: `${prefix}_CERT`,
-        macaroon: `${prefix}_MACAROON`,
-      },
-      overrides,
-    );
-  }
-
   if (kind === "opennode") {
     const prefix = envPrefix ?? "OPENNODE";
     return fillEnvNames(
@@ -308,12 +287,6 @@ export function backendEnvDescription(
     if (key === "macaroon") return "LND admin macaroon content; local regtest helper emits base64";
   }
 
-  if (kind === "voltage-lnd") {
-    if (key === "baseUrl") return "Voltage LND node URL or host";
-    if (key === "cert") return "Voltage LND TLS certificate content";
-    if (key === "macaroon") return "Voltage LND admin macaroon as an even-length hex string";
-  }
-
   if (kind === "opennode") {
     if (key === "apiKey") return "OpenNode API key";
     if (key === "baseUrl") return "optional OpenNode API base URL";
@@ -333,7 +306,6 @@ export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
 
   if (config.backend.kind === "lnd") return [vars.socket, vars.cert, vars.macaroon];
-  if (config.backend.kind === "voltage-lnd") return [vars.baseUrl, vars.macaroon, vars.cert];
   if (config.backend.kind === "opennode") return [vars.apiKey];
   return [vars.baseUrl, vars.apiKey, vars.storeId];
 }

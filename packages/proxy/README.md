@@ -42,8 +42,7 @@ boltwall dev
 
 **From zero to a paid request:**
 
-1. Run `boltwall deploy` and choose `lnd`, `voltage-lnd`, `opennode`, or
-   `btcpay`.
+1. Run `boltwall deploy` and choose `lnd`, `opennode`, or `btcpay`.
 2. Enter the upstream URL — the HTTP service being protected — for example
    `https://pokeapi.co/api/v2`, and protect a path such as `/pokemon/*`.
 3. Set a small price, for example `1000` millisatoshis, then provide the backend
@@ -72,10 +71,10 @@ skips the final deploy confirmation; it does not skip required config or secret
 prompts if values are missing in an interactive shell.
 
 For full repo-level workflows that combine the proxy with local regtest LND,
-Voltage, Vercel, and the playground, start with:
+Vercel, and the playground, start with:
 
 - [Local regtest proxy and playground](../../docs/local-regtest-proxy-playground.md)
-- [Vercel Voltage Pokedex demo](../../docs/vercel-voltage-pokedex-demo.md)
+- [Vercel + Voltage Pokedex deploy](../../docs/vercel-voltage-pokedex-demo.md)
 
 ### How deploy works
 
@@ -158,8 +157,7 @@ const app = createProxy({
 `InMemoryRootKeyStore` holds root keys in process memory. It does not support
 per-credential revocation; to invalidate credentials, rotate
 `BOLTWALL_PROXY_ROOT_KEY` and redeploy. For other backends, import from
-`@boltwall/adapters/lnd`, `@boltwall/adapters/voltage-lnd`, or
-`@boltwall/adapters/btcpay`.
+`@boltwall/adapters/lnd` or `@boltwall/adapters/btcpay`.
 
 `createProxy` returns an Express app. Mount it directly, or compose it inside a
 larger Express server.
@@ -295,7 +293,7 @@ when multiple saved configs exist. `boltwall config list` prints saved config
 names and paths, and `boltwall config show <name-or-path>` prints the path plus
 a compact config summary without expanding credential environment variables.
 
-Supported backend kinds are `lnd`, `voltage-lnd`, `opennode`, and `btcpay`.
+Supported backend kinds are `lnd`, `opennode`, and `btcpay`.
 `boltwall validate` constructs the selected adapter, verifies required env vars,
 and checks backend capability flags. `boltwall dev` and `boltwall deploy` run
 the same validation before starting a local server or writing Vercel state.
@@ -305,13 +303,14 @@ the same validation before starting a local server or writing Vercel state.
 | Backend       | Hosting               | You need                                              | Pick it when                                                                  |
 | ------------- | --------------------- | ----------------------------------------------------- | ----------------------------------------------------------------------------- |
 | `lnd`         | Self-hosted           | A reachable LND node, its TLS cert, and a macaroon    | You run your own LND and want direct gRPC/socket access to it.                |
-| `voltage-lnd` | Managed LND (Voltage) | A Voltage node's REST URL, TLS cert, and macaroon     | You want your own LND without operating the host — Voltage runs the node.     |
 | `opennode`    | Managed (custodial)   | An OpenNode API key                                   | You want the fastest start and are fine with a custodial provider holding funds. |
 | `btcpay`      | Self-hosted (BTCPay)  | A BTCPay Server URL, API key, and store ID            | You already run BTCPay, or want a self-hosted, non-custodial gateway with a UI. |
 
-Rules of thumb: choose `opennode` for the least operational work, `voltage-lnd`
-to keep your own node without running the host, and `lnd` or `btcpay` when you
-self-host. `lnd`, `voltage-lnd`, and `btcpay` are non-custodial (you hold the
+Voltage Cloud nodes are standard LND nodes — use the `lnd` backend with the
+node's gRPC socket (`<node>.m.voltageapp.io:10009`), admin macaroon, and TLS cert.
+
+Rules of thumb: choose `opennode` for the least operational work, and `lnd` or
+`btcpay` when you self-host. `lnd` and `btcpay` are non-custodial (you hold the
 funds); `opennode` is custodial. HODL invoices require a backend that supports
 them — see the capability flags in [Backend Secret References](#backend-secret-references)
 and [Paywall Policy](#paywall-policy).
@@ -325,7 +324,6 @@ names are provided, Boltwall uses these defaults:
 | Backend       | Required variables                                                 | Optional variables                                                        |
 | ------------- | ------------------------------------------------------------------ | ------------------------------------------------------------------------- |
 | `lnd`         | `LND_SOCKET`, `LND_TLS_CERT`, `LND_MACAROON`                       | none                                                                      |
-| `voltage-lnd` | `VOLTAGE_LND_BASE_URL`, `VOLTAGE_LND_CERT`, `VOLTAGE_LND_MACAROON` | none                                                                      |
 | `opennode`    | `OPENNODE_API_KEY`                                                 | `OPENNODE_BASE_URL`                                                       |
 | `btcpay`      | `BTCPAY_BASE_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`             | `BTCPAY_CRYPTO_CODE`, `BTCPAY_HODL_INVOICES`, `BTCPAY_STREAMING_INVOICES` |
 
