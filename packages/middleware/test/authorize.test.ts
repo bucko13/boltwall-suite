@@ -2,6 +2,7 @@ import { describe, expect, test } from "bun:test";
 
 import {
   InMemoryRootKeyStore,
+  L402,
   buildAuthorizationHeader,
   capabilitiesSatisfier,
   mintMacaroon,
@@ -123,7 +124,9 @@ function makeValidAuthHeader(): string {
     rootKey: ROOT_KEY,
     identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
   });
-  return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+  const token = L402.fromMacaroon(macaroon);
+  token.setPreimage(PREIMAGE_HEX);
+  return token.toAuthorizationHeader();
 }
 
 function makeHodlAuthHeader(preimage: string = "", scheme: "L402" | "LSAT" = "L402"): string {
@@ -204,6 +207,7 @@ describe("authorizeL402 — missing credential (402)", () => {
 
     const wwwAuth = result.response.headers.get("WWW-Authenticate")!;
     expect(wwwAuth).toBeTruthy();
+    expect(L402.fromHeader(wwwAuth).toAuthenticateHeaders()[1]).toContain("L402 macaroon=");
     const challenges = parseAuthenticateHeader(wwwAuth);
     expect(challenges.length).toBeGreaterThanOrEqual(2);
     expect(challenges[0].scheme).toBe("LSAT");
@@ -242,7 +246,9 @@ describe("authorizeL402 — missing credential (402)", () => {
       backend,
     });
     const macaroon = await challengeMacaroon(config);
-    const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
+    const authHeader = token.toAuthorizationHeader();
 
     const acceptedByPublicSatisfiers = await verifyMacaroon({
       macaroons: [macaroon],
@@ -269,7 +275,9 @@ describe("authorizeL402 — missing credential (402)", () => {
       satisfiers: [validUntilSatisfier()],
     });
     const macaroon = await challengeMacaroon(config);
-    const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
+    const authHeader = token.toAuthorizationHeader();
 
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
     const result = await authorizeL402(makeRequest(authHeader), config);

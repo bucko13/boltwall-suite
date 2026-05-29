@@ -17,20 +17,17 @@ import { bytesToHex, hexToBytes } from "@boltwall/internal";
 import { msatsToSats } from "@boltwall/internal/numeric";
 import {
   type Caveat,
+  L402,
   type L402CredentialFields,
   type MacaroonIdentifierV0,
   VerificationFailurePrefix,
   VerificationFailureReason,
-  buildAuthenticateHeaders,
   capabilitiesCaveat,
   type CaveatSatisfier,
-  decodeIdentifier,
   mintMacaroon,
-  parseAuthorizationHeader,
   servicesCaveat,
   servicesSatisfier,
   validUntil,
-  verifyMacaroon,
 } from "@boltwall/l402";
 
 import { L402Error, l402ErrorToStatus, type L402ErrorKind } from "./error.js";
@@ -245,18 +242,15 @@ async function requireAmountMatch(
 async function verifyCredential(
   config: L402Config,
   request: Request,
-  credential: L402CredentialFields,
+  token: L402,
   requirePreimage: boolean,
   logger: L402Config["logger"],
 ): Promise<L402GateResult | undefined> {
-  const preimage = credential.preimage.length === 0 ? undefined : credential.preimage;
-  const verifyResult = await verifyMacaroon({
-    macaroons: credential.macaroons,
+  const verifyResult = await token.verify({
     rootKeyStore: config.rootKeyStore,
     satisfiers: defaultSatisfiers(config),
     context: { request, now: new Date() },
     requirePreimage,
-    ...(preimage === undefined ? {} : { preimage }),
   });
 
   if (!verifyResult.ok) {
@@ -287,6 +281,17 @@ async function authorizeSuccess(
   logger?.info({ paymentHash: paymentHashHex }, "L402 authorization granted");
 
   return { ok: true, context };
+}
+
+function credentialFieldsFromToken(
+  scheme: L402CredentialFields["scheme"],
+  token: L402,
+): L402CredentialFields {
+  return {
+    scheme,
+    macaroons: token.macaroons,
+    preimage: token.paymentPreimage ?? "",
+  };
 }
 
 /**
@@ -344,13 +349,16 @@ async function emitChallenge(
     caveats,
   });
 
-  const wwwAuth = buildAuthenticateHeaders({
-    macaroon,
+  const token = new L402({
+    macaroons: macaroon,
     invoice: invoice.paymentRequest,
+    paymentHash,
+  });
+  const wwwAuth = token.toAuthenticateHeaders({
     compatibility: config.challengeCompatibility ?? "dual",
   });
 
-  // buildAuthenticateHeaders returns string[] — each element is a full
+  // L402#toAuthenticateHeaders returns string[] — each element is a full
   // WWW-Authenticate header value. Append each as a separate header line.
   const headers = new Headers();
   for (const value of wwwAuth) {
@@ -429,12 +437,15 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
 
   // --- Credential is present. All failures below → 401. ---
 
-  // Parse the Authorization header.
+  // Parse the Authorization header through the L402 object facade.
+  let token: L402;
   let credential: L402CredentialFields;
   try {
-    credential = parseAuthorizationHeader(authHeader, {
-      allowEmptyPreimage: config.hodl === true,
-    });
+    token = L402.fromToken(authHeader);
+    if (token.paymentPreimage === undefined && config.hodl !== true) {
+      throw new Error("missing-preimage");
+    }
+    credential = credentialFieldsFromToken(scheme as L402CredentialFields["scheme"], token);
   } catch {
     const error = new L402Error("invalid-credential", "Malformed Authorization header");
     return {
@@ -447,7 +458,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
   // Extract payment hash from the FIRST macaroon identifier.
   let identifier: MacaroonIdentifierV0;
   try {
-    identifier = decodeIdentifier(credential.macaroons[0]!);
+    identifier = token.inspectMacaroon().identifier;
   } catch {
     const error = new L402Error("invalid-credential", "Undecodable macaroon identifier");
     return {
@@ -495,7 +506,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
     if (amountError !== undefined) return amountError;
 
     const hasPreimage = credential.preimage.length > 0;
-    const verifyError = await verifyCredential(config, request, credential, hasPreimage, log);
+    const verifyError = await verifyCredential(config, request, token, hasPreimage, log);
     if (verifyError !== undefined) return verifyError;
 
     if (hasPreimage) {
@@ -527,7 +538,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
     return errorResult("invalid-credential", "HODL credential expired after settlement");
   }
 
-  const verifyError = await verifyCredential(config, request, credential, true, log);
+  const verifyError = await verifyCredential(config, request, token, true, log);
   if (verifyError !== undefined) return verifyError;
 
   // Security: verify invoice amount matches configured price.

@@ -3,7 +3,7 @@ import type { Server } from "node:http";
 
 import type { CreatedInvoice, CreateInvoiceRequest } from "@boltwall/adapters";
 import { MockAdapter } from "@boltwall/adapters/testing";
-import { validUntil, validUntilSatisfier } from "@boltwall/l402";
+import { L402, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import type { L402Config, MinimalLogger } from "@boltwall/middleware/core";
 import express from "express";
 
@@ -176,11 +176,13 @@ describe("createProxy", () => {
 
     const challenge = await fetch(`${proxy.url}/paid`);
     const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
     const res = await fetch(`${proxy.url}/paid`, {
       headers: {
-        authorization: `L402 ${macaroon}:${PREIMAGE_HEX}`,
+        authorization: token.toAuthorizationHeader(),
         cookie: "sid=secret",
         "x-custom-foo": "forward-me",
         "x-other": "drop-me",
@@ -226,12 +228,14 @@ describe("createProxy", () => {
       headers: { origin: "https://playground.example" },
     });
     const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
     const res = await fetch(`${proxy.url}/paid`, {
       headers: {
         origin: "https://playground.example",
-        authorization: `L402 ${macaroon}:${PREIMAGE_HEX}`,
+        authorization: token.toAuthorizationHeader(),
       },
     });
 
@@ -293,10 +297,12 @@ describe("createProxy", () => {
 
     const challenge = await fetch(`${proxy.url}/paid`);
     const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
     const res = await fetch(`${proxy.url}/paid`, {
-      headers: { authorization: `LSAT ${macaroon}:${PREIMAGE_HEX}` },
+      headers: { authorization: token.toAuthorizationHeader({ legacy: true }) },
     });
 
     expect(res.status).toBe(200);
@@ -313,10 +319,12 @@ describe("createProxy", () => {
 
     const challenge = await fetch(`${proxy.url}/paid`);
     const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
     const res = await fetch(`${proxy.url}/paid`, {
-      headers: { authorization: `L402 ${macaroon}:${PREIMAGE_HEX}` },
+      headers: { authorization: token.toAuthorizationHeader() },
     });
 
     expect(res.status).toBe(401);
@@ -380,10 +388,12 @@ describe("createProxy", () => {
 
     const challenge = await fetch(`${proxy.url}/slow`);
     const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+    const token = L402.fromMacaroon(macaroon);
+    token.setPreimage(PREIMAGE_HEX);
     backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
     const res = await fetch(`${proxy.url}/slow`, {
-      headers: { authorization: `L402 ${macaroon}:${PREIMAGE_HEX}` },
+      headers: { authorization: token.toAuthorizationHeader() },
     });
 
     expect(res.status).toBe(502);
