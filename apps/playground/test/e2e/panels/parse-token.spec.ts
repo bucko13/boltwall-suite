@@ -47,11 +47,15 @@ test.describe("panels / parse-token", () => {
       "[data-testid='parse-token-input']",
       `Authorization: L402 ${FIXTURE_MACAROON}:${"00".repeat(32)}`,
     );
+    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(2);
     await page.click("[data-testid='parse-token-decode']");
 
     await expect(page.locator("[data-testid='parse-token-output']")).toBeVisible();
     await expect(page.locator("[data-testid='parse-token-payment-hash']")).toBeVisible();
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("decoded");
+
+    await page.click("[data-testid='parse-token-reset']");
+    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(0);
   });
 
   test("generated macaroon stays in Workbench until explicitly filled", async ({ page }) => {

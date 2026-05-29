@@ -1,19 +1,51 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState } from "react";
 
 import { copyUrl } from "../../lib/copy-url";
 
+function isCredentialLike(value: string) {
+  const normalized = value.trim().replace(/^authorization:\s*/i, "");
+  if (!normalized) return false;
+
+  const schemeMatch = /^(?:L402|LSAT)\s+(.+)$/i.exec(normalized);
+  const credential = schemeMatch?.[1] ?? normalized;
+  return /^[^:\s]+:[0-9a-f]{64}(?:\s|$)/i.test(credential);
+}
+
+function sensitiveWarningForSearchParams(searchParams: URLSearchParams) {
+  const sensitiveKinds = new Set<string>();
+
+  for (const [key, rawValue] of searchParams.entries()) {
+    const value = rawValue.trim();
+    if (!value) continue;
+
+    if (key.endsWith(".key")) {
+      sensitiveKinds.add("root key");
+    }
+    if (key.endsWith(".preimage") || key.toLowerCase().includes("preimage")) {
+      sensitiveKinds.add("preimage");
+    }
+    if (key.endsWith(".token") && isCredentialLike(value)) {
+      sensitiveKinds.add("credential");
+    }
+  }
+
+  if (sensitiveKinds.size === 0) return null;
+  return `This share URL includes ${Array.from(sensitiveKinds).join(", ")} state. Share only with trusted recipients.`;
+}
+
 export function CopyUrlButton({
   label = "copy url",
   title = "Copy share-state URL",
-  sensitiveStateWarning,
 }: {
   label?: string;
   title?: string;
-  sensitiveStateWarning?: string;
 }) {
   const [copied, setCopied] = useState(false);
+  const searchParams = useSearchParams();
+  const sensitiveStateWarning = sensitiveWarningForSearchParams(searchParams);
   const buttonTitle = sensitiveStateWarning ? `${title}. ${sensitiveStateWarning}` : title;
 
   async function onCopy() {

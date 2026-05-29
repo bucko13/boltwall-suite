@@ -99,10 +99,12 @@ test.describe("panels / validate", () => {
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
     await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
+    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toBeVisible();
     await page.click("[data-testid='validate-verify']");
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
     await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
+    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(0);
   });
 
   test("saved macaroon and signing key are filled from Workbench explicitly", async ({ page }) => {
