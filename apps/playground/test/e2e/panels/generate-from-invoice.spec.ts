@@ -102,9 +102,9 @@ test.describe("panels / generate-from-invoice", () => {
     expect(text).toContain("L402 macaroon=");
     expect(text).toContain(invoiceFixture.invoice.slice(0, 12));
 
-    // The exact snippet now teaches the challenge-construction call.
+    // The exact snippet now teaches the class-forward challenge-construction call.
     await expect(page.locator("[data-testid='code-snippet']").first()).toContainText(
-      "buildAuthenticateHeaders",
+      "toAuthenticateHeaders",
     );
   });
 

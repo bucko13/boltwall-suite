@@ -6,8 +6,7 @@ import {
   SPEC_EXAMPLE_PREIMAGE,
 } from "@boltwall/test-fixtures";
 
-import { buildAuthorizationHeader } from "../src";
-import { parseAuthorizationHeader } from "../src/headers";
+import { buildAuthorizationHeader, parseAuthorizationHeader } from "../src/headers";
 
 describe("buildAuthorizationHeader / schemes and shapes", () => {
   test("emits L402 by default for a single macaroon string", () => {

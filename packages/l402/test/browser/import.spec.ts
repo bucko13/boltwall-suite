@@ -67,11 +67,9 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     async (fixtures) => {
       const l402 = await import("/index.js");
 
-      const challenge = l402.parseAuthenticateHeader(fixtures.challenge.header);
-      const authorization = l402.parseAuthorizationHeader(fixtures.authorization.header);
       const objectChallenge = l402.L402.fromHeader(fixtures.challenge.header);
       const objectCredential = l402.L402.fromToken(fixtures.authorization.header);
-      const identifier = l402.decodeIdentifier(fixtures.identifier.macaroon);
+      const identifier = l402.Identifier.fromMacaroon(fixtures.identifier.macaroon);
       const invoice = l402.decodeBolt11Invoice(fixtures.invoice.invoice);
       const preimageOk = l402.verifyPreimage({
         paymentHash: fixtures.goodPreimage.paymentHashHex,
@@ -104,21 +102,19 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
         satisfiers: [l402.servicesSatisfier("pokedex")],
         context: {},
       });
-      const mintedIdentifier = l402.decodeIdentifier(mintedMacaroon);
+      const mintedIdentifier = l402.Identifier.fromMacaroon(mintedMacaroon);
       const inspectedMintedMacaroon = l402.inspectMacaroon(mintedMacaroon);
 
       let invalidIdentifierReason = "";
       try {
-        l402.decodeIdentifier(fixtures.malformedIdentifier.macaroon);
+        l402.Identifier.fromMacaroon(fixtures.malformedIdentifier.macaroon);
       } catch (error) {
         invalidIdentifierReason = error instanceof Error ? error.message : String(error);
       }
 
       return {
         exported: {
-          parseAuthenticateHeader: typeof l402.parseAuthenticateHeader,
-          parseAuthorizationHeader: typeof l402.parseAuthorizationHeader,
-          decodeIdentifier: typeof l402.decodeIdentifier,
+          Identifier: typeof l402.Identifier,
           decodeBolt11Invoice: typeof l402.decodeBolt11Invoice,
           verifyPreimage: typeof l402.verifyPreimage,
           parseCaveat: typeof l402.parseCaveat,
@@ -128,8 +124,6 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
           verifyMacaroon: typeof l402.verifyMacaroon,
           L402: typeof l402.L402,
         },
-        challenge,
-        authorization,
         objectChallenge: {
           macaroon: objectChallenge.macaroon,
           invoice: objectChallenge.invoice,
@@ -211,9 +205,7 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
   );
 
   expect(result.exported).toEqual({
-    parseAuthenticateHeader: "function",
-    parseAuthorizationHeader: "function",
-    decodeIdentifier: "function",
+    Identifier: "function",
     decodeBolt11Invoice: "function",
     verifyPreimage: "function",
     parseCaveat: "function",
@@ -224,9 +216,6 @@ test("built ESM imports in Chromium and exercises L402 browser-safe APIs", async
     L402: "function",
   });
 
-  expect(result.challenge).toEqual(challengeFixture.expected.fields);
-  expect(result.authorization.macaroons).toHaveLength(2);
-  expect(result.authorization).toEqual(authorizationFixture.expected.fields);
   expect(result.objectChallenge).toEqual({
     macaroon: challengeFixture.expected.fields[0]?.macaroon,
     invoice: challengeFixture.expected.fields[0]?.invoice,

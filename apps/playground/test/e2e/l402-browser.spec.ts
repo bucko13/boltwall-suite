@@ -77,17 +77,29 @@ test.describe("L402 browser validation / playground bundle", () => {
     await expect(page.locator("[data-testid='l402-test-ready']")).toBeVisible();
   });
 
-  test("low-level parseAuthenticateHeader parses L402 challenge", async ({ page }) => {
+  test("L402.fromHeader parses L402 challenge", async ({ page }) => {
     const result = await page.evaluate((header: string) => {
-      return window.__l402!.parseAuthenticateHeader(header);
+      const token = window.__l402!.L402.fromHeader(header);
+      return [
+        {
+          scheme: "L402",
+          macaroon: token.macaroon,
+          invoice: token.invoice,
+        },
+      ];
     }, challengeFixture.header);
 
     expect(result).toEqual(challengeExpectedFields);
   });
 
-  test("low-level parseAuthorizationHeader parses multi-macaroon credential", async ({ page }) => {
+  test("L402.fromToken parses multi-macaroon credential", async ({ page }) => {
     const result = await page.evaluate((header: string) => {
-      return window.__l402!.parseAuthorizationHeader(header);
+      const token = window.__l402!.L402.fromToken(header);
+      return {
+        scheme: header.startsWith("LSAT ") ? "LSAT" : "L402",
+        macaroons: token.macaroons,
+        preimage: token.paymentPreimage,
+      };
     }, authorizationFixture.header);
 
     expect(result.macaroons).toHaveLength(2);
@@ -178,9 +190,9 @@ test.describe("L402 browser validation / playground bundle", () => {
     });
   });
 
-  test("decodeIdentifier extracts paymentHash and tokenId", async ({ page }) => {
+  test("Identifier.fromMacaroon extracts paymentHash and tokenId", async ({ page }) => {
     const result = await page.evaluate((macaroon: string) => {
-      const id = window.__l402!.decodeIdentifier(macaroon);
+      const id = window.__l402!.Identifier.fromMacaroon(macaroon);
       const hex = (b: Uint8Array) =>
         Array.from(b, (byte) => byte.toString(16).padStart(2, "0")).join("");
       return {
@@ -193,10 +205,10 @@ test.describe("L402 browser validation / playground bundle", () => {
     expect(result).toEqual(identifierExpectedFields);
   });
 
-  test("decodeIdentifier throws on malformed input", async ({ page }) => {
+  test("Identifier.fromMacaroon throws on malformed input", async ({ page }) => {
     const reason = await page.evaluate((macaroon: string) => {
       try {
-        window.__l402!.decodeIdentifier(macaroon);
+        window.__l402!.Identifier.fromMacaroon(macaroon);
         return "";
       } catch (e) {
         return e instanceof Error ? e.message : String(e);

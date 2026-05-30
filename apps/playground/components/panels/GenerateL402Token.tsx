@@ -1,8 +1,8 @@
 "use client";
 
 import {
-  buildAuthenticateHeaders,
   decodeBolt11Invoice,
+  L402,
   mintMacaroon,
   type MacaroonIdentifierV0,
 } from "@boltwall/l402";
@@ -109,14 +109,17 @@ export function GenerateL402Token() {
       // A bare macaroon is not yet a challenge: pairing it with the invoice
       // produces the full WWW-Authenticate value a server returns on a 402.
       // L402 protocol-specification.md §5.1 defines the challenge shape; §10
-      // the dual LSAT-first / L402-second emission (buildAuthenticateHeaders
-      // default). Joining the two values mirrors how the same header repeated
-      // on the wire is folded into one comma-separated string.
+      // the dual LSAT-first / L402-second emission. Joining the two values
+      // mirrors how the same header repeated on the wire is folded into one
+      // comma-separated string.
       if (trimmedInvoice) {
-        const challengeValue = buildAuthenticateHeaders({
-          macaroon: result,
+        const challengeValue = new L402({
+          macaroons: result,
           invoice: trimmedInvoice,
-        }).join(", ");
+          paymentHash,
+        })
+          .toAuthenticateHeaders()
+          .join(", ");
         setChallenge(challengeValue);
         workbenchMemory?.setChallenge(challengeValue);
       } else {
@@ -149,10 +152,10 @@ export function GenerateL402Token() {
 
   const hexToBytesHelper = `function hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}`;
   const exactImport = challenge
-    ? `import { buildAuthenticateHeaders, mintMacaroon } from "@boltwall/l402";`
+    ? `import { L402, mintMacaroon } from "@boltwall/l402";`
     : `import { mintMacaroon } from "@boltwall/l402";`;
   const challengeTail = challenge
-    ? `\n\n// Pair the macaroon with the invoice to emit the WWW-Authenticate\n// challenge (dual LSAT-first + L402, per L402 protocol-specification.md §10)\nconst challengeHeaders = buildAuthenticateHeaders({ macaroon, invoice });`
+    ? `\n\n// Pair the macaroon with the invoice to emit the WWW-Authenticate\n// challenge (dual LSAT-first + L402, per L402 protocol-specification.md §10)\nconst challengeHeaders = new L402({\n  macaroons: macaroon,\n  invoice,\n  paymentHash: identifier.paymentHash,\n}).toAuthenticateHeaders();`
     : "";
   const exactTemplate = `${exactImport}\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });${challengeTail}`;
   const recipeTemplate = `import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`;

@@ -2,11 +2,11 @@ import { describe, expect, test } from "bun:test";
 import { MockAdapter } from "@boltwall/adapters/testing";
 import {
   InMemoryRootKeyStore,
-  buildAuthorizationHeader,
   expirationCaveat,
   expirationSatisfier,
   ipCaveat,
   ipSatisfier,
+  L402,
   mintMacaroon,
   routeCaveat,
   routeSatisfier,
@@ -48,15 +48,14 @@ function mintCredential(caveats: Parameters<typeof mintMacaroon>[0]["caveats"] =
 
 function legacyCredential(caveats: Parameters<typeof mintMacaroon>[0]["caveats"] = []): string {
   const macaroon = mintCredential(caveats);
-  return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX }).replace(
-    /^L402 /,
-    "LSAT ",
-  );
+  return new L402({ macaroons: macaroon, paymentPreimage: PREIMAGE_HEX }).toAuthorizationHeader({
+    legacy: true,
+  });
 }
 
 function l402Credential(caveats: Parameters<typeof mintMacaroon>[0]["caveats"] = []): string {
   const macaroon = mintCredential(caveats);
-  return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+  return new L402({ macaroons: macaroon, paymentPreimage: PREIMAGE_HEX }).toAuthorizationHeader();
 }
 
 async function buildLegacyRegressionApp(satisfiers: Parameters<typeof boltwall>[0]["satisfiers"]) {

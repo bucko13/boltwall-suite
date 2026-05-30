@@ -8,7 +8,7 @@ import {
   parseAuthorizationHeader,
   type AuthenticateHeaderCompatibility,
 } from "./headers";
-import { decodeIdentifier } from "./identifier";
+import { Identifier } from "./identifier";
 import {
   addFirstPartyCaveat as addRawFirstPartyCaveat,
   decodeRaw,
@@ -391,7 +391,7 @@ export class L402 {
   }
 
   static fromMacaroon(macaroon: string, invoice?: string): L402 {
-    const identifier = decodeIdentifier(macaroon);
+    const identifier = Identifier.fromMacaroon(macaroon);
     const options: L402Options = {
       macaroons: macaroon,
       paymentHash: identifier.paymentHash,

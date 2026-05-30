@@ -88,8 +88,8 @@ export function buildAuthenticateHeaders(args: BuildAuthenticateHeadersArgs): st
  *
  * `macaroon` and `invoice` are kept as the raw, unquoted string values
  * delivered in the header. Cryptographic / protocol-level decoding is the
- * responsibility of downstream consumers (`decodeIdentifier` for the macaroon,
- * `decodeBolt11Invoice` for the invoice).
+ * responsibility of downstream consumers (`Identifier.fromMacaroon` for the
+ * macaroon, `decodeBolt11Invoice` for the invoice).
  */
 export interface L402ChallengeFields {
   scheme: L402Scheme;
@@ -137,7 +137,7 @@ const INVOICE_HRP = /^ln(bcrt|bc|tb|sb)/i;
  *    `invoice` values MUST start with a BOLT 11 human-readable prefix
  *    (`lnbc`, `lntb`, `lnbcrt`, `lnsb`). Anything past these cheap shape
  *    checks (binary macaroon validity, BOLT 11 amount/expiry/signature) is
- *    the responsibility of `decodeIdentifier` / `decodeBolt11Invoice`.
+ *    the responsibility of `Identifier.fromMacaroon` / `decodeBolt11Invoice`.
  *
  * Throws synchronously on malformed input. Error messages are short
  * machine-readable codes:

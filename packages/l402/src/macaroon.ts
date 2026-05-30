@@ -4,7 +4,7 @@ import { sha256 } from "@noble/hashes/sha2.js";
 import { importMacaroon } from "macaroon";
 
 import { parseCaveat, serializeCaveat, type Caveat } from "./caveats";
-import { decodeIdentifier, type MacaroonIdentifierV0 } from "./identifier";
+import { decodeIdentifierFields, type MacaroonIdentifierV0 } from "./identifier";
 import { base64ToBytes, bytesToBase64 } from "./internal/base64";
 import type { RootKeyStore } from "./root-key-store";
 import type { CaveatContext, CaveatSatisfier } from "./satisfiers";
@@ -281,7 +281,7 @@ export interface MacaroonInspection {
  */
 export function inspectMacaroon(macaroon: string): MacaroonInspection {
   const raw = decodeRaw(macaroon);
-  const identifier = decodeIdentifier(macaroon);
+  const identifier = decodeIdentifierFields(macaroon);
   const decoder = new TextDecoder();
 
   return {

@@ -10,9 +10,8 @@ import supertest from "supertest";
 
 import {
   InMemoryRootKeyStore,
-  buildAuthorizationHeader,
+  L402,
   mintMacaroon,
-  parseAuthenticateHeader,
   validUntilSatisfier,
 } from "@boltwall/l402";
 import { BackendCapabilityError, type LightningBackend } from "@boltwall/adapters";
@@ -94,7 +93,9 @@ export async function buildIntegrationApp(
 
 /** Build a valid L402 credential from the captured macaroon + known preimage. */
 function credentialFromMacaroon(macaroonB64: string, scheme: "L402" | "LSAT" = "L402"): string {
-  return `${scheme} ${macaroonB64}:${PREIMAGE_HEX}`;
+  return new L402({ macaroons: macaroonB64, paymentPreimage: PREIMAGE_HEX }).toAuthorizationHeader(
+    { legacy: scheme === "LSAT" },
+  );
 }
 
 function hodlCredentialFromMacaroon(
@@ -102,7 +103,12 @@ function hodlCredentialFromMacaroon(
   preimage = "",
   scheme: "L402" | "LSAT" = "L402",
 ): string {
-  return `${scheme} ${macaroonB64}:${preimage}`;
+  const token = new L402({ macaroons: macaroonB64 });
+  if (preimage.length === 0) {
+    return token.toPendingToken({ legacy: scheme === "LSAT" });
+  }
+  token.setPreimage(preimage);
+  return token.toAuthorizationHeader({ legacy: scheme === "LSAT" });
 }
 
 /** Mint a macaroon with known keys (for testing caveat scenarios). */
@@ -132,12 +138,10 @@ export function defineIntegrationSuite(
 
       expect(res.status).toBe(402);
       const wwwAuth = res.headers["www-authenticate"] as string;
-      const challenges = parseAuthenticateHeader(wwwAuth);
-      expect(challenges.length).toBeGreaterThanOrEqual(2);
-      expect(challenges[0].scheme).toBe("LSAT");
-      expect(challenges[1].scheme).toBe("L402");
-      expect(challenges[0].macaroon).toBeTruthy();
-      expect(challenges[0].invoice).toMatch(/^lnbcrt/);
+      const token = L402.fromHeader(wwwAuth);
+      expect(wwwAuth.indexOf("LSAT macaroon=")).toBeLessThan(wwwAuth.indexOf("L402 macaroon="));
+      expect(token.macaroon).toBeTruthy();
+      expect(token.invoice).toMatch(/^lnbcrt/);
     });
 
     // Scenario 2 — explicit L402-only challenge
@@ -146,9 +150,10 @@ export function defineIntegrationSuite(
       const res = await supertest(app).get("/paid");
 
       expect(res.status).toBe(402);
-      const challenges = parseAuthenticateHeader(res.headers["www-authenticate"] as string);
-      expect(challenges).toHaveLength(1);
-      expect(challenges[0].scheme).toBe("L402");
+      const wwwAuth = res.headers["www-authenticate"] as string;
+      expect(L402.fromHeader(wwwAuth).macaroon).toBeTruthy();
+      expect(wwwAuth).toContain("L402 macaroon=");
+      expect(wwwAuth).not.toContain("LSAT macaroon=");
     });
 
     // Scenario 3 — paid retry: capture macaroon from 402, settle, retry → 200
@@ -159,8 +164,7 @@ export function defineIntegrationSuite(
       const challenge = await supertest(app).get("/paid");
       expect(challenge.status).toBe(402);
 
-      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
-      const captured = challenges[0]!;
+      const captured = L402.fromHeader(challenge.headers["www-authenticate"] as string);
       expect(captured.macaroon).toBeTruthy();
 
       // Step 2: settle the invoice
@@ -184,8 +188,7 @@ export function defineIntegrationSuite(
       backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
       const macaroon = mintTestMacaroon();
-      const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
-      const lsatHeader = authHeader.replace(/^L402 /, "LSAT ");
+      const lsatHeader = credentialFromMacaroon(macaroon, "LSAT");
 
       const res = await supertest(app).get("/paid").set("Authorization", lsatHeader);
       expect(res.status).toBe(200);
@@ -197,8 +200,7 @@ export function defineIntegrationSuite(
       const res = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
 
       expect(res.status).toBe(402);
-      const challenges = parseAuthenticateHeader(res.headers["www-authenticate"] as string);
-      expect(challenges[0]?.macaroon).toBeTruthy();
+      expect(L402.fromHeader(res.headers["www-authenticate"] as string).macaroon).toBeTruthy();
       await expect(backend.lookupInvoice(PAYMENT_HASH_HEX)).resolves.toMatchObject({
         status: "open",
         amountMsat: AMOUNT_MSAT,
@@ -209,8 +211,7 @@ export function defineIntegrationSuite(
       const { app, backend } = await makeApp({ hodl: true });
 
       const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
-      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
-      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      const macaroon = L402.fromHeader(challenge.headers["www-authenticate"] as string).macaroon;
       backend.hold(PAYMENT_HASH_HEX);
 
       const res = await supertest(app)
@@ -226,8 +227,7 @@ export function defineIntegrationSuite(
       const { app, backend } = await makeApp({ hodl: true });
 
       const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
-      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
-      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      const macaroon = L402.fromHeader(challenge.headers["www-authenticate"] as string).macaroon;
       backend.hold(PAYMENT_HASH_HEX);
 
       const res = await supertest(app)
@@ -245,8 +245,7 @@ export function defineIntegrationSuite(
       const { app, backend } = await makeApp({ hodl: true });
 
       const challenge = await supertest(app).post("/paid").send({ paymentHash: PAYMENT_HASH_HEX });
-      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
-      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      const macaroon = L402.fromHeader(challenge.headers["www-authenticate"] as string).macaroon;
       backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
       const res = await supertest(app)
@@ -261,8 +260,7 @@ export function defineIntegrationSuite(
       const { app, backend } = await makeApp();
 
       const challenge = await supertest(app).get("/paid");
-      const challenges = parseAuthenticateHeader(challenge.headers["www-authenticate"] as string);
-      const macaroon = challenges.find((entry) => entry.scheme === "L402")!.macaroon;
+      const macaroon = L402.fromHeader(challenge.headers["www-authenticate"] as string).macaroon;
       backend.hold(PAYMENT_HASH_HEX);
 
       const res = await supertest(app)
@@ -287,7 +285,10 @@ export function defineIntegrationSuite(
 
       const macaroon = mintTestMacaroon();
       const wrongPreimage = "ff".repeat(32);
-      const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: wrongPreimage });
+      const authHeader = new L402({
+        macaroons: macaroon,
+        paymentPreimage: wrongPreimage,
+      }).toAuthorizationHeader();
 
       const res = await supertest(app).get("/paid").set("Authorization", authHeader);
       expect(res.status).toBe(401);
@@ -300,7 +301,7 @@ export function defineIntegrationSuite(
       backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
 
       const macaroon = mintTestMacaroon([validUntil({ iso: "2020-01-01T00:00:00.000Z" })]);
-      const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+      const authHeader = credentialFromMacaroon(macaroon);
 
       const res = await supertest(app).get("/paid").set("Authorization", authHeader);
       expect(res.status).toBe(401);
@@ -363,7 +364,7 @@ export function defineIntegrationSuite(
 
       // Send credential directly — no 402 step so the pre-stored 1000 msat invoice is preserved.
       const macaroon = mintTestMacaroon();
-      const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+      const authHeader = credentialFromMacaroon(macaroon);
 
       const res = await supertest(app).get("/paid").set("Authorization", authHeader);
       expect(res.status).toBe(401);

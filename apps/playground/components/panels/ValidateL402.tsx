@@ -1,11 +1,11 @@
 "use client";
 
 import {
-  decodeIdentifier,
-  verifyPreimage,
+  Identifier,
   InMemoryRootKeyStore,
   L402,
   validUntilSatisfier,
+  verifyPreimage,
 } from "@boltwall/l402";
 import { useState } from "react";
 
@@ -143,7 +143,7 @@ export function ValidateL402() {
     let tokenId: Uint8Array;
     let paymentHash: Uint8Array;
     try {
-      const id = decodeIdentifier(mac);
+      const id = Identifier.fromMacaroon(mac);
       tokenId = id.tokenId;
       paymentHash = id.paymentHash;
       newChecks.push({
@@ -585,7 +585,7 @@ export function ValidateL402() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { L402, decodeIdentifier, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst macaroon = {{tokenLiteral}};\nconst rootKey = hexToBytes({{rootKeyLiteral}});\nconst preimage = {{preimageLiteral}};\nconst { tokenId } = decodeIdentifier(macaroon);\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, rootKey);\n\nconst token = new L402({ macaroons: [macaroon], paymentPreimage: preimage });\nconst result = await token.verify({\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
+          template={`import { L402, Identifier, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst macaroon = {{tokenLiteral}};\nconst rootKey = hexToBytes({{rootKeyLiteral}});\nconst preimage = {{preimageLiteral}};\nconst { tokenId } = Identifier.fromMacaroon(macaroon);\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, rootKey);\n\nconst token = new L402({ macaroons: [macaroon], paymentPreimage: preimage });\nconst result = await token.verify({\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
           values={{
             tokenLiteral,
             rootKeyLiteral,

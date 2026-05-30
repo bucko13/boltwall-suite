@@ -14,20 +14,13 @@ export {
 } from "./caveats";
 
 export {
-  buildAuthenticateHeaders,
-  buildAuthorizationHeader,
-  parseAuthenticateHeader,
-  parseAuthorizationHeader,
   type AuthenticateHeaderCompatibility,
-  type BuildAuthenticateHeadersArgs,
-  type BuildAuthorizationHeaderArgs,
   type L402ChallengeFields,
   type L402CredentialFields,
   type L402Scheme,
-  type ParseAuthorizationHeaderOptions,
 } from "./headers";
 
-export { Identifier, decodeIdentifier, type MacaroonIdentifierV0 } from "./identifier";
+export { Identifier, type MacaroonIdentifierV0 } from "./identifier";
 
 export { decodeBolt11Invoice, type Bolt11Network, type DecodedInvoice } from "./invoice";
 

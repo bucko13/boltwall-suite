@@ -3,10 +3,9 @@ import { describe, expect, test } from "bun:test";
 
 import {
   InMemoryRootKeyStore,
-  buildAuthorizationHeader,
   capabilitiesSatisfier,
+  L402,
   mintMacaroon,
-  parseAuthorizationHeader,
   parseCaveat,
   servicesSatisfier,
   verifyMacaroon,
@@ -54,29 +53,18 @@ describe("Aperture library vector smoke", () => {
         tokenId: APERTURE_TOKEN_ID,
       },
     });
-    const l402 = buildAuthorizationHeader({
+    const token = new L402({
       macaroons: macaroon,
-      preimage: bytesToHex(PREIMAGE),
+      paymentPreimage: bytesToHex(PREIMAGE),
     });
-    const lsat = buildAuthorizationHeader({
-      macaroons: macaroon,
-      preimage: bytesToHex(PREIMAGE),
-      legacy: true,
-    });
+    const l402 = token.toAuthorizationHeader();
+    const lsat = token.toAuthorizationHeader({ legacy: true });
 
     // L402 protocol-specification.md §5 and §10; Aperture l402/header.go accepts
     // both Authorization schemes and SetHeader emits LSAT first for legacy
     // compatibility before adding L402.
-    expect(parseAuthorizationHeader(lsat)).toEqual({
-      scheme: "LSAT",
-      macaroons: [macaroon],
-      preimage: bytesToHex(PREIMAGE),
-    });
-    expect(parseAuthorizationHeader(l402)).toEqual({
-      scheme: "L402",
-      macaroons: [macaroon],
-      preimage: bytesToHex(PREIMAGE),
-    });
+    expect(L402.fromToken(lsat).toAuthorizationHeader({ legacy: true })).toBe(lsat);
+    expect(L402.fromToken(l402).toAuthorizationHeader()).toBe(l402);
   });
 
   test("matches Aperture caveat parser vectors", () => {

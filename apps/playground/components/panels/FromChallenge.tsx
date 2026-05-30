@@ -1,6 +1,6 @@
 "use client";
 
-import { decodeIdentifier, L402 } from "@boltwall/l402";
+import { Identifier, L402 } from "@boltwall/l402";
 import { useState } from "react";
 
 import { useRememberedStringInput, useWorkbenchMemory } from "../../lib/url-state";
@@ -107,7 +107,7 @@ export function FromChallenge() {
   let stripeSegments: MacaroonSegments | null = null;
   if (current?.token.macaroon) {
     try {
-      const id = decodeIdentifier(current.token.macaroon);
+      const id = Identifier.fromMacaroon(current.token.macaroon);
       stripeSegments = {
         identifier: id.paymentHash,
         location: "",

@@ -3,10 +3,8 @@ import { describe, expect, test } from "bun:test";
 import {
   InMemoryRootKeyStore,
   L402,
-  buildAuthorizationHeader,
   capabilitiesSatisfier,
   mintMacaroon,
-  parseAuthenticateHeader,
   servicesSatisfier,
   validUntil,
   validUntilSatisfier,
@@ -36,7 +34,7 @@ const TOKEN_ID = new Uint8Array(32).fill(0x42);
  */
 /**
  * Wrap MockAdapter so createInvoice returns a valid BOLT11-prefix paymentRequest.
- * buildAuthenticateHeaders validates `lnbc/lntb/lnbcrt` prefix; MockAdapter
+ * L402 challenge construction validates `lnbc/lntb/lnbcrt` prefix; MockAdapter
  * produces `mockbolt11_...` which fails that check.
  */
 class TestBackend extends MockAdapter {
@@ -153,10 +151,9 @@ async function challengeMacaroon(config: L402Config): Promise<string> {
   const result = await authorizeL402(makeRequest(), config);
   expect(result.ok).toBe(false);
   if (result.ok) throw new Error("expected challenge");
-  const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
-  const challenge = challenges.find((entry) => entry.scheme === "L402");
-  expect(challenge?.macaroon).toBeTruthy();
-  return challenge!.macaroon;
+  const token = L402.fromHeader(result.response.headers.get("WWW-Authenticate")!);
+  expect(token.macaroon).toBeTruthy();
+  return token.macaroon;
 }
 
 /** Minimal backend that throws on createInvoice. */
@@ -203,10 +200,7 @@ describe("authorizeL402 — missing credential (402)", () => {
     const wwwAuth = result.response.headers.get("WWW-Authenticate")!;
     expect(wwwAuth).toBeTruthy();
     expect(L402.fromHeader(wwwAuth).toAuthenticateHeaders()[1]).toContain("L402 macaroon=");
-    const challenges = parseAuthenticateHeader(wwwAuth);
-    expect(challenges.length).toBeGreaterThanOrEqual(2);
-    expect(challenges[0].scheme).toBe("LSAT");
-    expect(challenges[1].scheme).toBe("L402");
+    expect(wwwAuth.indexOf("LSAT macaroon=")).toBeLessThan(wwwAuth.indexOf("L402 macaroon="));
   });
 
   test("challengeCompatibility l402-only → only L402 scheme emitted", async () => {
@@ -215,8 +209,9 @@ describe("authorizeL402 — missing credential (402)", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
-    expect(challenges.every((c) => c.scheme === "L402")).toBe(true);
+    const wwwAuth = result.response.headers.get("WWW-Authenticate")!;
+    expect(L402.fromHeader(wwwAuth).toChallenge()).toContain("L402 macaroon=");
+    expect(wwwAuth).not.toContain("LSAT macaroon=");
   });
 
   test("omits services caveat when no service is configured", async () => {
@@ -285,8 +280,9 @@ describe("authorizeL402 — missing credential (402)", () => {
 
     expect(result.ok).toBe(false);
     if (result.ok) return;
-    const challenges = parseAuthenticateHeader(result.response.headers.get("WWW-Authenticate")!);
-    expect(challenges.every((c) => c.scheme === "LSAT")).toBe(true);
+    const wwwAuth = result.response.headers.get("WWW-Authenticate")!;
+    expect(L402.fromHeader(wwwAuth).toChallenge({ legacy: true })).toContain("LSAT macaroon=");
+    expect(wwwAuth).not.toContain("L402 macaroon=");
   });
 
   test("Bearer scheme treated as absent → 402 challenge", async () => {
@@ -600,7 +596,10 @@ describe("authorizeL402 — invalid credential (401)", () => {
       identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
     });
     const wrongPreimage = "ff".repeat(32);
-    const authHeader = buildAuthorizationHeader({ macaroons: macaroon, preimage: wrongPreimage });
+    const authHeader = new L402({
+      macaroons: macaroon,
+      paymentPreimage: wrongPreimage,
+    }).toAuthorizationHeader();
 
     const result = await authorizeL402(makeRequest(authHeader), config);
 

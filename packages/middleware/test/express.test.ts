@@ -11,13 +11,12 @@ import supertest from "supertest";
 
 import {
   InMemoryRootKeyStore,
-  buildAuthorizationHeader,
+  L402,
   expirationCaveat,
   ipCaveat,
   ipSatisfier,
   mintMacaroon,
   originCaveat,
-  parseAuthenticateHeader,
   routeCaveat,
   validUntil,
 } from "@boltwall/l402";
@@ -57,7 +56,7 @@ function makeValidAuthHeader(caveats: Parameters<typeof mintMacaroon>[0]["caveat
     identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
     caveats,
   });
-  return buildAuthorizationHeader({ macaroons: macaroon, preimage: PREIMAGE_HEX });
+  return new L402({ macaroons: macaroon, paymentPreimage: PREIMAGE_HEX }).toAuthorizationHeader();
 }
 
 async function buildApp() {
@@ -125,11 +124,8 @@ describe("Express adapter — GET /paid", () => {
     const wwwAuth = res.headers["www-authenticate"] as string;
     expect(wwwAuth).toBeTruthy();
 
-    // Build a single string from potentially repeated headers for parsing.
-    const challenges = parseAuthenticateHeader(wwwAuth);
-    expect(challenges.length).toBeGreaterThanOrEqual(2);
-    expect(challenges[0].scheme).toBe("LSAT");
-    expect(challenges[1].scheme).toBe("L402");
+    expect(L402.fromHeader(wwwAuth).macaroon).toBeTruthy();
+    expect(wwwAuth.indexOf("LSAT macaroon=")).toBeLessThan(wwwAuth.indexOf("L402 macaroon="));
   });
 
   test("valid credential → 200 and req.l402 populated", async () => {
@@ -186,10 +182,10 @@ describe("Express adapter — GET /paid", () => {
       rootKey: ROOT_KEY,
       identifier: { version: 0, paymentHash: hexToBytes(PAYMENT_HASH_HEX), tokenId: TOKEN_ID },
     });
-    const wrongHeader = buildAuthorizationHeader({
+    const wrongHeader = new L402({
       macaroons: macaroon,
-      preimage: "ff".repeat(32),
-    });
+      paymentPreimage: "ff".repeat(32),
+    }).toAuthorizationHeader();
     const res = await supertest(app).get("/paid").set("Authorization", wrongHeader);
     expect(res.status).toBe(401);
   });

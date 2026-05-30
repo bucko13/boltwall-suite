@@ -9,22 +9,17 @@
  *
  * Scenarios:
  *   1. GET protected endpoint → 402 with parseable L402 challenge.
- *   2. Challenge macaroon → decodeIdentifier extracts valid v0 identifier.
+ *   2. Challenge macaroon → Identifier extracts valid v0 identifier.
  *   3. Authorization header built from challenge macaroon → Aperture accepts it
  *      (strictverify=false in test config skips payment-hash proof).
  *   4. Tampered macaroon → Aperture returns 401, not 200.
- *   5. Dual-scheme challenge → both L402 and LSAT parse correctly.
- *   6. Multi-macaroon credential → parseAuthorizationHeader accepts it.
+ *   5. Dual-scheme challenge → both L402 and LSAT object parsing works.
+ *   6. Multi-macaroon credential → L402.fromToken accepts it.
  */
 
 import { describe, expect, test } from "bun:test";
 
-import {
-  buildAuthorizationHeader,
-  decodeIdentifier,
-  parseAuthenticateHeader,
-  parseAuthorizationHeader,
-} from "../../src";
+import { Identifier, L402 } from "../../src";
 
 // Hard guard: this file must only be run via `bun run test:interop`.
 // It is intentionally excluded from the default `bun test` glob so it never
@@ -60,24 +55,21 @@ describe("Aperture interop — PR check", () => {
     expect(wwwAuth).toBeTruthy();
 
     // L402 protocol-specification.md §5 Challenge
-    const challenges = parseAuthenticateHeader(wwwAuth!);
-    expect(challenges.length).toBeGreaterThanOrEqual(1);
-    const first = challenges[0];
-    expect(first.scheme).toBe("L402");
-    expect(typeof first.macaroon).toBe("string");
-    expect(first.macaroon.length).toBeGreaterThan(0);
-    expect(typeof first.invoice).toBe("string");
-    expect(first.invoice.length).toBeGreaterThan(0);
+    const challenge = L402.fromHeader(wwwAuth!);
+    expect(typeof challenge.macaroon).toBe("string");
+    expect(challenge.macaroon.length).toBeGreaterThan(0);
+    expect(typeof challenge.invoice).toBe("string");
+    expect(challenge.invoice?.length).toBeGreaterThan(0);
   });
 
   // --- Scenario 2 ---
   test("challenge macaroon decodes to valid v0 identifier", async () => {
     const res = await getProtected();
     const wwwAuth = res.headers.get("www-authenticate")!;
-    const [{ macaroon }] = parseAuthenticateHeader(wwwAuth);
+    const { macaroon } = L402.fromHeader(wwwAuth);
 
     // L402 macaroon-spec.md §Identifier Structure
-    const id = decodeIdentifier(macaroon);
+    const id = Identifier.fromMacaroon(macaroon);
     expect(id.version).toBe(0);
     expect(id.paymentHash).toHaveLength(32);
     expect(id.tokenId).toHaveLength(32);
@@ -87,13 +79,13 @@ describe("Aperture interop — PR check", () => {
   test("Authorization header built from challenge macaroon is accepted by Aperture", async () => {
     const challengeRes = await getProtected();
     const wwwAuth = challengeRes.headers.get("www-authenticate")!;
-    const [{ macaroon }] = parseAuthenticateHeader(wwwAuth);
+    const { macaroon } = L402.fromHeader(wwwAuth);
 
     // L402 protocol-specification.md §6 Authorization header construction
-    const authHeader = buildAuthorizationHeader({
+    const authHeader = new L402({
       macaroons: macaroon,
-      preimage: FIXTURE_PREIMAGE_HEX,
-    });
+      paymentPreimage: FIXTURE_PREIMAGE_HEX,
+    }).toAuthorizationHeader();
 
     const authRes = await getProtected("/pokemon/1", { Authorization: authHeader });
 
@@ -106,16 +98,16 @@ describe("Aperture interop — PR check", () => {
   test("tampered macaroon is rejected by Aperture with 401", async () => {
     const challengeRes = await getProtected();
     const wwwAuth = challengeRes.headers.get("www-authenticate")!;
-    const [{ macaroon }] = parseAuthenticateHeader(wwwAuth);
+    const { macaroon } = L402.fromHeader(wwwAuth);
 
     // Flip the last character to corrupt the HMAC signature.
     const lastChar = macaroon.slice(-1);
     const tampered = macaroon.slice(0, -1) + (lastChar === "A" ? "B" : "A");
 
-    const authHeader = buildAuthorizationHeader({
+    const authHeader = new L402({
       macaroons: tampered,
-      preimage: FIXTURE_PREIMAGE_HEX,
-    });
+      paymentPreimage: FIXTURE_PREIMAGE_HEX,
+    }).toAuthorizationHeader();
 
     const authRes = await getProtected("/pokemon/1", { Authorization: authHeader });
 
@@ -130,39 +122,38 @@ describe("Aperture interop — PR check", () => {
     const wwwAuth = res.headers.get("www-authenticate")!;
 
     // Aperture emits L402 scheme. Verify our parser accepts it.
-    const l402Challenges = parseAuthenticateHeader(wwwAuth);
-    expect(l402Challenges[0].scheme).toBe("L402");
+    const l402Challenge = L402.fromHeader(wwwAuth);
+    expect(l402Challenge.macaroon).toBeTruthy();
 
     // Construct a synthetic LSAT-scheme header using the same tokens and verify
     // our parser also accepts the legacy scheme.
     // L402 protocol-specification.md §10 Backwards Compatibility
-    const { macaroon, invoice } = l402Challenges[0];
+    const { macaroon, invoice } = l402Challenge;
     const lsatHeader = `LSAT macaroon="${macaroon}", invoice="${invoice}"`;
-    const lsatChallenges = parseAuthenticateHeader(lsatHeader);
-    expect(lsatChallenges[0].scheme).toBe("LSAT");
-    expect(lsatChallenges[0].macaroon).toBe(macaroon);
-    expect(lsatChallenges[0].invoice).toBe(invoice);
+    const lsatChallenge = L402.fromHeader(lsatHeader);
+    expect(lsatChallenge.toChallenge({ legacy: true })).toBe(lsatHeader);
+    expect(lsatChallenge.macaroon).toBe(macaroon);
+    expect(lsatChallenge.invoice).toBe(invoice);
   });
 
   // --- Scenario 6 ---
   test("multi-macaroon Authorization header is parsed correctly", async () => {
     const res = await getProtected();
     const wwwAuth = res.headers.get("www-authenticate")!;
-    const [{ macaroon }] = parseAuthenticateHeader(wwwAuth);
+    const { macaroon } = L402.fromHeader(wwwAuth);
 
     // Build a multi-macaroon header by repeating the same token.
     // Real use would have two distinct macaroons (one per service).
     // We test parse acceptance here; Aperture acceptance is scenario 3.
     // L402 protocol-specification.md §5.3 Grammar: macaroons are a CSV
     // credential component before the preimage separator.
-    const multiHeader = buildAuthorizationHeader({
+    const multiHeader = new L402({
       macaroons: [macaroon, macaroon],
-      preimage: FIXTURE_PREIMAGE_HEX,
-    });
+      paymentPreimage: FIXTURE_PREIMAGE_HEX,
+    }).toAuthorizationHeader();
 
-    const parsed = parseAuthorizationHeader(multiHeader);
-    expect(Array.isArray(parsed.macaroons)).toBe(true);
+    const parsed = L402.fromToken(multiHeader);
     expect(parsed.macaroons.length).toBe(2);
-    expect(parsed.preimage).toBe(FIXTURE_PREIMAGE_HEX);
+    expect(parsed.paymentPreimage).toBe(FIXTURE_PREIMAGE_HEX);
   });
 });

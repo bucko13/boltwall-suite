@@ -1,10 +1,9 @@
 import { describe, expect, test } from "bun:test";
 
 import {
-  buildAuthorizationHeader,
-  decodeIdentifier,
+  Identifier,
+  L402,
   mintMacaroon,
-  parseAuthorizationHeader,
 } from "../src";
 import { decodeRaw } from "../src/macaroon";
 
@@ -17,7 +16,7 @@ describe("mintMacaroon", () => {
       identifier,
     });
 
-    const decoded = decodeIdentifier(macaroon);
+    const decoded = Identifier.fromMacaroon(macaroon);
     expect(bytesToHex(decoded.paymentHash)).toBe(bytesToHex(identifier.paymentHash));
     expect(bytesToHex(decoded.tokenId)).toBe(bytesToHex(identifier.tokenId));
     expect(decoded.version).toBe(0);
@@ -82,12 +81,11 @@ describe("mintMacaroon", () => {
     });
     const preimage = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
-    const header = buildAuthorizationHeader({ macaroons: macaroon, preimage });
-    const parsed = parseAuthorizationHeader(header);
+    const token = new L402({ macaroons: macaroon, paymentPreimage: preimage });
+    const parsed = L402.fromToken(token.toAuthorizationHeader());
 
-    expect(parsed.scheme).toBe("L402");
     expect(parsed.macaroons).toEqual([macaroon]);
-    expect(parsed.preimage).toBe(preimage);
+    expect(parsed.paymentPreimage).toBe(preimage);
   });
 
   test("validates root key and v0 identifier byte boundaries", () => {

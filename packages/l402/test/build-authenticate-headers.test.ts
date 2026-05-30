@@ -5,8 +5,7 @@ import {
   SPEC_EXAMPLE_MACAROON,
 } from "@boltwall/test-fixtures";
 
-import { buildAuthenticateHeaders } from "../src";
-import { parseAuthenticateHeader } from "../src/headers";
+import { buildAuthenticateHeaders, parseAuthenticateHeader } from "../src/headers";
 
 describe("buildAuthenticateHeaders / compatibility modes", () => {
   test("defaults to dual LSAT-first emission per spec §10", () => {

@@ -13,8 +13,6 @@ import {
 } from "@boltwall/test-fixtures";
 
 import {
-  buildAuthenticateHeaders,
-  buildAuthorizationHeader,
   InMemoryRootKeyStore,
   L402,
   mintMacaroon,
@@ -76,20 +74,13 @@ describe("L402 class facade / token round trips", () => {
     expect(L402.fromToken(token).toToken()).toBe(token);
   });
 
-  test("toAuthorizationHeader matches the low-level builder", () => {
+  test("toAuthorizationHeader emits modern and legacy credentials", () => {
     const l402 = L402.fromToken(`LSAT ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`);
     expect(l402.toAuthorizationHeader()).toBe(
-      buildAuthorizationHeader({
-        macaroons: SPEC_EXAMPLE_MACAROON,
-        preimage: SPEC_EXAMPLE_PREIMAGE,
-      }),
+      `L402 ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     );
     expect(l402.toAuthorizationHeader({ legacy: true })).toBe(
-      buildAuthorizationHeader({
-        macaroons: SPEC_EXAMPLE_MACAROON,
-        preimage: SPEC_EXAMPLE_PREIMAGE,
-        legacy: true,
-      }),
+      `LSAT ${SPEC_EXAMPLE_MACAROON}:${SPEC_EXAMPLE_PREIMAGE}`,
     );
   });
 
@@ -141,12 +132,10 @@ describe("L402 class facade / challenges", () => {
       macaroons: SPEC_EXAMPLE_MACAROON,
       invoice: SPEC_EXAMPLE_INVOICE,
     });
-    expect(l402.toAuthenticateHeaders()).toEqual(
-      buildAuthenticateHeaders({
-        macaroon: SPEC_EXAMPLE_MACAROON,
-        invoice: SPEC_EXAMPLE_INVOICE,
-      }),
-    );
+    expect(l402.toAuthenticateHeaders()).toEqual([
+      `LSAT macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+      `L402 macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
+    ]);
     expect(l402.toChallenge()).toBe(
       `L402 macaroon="${SPEC_EXAMPLE_MACAROON}", invoice="${SPEC_EXAMPLE_INVOICE}"`,
     );

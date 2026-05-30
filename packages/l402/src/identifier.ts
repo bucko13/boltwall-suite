@@ -3,9 +3,8 @@ import { base64ToBytes } from "./internal/base64";
 /**
  * Decoded v0 L402 macaroon identifier fields.
  *
- * Plain data shape consumed by minting and verification. Reach for the
- * {@link Identifier} value class when you want decode/encode behavior attached
- * to these fields.
+ * Plain data shape used by minting and verification. Use the {@link Identifier}
+ * value class when you want decode/encode behavior attached to these fields.
  */
 export interface MacaroonIdentifierV0 {
   /** Identifier version. Version 0 is the only supported layout today. */
@@ -24,63 +23,14 @@ const HASH_LENGTH = 32;
 const TOKEN_ID_LENGTH = 32;
 
 /**
- * Decode a base64-encoded L402 macaroon and return its v0 identifier fields.
- *
- * Reads only the identifier field out of the V2 binary envelope; it does not
- * verify the macaroon signature or payment preimage. Use it to recover the
- * payment hash from a credential and for diagnostics — authorization decisions
- * go through `verifyMacaroon`.
- *
- * Spec: L402 macaroon-spec.md §Identifier Structure / Version 0 Format defines
- * a 66-byte big-endian identifier:
- * `uint16 version || 32-byte payment_hash || 32-byte token_id`.
- *
- * Throws synchronously on malformed input using short error codes:
- * `invalid-macaroon-base64`, `invalid-macaroon-v2`, `missing-identifier`,
- * `truncated-varint`, `varint-too-large`, `truncated-field`,
- * `invalid-identifier-length`, or `unsupported-identifier-version`.
- *
- * @example
- * const id = decodeIdentifier(macaroonB64);
- * id.version; // 0
- * id.paymentHash; // Uint8Array(32)
- * id.tokenId; // Uint8Array(32)
- */
-export function decodeIdentifier(macaroon: string): MacaroonIdentifierV0 {
-  const bytes = base64ToBytes(macaroon);
-  const identifier = extractV2Identifier(bytes);
-
-  if (identifier.byteLength !== V0_IDENTIFIER_LENGTH) {
-    throw new Error("invalid-identifier-length");
-  }
-
-  // The L402 macaroon spec's Identifier section requires all multi-byte
-  // integer fields to be big-endian. `false` selects big-endian here.
-  const version = new DataView(
-    identifier.buffer,
-    identifier.byteOffset,
-    identifier.byteLength,
-  ).getUint16(0, false);
-  if (version !== 0) {
-    throw new Error("unsupported-identifier-version");
-  }
-
-  return {
-    version: 0,
-    paymentHash: identifier.slice(2, 2 + HASH_LENGTH),
-    tokenId: identifier.slice(2 + HASH_LENGTH),
-  };
-}
-
 /**
  * Value class for the v0 L402 macaroon identifier
  * (`uint16 version || 32-byte payment_hash || 32-byte token_id`).
  *
- * Wraps the raw {@link MacaroonIdentifierV0} fields with decode/encode
- * behavior. Always uses `Uint8Array` (never Node's `Buffer`) so it is browser-
- * and edge-safe, and copies its byte fields at the boundary so the instance is
- * immutable by reference. The standalone {@link decodeIdentifier} function is
- * preserved for callers that only need the plain field shape.
+ * Wraps the raw {@link MacaroonIdentifierV0} fields with decode/encode behavior.
+ * Always uses `Uint8Array` (never Node's `Buffer`) so it is browser- and
+ * edge-safe, and copies its byte fields at the boundary so the instance is
+ * immutable by reference.
  *
  * Spec: L402 macaroon-spec.md §Identifier Structure / Version 0 Format defines
  * the 66-byte big-endian identifier embedded in every L402 macaroon.
@@ -125,16 +75,16 @@ export class Identifier implements MacaroonIdentifierV0 {
   /**
    * Decode a base64-encoded L402 macaroon and wrap its v0 identifier.
    *
-   * Delegates to {@link decodeIdentifier}; it reads the identifier field out of
-   * the V2 binary envelope without verifying the signature or preimage. Throws
-   * the same short error codes as {@link decodeIdentifier} on malformed input.
+   * Reads the identifier field out of the V2 binary envelope without verifying
+   * the signature or preimage. Throws the same short error codes as the
+   * package-internal decoder on malformed input.
    *
    * @example
    * const id = Identifier.fromMacaroon(macaroonB64);
    * id.paymentHash; // Uint8Array(32)
    */
   static fromMacaroon(macaroon: string): Identifier {
-    return new Identifier(decodeIdentifier(macaroon));
+    return new Identifier(decodeIdentifierFields(macaroon));
   }
 
   /**
@@ -157,6 +107,36 @@ export class Identifier implements MacaroonIdentifierV0 {
     bytes.set(this.tokenId, 2 + HASH_LENGTH);
     return bytes;
   }
+}
+
+/**
+ * Decode the v0 identifier fields from a base64 macaroon. Internal helper
+ * shared by {@link Identifier.fromMacaroon} and the macaroon inspector.
+ */
+export function decodeIdentifierFields(macaroon: string): MacaroonIdentifierV0 {
+  const bytes = base64ToBytes(macaroon);
+  const identifier = extractV2Identifier(bytes);
+
+  if (identifier.byteLength !== V0_IDENTIFIER_LENGTH) {
+    throw new Error("invalid-identifier-length");
+  }
+
+  // The L402 macaroon spec's Identifier section requires all multi-byte
+  // integer fields to be big-endian. `false` selects big-endian here.
+  const version = new DataView(
+    identifier.buffer,
+    identifier.byteOffset,
+    identifier.byteLength,
+  ).getUint16(0, false);
+  if (version !== 0) {
+    throw new Error("unsupported-identifier-version");
+  }
+
+  return {
+    version: 0,
+    paymentHash: identifier.slice(2, 2 + HASH_LENGTH),
+    tokenId: identifier.slice(2 + HASH_LENGTH),
+  };
 }
 
 function extractV2Identifier(bytes: Uint8Array): Uint8Array {
