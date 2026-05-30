@@ -158,24 +158,27 @@ Use the root package export for all supported APIs:
 ```ts
 import {
   L402,
+  Identifier,
   decodeBolt11Invoice,
-  decodeIdentifier,
   mintMacaroon,
-  Caveat,
-  parseAuthenticateHeader,
-  parseAuthorizationHeader,
   verifyMacaroon,
+  Caveat,
+  servicesCaveat,
+  servicesSatisfier,
 } from "@boltwall/l402";
 ```
 
 The current public surface groups as:
 
-- **Object workflow:** `L402`, `Caveat`
-- **Header helpers:** `parseAuthenticateHeader`, `buildAuthenticateHeaders`,
-  `parseAuthorizationHeader`, `buildAuthorizationHeader` for low-level parser
-  and conformance work
-- **Invoice and identifier helpers:** `decodeBolt11Invoice`, `decodeIdentifier`
-- **Macaroon helpers:** `mintMacaroon`, `verifyMacaroon`,
+- **Object workflow:** `L402`, `Caveat`. The `L402` class is the public entry
+  point for challenge and credential headers: build with `toChallenge()` /
+  `toAuthenticateHeaders()`, parse with `L402.fromHeader`, `L402.fromChallenge`,
+  and `L402.fromToken`. The lower-level header parse/build functions are
+  package-internal and not importable.
+- **Invoice and identifier helpers:** `decodeBolt11Invoice`, and the
+  `Identifier` value class (`Identifier.fromMacaroon(macaroon)` decodes a
+  macaroon's v0 identifier)
+- **Macaroon helpers:** `mintMacaroon`, `verifyMacaroon`, `inspectMacaroon`,
   `InMemoryRootKeyStore`, `RootKeyStore` interface
 - **Caveat helpers:** `parseCaveat`, `serializeCaveat`, `servicesCaveat`,
   `capabilitiesCaveat`, `constraintCaveat`, and satisfier factories for
@@ -193,13 +196,15 @@ API site from inline JSDoc.
 The package follows the current L402 scheme while preserving deployed LSAT
 compatibility where the protocol requires it:
 
-- `buildAuthenticateHeaders()` defaults to dual challenge emission:
+- `L402#toAuthenticateHeaders()` defaults to dual challenge emission:
   `LSAT` first, then `L402`. This follows L402 protocol-specification.md §10.
-- `parseAuthenticateHeader()` accepts both `LSAT` and `L402` challenge
-  schemes and returns all challenges from repeated or folded headers.
-- `buildAuthorizationHeader()` emits `L402` by default and can emit `LSAT`
+  `L402#toChallenge()` emits a single `L402` challenge (or `LSAT` with
+  `{ legacy: true }`).
+- `L402.fromHeader` / `L402.fromChallenge` accept both `LSAT` and `L402`
+  challenge schemes and handle challenges from repeated or folded headers.
+- `L402#toAuthorizationHeader()` emits `L402` by default and can emit `LSAT`
   with `{ legacy: true }`.
-- `parseAuthorizationHeader()` accepts both `LSAT` and `L402` credentials.
+- `L402.fromToken` accepts both `LSAT` and `L402` credentials.
 - Multi-macaroon credentials are first-class:
   `L402 M1,M2:<preimage-hex>` parses to `macaroons: ["M1", "M2"]`.
 - `verifyMacaroon()` verifies every macaroon in the credential, requires all

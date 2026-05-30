@@ -39,13 +39,14 @@ Per §10, "Servers SHOULD send both `LSAT` and `L402` scheme names in
 compatibility with older client implementations."
 
 `@boltwall/l402` emits dual challenges with **LSAT first, L402 second** by
-default. `buildAuthenticateHeaders({ macaroon, invoice })` returns two header
-values in that order (`compatibility` defaults to `"dual"`); `"l402-only"` and
-`"lsat-only"` are explicit overrides for greenfield deployments, tests, and
-migrations (`packages/l402/src/build-authenticate-headers.ts`). The `L402` class
-convenience method `toChallenge()` defaults to `"l402-only"` for a single header
-and emits `"lsat-only"` under `{ legacy: true }`; servers that want the
-recommended dual challenge use the `buildAuthenticateHeaders` helper.
+default. The public `L402` class method `toAuthenticateHeaders({ macaroon, invoice })`
+returns two header values in that order (`compatibility` defaults to `"dual"`);
+`"l402-only"` and `"lsat-only"` are explicit overrides for greenfield
+deployments, tests, and migrations. The header builder backing these methods is
+package-internal (`packages/l402/src/headers.ts`). The `L402` class convenience
+method `toChallenge()` defaults to `"l402-only"` for a single header and emits
+`"lsat-only"` under `{ legacy: true }`; servers that want the recommended dual
+challenge use `toAuthenticateHeaders()`.
 
 ### Authorization header
 
@@ -62,12 +63,12 @@ the colon." "The macaroon is base64-encoded per RFC 4648. The preimage is
 hex-encoded." Per §10, "Clients and servers MUST accept both `LSAT` and `L402`
 in `Authorization` headers."
 
-`parseAuthorizationHeader` accepts both scheme names case-insensitively, always
+`L402.fromToken` accepts both scheme names case-insensitively, always
 normalizes to a macaroon array (length ≥ 1, so single- and multi-macaroon
 credentials are handled uniformly), and splits on the **last** `:` so a base64
-macaroon's internal bytes never confuse preimage extraction. An empty preimage
-is accepted only with the explicit `allowEmptyPreimage` option, used for the
-HODL pending-settlement flow (`packages/l402/src/parse-authorization-header.ts`).
+macaroon's internal bytes never confuse preimage extraction. The package-internal
+credential parser backing it accepts an empty preimage only with an explicit
+option, used for the HODL pending-settlement flow (`packages/l402/src/headers.ts`).
 
 ### Identifier layout (66-byte v0)
 
@@ -75,11 +76,11 @@ Per L402 macaroon-spec.md §Identifier Structure, the version-0 identifier is
 `version_bytes || payment_hash || token_id`: 2-byte big-endian `uint16` version
 `0`, 32-byte payment hash, 32-byte token id, 66 bytes total.
 
-`@boltwall/l402` encodes and decodes exactly this layout. `decodeIdentifier`
+`@boltwall/l402` encodes and decodes exactly this layout. `Identifier.fromMacaroon`
 rejects any length other than 66 bytes (`invalid-identifier-length`) and any
 version other than 0 (`unsupported-identifier-version`); see
-`packages/l402/src/decode-identifier.ts` and the encoder in
-`packages/l402/src/mint-macaroon.ts`.
+`packages/l402/src/identifier.ts` and the encoder in
+`packages/l402/src/macaroon.ts`.
 
 ### Status code mapping (402 vs 401)
 
@@ -160,7 +161,7 @@ switch the private codec to the inconsistent table.
 We decode version 0 only. A non-zero version throws
 `unsupported-identifier-version` rather than guessing a layout. Future identifier
 versions, if the spec defines them, are an explicit additive change to
-`decodeIdentifier`, not a silent reinterpretation of the existing bytes.
+`Identifier.fromMacaroon`, not a silent reinterpretation of the existing bytes.
 
 ---
 
@@ -223,7 +224,7 @@ unrelated services.
 `@boltwall/l402` honors this: `verifyMacaroon` skips a caveat when no satisfier
 matches its condition. An opt-in `strictUnknownCaveats` flag rejects unknown
 caveats instead — for audit/diagnostic use only. **Never rely on unknown caveats
-failing closed** (`packages/l402/src/verify-macaroon.ts`; see also
+failing closed** (`packages/l402/src/macaroon.ts`; see also
 `docs/security-boundaries.md`). Legacy `boltwall` did not consistently skip
 unknown caveats, which is a behavioral divergence callers migrating old
 macaroons should be aware of.
@@ -271,7 +272,7 @@ as Aperture's `l402/identifier_test.go`.
 
 | Surface                | Boltwall behavior                                                                           | Vector smoke status                                                |
 | ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
-| Authorization scheme   | Accepts both schemes; emits L402 (single) / dual LSAT-first via `buildAuthenticateHeaders`. | Parses both header shapes.                                         |
+| Authorization scheme   | Accepts both schemes; emits L402 (single) / dual LSAT-first via `L402#toAuthenticateHeaders`. | Parses both header shapes.                                         |
 | Macaroon serialization | Mints/verifies base64 V2 binary macaroons via the private codec.                            | Mints, serializes, decodes, verifies deterministic macaroons.      |
 | Identifier shape       | 2-byte BE version 0 + 32-byte payment hash + 32-byte token id.                              | Matches Aperture's `[1..32]` / `[32..1]` byte layout exactly.      |
 | Payment proof          | `verifyMacaroon` checks the `sha256(preimage) == payment_hash` relation after signature.    | Verifies a deterministic preimage-bound macaroon.                  |
@@ -287,11 +288,11 @@ workflow runs it on `packages/l402` / `packages/test-fixtures` pull requests and
 via `workflow_dispatch`, using the repository's LND regtest secrets. Scenarios:
 
 1. `GET` protected endpoint → 402 with a parseable L402 challenge.
-2. Challenge macaroon → `decodeIdentifier` extracts a valid v0 identifier.
+2. Challenge macaroon → `Identifier.fromMacaroon` extracts a valid v0 identifier.
 3. `Authorization` header built from the challenge macaroon → Aperture accepts it.
 4. Tampered macaroon → Aperture returns 401, not 200.
 5. Dual-scheme challenge → both `L402` and `LSAT` parse correctly.
-6. Multi-macaroon credential → `parseAuthorizationHeader` accepts it.
+6. Multi-macaroon credential → `L402.fromToken` accepts it.
 
 Because the live suite depends on regtest secrets that do not run on every push,
 its pass/fail status is reported by the nightly/PR workflow run rather than
