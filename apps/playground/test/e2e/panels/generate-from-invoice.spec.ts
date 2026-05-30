@@ -5,7 +5,8 @@
  * fixture invoice + a known signing key, mints, and asserts the output macaroon
  * decodes to an identifier whose paymentHash matches the fixture. Also covers
  * the full-challenge emission (macaroon + invoice) and its handoff into the
- * From Challenge panel via Workbench memory.
+ * From Challenge panel via Workbench memory, plus credential emission
+ * (macaroon + preimage) and its end-to-end verification in the Validate panel.
  */
 import { expect, test } from "@playwright/test";
 
@@ -20,6 +21,8 @@ if (!invoiceFixture) {
 
 // Arbitrary known root key — 32 bytes.
 const SIGNING_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+// Arbitrary 32-byte hex preimage; Generate binds the macaroon to sha256 of it.
+const PREIMAGE = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";
 
 test.describe("panels / generate-from-invoice", () => {
   test.beforeEach(async ({ page }) => {
@@ -132,5 +135,56 @@ test.describe("panels / generate-from-invoice", () => {
     await expect(page.locator("[data-testid='challenge-invoice']")).toContainText(
       invoiceFixture.invoice.slice(0, 12),
     );
+  });
+
+  test("minting with a preimage emits an Authorization credential", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-preimage-input']", PREIMAGE);
+    await page.click("[data-testid='generate-token-mint']");
+
+    const credential = page.locator("[data-testid='generate-token-credential']");
+    await expect(credential).toBeVisible();
+    const text = (await credential.textContent()) ?? "";
+    expect(text).toContain("L402 ");
+    expect(text).toContain(PREIMAGE);
+
+    // No invoice supplied, so there is no challenge — only the credential.
+    await expect(page.locator("[data-testid='generate-token-challenge']")).not.toBeVisible();
+    // The exact snippet teaches the credential-construction call.
+    await expect(page.locator("[data-testid='code-snippet']").first()).toContainText(
+      "toAuthorizationHeader",
+    );
+  });
+
+  test("minting without a preimage mints no credential", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
+    await page.click("[data-testid='generate-token-mint']");
+
+    await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='generate-token-credential']")).not.toBeVisible();
+  });
+
+  test("generated credential verifies in Validate with the same root key", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
+    await page.fill("[data-testid='generate-token-preimage-input']", PREIMAGE);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='generate-token-credential']")).toBeVisible();
+
+    // Carry the credential + root key into Validate via Workbench memory.
+    // Use a full navigation (sessionStorage-backed Workbench survives it) to
+    // avoid racing the SPA nav link against the panel's URL-param updates.
+    await page.goto("/p/validate");
+    await page.click("[data-testid='validate-fill-credential']");
+    await page.click("[data-testid='validate-fill-key']");
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(SIGNING_KEY);
+
+    await page.click("[data-testid='validate-verify']");
+
+    const output = page.locator("[data-testid='validate-output']");
+    await expect(output).toBeVisible();
+    await expect(output).toContainText("Preimage matches paymentHash");
+    // Signature + preimage + caveats all pass → overall valid.
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("valid");
   });
 });

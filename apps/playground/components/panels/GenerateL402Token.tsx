@@ -22,6 +22,8 @@ import { panelInputStyle } from "./panel-styles";
 const PANEL = "from-invoice";
 const MISSING_KEY_ERROR = "Paste a 64-char hex root key.";
 const INVALID_KEY_ERROR = "Root key must be exactly 64 hex characters (32 bytes).";
+const INVALID_PREIMAGE_ERROR = "Preimage must be exactly 64 hex characters (32 bytes).";
+const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
 
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();
@@ -37,6 +39,13 @@ export function GenerateL402Token() {
     { panel: PANEL },
   );
 
+  const [preimage, setPreimage] = useUrlInput<string>(
+    "preimage",
+    (raw) => raw ?? "",
+    (v) => v || null,
+    { panel: PANEL },
+  );
+
   const [macaroon, setMacaroon] = useState<string | null>(null);
   const [mintedIdentifier, setMintedIdentifier] = useState<{
     paymentHashHex: string;
@@ -44,15 +53,18 @@ export function GenerateL402Token() {
   } | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [challenge, setChallenge] = useState<string | null>(null);
+  const [credential, setCredential] = useState<string | null>(null);
 
-  // The macaroon, identifier, and challenge are all derived from the current
-  // inputs; clear them together whenever an input changes or on reset.
+  // The macaroon, identifier, challenge, and credential are all derived from the
+  // current inputs; clear them together whenever an input changes or on reset.
   function clearGenerated() {
     setMacaroon(null);
     setMintedIdentifier(null);
     setChallenge(null);
+    setCredential(null);
     workbenchMemory?.setMacaroon(null);
     workbenchMemory?.setChallenge(null);
+    workbenchMemory?.setCredential(null);
   }
 
   useEffect(() => {
@@ -62,15 +74,21 @@ export function GenerateL402Token() {
     }
   }, [error, key]);
 
-  function generate() {
+  async function generate() {
     if (!(key ?? "").trim()) {
       setError(MISSING_KEY_ERROR);
-      setMacaroon(null);
+      clearGenerated();
       return;
     }
-    if (!/^[0-9a-fA-F]{64}$/.test((key ?? "").trim())) {
+    if (!HEX_64_RE.test((key ?? "").trim())) {
       setError(INVALID_KEY_ERROR);
-      setMacaroon(null);
+      clearGenerated();
+      return;
+    }
+    const trimmedPreimage = (preimage ?? "").trim();
+    if (trimmedPreimage && !HEX_64_RE.test(trimmedPreimage)) {
+      setError(INVALID_PREIMAGE_ERROR);
+      clearGenerated();
       return;
     }
 
@@ -78,11 +96,20 @@ export function GenerateL402Token() {
       const rootKey = hexToBytes((key ?? "").trim());
       const trimmedInvoice = (invoice ?? "").trim();
 
-      // Parse invoice payment hash if provided, otherwise generate random 32 bytes
+      // Payment-hash precedence: a preimage binds the macaroon to
+      // sha256(preimage) so the resulting credential verifies in Validate;
+      // otherwise use the invoice's payment hash, or a random hash when neither
+      // is given. L402 protocol-specification.md §5.3 — a credential is
+      // macaroon:preimage and the preimage MUST hash to the bound payment hash.
       let paymentHash: Uint8Array;
-      if (trimmedInvoice) {
-        const decoded = decodeBolt11Invoice(trimmedInvoice);
-        paymentHash = decoded.paymentHash;
+      if (trimmedPreimage) {
+        // Copy into a fresh ArrayBuffer-backed view so crypto.subtle accepts it.
+        const preimageBytes = new Uint8Array(32);
+        preimageBytes.set(hexToBytes(trimmedPreimage));
+        const digest = await crypto.subtle.digest("SHA-256", preimageBytes);
+        paymentHash = new Uint8Array(digest);
+      } else if (trimmedInvoice) {
+        paymentHash = decodeBolt11Invoice(trimmedInvoice).paymentHash;
       } else {
         paymentHash = new Uint8Array(32);
         crypto.getRandomValues(paymentHash);
@@ -126,18 +153,36 @@ export function GenerateL402Token() {
         setChallenge(null);
         workbenchMemory?.setChallenge(null);
       }
+
+      // With a preimage, pair it with the macaroon to form the Authorization
+      // credential (`L402 <macaroon>:<preimage>`). Because the macaroon's
+      // payment hash was bound to sha256(preimage) above, this credential
+      // verifies in the Validate panel with the same root key.
+      if (trimmedPreimage) {
+        const credentialValue = new L402({
+          macaroons: result,
+          paymentPreimage: trimmedPreimage,
+        }).toAuthorizationHeader();
+        setCredential(credentialValue);
+        workbenchMemory?.setCredential(credentialValue);
+      } else {
+        setCredential(null);
+        workbenchMemory?.setCredential(null);
+      }
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
       setMacaroon(null);
       setMintedIdentifier(null);
       setChallenge(null);
+      setCredential(null);
     }
   }
 
   function reset() {
     setKey(null);
     setInvoice(null);
+    setPreimage(null);
     clearGenerated();
     setError(null);
   }
@@ -146,18 +191,23 @@ export function GenerateL402Token() {
   const statusLabel = error ? "error" : macaroon ? "minted" : "idle";
   const keyLiteral = JSON.stringify((key ?? "").trim() || "<64-char hex key>");
   const invoiceLiteral = JSON.stringify((invoice ?? "").trim());
+  const preimageLiteral = JSON.stringify((preimage ?? "").trim());
   const paymentHashLiteral = JSON.stringify(mintedIdentifier?.paymentHashHex ?? "");
   const tokenIdLiteral = JSON.stringify(mintedIdentifier?.tokenIdHex ?? "");
   const hasExactMintSnippet = Boolean(macaroon && mintedIdentifier);
 
   const hexToBytesHelper = `function hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}`;
-  const exactImport = challenge
-    ? `import { L402, mintMacaroon } from "@boltwall/l402";`
-    : `import { mintMacaroon } from "@boltwall/l402";`;
+  const exactImport =
+    challenge || credential
+      ? `import { L402, mintMacaroon } from "@boltwall/l402";`
+      : `import { mintMacaroon } from "@boltwall/l402";`;
   const challengeTail = challenge
     ? `\n\n// Pair the macaroon with the invoice to emit the WWW-Authenticate\n// challenge (dual LSAT-first + L402, per L402 protocol-specification.md §10)\nconst challengeHeaders = new L402({\n  macaroons: macaroon,\n  invoice,\n  paymentHash: identifier.paymentHash,\n}).toAuthenticateHeaders();`
     : "";
-  const exactTemplate = `${exactImport}\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });${challengeTail}`;
+  const credentialTail = credential
+    ? `\n\n// The macaroon's payment hash was bound to sha256(preimage), so this\n// credential verifies in Validate with the same root key (L402\n// protocol-specification.md §5.3).\nconst credential = new L402({\n  macaroons: macaroon,\n  paymentPreimage: {{preimageLiteral}},\n}).toAuthorizationHeader();`
+    : "";
+  const exactTemplate = `${exactImport}\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst identifier = {\n  version: 0 as const,\n  paymentHash: hexToBytes({{paymentHashLiteral}}),\n  tokenId: hexToBytes({{tokenIdLiteral}}),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });${challengeTail}${credentialTail}`;
   const recipeTemplate = `import { decodeBolt11Invoice, mintMacaroon } from "@boltwall/l402";\n\n${hexToBytesHelper}\n\nconst rootKey = hexToBytes({{keyLiteral}});\nconst invoice = {{invoiceLiteral}};\nconst paymentHash = invoice\n  ? decodeBolt11Invoice(invoice).paymentHash\n  : crypto.getRandomValues(new Uint8Array(32));\n\nconst identifier = {\n  version: 0 as const,\n  paymentHash,\n  tokenId: crypto.getRandomValues(new Uint8Array(32)),\n};\nconst macaroon = mintMacaroon({ rootKey, identifier });`;
   const snippetTemplate = hasExactMintSnippet ? exactTemplate : recipeTemplate;
 
@@ -165,8 +215,8 @@ export function GenerateL402Token() {
     <Cell
       header={
         <HeaderRow
-          title="Generate Macaroon"
-          subtitle="Mint a macaroon from a root key; add an invoice to emit a full L402 challenge"
+          title="Generate"
+          subtitle="Mint a macaroon from a root key; add an invoice for a challenge, a preimage for a credential"
           trailing={
             <>
               <StatusPill state={status} details={error}>
@@ -234,10 +284,41 @@ export function GenerateL402Token() {
             />
           </label>
 
+          <label
+            style={{
+              fontSize: "var(--size-12)",
+              color: "var(--color-dim)",
+              display: "flex",
+              flexDirection: "column",
+              gap: 4,
+            }}
+          >
+            Preimage (64-char hex){" "}
+            <span style={{ fontWeight: 400 }}>
+              (optional; binds the macaroon to sha256(preimage) so the credential verifies)
+            </span>
+            <input
+              type="text"
+              value={preimage ?? ""}
+              onChange={(e) => {
+                setPreimage(e.target.value);
+                clearGenerated();
+                setError(null);
+              }}
+              placeholder="00000000..."
+              data-testid="generate-token-preimage-input"
+              style={{
+                ...panelInputStyle(Boolean(error)),
+              }}
+            />
+          </label>
+
           <div style={{ display: "flex", gap: 8 }}>
             <button
               type="button"
-              onClick={generate}
+              onClick={() => {
+                void generate();
+              }}
               data-testid="generate-token-mint"
               style={{
                 padding: "6px 12px",
@@ -303,6 +384,22 @@ export function GenerateL402Token() {
               </div>
             </div>
           ) : null}
+
+          {credential ? (
+            <div data-testid="generate-token-credential">
+              <BigBlob value={credential} label="Authorization credential" />
+              <div
+                style={{
+                  fontSize: "var(--size-12)",
+                  color: "var(--color-dim)",
+                  marginTop: 4,
+                }}
+              >
+                Stored in Workbench memory as the credential — open Validate to verify it with this
+                root key.
+              </div>
+            </div>
+          ) : null}
         </div>
       }
       code={
@@ -313,6 +410,7 @@ export function GenerateL402Token() {
           values={{
             keyLiteral,
             invoiceLiteral,
+            preimageLiteral,
             paymentHashLiteral,
             tokenIdLiteral,
           }}
