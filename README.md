@@ -19,7 +19,7 @@ L402 is the modern incarnation of what was originally called **LSAT**. The wire 
 ## What is Boltwall Suite?
 
 A fresh TypeScript implementation of the L402 ecosystem, modernizing the patterns from earlier projects (`lsat-js`, `boltwall`, `now-boltwall`, `lsat-playground`). Boltwall suite is a monorepo providing a suite of standalone tools for working with L402s either
-to build with in your own codebases (e.g. [`@boltwall/l402`](./packages/l402/README.md) or [`@boltwall/middleware`](./packages/middleware/README.md)) or as simple L402 proxy deployments to use as a paywall for existing servers. 
+to build with in your own codebases (e.g. [`@boltwall/l402`](./packages/l402/README.md) or [`@boltwall/middleware`](./packages/middleware/README.md)) or as simple L402 proxy deployments to use as a paywall for existing servers.
 
 Design goals:
 
@@ -31,13 +31,13 @@ Design goals:
 
 ## Packages
 
-| Package                | Status  | Purpose                                                                                                  |
-| ---------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| [`@boltwall/l402`](./packages/l402/README.md) | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
+| Package                                                   | Status  | Purpose                                                                                                  |
+| --------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
+| [`@boltwall/l402`](./packages/l402/README.md)             | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
 | [`@boltwall/middleware`](./packages/middleware/README.md) | Private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
-| [`@boltwall/adapters`](./packages/adapters/README.md) | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
-| [`@boltwall/proxy`](./packages/proxy/README.md) | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
-| [`@boltwall/playground`](./apps/playground/README.md) | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
+| [`@boltwall/adapters`](./packages/adapters/README.md)     | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
+| [`@boltwall/proxy`](./packages/proxy/README.md)           | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
+| [`@boltwall/playground`](./apps/playground/README.md)     | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
 
 These packages are not yet published to npm; clone the repo to use them (see Quickstart).
 
@@ -69,13 +69,18 @@ tests, and the development checks.
 
 ## API Reference
 
-Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of [`@boltwall/l402`](./packages/l402/README.md), [`@boltwall/middleware`](./packages/middleware/README.md), [`@boltwall/adapters`](./packages/adapters/README.md), and [`@boltwall/proxy`](./packages/proxy/README.md). Build it locally:
+Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of [`@boltwall/l402`](./packages/l402/README.md), [`@boltwall/middleware`](./packages/middleware/README.md), [`@boltwall/adapters`](./packages/adapters/README.md), and [`@boltwall/proxy`](./packages/proxy/README.md). The generated site starts with a short [API reference landing page](./docs/api-reference.md) that links to the main package entry points and high-value symbols.
+
+Build it locally:
 
 ```sh
 bun run docs:api   # outputs a static HTML site to docs-site/
 ```
 
-The hosted reference publishes to GitHub Pages from `main` via the [Docs workflow](./.github/workflows/docs.yml). It serves from <https://bucko13.github.io/boltwall-suite/> once GitHub Pages is enabled for the repository (Settings → Pages → Source: "GitHub Actions").
+Then open `docs-site/index.html`. The hosted reference publishes to GitHub Pages
+from `main` via the [Docs workflow](./.github/workflows/docs.yml). It serves
+from <https://bucko13.github.io/boltwall-suite/> once GitHub Pages is enabled
+for the repository (Settings → Pages → Source: "GitHub Actions").
 
 ## L402 / LSAT compatibility
 

@@ -9,6 +9,6 @@
   ],
   "out": "docs-site",
   "name": "Boltwall Suite API Reference",
-  "readme": "none",
+  "readme": "docs/api-reference.md",
   "treatWarningsAsErrors": true
 }
