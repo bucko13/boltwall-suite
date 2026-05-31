@@ -17,8 +17,7 @@ Authoritative sources:
 
 > **AGPL isolation.** The legacy-boltwall column describes externally observable
 > behavior derived from the L402 specs, the MIT `lsat-js` audit, and the public
-> `boltwall` README — not from reading or copying AGPL source. See
-> `AGENTS.md` → AGPL Isolation.
+> `boltwall` README — not from reading or copying AGPL source.
 
 ---
 
@@ -270,14 +269,14 @@ verifies deterministic macaroons against Aperture's documented byte layout and
 behavior, using the same `payment_hash = [1..32]` / `token_id = [32..1]` vectors
 as Aperture's `l402/identifier_test.go`.
 
-| Surface                | Boltwall behavior                                                                           | Vector smoke status                                                |
-| ---------------------- | ------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
+| Surface                | Boltwall behavior                                                                             | Vector smoke status                                                |
+| ---------------------- | --------------------------------------------------------------------------------------------- | ------------------------------------------------------------------ |
 | Authorization scheme   | Accepts both schemes; emits L402 (single) / dual LSAT-first via `L402#toAuthenticateHeaders`. | Parses both header shapes.                                         |
-| Macaroon serialization | Mints/verifies base64 V2 binary macaroons via the private codec.                            | Mints, serializes, decodes, verifies deterministic macaroons.      |
-| Identifier shape       | 2-byte BE version 0 + 32-byte payment hash + 32-byte token id.                              | Matches Aperture's `[1..32]` / `[32..1]` byte layout exactly.      |
-| Payment proof          | `verifyMacaroon` checks the `sha256(preimage) == payment_hash` relation after signature.    | Verifies a deterministic preimage-bound macaroon.                  |
-| Caveat parsing         | `parseCaveat` splits at the first `=`, preserving later `=` bytes.                          | Covers `expiration=1337`, `expiration=1337=`, and malformed input. |
-| Unknown caveats        | Skipped by default; explicit strict mode for audits.                                        | Includes an unknown caveat alongside known satisfiers.             |
+| Macaroon serialization | Mints/verifies base64 V2 binary macaroons via the private codec.                              | Mints, serializes, decodes, verifies deterministic macaroons.      |
+| Identifier shape       | 2-byte BE version 0 + 32-byte payment hash + 32-byte token id.                                | Matches Aperture's `[1..32]` / `[32..1]` byte layout exactly.      |
+| Payment proof          | `verifyMacaroon` checks the `sha256(preimage) == payment_hash` relation after signature.      | Verifies a deterministic preimage-bound macaroon.                  |
+| Caveat parsing         | `parseCaveat` splits at the first `=`, preserving later `=` bytes.                            | Covers `expiration=1337`, `expiration=1337=`, and malformed input. |
+| Unknown caveats        | Skipped by default; explicit strict mode for audits.                                          | Includes an unknown caveat alongside known satisfiers.             |
 
 ### Live Aperture interop (PR / nightly only)
 
@@ -311,4 +310,3 @@ deployment testing, not by these protocol-boundary tests.
 - Migrating server middleware from AGPL `boltwall` — `docs/migration-from-boltwall.md`
   (config rename map, capability-flag behavior, HODL flow, and the
   `expiration` → `valid-until` caveat change).
-  </content>

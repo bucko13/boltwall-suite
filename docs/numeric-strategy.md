@@ -1,9 +1,8 @@
 # Numeric Strategy
 
-Canonical conventions for representing money amounts, payment-hash counters,
+Maintainer reference for representing money amounts, payment-hash counters,
 expiry timestamps, and any other numeric values that cross package boundaries
-in Boltwall Suite. This document is the source of truth for every task that adds
-a numeric public API.
+in Boltwall Suite. Treat these conventions as part of the public API contract.
 
 ## TL;DR
 
@@ -163,16 +162,18 @@ Every new public function or type that takes or returns a money amount must:
 3. If the function crosses a JSON / HTTP boundary, document the serialized
    type in the type definition and add a round-trip test.
 
-## Open Implementation Work
+## Implementation boundaries
 
-Track implementation work that follows from this decision in the project task
-system:
+The following pieces are intentionally implementation details, even though they
+support public APIs:
 
-- `@boltwall/internal/numeric` helpers with `parseAmount`, `formatSats`,
-  `formatBtc`, and sats↔msats conversion.
-- Workspace-only `sats` / `msats` / `btc` helpers in
-  `@boltwall/internal/numeric`.
-- BOLT 11 decoder return-type binding to `bigint` msat.
+- `@boltwall/internal/numeric` owns workspace-only helpers such as
+  `parseAmount`, `formatSats`, `formatBtc`, and sats↔msats conversion.
+- `sats`, `msats`, and `btc` are private implementation helpers, not public
+  imports for package consumers.
+- BOLT 11 decoder integrations must return `bigint` msat at Boltwall package
+  boundaries, regardless of the underlying decoder library's native amount
+  representation.
 
 Spec references:
 
