@@ -18,7 +18,15 @@ import {
 import { createUpstreamProxy } from "./upstream.js";
 
 export type { ForwardHeadersPolicy } from "./header-policy.js";
-export { loadProxyEnv, type LoadProxyEnvOptions, type ProxyEnvConfig } from "./env.js";
+export {
+  loadProxyEnv,
+  proxyEnvVariables,
+  type LoadProxyEnvOptions,
+  type ProxyEnvConfig,
+  type ProxyEnvValueKind,
+  type ProxyEnvVariableMetadata,
+  type ProxyEnvVariableName,
+} from "./env.js";
 export type { ProxyRoute } from "./route-matching.js";
 
 /**

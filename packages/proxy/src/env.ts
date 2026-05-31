@@ -8,44 +8,249 @@ import type { ForwardHeadersPolicy } from "./header-policy.js";
 
 import type { ProxyConfig } from "./index.js";
 
-const envSchema = z
-  .object({
-    BOLTWALL_PROXY_TARGET_URL: z.url(),
-    BOLTWALL_PROXY_SERVICE: z.string().min(1).optional(),
-    BOLTWALL_PROXY_DEFAULT_PRICE_MSAT: z
+/**
+ * Parser category used by `loadProxyEnv` for an environment variable.
+ *
+ * Generated API docs use this value to describe the supported syntax without
+ * repeating the private Zod schema.
+ */
+export type ProxyEnvValueKind =
+  | "url"
+  | "string"
+  | "nonnegative-integer-msat"
+  | "comma-list"
+  | "nonnegative-integer-seconds"
+  | "positive-integer-milliseconds"
+  | "challenge-compatibility"
+  | "iso-datetime"
+  | "positive-integer-seconds"
+  | "boolean";
+
+/**
+ * Public metadata for one `BOLTWALL_PROXY_*` environment variable.
+ *
+ * This metadata is the source for `loadProxyEnv` validation, so generated docs
+ * and runtime parsing stay aligned. Secret-bearing backend credentials, root
+ * keys, macaroons, bearer tokens, TLS certs, and preimages are intentionally
+ * outside this proxy-runtime config surface.
+ */
+export interface ProxyEnvVariableMetadata {
+  /** Environment variable name consumed by `loadProxyEnv`. */
+  readonly name: string;
+  /** Whether `loadProxyEnv` requires this variable when no env file supplies it. */
+  readonly required: boolean;
+  /** Parser category and accepted value shape. */
+  readonly valueKind: ProxyEnvValueKind;
+  /** `ProxyEnvConfig` field populated by this variable. */
+  readonly configPath: string;
+  /** Short generated-doc description. */
+  readonly description: string;
+  /** Default value or behavior when the variable is omitted. */
+  readonly defaultValue?: string;
+  /** Separator for list-like values. */
+  readonly listSeparator?: ",";
+  /** Accepted string values for enum-like variables. */
+  readonly allowedValues?: readonly string[];
+}
+
+const proxyEnvVariableDefinitions = [
+  {
+    name: "BOLTWALL_PROXY_TARGET_URL",
+    required: true,
+    valueKind: "url",
+    configPath: "targetUrl",
+    description: "HTTPS upstream origin protected by the proxy.",
+    schema: z.url(),
+  },
+  {
+    name: "BOLTWALL_PROXY_SERVICE",
+    required: false,
+    valueKind: "string",
+    configPath: "service",
+    description: "Optional service name for minted macaroon caveats.",
+    schema: z.string().min(1).optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_DEFAULT_PRICE_MSAT",
+    required: false,
+    valueKind: "nonnegative-integer-msat",
+    configPath: "defaultPrice",
+    description: "Default protected-route price in millisatoshis.",
+    schema: z
       .string()
       .regex(/^\d+$/u, "must be a non-negative integer millisatoshi amount")
       .optional(),
-    BOLTWALL_PROXY_UNPROTECTED_PATHS: z.string().optional(),
-    BOLTWALL_PROXY_FORWARD_ALLOW: z.string().optional(),
-    BOLTWALL_PROXY_FORWARD_DENY: z.string().optional(),
-    BOLTWALL_PROXY_CORS_ALLOW_ORIGINS: z.string().optional(),
-    BOLTWALL_PROXY_CORS_EXPOSE_HEADERS: z.string().optional(),
-    BOLTWALL_PROXY_CORS_ALLOW_HEADERS: z.string().optional(),
-    BOLTWALL_PROXY_CORS_ALLOW_METHODS: z.string().optional(),
-    BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS: z
-      .string()
-      .regex(/^\d+$/u, "must be a non-negative integer second duration")
-      .optional(),
-    BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS: z
+  },
+  {
+    name: "BOLTWALL_PROXY_UNPROTECTED_PATHS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "unprotectedPaths",
+    description: "Comma-separated path patterns that bypass L402 authorization.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_FORWARD_ALLOW",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "forwardHeaders.allow",
+    description: "Comma-separated request-header allow patterns forwarded upstream.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_FORWARD_DENY",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "forwardHeaders.deny",
+    description:
+      "Comma-separated request-header deny patterns stripped before upstream forwarding.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CORS_ALLOW_ORIGINS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "cors.allowOrigins",
+    description: "Comma-separated browser origins allowed to read proxy responses.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CORS_EXPOSE_HEADERS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "cors.exposeHeaders",
+    description: "Comma-separated response headers exposed to browser JavaScript.",
+    defaultValue: "WWW-Authenticate",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CORS_ALLOW_HEADERS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "cors.allowHeaders",
+    description: "Comma-separated request headers allowed on CORS preflight.",
+    defaultValue: "Authorization,Content-Type,Accept",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CORS_ALLOW_METHODS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "cors.allowMethods",
+    description: "Comma-separated HTTP methods allowed on CORS preflight.",
+    defaultValue: "GET,HEAD,OPTIONS",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CORS_MAX_AGE_SECONDS",
+    required: false,
+    valueKind: "nonnegative-integer-seconds",
+    configPath: "cors.maxAgeSeconds",
+    description: "Optional Access-Control-Max-Age value in seconds.",
+    schema: z.string().regex(/^\d+$/u, "must be a non-negative integer second duration").optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS",
+    required: false,
+    valueKind: "positive-integer-milliseconds",
+    configPath: "upstreamTimeoutMs",
+    description: "Positive upstream proxy timeout in milliseconds.",
+    schema: z
       .string()
       .regex(/^\d+$/u, "must be a positive integer millisecond timeout")
       .refine((value) => Number(value) > 0, "must be a positive integer millisecond timeout")
       .optional(),
-    BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY: z.enum(["dual", "l402-only", "lsat-only"]).optional(),
-    BOLTWALL_PROXY_POLICY_VALID_UNTIL: z.iso.datetime().optional(),
-    BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS: z
+  },
+  {
+    name: "BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY",
+    required: false,
+    valueKind: "challenge-compatibility",
+    configPath: "challengeCompatibility",
+    description: "Challenge emission mode delegated to @boltwall/middleware.",
+    defaultValue: "dual",
+    allowedValues: ["dual", "l402-only", "lsat-only"],
+    schema: z.enum(["dual", "l402-only", "lsat-only"]).optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_POLICY_VALID_UNTIL",
+    required: false,
+    valueKind: "iso-datetime",
+    configPath: "caveats",
+    description: "Absolute valid-until caveat timestamp.",
+    schema: z.iso.datetime().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_POLICY_VALID_UNTIL_SECONDS",
+    required: false,
+    valueKind: "positive-integer-seconds",
+    configPath: "caveats",
+    description: "Relative valid-until caveat duration in seconds.",
+    schema: z
       .string()
       .regex(/^\d+$/u, "must be a positive integer second duration")
       .refine((value) => Number(value) > 0, "must be a positive integer second duration")
       .optional(),
-    BOLTWALL_PROXY_POLICY_ORIGIN: z.string().optional(),
-    BOLTWALL_PROXY_CAPABILITIES: z.string().optional(),
-    BOLTWALL_PROXY_PAYWALL_HODL: z.enum(["true", "false"]).optional(),
-  })
-  .passthrough();
+  },
+  {
+    name: "BOLTWALL_PROXY_POLICY_ORIGIN",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "caveats",
+    description: "Comma-separated request origins for origin caveats and satisfiers.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_CAPABILITIES",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "capabilities",
+    description: "Comma-separated macaroon capabilities; requires BOLTWALL_PROXY_SERVICE.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
+    name: "BOLTWALL_PROXY_PAYWALL_HODL",
+    required: false,
+    valueKind: "boolean",
+    configPath: "hodl",
+    description: "Enable HODL-invoice middleware mode.",
+    defaultValue: "false",
+    allowedValues: ["true", "false"],
+    schema: z.enum(["true", "false"]).optional(),
+  },
+] as const;
 
-type ProxyEnvFields = z.infer<typeof envSchema>;
+/**
+ * Supported `BOLTWALL_PROXY_*` variables consumed by `loadProxyEnv`.
+ *
+ * The array is exported for generated API docs, CLI help, and tests. It is
+ * derived from the same definitions that build the runtime validator.
+ */
+export const proxyEnvVariables = proxyEnvVariableDefinitions.map(
+  ({ schema: _schema, ...metadata }) => metadata,
+) satisfies readonly ProxyEnvVariableMetadata[];
+
+export type ProxyEnvVariableName = (typeof proxyEnvVariables)[number]["name"];
+
+type ProxyEnvFields = Partial<Record<ProxyEnvVariableName, string>> & {
+  BOLTWALL_PROXY_TARGET_URL: string;
+};
+
+const envSchema = z.object(buildEnvSchemaShape()).passthrough();
+
+function buildEnvSchemaShape(): Record<ProxyEnvVariableName, z.ZodType> {
+  return Object.fromEntries(
+    proxyEnvVariableDefinitions.map((definition) => [definition.name, definition.schema]),
+  ) as unknown as Record<ProxyEnvVariableName, z.ZodType>;
+}
 
 /**
  * Runtime proxy configuration loaded from environment variables.
@@ -118,7 +323,7 @@ export function loadProxyEnv(options: LoadProxyEnvOptions = {}): ProxyEnvConfig 
     throw new Error(formatEnvError(parsed.error));
   }
 
-  return fieldsToConfig(parsed.data);
+  return fieldsToConfig(parsed.data as ProxyEnvFields);
 }
 
 function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
@@ -149,7 +354,10 @@ function fieldsToConfig(fields: ProxyEnvFields): ProxyEnvConfig {
       : { upstreamTimeoutMs: Number(fields.BOLTWALL_PROXY_UPSTREAM_TIMEOUT_MS) }),
     ...(fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY === undefined
       ? {}
-      : { challengeCompatibility: fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY }),
+      : {
+          challengeCompatibility:
+            fields.BOLTWALL_PROXY_CHALLENGE_COMPATIBILITY as ProxyEnvConfig["challengeCompatibility"],
+        }),
     ...policy,
   };
 }
