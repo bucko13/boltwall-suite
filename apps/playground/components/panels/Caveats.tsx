@@ -1,569 +1,320 @@
 "use client";
 
-import {
-  Caveat,
-  L402,
-  servicesSatisfier,
-  validUntil,
-  validUntilSatisfier,
-  type CaveatSatisfier,
-} from "@boltwall/l402";
-import { useState } from "react";
+import { Caveat, L402, validUntil } from "@boltwall/l402";
+import { useEffect, useState } from "react";
 
-import { useRememberedStringInput, useUrlInput } from "../../lib/url-state";
+import { describeArtifactError, detectArtifact } from "../../lib/detect-artifact";
+import { useWorkbenchMemory } from "../../lib/url-state";
+import { BigBlob } from "../ui/big-blob";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
-import { CopyUrlButton } from "../ui/copy-url-button";
+import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
-import { panelInputStyle, panelOutputStyle, panelTextareaStyle } from "./panel-styles";
+import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
-const PANEL = "caveats";
-const MODES = ["add", "check"] as const;
-const ADD_KINDS = ["custom", "time-limit"] as const;
-
-type CaveatMode = (typeof MODES)[number];
-type AddKind = (typeof ADD_KINDS)[number];
 type CaveatRow = { condition: string; value: string };
-type SatisfierRow = {
-  name: BuiltinSatisfier | string;
-  param?: string;
-};
 
-const BUILTIN_SATISFIERS = ["valid-until", "services"] as const;
-type BuiltinSatisfier = (typeof BUILTIN_SATISFIERS)[number];
-
-function rowsToJson(rows: CaveatRow[]): string | null {
-  if (rows.length === 0) return null;
-  return JSON.stringify(rows);
-}
-
-function jsonToRows(raw: string | null): CaveatRow[] {
-  if (!raw) return [];
+/**
+ * Re-derives the attenuated macaroon and its full caveat list from a base
+ * macaroon plus the caveats the user has appended. Attenuation is append-only
+ * and needs no root key (the defining property of macaroons), so this is a pure
+ * function of (base, added) — recomputed on every render rather than mutating a
+ * stored token.
+ */
+function attenuate(
+  baseMacaroon: string,
+  added: CaveatRow[],
+): { macaroon: string; caveats: CaveatRow[] } | null {
   try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      parsed.every(
-        (r) =>
-          typeof r === "object" &&
-          r !== null &&
-          typeof (r as Record<string, unknown>)["condition"] === "string" &&
-          typeof (r as Record<string, unknown>)["value"] === "string",
-      )
-    ) {
-      return parsed as CaveatRow[];
+    const token = L402.fromMacaroon(baseMacaroon);
+    for (const c of added) {
+      token.addFirstPartyCaveat(new Caveat(c.condition, c.value));
     }
-  } catch (error) {
-    if (error instanceof SyntaxError) return [];
-  }
-  return [];
-}
-
-function satisfiersToJson(rows: SatisfierRow[]): string | null {
-  if (rows.length === 0) return null;
-  return JSON.stringify(rows);
-}
-
-function jsonToSatisfiers(raw: string | null): SatisfierRow[] {
-  if (!raw) return [];
-  try {
-    const parsed = JSON.parse(raw) as unknown;
-    if (
-      Array.isArray(parsed) &&
-      parsed.every(
-        (r) =>
-          typeof r === "object" &&
-          r !== null &&
-          typeof (r as Record<string, unknown>)["name"] === "string",
-      )
-    ) {
-      return parsed as SatisfierRow[];
-    }
-  } catch (error) {
-    if (error instanceof SyntaxError) return [];
-  }
-  return [];
-}
-
-function parseMode(raw: string | null): CaveatMode {
-  return MODES.includes(raw as CaveatMode) ? (raw as CaveatMode) : "add";
-}
-
-function parseAddKind(raw: string | null): AddKind {
-  return ADD_KINDS.includes(raw as AddKind) ? (raw as AddKind) : "custom";
-}
-
-function extractCaveatsFromMacaroon(macaroon: string): CaveatRow[] {
-  try {
-    return L402.fromMacaroon(macaroon)
-      .getCaveats()
-      .map(({ condition, value }) => ({ condition, value }));
-  } catch (error) {
-    if (error instanceof Error && error.message === "empty-macaroons") return [];
-    return [];
+    return {
+      macaroon: token.macaroon,
+      caveats: token.getCaveats().map((c) => ({ condition: c.condition, value: c.value })),
+    };
+  } catch {
+    return null;
   }
 }
 
-function buildSatisfier(row: SatisfierRow): CaveatSatisfier | null {
-  if (row.name === "valid-until") return validUntilSatisfier();
-  if (row.name === "services") return servicesSatisfier(row.param ?? "");
+/**
+ * The expiry instant (ms) of a time caveat, or null for non-time caveats. Mirrors
+ * the L402 time conditions: `valid-until` (ISO/RFC date), `expiration` (unix ms),
+ * and imported `*_valid_until` (unix seconds or ms). Client-side this is the only
+ * caveat class we can meaningfully validate — service/capability caveats are
+ * enforced server-side (see apps/playground/CONTEXT.md).
+ */
+function caveatExpiryMs(condition: string, value: string): number | null {
+  if (condition === "valid-until") {
+    const ts = Date.parse(value);
+    return Number.isNaN(ts) ? null : ts;
+  }
+  if (condition === "expiration") {
+    const ts = Number(value);
+    return Number.isFinite(ts) ? ts : null;
+  }
+  if (condition.endsWith("_valid_until")) {
+    const n = Number(value);
+    if (Number.isFinite(n)) return n < 10_000_000_000 ? n * 1000 : n;
+    const ts = Date.parse(value);
+    return Number.isNaN(ts) ? null : ts;
+  }
   return null;
 }
 
-async function runSatisfiers(
-  caveats: CaveatRow[],
-  satisfierRows: SatisfierRow[],
-): Promise<Record<string, "matched" | "unsatisfied">> {
-  const result: Record<string, "matched" | "unsatisfied"> = {};
-  for (const c of caveats) {
-    const key = `${c.condition}=${c.value}`;
-    let matched = false;
-    for (const row of satisfierRows) {
-      const satisfier = buildSatisfier(row);
-      if (!satisfier) continue;
-      const condMatch =
-        satisfier.condition instanceof RegExp
-          ? satisfier.condition.test(c.condition)
-          : satisfier.condition === c.condition;
-      if (!condMatch) continue;
-      try {
-        const ok = await satisfier.satisfyFinal(new Caveat(c.condition, c.value), {
-          now: new Date(),
-        });
-        if (ok) {
-          matched = true;
-          break;
-        }
-      } catch (error) {
-        result[key] = "unsatisfied";
-        if (error instanceof Error && error.message.startsWith("invalid-")) break;
-      }
-    }
-    result[key] = matched ? "matched" : "unsatisfied";
-  }
-  return result;
-}
-
-function modeLabel(mode: CaveatMode) {
-  return mode === "add" ? "Add" : "Check";
-}
-
-function addKindLabel(kind: AddKind) {
-  return kind === "custom" ? "Custom" : "Time limit";
+function pillState(expiryMs: number | null, nowMs: number) {
+  if (expiryMs === null) return "unsatisfied" as const;
+  return expiryMs <= nowMs ? ("rejected" as const) : ("matched" as const);
 }
 
 export function Caveats() {
-  const [mode, setMode] = useUrlInput<CaveatMode>("mode", parseMode, (v) => v, { panel: PANEL });
-  const activeMode = mode ?? "add";
-  const [addKind, setAddKind] = useUrlInput<AddKind>("kind", parseAddKind, (v) => v, {
-    panel: PANEL,
-  });
-  const activeAddKind = addKind ?? "custom";
+  const workbenchMemory = useWorkbenchMemory();
 
-  const [caveatsJson, setCaveatsJson] = useUrlInput<string>(
-    "caveats",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-  const rows = jsonToRows(caveatsJson || null);
-
+  // Inputs are plain local state — never auto-synced to the URL or Workbench.
+  const [input, setInput] = useState("");
+  const [added, setAdded] = useState<CaveatRow[]>([]);
   const [draft, setDraft] = useState<CaveatRow>({ condition: "", value: "" });
-  const [draftError, setDraftError] = useState<string | null>(null);
+  const [seconds, setSeconds] = useState("");
+  const [error, setError] = useState<string | null>(null);
 
-  const [seconds, setSeconds] = useUrlInput<string>(
-    "seconds",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-  const [expirationResult, setExpirationResult] = useState<{
-    condition: string;
-    value: string;
-    serialized: string;
-  } | null>(null);
-  const [expirationError, setExpirationError] = useState<string | null>(null);
+  // Re-render the expiry pills on a timer so countdowns stay live.
+  const [nowMs, setNowMs] = useState(() => Date.now());
 
-  const [token, setToken] = useRememberedStringInput("token", {
-    panel: PANEL,
-    field: "macaroon",
-  });
-  const [satisfiersJson, setSatisfiersJson] = useUrlInput<string>(
-    "satisfiers",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-  const satisfierRows = jsonToSatisfiers(satisfiersJson || null);
-  const [results, setResults] = useState<Record<string, "matched" | "unsatisfied"> | null>(null);
-  const [satisfyError, setSatisfyError] = useState<string | null>(null);
-  const [newSatisfier, setNewSatisfier] = useState<SatisfierRow>({
-    name: "valid-until",
-    param: "",
-  });
-  const tokenRows = (token ?? "").trim() ? extractCaveatsFromMacaroon((token ?? "").trim()) : [];
-  const baseRows = rows.length > 0 ? rows : tokenRows;
-  const visibleRows = baseRows;
-  const checkToken = rows.length > 0 ? "" : (token ?? "");
-  const visibleSerialized = visibleRows.map((r) => new Caveat(r.condition, r.value).encode());
-  const visibleSource = rows.length > 0 ? "current" : tokenRows.length > 0 ? "macaroon" : "empty";
+  const detected = input.trim() ? detectArtifact(input) : null;
+  const base = detected?.ok ? detected.value : null;
+  const result = base ? attenuate(base.macaroon, added) : null;
+  const baseCaveatCount = base ? (attenuate(base.macaroon, [])?.caveats.length ?? 0) : 0;
+  const caveats = result?.caveats ?? [];
 
-  function saveRows(newRows: CaveatRow[]) {
-    setCaveatsJson(rowsToJson(newRows));
+  useEffect(() => {
+    if (!caveats.some((c) => caveatExpiryMs(c.condition, c.value) !== null)) return;
+    const id = window.setInterval(() => setNowMs(Date.now()), 1000);
+    return () => window.clearInterval(id);
+  }, [caveats]);
+
+  function changeInput(next: string) {
+    setInput(next);
+    // Appended caveats are relative to the base macaroon; a new base invalidates them.
+    setAdded([]);
+    setError(null);
   }
 
-  function addRow() {
-    if (!draft.condition.trim()) {
-      setDraftError("Condition is required.");
+  function addCustom() {
+    if (!base) {
+      setError("Load a macaroon, challenge, or credential first.");
+      return;
+    }
+    const condition = draft.condition.trim();
+    if (!condition) {
+      setError("Condition is required.");
       return;
     }
     try {
-      const caveat = new Caveat(draft.condition.trim(), draft.value);
-      const newRows = [...baseRows, { condition: draft.condition.trim(), value: draft.value }];
-      caveat.encode();
-      saveRows(newRows);
+      // Validate it encodes before appending.
+      new Caveat(condition, draft.value).encode();
+      setAdded((rows) => [...rows, { condition, value: draft.value }]);
       setDraft({ condition: "", value: "" });
-      setDraftError(null);
+      setError(null);
     } catch (e) {
-      setDraftError(e instanceof Error ? e.message : String(e));
+      setError(e instanceof Error ? e.message : String(e));
     }
-  }
-
-  function removeRow(i: number) {
-    saveRows(rows.filter((_, idx) => idx !== i));
-  }
-
-  function resetRows() {
-    setCaveatsJson(null);
-    setDraft({ condition: "", value: "" });
-    setDraftError(null);
   }
 
   function addTimeLimit() {
-    const n = parseInt(seconds ?? "", 10);
-    if (isNaN(n) || n < 0) {
-      setExpirationError("Enter a positive number of seconds.");
-      setExpirationResult(null);
+    if (!base) {
+      setError("Load a macaroon, challenge, or credential first.");
+      return;
+    }
+    const n = Number.parseInt(seconds, 10);
+    if (Number.isNaN(n) || n < 0) {
+      setError("Enter a positive number of seconds.");
       return;
     }
     const caveat = validUntil({ seconds: n });
-    setExpirationResult({
-      condition: caveat.condition,
-      value: caveat.value,
-      serialized: caveat.encode(),
-    });
-    saveRows([...baseRows, { condition: caveat.condition, value: caveat.value }]);
-    setExpirationError(null);
+    setAdded((rows) => [...rows, { condition: caveat.condition, value: caveat.value }]);
+    setSeconds("");
+    setError(null);
   }
 
-  function resetExpiration() {
-    setSeconds(null);
-    setExpirationResult(null);
-    setExpirationError(null);
+  function removeAdded(index: number) {
+    setAdded((rows) => rows.filter((_, i) => i !== index));
+    setError(null);
   }
 
-  function addSatisfier() {
-    setSatisfiersJson(satisfiersToJson([...satisfierRows, newSatisfier]));
-    setResults(null);
+  function reset() {
+    setInput("");
+    setAdded([]);
+    setDraft({ condition: "", value: "" });
+    setSeconds("");
+    setError(null);
   }
 
-  function removeSatisfier(i: number) {
-    setSatisfiersJson(satisfiersToJson(satisfierRows.filter((_, idx) => idx !== i)));
-    setResults(null);
-  }
+  const inputError = Boolean(input.trim()) && detected !== null && !detected.ok;
+  const status = error || inputError ? "fail" : base ? "pass" : "idle";
+  const statusLabel =
+    error || inputError
+      ? "error"
+      : base
+        ? `${caveats.length} caveat${caveats.length === 1 ? "" : "s"}`
+        : "idle";
 
-  async function runCheck() {
-    try {
-      const caveats = rows.length > 0 ? rows : tokenRows;
-      if (caveats.length === 0) {
-        setSatisfyError("Add caveats or paste a base64-encoded macaroon.");
-        setResults(null);
-        return;
-      }
-      const res = await runSatisfiers(caveats, satisfierRows);
-      setResults(res);
-      setSatisfyError(null);
-    } catch (e) {
-      setSatisfyError(e instanceof Error ? e.message : String(e));
-      setResults(null);
-    }
-  }
-
-  function resetSatisfy() {
-    setToken(null);
-    setSatisfiersJson(null);
-    setResults(null);
-    setSatisfyError(null);
-  }
-
-  const draftSnippetRows = draft.condition.trim()
-    ? [{ condition: draft.condition.trim(), value: draft.value }]
-    : [];
-  const snippetRows =
-    activeMode === "check"
-      ? visibleRows.length > 0
-        ? visibleRows
-        : draftSnippetRows
-      : visibleRows.length > 0
-        ? visibleRows
-        : draftSnippetRows;
-  const caveatsLiteral = JSON.stringify(snippetRows, null, 2);
-  const encodedCaveatsLiteral = JSON.stringify(
-    snippetRows.map((row) => new Caveat(row.condition, row.value).encode()),
-    null,
-    2,
-  );
-  const ttlSecondsLiteral = /^[0-9]+$/.test(seconds ?? "") ? (seconds ?? "") : "3600";
-  const caveatValueLiteral = JSON.stringify(expirationResult?.value ?? "");
-  const satisfiersSource = satisfierRows
-    .map((row) =>
-      row.name === "services"
-        ? `  servicesSatisfier(${JSON.stringify(row.param ?? "")})`
-        : "  validUntilSatisfier()",
+  const addedSnippet = added
+    .map(
+      (c) =>
+        `token.addFirstPartyCaveat(new Caveat(${JSON.stringify(c.condition)}, ${JSON.stringify(c.value)}));`,
     )
-    .join(",\n");
-
-  const status = getStatus(
-    activeMode,
-    visibleRows.length,
-    expirationError,
-    results,
-    satisfyError,
-    draftError,
-  );
-  const statusLabel = getStatusLabel(
-    activeMode,
-    visibleRows.length,
-    expirationError,
-    results,
-    satisfyError,
-    draftError,
-  );
+    .join("\n");
+  const snippetMacaroon = JSON.stringify(base?.macaroon ?? "<base64 macaroon>");
 
   return (
     <Cell
       header={
         <HeaderRow
           title="Caveats"
-          subtitle="Add caveats, create time limits, and check satisfiers"
+          subtitle="Load a macaroon, challenge, or credential; inspect its caveats, attenuate with more, and copy the result"
           trailing={
-            <>
-              <StatusPill state={status} details={expirationError ?? satisfyError ?? draftError}>
-                {statusLabel}
-              </StatusPill>
-              <CopyUrlButton />
-            </>
+            <StatusPill
+              state={status}
+              details={
+                error ?? (inputError && detected ? describeArtifactError(detected.error) : null)
+              }
+            >
+              {statusLabel}
+            </StatusPill>
           }
         />
       }
       body={
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <label style={labelStyle}>
+            Macaroon, L402 challenge, or credential
+            <textarea
+              value={input}
+              onChange={(e) => changeInput(e.target.value)}
+              placeholder='AgI...   ·   L402 macaroon="...", invoice="..."   ·   L402 &lt;macaroon&gt;:&lt;preimage&gt;'
+              data-testid="caveats-input"
+              rows={2}
+              style={panelTextareaStyle(inputError)}
+            />
+          </label>
+
           <div
-            role="tablist"
-            aria-label="Caveat tools"
+            data-testid="caveats-workbench-actions"
             style={{
-              display: "inline-flex",
-              alignSelf: "flex-start",
-              border: "1px solid var(--color-border)",
-              background: "var(--color-surface-alt)",
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "var(--size-11)",
+              color: "var(--color-dim)",
             }}
           >
-            {MODES.map((m) => (
-              <button
-                key={m}
-                type="button"
-                role="tab"
-                aria-selected={activeMode === m}
-                onClick={() => setMode(m)}
-                data-testid={`caveats-mode-${m}`}
-                style={{
-                  padding: "6px 10px",
-                  border: "none",
-                  borderRight: m === "check" ? "none" : "1px solid var(--color-border)",
-                  background: activeMode === m ? "var(--color-primary)" : "transparent",
-                  color: activeMode === m ? "var(--color-surface)" : "var(--color-dim)",
-                  cursor: "pointer",
-                  fontSize: "var(--size-12)",
-                  fontWeight: activeMode === m ? 600 : 500,
-                }}
-              >
-                {modeLabel(m)}
-              </button>
-            ))}
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
+            <FillFromWorkbench
+              label="macaroon"
+              available={workbenchMemory?.macaroon ?? ""}
+              current={input}
+              onFill={changeInput}
+              testId="caveats-fill-macaroon"
+            />
+            <FillFromWorkbench
+              label="challenge"
+              available={workbenchMemory?.challenge ?? ""}
+              current={input}
+              onFill={changeInput}
+              testId="caveats-fill-challenge"
+            />
+            <FillFromWorkbench
+              label="credential"
+              available={workbenchMemory?.credential ?? ""}
+              current={input}
+              onFill={changeInput}
+              testId="caveats-fill-credential"
+            />
           </div>
 
-          <CurrentCaveats
-            rows={visibleRows}
-            serialized={visibleSerialized}
-            removeRow={visibleSource === "current" ? removeRow : undefined}
-            source={visibleSource}
-          />
-
-          {activeMode === "add" ? (
-            <>
-              <div
-                role="tablist"
-                aria-label="Caveat add options"
-                style={{
-                  display: "inline-flex",
-                  alignSelf: "flex-start",
-                  border: "1px solid var(--color-border)",
-                  background: "var(--color-surface-alt)",
-                }}
-              >
-                {ADD_KINDS.map((kind) => (
-                  <button
-                    key={kind}
-                    type="button"
-                    role="tab"
-                    aria-selected={activeAddKind === kind}
-                    onClick={() => setAddKind(kind)}
-                    data-testid={`caveats-add-kind-${kind}`}
-                    style={{
-                      padding: "6px 10px",
-                      border: "none",
-                      borderRight: kind === "time-limit" ? "none" : "1px solid var(--color-border)",
-                      background: activeAddKind === kind ? "var(--color-primary)" : "transparent",
-                      color: activeAddKind === kind ? "var(--color-surface)" : "var(--color-dim)",
-                      cursor: "pointer",
-                      fontSize: "var(--size-12)",
-                      fontWeight: activeAddKind === kind ? 600 : 500,
-                    }}
-                  >
-                    {addKindLabel(kind)}
-                  </button>
-                ))}
-              </div>
-
-              {activeAddKind === "custom" ? (
-                <BuildMode
-                  draft={draft}
-                  draftError={draftError}
-                  setDraft={setDraft}
-                  addRow={addRow}
-                  resetRows={resetRows}
-                />
-              ) : (
-                <TimeLimitMode
-                  seconds={seconds ?? ""}
-                  result={expirationResult}
-                  error={expirationError}
-                  setSeconds={(value) => {
-                    setSeconds(value);
-                    setExpirationResult(null);
-                    setExpirationError(null);
-                  }}
-                  addTimeLimit={addTimeLimit}
-                  reset={resetExpiration}
-                />
-              )}
-            </>
+          {inputError && detected && !detected.ok ? (
+            <div data-testid="caveats-input-error" style={errorStyle}>
+              {describeArtifactError(detected.error)}
+            </div>
           ) : null}
 
-          {activeMode === "check" ? (
-            <CheckMode
-              caveatCount={visibleRows.length}
-              caveatSource={visibleSource}
-              token={checkToken}
-              setToken={(value) => {
-                setToken(value);
-                setResults(null);
-                setSatisfyError(null);
-              }}
-              satisfierRows={satisfierRows}
-              newSatisfier={newSatisfier}
-              setNewSatisfier={setNewSatisfier}
-              addSatisfier={addSatisfier}
-              removeSatisfier={removeSatisfier}
-              runCheck={runCheck}
-              reset={resetSatisfy}
-              error={satisfyError}
-              results={results}
+          {base ? (
+            <CurrentCaveats
+              caveats={caveats}
+              baseCount={baseCaveatCount}
+              nowMs={nowMs}
+              onRemoveAdded={removeAdded}
             />
+          ) : (
+            <div data-testid="caveats-empty-hint" style={hintStyle}>
+              Paste an artifact above (or fill one from the Workbench) to inspect its caveats.
+            </div>
+          )}
+
+          {base ? (
+            <AddControls
+              draft={draft}
+              setDraft={setDraft}
+              addCustom={addCustom}
+              seconds={seconds}
+              setSeconds={setSeconds}
+              addTimeLimit={addTimeLimit}
+              reset={reset}
+            />
+          ) : null}
+
+          {error ? (
+            <div data-testid="caveats-error" style={errorStyle}>
+              {error}
+            </div>
+          ) : null}
+
+          {result ? (
+            <div data-testid="caveats-output">
+              <BigBlob
+                value={result.macaroon}
+                label={added.length > 0 ? "Attenuated macaroon" : "Macaroon"}
+              />
+            </div>
           ) : null}
         </div>
       }
       code={
         <CodeSnippet
           language="typescript"
-          contract={
-            activeMode === "add" && activeAddKind === "time-limit" && !expirationResult
-              ? "recipe"
-              : "exact"
-          }
+          contract={added.length > 0 ? "exact" : "recipe"}
           template={
-            activeMode === "add" && activeAddKind === "custom"
-              ? `import { Caveat } from "@boltwall/l402";\n\nconst encodedCaveats = {{encodedCaveatsLiteral}};\nconst caveats = encodedCaveats.map(Caveat.decode);\nconst serialized = caveats.map((caveat) => caveat.encode());`
-              : activeMode === "add" && activeAddKind === "time-limit"
-                ? expirationResult
-                  ? `import { validUntil } from "@boltwall/l402";\n\nconst caveat = validUntil({ iso: {{caveatValueLiteral}} });`
-                  : `import { validUntil } from "@boltwall/l402";\n\nconst ttlSeconds = {{seconds}};\nconst caveat = validUntil({ seconds: ttlSeconds });`
-                : satisfierRows.length > 0
-                  ? `import { Caveat, L402, servicesSatisfier, validUntilSatisfier } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst token = L402.fromMacaroon("<base64 macaroon>");\nconst satisfiers = [\n{{satisfiersSource}},\n];\n\nawait token.verify({\n  preimage: "<64-char hex preimage>",\n  rootKeyStore,\n  satisfiers,\n  context: { now: new Date() },\n});`
-                  : `import { Caveat } from "@boltwall/l402";\n\nconst caveats = {{encodedCaveatsLiteral}}.map(Caveat.decode);\nconst satisfiers = [];\n\n// Add satisfiers to check these caveats.`
+            added.length > 0
+              ? `import { Caveat, L402 } from "@boltwall/l402";\n\nconst token = L402.fromMacaroon({{macaroon}});\n{{added}}\nconst attenuated = token.macaroon; // re-serialized with the appended caveats`
+              : `import { Caveat, L402 } from "@boltwall/l402";\n\nconst token = L402.fromMacaroon({{macaroon}});\nconst caveats = token.getCaveats();\n// Append a first-party caveat (no root key needed):\ntoken.addFirstPartyCaveat(new Caveat("services", "my-service:0"));\nconst attenuated = token.macaroon;`
           }
-          values={{
-            caveatsLiteral,
-            encodedCaveatsLiteral,
-            seconds: ttlSecondsLiteral,
-            caveatValueLiteral,
-            satisfiersSource,
-          }}
+          values={{ macaroon: snippetMacaroon, added: addedSnippet }}
         />
       }
     />
   );
 }
 
-function getStatus(
-  mode: CaveatMode,
-  rowCount: number,
-  expirationError: string | null,
-  results: Record<string, "matched" | "unsatisfied"> | null,
-  satisfyError: string | null,
-  draftError: string | null,
-) {
-  if (mode === "add")
-    return draftError || expirationError ? "fail" : rowCount > 0 ? "pass" : "idle";
-  if (satisfyError) return "fail";
-  if (!results) return "idle";
-  return Object.values(results).every((v) => v === "matched") ? "pass" : "warn";
-}
-
-function getStatusLabel(
-  mode: CaveatMode,
-  rowCount: number,
-  expirationError: string | null,
-  results: Record<string, "matched" | "unsatisfied"> | null,
-  satisfyError: string | null,
-  draftError: string | null,
-) {
-  if (mode === "add") {
-    if (draftError || expirationError) return "error";
-    return rowCount > 0 ? `${rowCount} caveat${rowCount > 1 ? "s" : ""}` : "idle";
-  }
-  if (satisfyError) return "error";
-  if (!results) return "idle";
-  return `${Object.values(results).filter((v) => v === "matched").length}/${Object.keys(results).length} matched`;
-}
-
 function CurrentCaveats({
-  rows,
-  serialized,
-  removeRow,
-  source,
+  caveats,
+  baseCount,
+  nowMs,
+  onRemoveAdded,
 }: {
-  rows: CaveatRow[];
-  serialized: string[];
-  removeRow?: ((index: number) => void) | undefined;
-  source: "current" | "macaroon" | "empty";
+  caveats: CaveatRow[];
+  baseCount: number;
+  nowMs: number;
+  onRemoveAdded: (index: number) => void;
 }) {
   return (
     <div
-      data-testid="caveats-shared-list"
+      data-testid="caveats-list"
       style={{
         display: "flex",
         flexDirection: "column",
@@ -573,68 +324,67 @@ function CurrentCaveats({
         background: "var(--color-surface-alt)",
       }}
     >
-      <div style={outputLabelStyle}>
-        Current caveats
-        {source === "macaroon" ? " from macaroon" : ""}
-      </div>
-      {rows.length > 0 ? (
-        <>
-          <div
-            data-testid="caveats-list"
-            style={{ display: "flex", flexDirection: "column", gap: 6 }}
-          >
-            {rows.map((r, i) => (
-              <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                <CaveatPill state="unsatisfied">
-                  {r.condition}={r.value}
-                </CaveatPill>
-                {removeRow ? (
-                  <button
-                    type="button"
-                    onClick={() => removeRow(i)}
-                    data-testid={`caveat-remove-${i}`}
-                    aria-label={`Remove caveat ${r.condition}`}
-                    style={removeButtonStyle}
-                  >
-                    x
-                  </button>
-                ) : null}
-              </div>
-            ))}
-          </div>
-          <div data-testid="caveats-output" style={monoOutputStyle}>
-            <div style={outputLabelStyle}>Serialized caveats</div>
-            {serialized.map((s, i) => (
-              <div key={i} style={{ color: "var(--color-text)" }}>
-                {s}
-              </div>
-            ))}
-          </div>
-        </>
-      ) : (
-        <div
-          data-testid="caveats-empty"
-          style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}
-        >
-          No caveats
+      <div style={outputLabelStyle}>Caveats</div>
+      {caveats.length === 0 ? (
+        <div data-testid="caveats-none" style={hintStyle}>
+          No caveats on this macaroon yet.
         </div>
+      ) : (
+        caveats.map((c, i) => {
+          const expiryMs = caveatExpiryMs(c.condition, c.value);
+          const isAdded = i >= baseCount;
+          const addedIndex = i - baseCount;
+          return (
+            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
+              <CaveatPill state={pillState(expiryMs, nowMs)}>
+                <span data-testid={`caveat-${i}`}>
+                  {c.value === "" ? c.condition : `${c.condition}=${c.value}`}
+                </span>
+              </CaveatPill>
+              {expiryMs !== null ? (
+                <span style={timerStyle} data-testid={`caveat-expiry-${i}`}>
+                  {expiryMs <= nowMs ? "expired" : `expires ${new Date(expiryMs).toLocaleString()}`}
+                </span>
+              ) : null}
+              {isAdded ? (
+                <button
+                  type="button"
+                  onClick={() => onRemoveAdded(addedIndex)}
+                  data-testid={`caveat-remove-${addedIndex}`}
+                  aria-label={`Remove added caveat ${c.condition}`}
+                  style={removeButtonStyle}
+                >
+                  x
+                </button>
+              ) : (
+                <span style={{ fontSize: "var(--size-11)", color: "var(--color-dim)" }}>
+                  existing
+                </span>
+              )}
+            </div>
+          );
+        })
       )}
     </div>
   );
 }
 
-function BuildMode({
+function AddControls({
   draft,
-  draftError,
   setDraft,
-  addRow,
-  resetRows,
+  addCustom,
+  seconds,
+  setSeconds,
+  addTimeLimit,
+  reset,
 }: {
   draft: CaveatRow;
-  draftError: string | null;
-  setDraft: (updater: (draft: CaveatRow) => CaveatRow) => void;
-  addRow: () => void;
-  resetRows: () => void;
+  setDraft: (updater: (d: CaveatRow) => CaveatRow) => void;
+  addCustom: () => void;
+  seconds: string;
+  setSeconds: (value: string) => void;
+  addTimeLimit: () => void;
+  reset: () => void;
 }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
@@ -647,13 +397,9 @@ function BuildMode({
             onChange={(e) => setDraft((d) => ({ ...d, condition: e.target.value }))}
             placeholder="e.g. services"
             data-testid="caveat-condition-input"
-            style={{
-              ...panelInputStyle(Boolean(draftError)),
-              width: 180,
-            }}
+            style={{ ...panelInputStyle(), width: 180 }}
           />
         </label>
-
         <label style={labelStyle}>
           Value
           <input
@@ -662,58 +408,22 @@ function BuildMode({
             onChange={(e) => setDraft((d) => ({ ...d, value: e.target.value }))}
             placeholder="e.g. pokedex:0"
             data-testid="caveat-value-input"
-            style={{
-              ...panelInputStyle(Boolean(draftError)),
-              width: 200,
-            }}
+            style={{ ...panelInputStyle(), width: 200 }}
           />
         </label>
-
-        <button type="button" onClick={addRow} data-testid="caveat-add" style={primaryButtonStyle}>
-          Add
-        </button>
         <button
           type="button"
-          onClick={resetRows}
-          data-testid="caveats-reset"
-          style={secondaryButtonStyle}
+          onClick={addCustom}
+          data-testid="caveat-add"
+          style={primaryButtonStyle}
         >
-          Reset
+          Add caveat
         </button>
       </div>
 
-      {draftError ? (
-        <div
-          data-testid="caveats-error"
-          style={{ fontSize: "var(--size-12)", color: "var(--color-danger)" }}
-        >
-          {draftError}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function TimeLimitMode({
-  seconds,
-  result,
-  error,
-  setSeconds,
-  addTimeLimit,
-  reset,
-}: {
-  seconds: string;
-  result: { condition: string; value: string; serialized: string } | null;
-  error: string | null;
-  setSeconds: (value: string | null) => void;
-  addTimeLimit: () => void;
-  reset: () => void;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
         <label style={labelStyle}>
-          TTL in seconds
+          Time limit (seconds)
           <input
             type="text"
             inputMode="numeric"
@@ -721,17 +431,14 @@ function TimeLimitMode({
             value={seconds}
             onChange={(e) => setSeconds(e.target.value)}
             placeholder="e.g. 3600"
-            data-testid="expiration-seconds-input"
-            style={{
-              ...panelInputStyle(Boolean(error)),
-              width: 160,
-            }}
+            data-testid="caveat-seconds-input"
+            style={{ ...panelInputStyle(), width: 160 }}
           />
         </label>
         <button
           type="button"
           onClick={addTimeLimit}
-          data-testid="expiration-compute"
+          data-testid="caveat-add-time-limit"
           style={primaryButtonStyle}
         >
           Add time limit
@@ -739,224 +446,12 @@ function TimeLimitMode({
         <button
           type="button"
           onClick={reset}
-          data-testid="expiration-reset"
+          data-testid="caveats-reset"
           style={secondaryButtonStyle}
         >
           Reset
         </button>
       </div>
-
-      {error ? (
-        <div
-          data-testid="expiration-error"
-          style={{ fontSize: "var(--size-12)", color: "var(--color-danger)" }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {result ? (
-        <div
-          data-testid="expiration-output"
-          style={{ display: "flex", flexDirection: "column", gap: 8, ...monoOutputStyle }}
-        >
-          <div style={outputLabelStyle}>Last added time limit</div>
-          <div>
-            <span style={{ color: "var(--color-dim)" }}>condition: </span>
-            <span style={{ color: "var(--color-accent)" }}>{result.condition}</span>
-          </div>
-          <div>
-            <span style={{ color: "var(--color-dim)" }}>value: </span>
-            <span style={{ color: "var(--color-text)" }}>{result.value}</span>
-          </div>
-          <div>
-            <span style={{ color: "var(--color-dim)" }}>serialized: </span>
-            <span style={{ color: "var(--color-text)" }}>{result.serialized}</span>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
-function CheckMode({
-  caveatCount,
-  caveatSource,
-  token,
-  setToken,
-  satisfierRows,
-  newSatisfier,
-  setNewSatisfier,
-  addSatisfier,
-  removeSatisfier,
-  runCheck,
-  reset,
-  error,
-  results,
-}: {
-  caveatCount: number;
-  caveatSource: "current" | "macaroon" | "empty";
-  token: string;
-  setToken: (value: string | null) => void;
-  satisfierRows: SatisfierRow[];
-  newSatisfier: SatisfierRow;
-  setNewSatisfier: (updater: (row: SatisfierRow) => SatisfierRow) => void;
-  addSatisfier: () => void;
-  removeSatisfier: (index: number) => void;
-  runCheck: () => void;
-  reset: () => void;
-  error: string | null;
-  results: Record<string, "matched" | "unsatisfied"> | null;
-}) {
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label style={labelStyle}>
-        Macaroon caveats (optional)
-        <textarea
-          value={token}
-          onChange={(e) => setToken(e.target.value)}
-          placeholder="AGIAJEemVQUTEyNCR0exk7ek90Cg=="
-          data-testid="satisfy-token-input"
-          rows={2}
-          style={panelTextareaStyle(Boolean(error))}
-        />
-      </label>
-      <div
-        data-testid="satisfy-source"
-        style={{ fontSize: "var(--size-12)", color: "var(--color-dim)" }}
-      >
-        Source: {caveatSource === "current" ? "current caveats" : "macaroon caveats"}
-        {caveatSource === "macaroon" && caveatCount > 0 ? ` (${caveatCount})` : ""}
-      </div>
-
-      {satisfierRows.length > 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={outputLabelStyle}>Satisfiers</div>
-          {satisfierRows.map((r, i) => (
-            <div key={i} style={{ display: "flex", gap: 8, alignItems: "center" }}>
-              <span
-                style={{
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                  fontSize: "var(--size-12-5)",
-                  color: "var(--color-primary)",
-                }}
-              >
-                {r.name}
-                {r.param ? `(${r.param})` : ""}
-              </span>
-              <button
-                type="button"
-                onClick={() => removeSatisfier(i)}
-                data-testid={`satisfy-remove-${i}`}
-                style={{
-                  padding: "1px 6px",
-                  fontSize: "var(--size-11)",
-                  background: "var(--color-danger-soft)",
-                  color: "var(--color-danger)",
-                  border: "1px solid var(--color-danger)",
-                  borderRadius: 4,
-                  cursor: "pointer",
-                }}
-              >
-                x
-              </button>
-            </div>
-          ))}
-        </div>
-      ) : null}
-
-      <div style={{ display: "flex", gap: 8, alignItems: "flex-end", flexWrap: "wrap" }}>
-        <label style={labelStyle}>
-          Satisfier
-          <select
-            value={newSatisfier.name}
-            onChange={(e) =>
-              setNewSatisfier((s) => ({ ...s, name: e.target.value as BuiltinSatisfier }))
-            }
-            data-testid="satisfy-satisfier-select"
-            style={panelInputStyle()}
-          >
-            {BUILTIN_SATISFIERS.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-          </select>
-        </label>
-        {newSatisfier.name === "services" ? (
-          <label style={labelStyle}>
-            Target service
-            <input
-              type="text"
-              value={newSatisfier.param ?? ""}
-              onChange={(e) => setNewSatisfier((s) => ({ ...s, param: e.target.value }))}
-              placeholder="e.g. pokedex"
-              data-testid="satisfy-satisfier-param"
-              style={{
-                ...panelInputStyle(),
-                width: 160,
-              }}
-            />
-          </label>
-        ) : null}
-        <button
-          type="button"
-          onClick={addSatisfier}
-          data-testid="satisfy-add-satisfier"
-          style={secondaryButtonStyle}
-        >
-          + Satisfier
-        </button>
-      </div>
-
-      <div style={{ display: "flex", gap: 8 }}>
-        <button
-          type="button"
-          onClick={runCheck}
-          data-testid="satisfy-run"
-          style={primaryButtonStyle}
-        >
-          Check
-        </button>
-        <button
-          type="button"
-          onClick={reset}
-          data-testid="satisfy-reset"
-          style={secondaryButtonStyle}
-        >
-          Reset
-        </button>
-      </div>
-
-      {error ? (
-        <div
-          data-testid="satisfy-error"
-          style={{ fontSize: "var(--size-12)", color: "var(--color-danger)" }}
-        >
-          {error}
-        </div>
-      ) : null}
-
-      {results ? (
-        <div
-          data-testid="satisfy-output"
-          style={{ display: "flex", flexDirection: "column", gap: 6 }}
-        >
-          {Object.entries(results).map(([key, state]) => (
-            <div key={key} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <CaveatPill state={state}>{key}</CaveatPill>
-              <span
-                style={{
-                  fontSize: "var(--size-12)",
-                  color: state === "matched" ? "var(--color-accent)" : "var(--color-dim)",
-                }}
-              >
-                {state}
-              </span>
-            </div>
-          ))}
-        </div>
-      ) : null}
     </div>
   );
 }
@@ -967,6 +462,30 @@ const labelStyle = {
   display: "flex",
   flexDirection: "column",
   gap: 4,
+} as const;
+
+const errorStyle = {
+  fontSize: "var(--size-12)",
+  color: "var(--color-danger)",
+} as const;
+
+const hintStyle = {
+  fontSize: "var(--size-12)",
+  color: "var(--color-dim)",
+} as const;
+
+const outputLabelStyle = {
+  fontSize: "var(--size-11)",
+  textTransform: "uppercase",
+  letterSpacing: 0,
+  color: "var(--color-dim)",
+  marginBottom: 2,
+} as const;
+
+const timerStyle = {
+  fontSize: "var(--size-12)",
+  color: "var(--color-dim)",
+  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
 } as const;
 
 const primaryButtonStyle = {
@@ -999,19 +518,4 @@ const removeButtonStyle = {
   border: "1px solid var(--color-danger)",
   borderRadius: 4,
   cursor: "pointer",
-} as const;
-
-const monoOutputStyle = {
-  ...panelOutputStyle(),
-  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-  fontSize: "var(--size-12-5)",
-  color: "var(--color-dim)",
-} as const;
-
-const outputLabelStyle = {
-  fontSize: "var(--size-11)",
-  textTransform: "uppercase",
-  letterSpacing: 0,
-  color: "var(--color-dim)",
-  marginBottom: 2,
 } as const;
