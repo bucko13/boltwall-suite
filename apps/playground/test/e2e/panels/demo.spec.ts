@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { grantClipboard, readClipboard } from "../setup";
 
@@ -9,6 +9,34 @@ const TEST_PREIMAGE = "00".repeat(32);
 const DEFAULT_CHALLENGE = 'L402 macaroon="abc", invoice="lnbc1demo"';
 const CAVEATED_MACAROON =
   "AgJCAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzAAISc2VydmljZXM9cG9rZWRleDowAAIZcG9rZWRleF9jYXBhYmlsaXRpZXM9cmVhZAACJHZhbGlkLXVudGlsPTIwMzUtMDEtMDFUMDA6MDA6MDAuMDAwWgAABiDi4gvyy2wrfYkMkvxk7vKV2f8qFlyH7KXdAQk40OwxPQ==";
+const WORKBENCH_FIELD_BY_TEST_ID = {
+  "workbench-memory-key": "signingKey",
+  "workbench-memory-macaroon": "macaroon",
+  "workbench-memory-challenge": "challenge",
+  "workbench-memory-credential": "credential",
+} as const;
+
+type WorkbenchMemoryTestId = keyof typeof WORKBENCH_FIELD_BY_TEST_ID;
+
+async function getWorkbenchMemoryValue(page: Page, testId: WorkbenchMemoryTestId) {
+  const field = WORKBENCH_FIELD_BY_TEST_ID[testId];
+  return page.evaluate((memoryField) => {
+    const raw = window.sessionStorage.getItem("bw.workbench-memory");
+    if (!raw) return "";
+    const parsed = JSON.parse(raw) as Record<string, unknown>;
+    return typeof parsed[memoryField] === "string" ? parsed[memoryField] : "";
+  }, field);
+}
+
+async function expectMemoryEmpty(page: Page, testId: WorkbenchMemoryTestId) {
+  await expect(page.locator(`[data-testid='${testId}-status']`)).toHaveText("empty");
+  await expect.poll(() => getWorkbenchMemoryValue(page, testId)).toBe("");
+}
+
+async function expectMemoryValue(page: Page, testId: WorkbenchMemoryTestId, expected: string) {
+  await expect(page.locator(`[data-testid='${testId}-status']`)).toHaveText("stored");
+  await expect.poll(() => getWorkbenchMemoryValue(page, testId)).toContain(expected);
+}
 
 test.describe("panels / demo", () => {
   test("fetches a random public Pokedex endpoint and renders the sprite", async ({ page }) => {
@@ -132,11 +160,14 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
       "L402 challenge captured",
     );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
-      "saved in Workbench memory",
+      "Add it to Workbench",
     );
-    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Open in Parse");
+    await expectMemoryEmpty(page, "workbench-memory-challenge");
+    await expectMemoryEmpty(page, "workbench-memory-macaroon");
+    await expect(page.locator("[data-testid='demo-add-challenge-workbench']")).toHaveText(
+      "Add to Workbench",
+    );
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveText("⧉");
     await expect(page.locator("[data-testid='demo-copy-challenge']")).toHaveAttribute(
       "aria-label",
@@ -154,26 +185,33 @@ test.describe("panels / demo", () => {
       "Challenge copied",
     );
     await expect(page.getByText("Challenge copied")).toBeVisible();
+    await page.click("[data-testid='demo-add-challenge-workbench']");
+    await expect(page.locator("[data-testid='demo-add-workbench-feedback']")).toContainText(
+      "Added to Workbench",
+    );
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
     await page.click("[data-testid='demo-pay-webln']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    // The macaroon is shared by the challenge and the credential, so it is
-    // auto-filled into Workbench memory alongside them.
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: abc",
-    );
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expectMemoryEmpty(page, "workbench-memory-credential");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
       "Credential created",
     );
     await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
-      "saved in Workbench memory",
+      "Add it to Workbench",
     );
-    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText("Open in Validate");
-    await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveText(
-      "Open in Parse",
+    await expect(page.locator("[data-testid='demo-add-credential-workbench']")).toHaveText(
+      "Add to Workbench",
     );
+    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveCount(0);
+    await page.click("[data-testid='demo-add-credential-workbench']");
+    await expectMemoryValue(page, "workbench-memory-credential", "L402");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
     await page.getByText("Show raw header").click();
     await expect(page.locator("[data-testid='demo-raw-authorization']")).toHaveText(
       `L402 abc:${TEST_PREIMAGE}`,
@@ -194,7 +232,7 @@ test.describe("panels / demo", () => {
     );
   });
 
-  test("opens captured L402 challenge in Parse through Workbench", async ({ page }) => {
+  test("adds captured L402 challenge to Workbench explicitly", async ({ page }) => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
@@ -202,80 +240,77 @@ test.describe("panels / demo", () => {
     await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toBeVisible();
-    // The macaroon is auto-filled from the challenge as soon as the 402 is captured.
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: abc",
-    );
+    await expectMemoryEmpty(page, "workbench-memory-macaroon");
+    await expectMemoryEmpty(page, "workbench-memory-challenge");
+    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveCount(0);
 
-    await page.click("[data-testid='demo-open-parse']");
+    await page.click("[data-testid='demo-add-challenge-workbench']");
 
-    // Navigate-only handoff: Demo routes to Parse with no query param and the
-    // challenge rides along in Workbench memory. The Parse pane pulls it in via
-    // its own explicit "Fill from workbench" button (covered by Parse's specs).
-    await expect(page).toHaveURL(/\/p\/parse$/);
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
-
-    await page.goBack();
-    await expect(page).toHaveURL(/\/p\/demo/);
+    await expect(page).toHaveURL(/\/p\/demo$/);
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
+    await expectMemoryEmpty(page, "workbench-memory-credential");
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
       "L402 challenge captured",
     );
-    await expect(page.locator("[data-testid='demo-open-parse']")).toHaveText("Open in Parse");
+    await expect(page.locator("[data-testid='demo-add-workbench-feedback']")).toContainText(
+      "Added to Workbench",
+    );
   });
 
-  test("opens created credential in Validate through Workbench", async ({ page }) => {
+  test("adds created credential to Workbench explicitly", async ({ page }) => {
     await installWebLnStub(page);
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
+    await page.evaluate(() => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({
+          signingKey: "0001020304050607080900010203040506070809000102030405060708090001",
+          macaroon: "stale-macaroon",
+          challenge: "stale-challenge",
+          credential: "stale-credential",
+        }),
+      );
+    });
+    await page.reload();
+    await expectMemoryValue(page, "workbench-memory-key", "00010203");
     await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-created-credential']")).toBeVisible();
+    await expectMemoryValue(page, "workbench-memory-credential", "stale");
+    await expectMemoryValue(page, "workbench-memory-challenge", "stale");
+    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveCount(0);
 
-    await page.click("[data-testid='demo-open-validate']");
+    await page.click("[data-testid='demo-add-credential-workbench']");
 
-    // Navigate-only handoff: bare /p/validate, credential carried in Workbench.
-    await expect(page).toHaveURL(/\/p\/validate$/);
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: abc",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page).toHaveURL(/\/p\/demo$/);
+    await expectMemoryEmpty(page, "workbench-memory-key");
+    await expectMemoryValue(page, "workbench-memory-credential", "L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
     await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
       "white-space",
       "nowrap",
     );
-    // Validate inputs are local state now; the credential is carried in Workbench
-    // memory and loaded via the explicit fill button.
-    await page.click("[data-testid='validate-fill-credential']");
-    await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
-      `L402 abc:${TEST_PREIMAGE}`,
-    );
 
     await page.reload();
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expectMemoryValue(page, "workbench-memory-credential", "L402");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
 
-    await page.goBack();
     await expect(page).toHaveURL(/\/p\/demo/);
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
-    await expect(page.locator("[data-testid='demo-created-credential']")).toContainText(
-      "Credential created",
-    );
-    await expect(page.locator("[data-testid='demo-open-validate']")).toHaveText("Open in Validate");
-    await expect(page.locator("[data-testid='demo-open-parse-credential']")).toHaveText(
-      "Open in Parse",
-    );
+    await expectMemoryValue(page, "workbench-memory-credential", "L402");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expect(page.locator("[data-testid='demo-created-credential']")).toHaveCount(0);
 
     await page.click("[data-testid='workbench-memory-clear-all']");
     await page.reload();
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText(
-      "empty",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("empty");
+    await expectMemoryEmpty(page, "workbench-memory-credential");
+    await expectMemoryEmpty(page, "workbench-memory-challenge");
     await expect(page.locator("[data-testid='demo-created-credential']")).toHaveCount(0);
   });
 
@@ -299,28 +334,21 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-created-credential']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-caveats']")).toContainText("Restrictions");
     await expect(page.locator("[data-testid='demo-caveat-timer-0']")).toContainText(/expires in/);
-    await page.click("[data-testid='demo-open-parse-credential']");
+    await expectMemoryEmpty(page, "workbench-memory-macaroon");
+    await expectMemoryEmpty(page, "workbench-memory-challenge");
+    await page.click("[data-testid='demo-add-credential-workbench']");
 
-    // Navigate-only handoff: bare /p/parse, macaroon + source challenge carried
-    // in Workbench memory for the Parse pane to fill explicitly.
-    await expect(page).toHaveURL(/\/p\/parse$/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "AgJCAAAi",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expect(page).toHaveURL(/\/p\/demo$/);
+    await expectMemoryValue(page, "workbench-memory-macaroon", "AgJCAAAi");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
 
     await page.reload();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "AgJCAAAi",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "AgJCAAAi");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
 
-    await page.goBack();
     await expect(page).toHaveURL(/\/p\/demo/);
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "AgJCAAAi",
-    );
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "AgJCAAAi");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
   });
 
   test("reuses a paid credential for later protected requests", async ({ page }) => {
@@ -514,8 +542,11 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-preimage-submit']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
-    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toContainText("L402");
-    await expect(page.locator("[data-testid='workbench-memory-credential']")).toContainText("L402");
+    await expectMemoryEmpty(page, "workbench-memory-challenge");
+    await expectMemoryEmpty(page, "workbench-memory-credential");
+    await page.click("[data-testid='demo-add-credential-workbench']");
+    await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expectMemoryValue(page, "workbench-memory-credential", "L402");
     await expect(page.locator("[data-testid='demo-pokemon-type']")).toContainText("electric");
   });
 
@@ -625,13 +656,15 @@ test.describe("panels / demo", () => {
       });
     });
 
-    // Seed the Workbench macaroon through Demo's own challenge capture (a 402
-    // writes the macaroon to Workbench memory), independent of any other panel.
+    // Seed the Workbench macaroon through Demo's explicit challenge handoff,
+    // independent of any other panel.
     await page.goto("/p/demo");
     await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText("abc");
+    await expectMemoryEmpty(page, "workbench-memory-macaroon");
+    await page.click("[data-testid='demo-add-challenge-workbench']");
+    await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
 
     await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
     await page.click("[data-testid='demo-load-workbench-macaroon']");

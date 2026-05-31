@@ -1,7 +1,6 @@
 "use client";
 
 import { L402 } from "@boltwall/l402";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
@@ -73,7 +72,7 @@ type DemoError = {
 };
 
 type CapturedArtifact =
-  | { kind: "challenge"; rawAuthenticate: string }
+  | { kind: "challenge"; rawAuthenticate: string; macaroon: string }
   | {
       kind: "credential";
       outcome: "created" | "rejected";
@@ -82,6 +81,7 @@ type CapturedArtifact =
     };
 
 type CopyTarget = "invoice" | "challenge" | "credential";
+type AddedArtifact = "challenge" | "credential" | null;
 
 type CaveatSummary = {
   condition: string;
@@ -248,7 +248,6 @@ function writeStoredDemoSession(session: PersistedDemoSession) {
 }
 
 export function Demo() {
-  const router = useRouter();
   const workbenchMemory = useWorkbenchMemory();
   const [endpointOverride, setEndpointOverride] = useState("");
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
@@ -261,6 +260,7 @@ export function Demo() {
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
   const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
+  const [addedArtifact, setAddedArtifact] = useState<AddedArtifact>(null);
   const [endpointSettingsOpen, setEndpointSettingsOpen] = useState(false);
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
   const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
@@ -303,38 +303,14 @@ export function Demo() {
   // adoptCustomCredential), so precedence falls out of the single-slot model.
   const activeCredential =
     credentialSlot?.endpointTemplate === endpointTemplate ? credentialSlot : null;
-  const workbenchArtifact = useMemo<CapturedArtifact | null>(() => {
-    if (!workbenchMemory) return null;
-    const credential = workbenchMemory.credential.trim();
-    if (credential !== "") {
-      try {
-        const sourceChallenge = workbenchMemory.challenge.trim();
-        return {
-          kind: "credential",
-          outcome: "created",
-          credential: parsePastedCredential(credential),
-          ...(sourceChallenge ? { sourceChallenge } : {}),
-        };
-      } catch (error) {
-        if (error instanceof Error) {
-          return null;
-        }
-        return null;
-      }
-    }
-    const challenge = workbenchMemory.challenge.trim();
-    if (challenge !== "") {
-      return { kind: "challenge", rawAuthenticate: challenge };
-    }
-    return null;
-  }, [workbenchMemory]);
-  const visibleArtifact = capturedArtifact ?? workbenchArtifact;
+  const visibleArtifact = capturedArtifact;
 
   async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
     const endpoint = endpointForPokemon(endpointTemplate, id);
     setStatus({ kind: "fetching", id });
     setPastedPreimage("");
+    setAddedArtifact(null);
     try {
       const active = useStoredCredential ? activeCredential : null;
       const credential = active?.credential ?? null;
@@ -402,8 +378,8 @@ export function Demo() {
   function startFresh() {
     setCredentialSlot(null);
     setCapturedArtifact(null);
+    setAddedArtifact(null);
     clearCustomBuffers();
-    workbenchMemory?.clear();
     setStatus({ kind: "idle" });
   }
 
@@ -482,30 +458,20 @@ export function Demo() {
     }
   }
 
-  // Handoff is navigate-only: write the artifact to Workbench memory, then route
-  // to the target pane. The target's inputs are local state — the user pulls the
-  // value in explicitly with that pane's "Fill from workbench" button. We no
-  // longer push the value through a URL query param.
-  function openParseWithChallenge(rawAuthenticate: string) {
-    workbenchMemory?.setChallenge(rawAuthenticate);
-    router.push("/p/parse");
-  }
-
-  function openParseWithMacaroon(macaroon: string, sourceChallenge?: string) {
+  function addChallengeToWorkbench(rawAuthenticate: string, macaroon: string) {
+    workbenchMemory?.setSigningKey(null);
     workbenchMemory?.setMacaroon(macaroon);
-    if (sourceChallenge) {
-      workbenchMemory?.setChallenge(sourceChallenge);
-    }
-    router.push("/p/parse");
+    workbenchMemory?.setChallenge(rawAuthenticate);
+    workbenchMemory?.setCredential(null);
+    setAddedArtifact("challenge");
   }
 
-  function openValidateWithCredential(credential: PaidCredential, sourceChallenge?: string) {
-    workbenchMemory?.setCredential(credential.authorization);
+  function addCredentialToWorkbench(credential: PaidCredential, sourceChallenge?: string) {
+    workbenchMemory?.setSigningKey(null);
     workbenchMemory?.setMacaroon(credential.macaroon);
-    if (sourceChallenge) {
-      workbenchMemory?.setChallenge(sourceChallenge);
-    }
-    router.push("/p/validate");
+    workbenchMemory?.setCredential(credential.authorization);
+    workbenchMemory?.setChallenge(sourceChallenge ?? null);
+    setAddedArtifact("credential");
   }
 
   async function payWithWebLn() {
@@ -567,9 +533,6 @@ export function Demo() {
         credential: result.credential,
         sourceChallenge: challenge.rawAuthenticate,
       });
-      workbenchMemory?.setCredential(result.credential.authorization);
-      workbenchMemory?.setChallenge(challenge.rawAuthenticate);
-      workbenchMemory?.setMacaroon(result.credential.macaroon);
       setCredentialSlot({
         source: "paid",
         endpointTemplate: challenge.endpointTemplate,
@@ -590,9 +553,6 @@ export function Demo() {
       credential: result.credential,
       sourceChallenge: challenge.rawAuthenticate,
     });
-    workbenchMemory?.setCredential(result.credential.authorization);
-    workbenchMemory?.setChallenge(challenge.rawAuthenticate);
-    workbenchMemory?.setMacaroon(result.credential.macaroon);
     setStatus({
       kind: "error",
       error: messageError(`retry returned ${String(result.response.status)}: ${text}`),
@@ -626,11 +586,8 @@ export function Demo() {
     setCapturedArtifact({
       kind: "challenge",
       rawAuthenticate: result.challenge.rawAuthenticate,
+      macaroon: result.challenge.macaroon,
     });
-    workbenchMemory?.setChallenge(result.challenge.rawAuthenticate);
-    // The macaroon is carried by both the challenge and (later) the credential,
-    // so surface it in Workbench memory as soon as either becomes available.
-    workbenchMemory?.setMacaroon(result.challenge.macaroon);
     setStatus({
       kind: "awaiting-payment",
       id,
@@ -1369,11 +1326,11 @@ export function Demo() {
             <ArtifactCard
               artifact={visibleArtifact}
               onCopy={copyText}
-              onOpenParse={openParseWithChallenge}
-              onOpenMacaroonParse={openParseWithMacaroon}
-              onOpenValidate={openValidateWithCredential}
+              onAddChallenge={addChallengeToWorkbench}
+              onAddCredential={addCredentialToWorkbench}
               onStartFresh={startFresh}
               copiedTarget={copiedTarget}
+              addedArtifact={addedArtifact}
             />
           ) : null}
         </div>
@@ -1409,35 +1366,35 @@ export function Demo() {
 function ArtifactCard({
   artifact,
   onCopy,
-  onOpenParse,
-  onOpenMacaroonParse,
-  onOpenValidate,
+  onAddChallenge,
+  onAddCredential,
   onStartFresh,
   copiedTarget,
+  addedArtifact,
 }: {
   artifact: CapturedArtifact;
   onCopy: (value: string, target: CopyTarget) => void | Promise<void>;
-  onOpenParse: (rawAuthenticate: string) => void;
-  onOpenMacaroonParse: (macaroon: string, sourceChallenge?: string) => void;
-  onOpenValidate: (credential: PaidCredential, sourceChallenge?: string) => void;
+  onAddChallenge: (rawAuthenticate: string, macaroon: string) => void;
+  onAddCredential: (credential: PaidCredential, sourceChallenge?: string) => void;
   onStartFresh: () => void;
   copiedTarget: CopyTarget | null;
+  addedArtifact: AddedArtifact;
 }) {
   if (artifact.kind === "challenge") {
     const challengeCaveats = extractCaveatSummaries(artifact.rawAuthenticate);
     return (
       <ArtifactShell testId="demo-captured-challenge" title="L402 challenge captured">
         <p style={artifactTextStyle}>
-          The proxy returned a challenge. It is saved in Workbench memory; opening Parse fills that
-          pane with this WWW-Authenticate value.
+          The proxy returned a challenge. Add it to Workbench when you want another panel to inspect
+          or reuse it.
         </p>
         <CaveatSummaryList caveats={challengeCaveats} />
         <ArtifactActions>
           <ArtifactButton
-            testId="demo-open-parse"
-            onClick={() => onOpenParse(artifact.rawAuthenticate)}
+            testId="demo-add-challenge-workbench"
+            onClick={() => onAddChallenge(artifact.rawAuthenticate, artifact.macaroon)}
           >
-            Open in Parse
+            Add to Workbench
           </ArtifactButton>
           <ArtifactButton
             testId="demo-copy-challenge"
@@ -1451,7 +1408,11 @@ function ArtifactCard({
           >
             {copiedTarget === "challenge" ? "✓" : "⧉"}
           </ArtifactButton>
+          <ArtifactButton testId="demo-clear-artifact" onClick={onStartFresh} subtle>
+            Clear
+          </ArtifactButton>
         </ArtifactActions>
+        <AddFeedback active={addedArtifact === "challenge"}>Added to Workbench</AddFeedback>
         <CopyFeedback active={copiedTarget === "challenge"}>Challenge copied</CopyFeedback>
         <RawArtifactDetails
           label="Show raw header"
@@ -1471,25 +1432,16 @@ function ArtifactCard({
     >
       <p style={artifactTextStyle}>
         {rejected
-          ? "The proxy rejected this Authorization header. It is saved in Workbench memory; open Validate to inspect it or fetch a fresh challenge."
-          : "The retry used an Authorization header. It is saved in Workbench memory; open Validate to inspect it or copy it for another client."}
+          ? "The proxy rejected this Authorization header. Add it to Workbench if you want another panel to inspect it, or clear it and fetch a fresh challenge."
+          : "The retry used an Authorization header. Add it to Workbench if you want another panel to inspect it or reuse it."}
       </p>
       <CaveatSummaryList caveats={credentialCaveats} />
       <ArtifactActions>
         <ArtifactButton
-          testId="demo-open-validate"
-          onClick={() => onOpenValidate(artifact.credential, artifact.sourceChallenge)}
+          testId="demo-add-credential-workbench"
+          onClick={() => onAddCredential(artifact.credential, artifact.sourceChallenge)}
         >
-          Open in Validate
-        </ArtifactButton>
-        <ArtifactButton
-          testId="demo-open-parse-credential"
-          onClick={() =>
-            onOpenMacaroonParse(artifact.credential.macaroon, artifact.sourceChallenge)
-          }
-          subtle
-        >
-          Open in Parse
+          Add to Workbench
         </ArtifactButton>
         <ArtifactButton
           testId="demo-copy-credential"
@@ -1503,12 +1455,15 @@ function ArtifactCard({
         >
           {copiedTarget === "credential" ? "✓" : "⧉"}
         </ArtifactButton>
-        {rejected ? (
-          <ArtifactButton testId="demo-artifact-start-fresh" onClick={onStartFresh} subtle>
-            Start fresh
-          </ArtifactButton>
-        ) : null}
+        <ArtifactButton
+          testId={rejected ? "demo-artifact-start-fresh" : "demo-clear-artifact"}
+          onClick={onStartFresh}
+          subtle
+        >
+          {rejected ? "Start fresh" : "Clear"}
+        </ArtifactButton>
       </ArtifactActions>
+      <AddFeedback active={addedArtifact === "credential"}>Added to Workbench</AddFeedback>
       <CopyFeedback active={copiedTarget === "credential"}>Credential copied</CopyFeedback>
       <RawArtifactDetails
         label="Show raw header"
@@ -1639,6 +1594,24 @@ function CopyFeedback({ active, children }: { active: boolean; children: ReactNo
     <span
       aria-live="polite"
       data-testid="demo-copy-feedback"
+      style={{
+        minHeight: 16,
+        color: active ? "var(--color-accent)" : "transparent",
+        fontSize: "var(--size-12)",
+        opacity: active ? 1 : 0,
+        transition: "opacity 180ms ease",
+      }}
+    >
+      {active ? children : ""}
+    </span>
+  );
+}
+
+function AddFeedback({ active, children }: { active: boolean; children: ReactNode }) {
+  return (
+    <span
+      aria-live="polite"
+      data-testid="demo-add-workbench-feedback"
       style={{
         minHeight: 16,
         color: active ? "var(--color-accent)" : "transparent",
