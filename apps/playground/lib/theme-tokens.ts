@@ -37,21 +37,50 @@ export const playgroundColorTokens = {
   },
 } as const satisfies Readonly<Record<ThemeName, CssTokenMap>>;
 
-export const playgroundTypeScaleTokens = {
-  "--size-10": "10px",
-  "--size-11": "11px",
-  "--size-12": "12px",
-  "--size-12-5": "12.5px",
-  "--size-13": "13px",
-  "--size-13-5": "13.5px",
-  "--size-14": "14px",
-  "--size-15": "15px",
-  "--size-16": "16px",
-  "--size-20": "20px",
-  "--size-28": "28px",
-  "--size-36": "36px",
-  "--size-44": "44px",
-} as const satisfies CssTokenMap;
+/**
+ * The single knob for the whole type scale. Every `--size-*` token is this
+ * factor times its historical px value, emitted in rem. Bump this one number to
+ * resize all app text proportionally; 1.0 reproduces the original pixel scale.
+ */
+const TYPE_SCALE_FACTOR = 1.15;
+
+/** Root font size (px) the rem outputs are relative to — the browser default. */
+const ROOT_FONT_PX = 16;
+
+/**
+ * Historical step sizes (px) the token names are derived from. The names encode
+ * these base values (`--size-13` = 13px at factor 1.0); the rhythm between steps
+ * is preserved so a factor bump scales every step uniformly.
+ */
+const TYPE_SCALE_BASE_PX = {
+  "--size-10": 10,
+  "--size-11": 11,
+  "--size-12": 12,
+  "--size-12-5": 12.5,
+  "--size-13": 13,
+  "--size-13-5": 13.5,
+  "--size-14": 14,
+  "--size-15": 15,
+  "--size-16": 16,
+  "--size-20": 20,
+  "--size-28": 28,
+  "--size-36": 36,
+  "--size-44": 44,
+} as const satisfies Readonly<Record<CssVariableName, number>>;
+
+/** Round to 4 decimals so serialized rem values stay stable and tidy. */
+function toRem(px: number): string {
+  return `${Math.round((px / ROOT_FONT_PX) * 10000) / 10000}rem`;
+}
+
+/**
+ * Type-scale CSS custom properties, derived from {@link TYPE_SCALE_BASE_PX} by
+ * {@link TYPE_SCALE_FACTOR} and emitted in rem. Token names are unchanged, so
+ * every existing `var(--size-NN)` reference inherits the new size automatically.
+ */
+export const playgroundTypeScaleTokens: CssTokenMap = Object.fromEntries(
+  Object.entries(TYPE_SCALE_BASE_PX).map(([name, px]) => [name, toRem(px * TYPE_SCALE_FACTOR)]),
+);
 
 function serializeTokens(tokens: CssTokenMap): string {
   return Object.entries(tokens)
