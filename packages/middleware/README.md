@@ -4,6 +4,12 @@ Node-focused L402 middleware for Boltwall Suite.
 
 New to L402? See the [project README](../../README.md#what-is-l402) for what L402 is and how the packages fit together.
 
+## Installation
+
+```sh
+bun add @boltwall/middleware @boltwall/adapters @boltwall/l402
+```
+
 ## Entrypoints
 
 | Import path                    | What it exports                                       |

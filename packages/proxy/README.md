@@ -21,8 +21,7 @@ verification are delegated to [`@boltwall/middleware`](../middleware/README.md).
 
 ## CLI Quick-Start
 
-Install the `boltwall` CLI globally and deploy a Vercel-hosted proxy without
-cloning this repository:
+Install the `boltwall` CLI globally and deploy a Vercel-hosted proxy:
 
 ```sh
 bun add --global @boltwall/proxy

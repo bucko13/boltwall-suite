@@ -27,9 +27,11 @@ L402 is and how the packages fit together.
 
 ## Installation
 
-This package is not yet published to npm. To use it today, clone the monorepo
-and follow the [root README quickstart](../../README.md#quickstart). It will
-publish to npm as `@boltwall/l402`.
+```sh
+bun add @boltwall/l402
+```
+
+`@boltwall/l402` is ESM-only and runs in both browser and Node runtimes.
 
 ## Quick start: parse an L402 challenge
 

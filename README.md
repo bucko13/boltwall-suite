@@ -3,7 +3,7 @@
 [![CI](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml)
 [![Coverage](https://codecov.io/gh/bucko13/boltwall-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/bucko13/boltwall-suite)
 [![l402 bundle size](https://img.shields.io/badge/%40boltwall%2Fl402-%E2%89%A4150%20kB%20brotli-blue)](packages/l402)
-[![npm](https://img.shields.io/badge/npm-not%20yet%20published-inactive)](https://www.npmjs.com/org/boltwall)
+[![npm](https://img.shields.io/npm/v/@boltwall/l402?label=%40boltwall%2Fl402)](https://www.npmjs.com/package/@boltwall/l402)
 [![Vercel Production](https://img.shields.io/github/deployments/bucko13/boltwall-suite/Production?label=vercel&logo=vercel&logoColor=white)](https://boltwall-suite-playground.vercel.app)
 
 A TypeScript toolkit for **L402**, the Lightning Network service authentication
@@ -44,15 +44,13 @@ Design goals:
 
 ## Packages
 
-| Package                                                   | Status  | Purpose                                                                                                  |
-| --------------------------------------------------------- | ------- | -------------------------------------------------------------------------------------------------------- |
-| [`@boltwall/l402`](./packages/l402/README.md)             | Private | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
-| [`@boltwall/middleware`](./packages/middleware/README.md) | Private | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
-| [`@boltwall/adapters`](./packages/adapters/README.md)     | Private | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
-| [`@boltwall/proxy`](./packages/proxy/README.md)           | Private | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
-| [`@boltwall/playground`](./apps/playground/README.md)     | Private | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
-
-These packages are not yet published to npm; clone the repo to use them (see Quickstart).
+| Package                                                   | Install                                                   | Purpose                                                                                                  |
+| --------------------------------------------------------- | --------------------------------------------------------- | -------------------------------------------------------------------------------------------------------- |
+| [`@boltwall/l402`](./packages/l402/README.md)             | `bun add @boltwall/l402`                                  | Browser + Node protocol library: header parsing, macaroon mint/verify, caveat helpers, BOLT 11 utilities |
+| [`@boltwall/middleware`](./packages/middleware/README.md) | `bun add @boltwall/middleware @boltwall/adapters`         | Web Fetch core + Express adapter for protecting HTTP endpoints                                           |
+| [`@boltwall/adapters`](./packages/adapters/README.md)     | `bun add @boltwall/adapters`                              | Lightning backend interface + LND / OpenNode / BTCPay adapters via subpath exports                       |
+| [`@boltwall/proxy`](./packages/proxy/README.md)           | `bun add --global @boltwall/proxy`                        | Reverse proxy package + installable CLI for local and Vercel deploys                                     |
+| [`@boltwall/playground`](./apps/playground/README.md)     | [live demo](https://boltwall-suite-playground.vercel.app) | Next.js demo site for inspecting L402 challenges, credentials, and paid endpoint behavior                |
 
 **Which package do I use?**
 
@@ -63,7 +61,26 @@ These packages are not yet published to npm; clone the repo to use them (see Qui
 
 ## Quickstart
 
-The fastest way to see L402 in action is the playground:
+Install the protocol library:
+
+```sh
+bun add @boltwall/l402
+```
+
+For a protected application route, add middleware and a Lightning backend:
+
+```sh
+bun add @boltwall/middleware @boltwall/adapters @boltwall/l402
+```
+
+For a standalone proxy CLI:
+
+```sh
+bun add --global @boltwall/proxy
+boltwall deploy
+```
+
+The fastest way to see the full flow in a browser is the playground:
 
 ```sh
 git clone https://github.com/bucko13/boltwall-suite.git
@@ -73,9 +90,7 @@ bun run playground       # starts the playground on http://localhost:3000
 ```
 
 Open <http://localhost:3000> to inspect a `WWW-Authenticate` challenge, generate
-and parse credentials, and walk a paid endpoint end to end. Packages are not
-published yet, so cloning the repo and running the playground is the easiest way
-to explore today.
+and parse credentials, and walk a paid endpoint end to end.
 
 Working on the suite itself? See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup,
 tests, and the development checks.

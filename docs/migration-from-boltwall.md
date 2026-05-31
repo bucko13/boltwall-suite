@@ -123,16 +123,6 @@ only for validating existing LSAT-style macaroons until callers migrate.
 ### 1. Update package.json
 
 ```bash
-# Remove legacy
-npm uninstall boltwall
-
-# Add new
-npm install @boltwall/middleware @boltwall/adapters @boltwall/l402
-```
-
-Or with bun:
-
-```bash
 bun remove boltwall
 bun add @boltwall/middleware @boltwall/adapters @boltwall/l402
 ```

@@ -46,5 +46,5 @@ return shapes, and framework helper details.
   environment loading, CORS exposure for `WWW-Authenticate`, and header
   forwarding rules.
 
-For installation status, runnable examples, and package-level orientation, use
-the repository README and the package README next to each public package.
+For installation commands, runnable examples, and package-level orientation,
+use the repository README and the package README next to each public package.

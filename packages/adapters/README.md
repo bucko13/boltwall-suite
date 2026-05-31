@@ -3,7 +3,15 @@
 Lightning backend adapters for Boltwall Suite.
 
 New to L402? See the [project README](../../README.md#what-is-l402) for how
-the packages fit together. The generated
+the packages fit together.
+
+## Installation
+
+```sh
+bun add @boltwall/adapters
+```
+
+The generated
 [API reference](https://bucko13.github.io/boltwall-suite/modules/_boltwall_adapters.html)
 is the durable reference for constructor options, capability flags, environment
 loaders, provider metadata, errors, and persistence hooks.
