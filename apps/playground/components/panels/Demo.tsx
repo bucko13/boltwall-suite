@@ -66,6 +66,10 @@ type DemoStatus =
 type DemoError = {
   title: string;
   details: string[];
+  // When set, the error box renders an inline "Start fresh" recovery button so a
+  // dead-end (e.g. a rejected custom credential) can be escaped without hunting
+  // for the reset control elsewhere.
+  offerStartFresh?: boolean;
 };
 
 type CapturedArtifact =
@@ -350,15 +354,21 @@ export function Demo() {
         }
         if (active?.source === "custom") {
           const text = await result.response.text();
+          // Drop the dead custom credential now so a repeated fetch does not keep
+          // re-sending a credential the server already rejected. The user recovers
+          // with the inline Start fresh button or by pasting a new credential.
+          setCredentialSlot(null);
           setStatus({
             kind: "error",
             error: {
-              title: "Custom credential rejected.",
+              title: "Custom credential rejected",
               details: [
+                "The endpoint returned 401 for the credential you pasted — it is expired, for a different service, or malformed.",
                 `Endpoint: ${endpoint}`,
                 `Server response: ${String(result.response.status)} ${text}`,
-                "Clear the custom credential or fetch a fresh challenge to pay again.",
+                "Start fresh to request a new challenge and pay, or open the BYOC panel to paste a different credential.",
               ],
+              offerStartFresh: true,
             },
           });
           return;
@@ -384,9 +394,17 @@ export function Demo() {
     }
   }
 
-  async function fetchFreshChallenge() {
+  // Start fresh: reset only — clear the credential slot, the captured artifact
+  // card, the raw paste buffers, and Workbench memory, and return to idle. A new
+  // challenge comes from the next explicit fetch, not from here. (Previously this
+  // cleared the slot and immediately refetched, so an expired artifact card could
+  // never simply be dismissed.)
+  function startFresh() {
     setCredentialSlot(null);
-    await getPokemon(false);
+    setCapturedArtifact(null);
+    clearCustomBuffers();
+    workbenchMemory?.clear();
+    setStatus({ kind: "idle" });
   }
 
   // A freshly pasted custom credential takes the slot outright, evicting any
@@ -464,21 +482,21 @@ export function Demo() {
     }
   }
 
+  // Handoff is navigate-only: write the artifact to Workbench memory, then route
+  // to the target pane. The target's inputs are local state — the user pulls the
+  // value in explicitly with that pane's "Fill from workbench" button. We no
+  // longer push the value through a URL query param.
   function openParseWithChallenge(rawAuthenticate: string) {
     workbenchMemory?.setChallenge(rawAuthenticate);
-    router.push(`/p/parse?from-challenge.challenge=${encodeURIComponent(rawAuthenticate)}`);
+    router.push("/p/parse");
   }
 
   function openParseWithMacaroon(macaroon: string, sourceChallenge?: string) {
     workbenchMemory?.setMacaroon(macaroon);
     if (sourceChallenge) {
       workbenchMemory?.setChallenge(sourceChallenge);
-      router.push(
-        `/p/parse?parse-token.token=${encodeURIComponent(macaroon)}&from-challenge.challenge=${encodeURIComponent(sourceChallenge)}`,
-      );
-      return;
     }
-    router.push(`/p/parse?parse-token.token=${encodeURIComponent(macaroon)}`);
+    router.push("/p/parse");
   }
 
   function openValidateWithCredential(credential: PaidCredential, sourceChallenge?: string) {
@@ -487,7 +505,7 @@ export function Demo() {
     if (sourceChallenge) {
       workbenchMemory?.setChallenge(sourceChallenge);
     }
-    router.push(`/p/validate?validate.token=${encodeURIComponent(credential.authorization)}`);
+    router.push("/p/validate");
   }
 
   async function payWithWebLn() {
@@ -665,7 +683,7 @@ export function Demo() {
       header={
         <HeaderRow
           title="Demo"
-          subtitle="Fetch a random Pokemon, then pay and retry when the endpoint is protected"
+          subtitle="Fetch a resource, then pay and retry when the endpoint is L402-protected"
           trailing={
             <StatusPill
               state={statusState}
@@ -678,6 +696,21 @@ export function Demo() {
       }
       body={
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
+          <p
+            data-testid="demo-intro"
+            style={{
+              margin: 0,
+              color: "var(--color-dim)",
+              fontSize: "var(--size-13)",
+              lineHeight: 1.5,
+              order: -1,
+            }}
+          >
+            A live L402 round trip against a real endpoint. Fetch a resource; if it is payment-gated
+            you get a 402 challenge, pay the invoice, and retry with the resulting credential to
+            receive the data. Point it at any L402 endpoint, or bring your own credential to skip
+            straight to the retry.
+          </p>
           <button
             type="button"
             onClick={() => {
@@ -770,7 +803,7 @@ export function Demo() {
             style={{ order: 10 }}
           >
             <DisclosureSummary iconTestId="demo-custom-credential-icon" open={customCredentialOpen}>
-              Use an existing L402 credential
+              BYOC — Bring Your Own Credential
             </DisclosureSummary>
             <div
               style={{
@@ -1024,10 +1057,8 @@ export function Demo() {
               </button>
               <button
                 type="button"
-                onClick={() => {
-                  void fetchFreshChallenge();
-                }}
-                data-testid="demo-fetch-fresh-challenge"
+                onClick={startFresh}
+                data-testid="demo-start-fresh"
                 style={{
                   padding: "4px 8px",
                   background: "var(--color-surface)",
@@ -1038,7 +1069,7 @@ export function Demo() {
                   cursor: "pointer",
                 }}
               >
-                Fetch fresh challenge
+                Start fresh
               </button>
             </div>
           ) : null}
@@ -1241,6 +1272,27 @@ export function Demo() {
                   ))}
                 </ul>
               ) : null}
+              {status.error.offerStartFresh ? (
+                <button
+                  type="button"
+                  onClick={startFresh}
+                  data-testid="demo-error-start-fresh"
+                  style={{
+                    alignSelf: "flex-start",
+                    marginTop: 2,
+                    padding: "4px 10px",
+                    background: "var(--color-surface)",
+                    color: "var(--color-danger)",
+                    border: "1px solid var(--color-danger)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Start fresh
+                </button>
+              ) : null}
             </div>
           ) : null}
 
@@ -1320,9 +1372,7 @@ export function Demo() {
               onOpenParse={openParseWithChallenge}
               onOpenMacaroonParse={openParseWithMacaroon}
               onOpenValidate={openValidateWithCredential}
-              onFetchFreshChallenge={() => {
-                void fetchFreshChallenge();
-              }}
+              onStartFresh={startFresh}
               copiedTarget={copiedTarget}
             />
           ) : null}
@@ -1362,7 +1412,7 @@ function ArtifactCard({
   onOpenParse,
   onOpenMacaroonParse,
   onOpenValidate,
-  onFetchFreshChallenge,
+  onStartFresh,
   copiedTarget,
 }: {
   artifact: CapturedArtifact;
@@ -1370,7 +1420,7 @@ function ArtifactCard({
   onOpenParse: (rawAuthenticate: string) => void;
   onOpenMacaroonParse: (macaroon: string, sourceChallenge?: string) => void;
   onOpenValidate: (credential: PaidCredential, sourceChallenge?: string) => void;
-  onFetchFreshChallenge: () => void;
+  onStartFresh: () => void;
   copiedTarget: CopyTarget | null;
 }) {
   if (artifact.kind === "challenge") {
@@ -1387,7 +1437,7 @@ function ArtifactCard({
             testId="demo-open-parse"
             onClick={() => onOpenParse(artifact.rawAuthenticate)}
           >
-            Open challenge in Parse
+            Open in Parse
           </ArtifactButton>
           <ArtifactButton
             testId="demo-copy-challenge"
@@ -1404,7 +1454,7 @@ function ArtifactCard({
         </ArtifactActions>
         <CopyFeedback active={copiedTarget === "challenge"}>Challenge copied</CopyFeedback>
         <RawArtifactDetails
-          label="Show WWW-Authenticate"
+          label="Show raw header"
           testId="demo-raw-www-authenticate"
           value={artifact.rawAuthenticate}
         />
@@ -1430,7 +1480,7 @@ function ArtifactCard({
           testId="demo-open-validate"
           onClick={() => onOpenValidate(artifact.credential, artifact.sourceChallenge)}
         >
-          Open credential in Validate
+          Open in Validate
         </ArtifactButton>
         <ArtifactButton
           testId="demo-open-parse-credential"
@@ -1439,7 +1489,7 @@ function ArtifactCard({
           }
           subtle
         >
-          Open macaroon in Parse
+          Open in Parse
         </ArtifactButton>
         <ArtifactButton
           testId="demo-copy-credential"
@@ -1454,18 +1504,14 @@ function ArtifactCard({
           {copiedTarget === "credential" ? "✓" : "⧉"}
         </ArtifactButton>
         {rejected ? (
-          <ArtifactButton
-            testId="demo-artifact-fetch-fresh-challenge"
-            onClick={onFetchFreshChallenge}
-            subtle
-          >
-            Fetch fresh challenge
+          <ArtifactButton testId="demo-artifact-start-fresh" onClick={onStartFresh} subtle>
+            Start fresh
           </ArtifactButton>
         ) : null}
       </ArtifactActions>
       <CopyFeedback active={copiedTarget === "credential"}>Credential copied</CopyFeedback>
       <RawArtifactDetails
-        label="Show Authorization"
+        label="Show raw header"
         testId="demo-raw-authorization"
         value={artifact.credential.authorization}
       />
