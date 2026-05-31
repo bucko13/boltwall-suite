@@ -1,4 +1,10 @@
-/** Comparator accepted by the LSAT-compatible caveat object API. */
+/**
+ * Comparator accepted by the caveat object API.
+ *
+ * Current L402 caveats use `condition=value`. The `<` and `>` comparators are
+ * accepted so imported LSAT-style caveats can still be decoded, inspected, and
+ * attenuated.
+ */
 export type CaveatComparator = "=" | "<" | ">";
 
 /**
@@ -11,10 +17,29 @@ export type CaveatComparator = "=" | "<" | ">";
  * workflows at the object/macaroon layer.
  */
 export class Caveat {
+  /** Caveat condition name, such as `services` or `valid-until`. */
   readonly condition: string;
+  /** Caveat value after the comparator, trimmed at construction time. */
   readonly value: string;
+  /** Comparator used when `encode()` renders the caveat string. */
   readonly comparator?: CaveatComparator;
 
+  /**
+   * Create a caveat from condition, value, and optional comparator.
+   *
+   * Use the default `=` comparator for new L402 caveats. Pass `<` or `>` only
+   * when preserving a legacy comparator caveat that already exists.
+   *
+   * @throws `empty-caveat-condition` when `condition` is blank.
+   * @throws `invalid-caveat-comparator` when `comparator` is not `=`, `<`, or `>`.
+   * @param condition - Caveat condition name before the comparator.
+   * @param value - Caveat value after the comparator.
+   * @param comparator - Comparator used by `encode()`. Defaults to `=`.
+   *
+   * @example
+   * new Caveat("valid-until", "2026-01-01T00:00:00.000Z").encode();
+   * // "valid-until=2026-01-01T00:00:00.000Z"
+   */
   constructor(condition: string, value: string, comparator: CaveatComparator = "=") {
     const normalizedCondition = condition.trim();
     if (normalizedCondition.length === 0) {
@@ -32,10 +57,39 @@ export class Caveat {
     });
   }
 
+  /**
+   * Return the macaroon caveat string encoded into the HMAC chain.
+   *
+   * The L402 macaroon spec defines first-party caveats as UTF-8
+   * `condition=value` strings. This method also preserves decoded `<` and `>`
+   * comparator caveats for compatibility.
+   *
+   * @example
+   * Caveat.validUntil({ iso: "2026-01-01T00:00:00.000Z" }).encode();
+   * // "valid-until=2026-01-01T00:00:00.000Z"
+   */
   encode(): string {
     return `${this.condition}${this.comparator ?? "="}${this.value}`;
   }
 
+  /**
+   * Decode one caveat string into a `Caveat` object.
+   *
+   * The first `=`, `<`, or `>` is used as the comparator. Later comparator
+   * characters belong to the value, which allows values such as URLs or query
+   * strings to round-trip.
+   *
+   * @throws `missing-caveat-separator` when no supported comparator is present.
+   * @throws `empty-caveat-condition` when the decoded condition is blank.
+   * @param input - Caveat string such as `services=api:0` or `expires<1700000000`.
+   *
+   * @example
+   * const caveat = Caveat.decode("services=api:0");
+   * caveat.condition; // "services"
+   * caveat.value; // "api:0"
+   *
+   * Caveat.decode("expires<1700000000").comparator; // "<"
+   */
   static decode(input: string): Caveat {
     const separator = firstComparatorIndex(input);
     if (separator === -1) {
@@ -49,34 +103,85 @@ export class Caveat {
     );
   }
 
+  /**
+   * Build a `services=...` caveat.
+   *
+   * @param services - Authorized services and their tier numbers.
+   *
+   * @example
+   * Caveat.services([{ name: "api", tier: 0 }]).encode();
+   * // "services=api:0"
+   */
   static services(services: Array<{ name: string; tier: number }>): Caveat {
     return servicesCaveat(services);
   }
 
+  /**
+   * Build a `<service>_capabilities=...` caveat.
+   *
+   * @param service - Service name that owns the capabilities.
+   * @param capabilities - Allowed capability names.
+   */
   static capabilities(service: string, capabilities: string[]): Caveat {
     return capabilitiesCaveat(service, capabilities);
   }
 
+  /**
+   * Build a `<capability>_<key>=...` constraint caveat.
+   *
+   * @param capability - Capability name being constrained.
+   * @param key - Constraint key suffix.
+   * @param value - Constraint value.
+   */
   static constraint(capability: string, key: string, value: string): Caveat {
     return constraintCaveat(capability, key, value);
   }
 
+  /**
+   * Build a preferred `valid-until=<ISO-8601>` expiration caveat.
+   *
+   * @param args - Expiration as seconds from now, ISO string, or `Date`.
+   *
+   * @example
+   * Caveat.validUntil({ iso: "2026-01-01T00:00:00.000Z" }).encode();
+   * // "valid-until=2026-01-01T00:00:00.000Z"
+   */
   static validUntil(args: ValidUntilArg): Caveat {
     return validUntil(args);
   }
 
+  /**
+   * Build a legacy-compatible `expiration=<unix-ms>` caveat.
+   *
+   * @param unixMs - Expiration timestamp in Unix milliseconds.
+   */
   static expiration(unixMs: number): Caveat {
     return expirationCaveat(unixMs);
   }
 
+  /**
+   * Build an `origin=...` caveat for browser or request origin checks.
+   *
+   * @param allowed - One origin or a comma-joined list source.
+   */
   static origin(allowed: string | string[]): Caveat {
     return originCaveat(allowed);
   }
 
+  /**
+   * Build an `ip=...` caveat for deployments that trust a client IP source.
+   *
+   * @param ip - Trusted client IP value to bind into the caveat.
+   */
   static ip(ip: string): Caveat {
     return ipCaveat(ip);
   }
 
+  /**
+   * Build a `route=...` caveat for request path restrictions.
+   *
+   * @param allowed - One path pattern or a list of path patterns.
+   */
   static route(allowed: string | string[]): Caveat {
     return routeCaveat(allowed);
   }
@@ -149,11 +254,11 @@ type ValidUntilArg = { seconds: number } | { iso: string } | { date: Date };
 /**
  * Build a `valid-until=<ISO-8601>` caveat.
  *
- * Matches `validUntilSatisfier()` — condition is `"valid-until"`, value is
+ * Matches `validUntilSatisfier()`. The condition is `"valid-until"` and the value is
  * an ISO-8601 timestamp string. Accepted forms:
- * - `{ seconds: n }` — n seconds from now
- * - `{ iso: "..." }` — exact ISO-8601 string
- * - `{ date: Date }` — uses `.toISOString()`
+ * - `{ seconds: n }`: n seconds from now
+ * - `{ iso: "..." }`: exact ISO-8601 string
+ * - `{ date: Date }`: uses `.toISOString()`
  */
 export function validUntil(args: ValidUntilArg): Caveat {
   let value: string;
