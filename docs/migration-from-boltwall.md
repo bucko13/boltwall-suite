@@ -33,7 +33,7 @@ documented in the old `boltwall` README.
 | `getInvoiceDescription`                               | `invoiceMemo: (req) => string`                                         | Same shape, renamed for clarity                                                                                                       |
 | `minAmount` + `rate`                                  | `price: bigint \| (req) => bigint`                                     | Millisatoshis; use `sats(n)` helper if available, or `BigInt(n) * 1000n`                                                              |
 | `hodl`                                                | `hodl?: true` in options                                               | Triggers synchronous capability check at construction; see below                                                                      |
-| `oauth`                                               | **Removed at v1**                                                      | Out-of-scope; open a feature request if needed                                                                                        |
+| `oauth`                                               | **Removed**                                                            | Out-of-scope; open a feature request if needed                                                                                        |
 | `masterRoute` + `allowSubroutes`                      | Use Express mounting                                                   | `app.use("/paid", boltwall(...))` is the idiomatic path                                                                               |
 | `LND_SOCKET`, `LND_MACAROON`, `LND_TLS_CERT` env vars | `new LndAdapter({ socket, macaroon, cert })` or `loadBackendFromEnv()` | Explicit is recommended; env helper available for transition                                                                          |
 
@@ -203,7 +203,8 @@ satisfiers: [validUntilSatisfier()];
 bun run --cwd packages/middleware test
 ```
 
-The integration scenarios must pass before cutting a release.
+For an application migration, add an equivalent 402 challenge and 401 invalid
+credential integration test before shipping the change.
 
 ---
 
@@ -223,11 +224,11 @@ is a convenience for incremental migration.
 
 ---
 
-## What was removed at v1
+## What was removed
 
 | Feature                                             | Status                                                                | Path forward                                                |
 | --------------------------------------------------- | --------------------------------------------------------------------- | ----------------------------------------------------------- |
-| `oauth` integration                                 | Removed                                                               | Open a feature request; out of v1 scope                     |
+| `oauth` integration                                 | Removed                                                               | Open a feature request if needed                            |
 | `masterRoute` / `allowSubroutes` config             | Removed                                                               | Use Express mounting: `app.use("/path", boltwall(...))`     |
 | Env-var-first config (auto-loaded from process.env) | Removed from core                                                     | Use `loadBackendFromEnv()` or explicit adapter construction |
 | Free-form `expiration=<ms>` caveat (minting)        | Deprecated (compatibility helpers are exported from `@boltwall/l402`) | Migrate to `valid-until=<ISO>` + `validUntil()` factory     |

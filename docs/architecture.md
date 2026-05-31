@@ -50,7 +50,7 @@ boltwall-suite/
 
 - gRPC L402.
 - Edge runtime support for middleware/proxy.
-- CLN and LDK adapters in v1.
+- CLN and LDK adapters in the initial public release.
 - CJS builds.
 - Older browsers.
 - Hosted SaaS proxy.

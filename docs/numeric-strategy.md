@@ -68,8 +68,9 @@ would import a maintenance and supply-chain tail we do not need.
 Public protocol shapes (e.g. `L402PricingDecision`, `L402GateResult.invoice`,
 `InvoiceRequest.amountMsat`, `BackendCapabilities.minAmountMsat`) carry
 `bigint` msat fields directly. No wrapper types like `Msat<bigint>`, no
-branded primitives at v1 — branding adds friction without catching the
-mistakes that actually happen (passing the wrong unit, missing the helper).
+branded primitives in the current public API: branding adds friction without
+catching the mistakes that actually happen (passing the wrong unit, missing the
+helper).
 
 ## Helper signatures (canonical)
 

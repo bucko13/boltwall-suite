@@ -278,7 +278,7 @@ as Aperture's `l402/identifier_test.go`.
 | Caveat parsing         | `parseCaveat` splits at the first `=`, preserving later `=` bytes.                            | Covers `expiration=1337`, `expiration=1337=`, and malformed input. |
 | Unknown caveats        | Skipped by default; explicit strict mode for audits.                                          | Includes an unknown caveat alongside known satisfiers.             |
 
-### Live Aperture interop (PR / nightly only)
+### Live Aperture interop (PR / manual only)
 
 `packages/l402/test/interop/aperture-pr.test.ts` runs only under
 `bun run test:interop` (from `packages/l402`, with `APERTURE_INTEROP=1`) and
@@ -294,10 +294,10 @@ via `workflow_dispatch`, using the repository's LND regtest secrets. Scenarios:
 6. Multi-macaroon credential → `L402.fromToken` accepts it.
 
 Because the live suite depends on regtest secrets that do not run on every push,
-its pass/fail status is reported by the nightly/PR workflow run rather than
-recorded statically here; consult the latest `Aperture Interop` workflow run for
-current results. Live-server TLS behavior is exercised by end-to-end
-deployment testing, not by these protocol-boundary tests.
+its pass/fail status is reported by the PR or manually dispatched workflow run
+rather than recorded statically here; consult the latest `Aperture Interop`
+workflow run for current results. Live-server TLS behavior is exercised by
+end-to-end deployment testing, not by these protocol-boundary tests.
 
 ---
 

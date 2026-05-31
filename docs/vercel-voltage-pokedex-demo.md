@@ -22,7 +22,7 @@ reach from Vercel.
   macaroon permitted to create and look up invoices. With Voltage, the gRPC
   host, admin macaroon, and TLS certificate come from the Voltage dashboard.
 - A local checkout of this repository if you are deploying the workspace
-  `@boltwall/proxy` before it is published.
+  `@boltwall/proxy` from source.
 
 References: [Vercel CLI deploy](https://vercel.com/docs/cli/deploy) — stdout is
 the deployment URL, `--prod` deploys to production, and `vercel env add NAME
@@ -70,18 +70,18 @@ bun run boltwall -- config create
 Example answers for a Pokedex proxy (substitute your own upstream, price, and
 client origin):
 
-| Prompt                                      | Answer                                                              |
-| ------------------------------------------- | ------------------------------------------------------------------- |
-| Config name                                 | `voltage-pokedex-proxy`                                             |
-| Lightning backend                           | `lnd`                                                              |
-| Allow browser JavaScript clients            | `yes` (only if a browser client will read the challenge)            |
-| Allowed browser origins                     | the origin that will read the challenge, e.g. `https://your-app.example` |
-| Upstream target URL                         | `https://pokeapi.co/api/v2`                                         |
-| Default price in millisatoshis              | `1000`                                                             |
-| Protected path                              | `/pokemon/*`                                                       |
-| Protected path price in millisatoshis       | `1000`                                                             |
-| Unprotected paths                           | `/healthz`                                                         |
-| Use HODL invoices                           | `no`                                                              |
+| Prompt                                | Answer                                                                   |
+| ------------------------------------- | ------------------------------------------------------------------------ |
+| Config name                           | `voltage-pokedex-proxy`                                                  |
+| Lightning backend                     | `lnd`                                                                    |
+| Allow browser JavaScript clients      | `yes` (only if a browser client will read the challenge)                 |
+| Allowed browser origins               | the origin that will read the challenge, e.g. `https://your-app.example` |
+| Upstream target URL                   | `https://pokeapi.co/api/v2`                                              |
+| Default price in millisatoshis        | `1000`                                                                   |
+| Protected path                        | `/pokemon/*`                                                             |
+| Protected path price in millisatoshis | `1000`                                                                   |
+| Unprotected paths                     | `/healthz`                                                               |
+| Use HODL invoices                     | `no`                                                                     |
 
 Leave the service, capability, lifetime, and origin-caveat prompts empty for a basic proxy.
 

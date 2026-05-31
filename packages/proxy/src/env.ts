@@ -29,10 +29,10 @@ export type ProxyEnvValueKind =
 /**
  * Public metadata for one `BOLTWALL_PROXY_*` environment variable.
  *
- * This metadata is the source for `loadProxyEnv` validation, so generated docs
- * and runtime parsing stay aligned. Secret-bearing backend credentials, root
- * keys, macaroons, bearer tokens, TLS certs, and preimages are intentionally
- * outside this proxy-runtime config surface.
+ * This metadata is the source for `loadProxyEnv` validation, CLI help, and
+ * public reference material. Secret-bearing backend credentials, root keys,
+ * macaroons, bearer tokens, TLS certs, and preimages are intentionally outside
+ * this proxy-runtime config surface.
  */
 export interface ProxyEnvVariableMetadata {
   /** Environment variable name consumed by `loadProxyEnv`. */
@@ -43,7 +43,7 @@ export interface ProxyEnvVariableMetadata {
   readonly valueKind: ProxyEnvValueKind;
   /** `ProxyEnvConfig` field populated by this variable. */
   readonly configPath: string;
-  /** Short generated-doc description. */
+  /** Short description shown in help output and reference material. */
   readonly description: string;
   /** Default value or behavior when the variable is omitted. */
   readonly defaultValue?: string;
@@ -231,8 +231,8 @@ const proxyEnvVariableDefinitions = [
 /**
  * Supported `BOLTWALL_PROXY_*` variables consumed by `loadProxyEnv`.
  *
- * The array is exported for generated API docs, CLI help, and tests. It is
- * derived from the same definitions that build the runtime validator.
+ * The array is exported for CLI help, public reference material, and tests. It
+ * is derived from the same definitions that build the runtime validator.
  */
 export const proxyEnvVariables = proxyEnvVariableDefinitions.map(
   ({ schema: _schema, ...metadata }) => metadata,
