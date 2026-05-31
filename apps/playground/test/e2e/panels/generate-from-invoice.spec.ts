@@ -106,20 +106,21 @@ test.describe("panels / generate-from-invoice", () => {
     await expect(page.locator("[data-testid='generate-token-challenge']")).not.toBeVisible();
   });
 
-  test("generated challenge hands off to From Challenge via Workbench memory", async ({ page }) => {
+  test("generated challenge hands off to Parse via Workbench memory", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
     await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-challenge']")).toBeVisible();
 
-    // Workbench memory persists across navigation; From Challenge reads it back.
+    // Workbench memory persists across navigation; Parse loads it via Fill.
     await page.goto("/p/parse");
-    const input = page.locator("[data-testid='challenge-input']");
-    await expect(input).toHaveValue(/L402 macaroon=/);
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
+    await page.click("[data-testid='parse-token-fill-challenge']");
+    await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue(/L402 macaroon=/);
 
-    await page.click("[data-testid='challenge-parse']");
-    await expect(page.locator("[data-testid='challenge-output']")).toBeVisible();
-    await expect(page.locator("[data-testid='challenge-invoice']")).toContainText(
+    await page.click("[data-testid='parse-token-decode']");
+    await expect(page.locator("[data-testid='parse-token-challenge']")).toBeVisible();
+    await expect(page.locator("[data-testid='parse-token-invoice']")).toContainText(
       invoiceFixture.invoice.slice(0, 12),
     );
   });

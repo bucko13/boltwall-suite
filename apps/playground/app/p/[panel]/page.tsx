@@ -5,7 +5,6 @@ export const dynamic = "force-dynamic";
 
 import { Caveats } from "../../../components/panels/Caveats";
 import { Demo } from "../../../components/panels/Demo";
-import { FromChallenge } from "../../../components/panels/FromChallenge";
 import { GenerateL402Token } from "../../../components/panels/GenerateL402Token";
 import { ParseToken } from "../../../components/panels/ParseToken";
 import { SigningKey } from "../../../components/panels/SigningKey";
@@ -35,12 +34,7 @@ export default async function PanelPage({ params }: Props) {
         <GenerateL402Token />
       </>
     ),
-    parse: (
-      <>
-        <FromChallenge />
-        <ParseToken />
-      </>
-    ),
+    parse: <ParseToken />,
     caveats: <Caveats />,
     validate: <ValidateL402 />,
     demo: <Demo />,

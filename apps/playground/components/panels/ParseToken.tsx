@@ -3,12 +3,13 @@
 import { L402, type MacaroonInspection } from "@boltwall/l402";
 import { useState } from "react";
 
+import { describeArtifactError, detectArtifact } from "../../lib/detect-artifact";
 import { bytesToHex } from "../../lib/hex";
-import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
-import { CopyUrlButton } from "../ui/copy-url-button";
+import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { MacaroonStripe, type MacaroonSegments } from "../ui/macaroon-stripe";
 import { StatusPill } from "../ui/status-pill";
@@ -16,64 +17,23 @@ import { ViewModeToggle, type ViewMode } from "../ui/view-mode-toggle";
 
 import { panelOutputStyle, panelTextareaStyle } from "./panel-styles";
 
-const PANEL = "parse-token";
-
 type ViewModeValue = "raw" | "json" | "stripe";
 
-function normalizeChallengeInput(input: string): string {
-  return input.replace(/^WWW-Authenticate:\s*/i, "").trim();
-}
+/** A challenge carries an invoice + scheme alongside its macaroon. */
+type ChallengeFields = { invoice: string; scheme: "L402" | "LSAT" };
 
-function normalizeAuthorizationInput(input: string): string {
-  return input.replace(/^Authorization:\s*/i, "").trim();
-}
+type ParseResult = {
+  inspection: MacaroonInspection;
+  challenge: ChallengeFields | null;
+};
 
-function isChallengeLikeInput(input: string): boolean {
-  return /^(WWW-Authenticate:\s*)?(L402|LSAT)\s+macaroon=/i.test(input.trim());
-}
-
-function isCredentialLikeInput(input: string): boolean {
-  const normalized = normalizeAuthorizationInput(input);
-  return /^(L402|LSAT)\s+/i.test(normalized) && !/\bmacaroon=/i.test(normalized);
-}
-
-function extractMacaroonInput(input: string): {
-  token: L402 | null;
-  macaroon: string;
-  source: "macaroon" | "challenge" | "credential";
-} {
-  const trimmed = input.trim();
-  if (!trimmed) return { token: null, macaroon: "", source: "macaroon" };
-
-  if (isChallengeLikeInput(trimmed)) {
-    try {
-      const token = L402.fromHeader(normalizeChallengeInput(trimmed));
-      return { token, macaroon: token.macaroon, source: "challenge" };
-    } catch (challengeError) {
-      if (challengeError instanceof Error && challengeError.message === "empty-header") {
-        return { token: null, macaroon: "", source: "challenge" };
-      }
-      // Plain macaroon input is still the primary Parse workflow.
-    }
-  }
-
-  if (isCredentialLikeInput(trimmed)) {
-    try {
-      const token = L402.fromToken(normalizeAuthorizationInput(trimmed));
-      return { token, macaroon: token.macaroon, source: "credential" };
-    } catch (credentialError) {
-      if (credentialError instanceof Error && credentialError.message === "empty-macaroons") {
-        return { token: null, macaroon: "", source: "credential" };
-      }
-      // Plain macaroon input is still the primary Parse workflow.
-    }
-  }
-
-  try {
-    return { token: L402.fromMacaroon(trimmed), macaroon: trimmed, source: "macaroon" };
-  } catch {
-    return { token: null, macaroon: trimmed, source: "macaroon" };
-  }
+/**
+ * A dual challenge advertises both schemes; report L402 when present, else LSAT
+ * (matches the WWW-Authenticate emission order).
+ */
+function schemeOf(input: string): "L402" | "LSAT" {
+  const header = input.replace(/^WWW-Authenticate:\s*/i, "");
+  return /\bL402\s+/i.test(header) ? "L402" : "LSAT";
 }
 
 function buildStripeSegments(inspection: MacaroonInspection): MacaroonSegments {
@@ -85,51 +45,30 @@ function buildStripeSegments(inspection: MacaroonInspection): MacaroonSegments {
   };
 }
 
-function workbenchButtonStyle(enabled: boolean) {
-  return {
-    padding: "4px 8px",
-    background: enabled ? "var(--color-surface)" : "var(--color-surface-alt)",
-    color: enabled ? "var(--color-text)" : "var(--color-dim)",
-    border: "1px solid var(--color-border)",
-    borderRadius: 4,
-    fontSize: "var(--size-11)",
-    fontWeight: 500,
-    cursor: enabled ? "pointer" : "not-allowed",
-  } as const;
-}
-
 export function ParseToken() {
   const workbenchMemory = useWorkbenchMemory();
-  const [token, setToken] = useUrlInput<string>(
-    "token",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
 
-  const [viewMode, setViewMode] = useUrlInput<string>(
-    "view",
-    (raw) => raw ?? "raw",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-
-  const [parseResult, setParseResult] = useState<{
-    inspection: MacaroonInspection;
-  } | null>(null);
+  // Inputs are plain local state — never auto-synced to the URL or Workbench.
+  const [input, setInput] = useState("");
+  const [viewMode, setViewMode] = useState<ViewModeValue>("raw");
+  const [parseResult, setParseResult] = useState<ParseResult | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [invoiceCopied, setInvoiceCopied] = useState(false);
 
   function parse() {
-    const input = (token ?? "").trim();
-    const extracted = extractMacaroonInput(input);
-    if (!extracted.macaroon) {
-      setError("Paste a base64-encoded macaroon or WWW-Authenticate L402 challenge.");
+    const detected = detectArtifact(input);
+    if (!detected.ok) {
+      setError(describeArtifactError(detected.error));
       setParseResult(null);
       return;
     }
     try {
-      const inspection = L402.fromMacaroon(extracted.macaroon).inspectMacaroon();
-      setParseResult({ inspection });
+      const inspection = L402.fromMacaroon(detected.value.macaroon).inspectMacaroon();
+      const challenge: ChallengeFields | null =
+        detected.value.kind === "challenge"
+          ? { invoice: detected.value.token.invoice ?? "", scheme: schemeOf(input) }
+          : null;
+      setParseResult({ inspection, challenge });
       setError(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
@@ -137,10 +76,15 @@ export function ParseToken() {
     }
   }
 
-  function clearPage() {
-    setToken(null);
+  function changeInput(next: string) {
+    setInput(next);
     setParseResult(null);
     setError(null);
+    setInvoiceCopied(false);
+  }
+
+  function clearPage() {
+    changeInput("");
   }
 
   function clearBoth() {
@@ -150,35 +94,37 @@ export function ParseToken() {
     workbenchMemory?.setCredential(null);
   }
 
-  function fillFromWorkbench(value: string) {
-    setToken(value);
-    setParseResult(null);
-    setError(null);
+  async function copyInvoice() {
+    if (!parseResult?.challenge?.invoice) return;
+    try {
+      await navigator.clipboard.writeText(parseResult.challenge.invoice);
+      setInvoiceCopied(true);
+      window.setTimeout(() => setInvoiceCopied(false), 1500);
+    } catch {
+      // Copy is a progressive enhancement; keep the flow usable.
+    }
   }
 
   const status = error ? "fail" : parseResult ? "pass" : "idle";
   const statusLabel = error ? "error" : parseResult ? "decoded" : "idle";
-  const activeView = (viewMode as ViewModeValue) || "raw";
-  const inputValue = token ?? "";
-  const extractedInput = extractMacaroonInput(inputValue);
-  const tokenLiteral = JSON.stringify(extractedInput.macaroon || "<base64 macaroon>");
-  const rememberedMacaroon = workbenchMemory?.macaroon.trim() ?? "";
-  const rememberedChallenge = workbenchMemory?.challenge.trim() ?? "";
-  const rememberedCredential = workbenchMemory?.credential.trim() ?? "";
+  const detectedInput = input.trim() ? detectArtifact(input) : null;
+  const tokenLiteral = JSON.stringify(
+    detectedInput?.ok ? detectedInput.value.macaroon : "<base64 macaroon>",
+  );
+  const rememberedMacaroon = workbenchMemory?.macaroon ?? "";
+  const rememberedChallenge = workbenchMemory?.challenge ?? "";
+  const rememberedCredential = workbenchMemory?.credential ?? "";
 
   return (
     <Cell
       header={
         <HeaderRow
-          title="Parse Macaroon"
-          subtitle="Decode a macaroon, or extract one from a challenge or credential"
+          title="Parse"
+          subtitle="Decode a macaroon, challenge, or credential into its identifier, caveats, and signature"
           trailing={
-            <>
-              <StatusPill state={status} details={error}>
-                {statusLabel}
-              </StatusPill>
-              <CopyUrlButton />
-            </>
+            <StatusPill state={status} details={error}>
+              {statusLabel}
+            </StatusPill>
           }
         />
       }
@@ -193,16 +139,11 @@ export function ParseToken() {
               gap: 4,
             }}
           >
-            Macaroon, WWW-Authenticate challenge, or Authorization credential
+            Macaroon, L402 challenge, or credential
             <textarea
-              value={inputValue}
-              onChange={(e) => {
-                setToken(e.target.value);
-                workbenchMemory?.setChallenge(null);
-                setParseResult(null);
-                setError(null);
-              }}
-              placeholder='AGIA... or L402 macaroon="AGIA...", invoice="lnbc1..."'
+              value={input}
+              onChange={(e) => changeInput(e.target.value)}
+              placeholder='AGIA...   ·   L402 macaroon="AGIA...", invoice="lnbc1..."   ·   L402 <macaroon>:<preimage>'
               data-testid="parse-token-input"
               rows={3}
               style={{
@@ -223,33 +164,27 @@ export function ParseToken() {
             }}
           >
             <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
-            <button
-              type="button"
-              onClick={() => fillFromWorkbench(rememberedMacaroon)}
-              disabled={!rememberedMacaroon}
-              data-testid="parse-token-fill-macaroon"
-              style={workbenchButtonStyle(Boolean(rememberedMacaroon))}
-            >
-              Fill macaroon
-            </button>
-            <button
-              type="button"
-              onClick={() => fillFromWorkbench(rememberedChallenge)}
-              disabled={!rememberedChallenge}
-              data-testid="parse-token-fill-challenge"
-              style={workbenchButtonStyle(Boolean(rememberedChallenge))}
-            >
-              Fill challenge
-            </button>
-            <button
-              type="button"
-              onClick={() => fillFromWorkbench(rememberedCredential)}
-              disabled={!rememberedCredential}
-              data-testid="parse-token-fill-credential"
-              style={workbenchButtonStyle(Boolean(rememberedCredential))}
-            >
-              Fill credential
-            </button>
+            <FillFromWorkbench
+              label="macaroon"
+              available={rememberedMacaroon}
+              current={input}
+              onFill={changeInput}
+              testId="parse-token-fill-macaroon"
+            />
+            <FillFromWorkbench
+              label="challenge"
+              available={rememberedChallenge}
+              current={input}
+              onFill={changeInput}
+              testId="parse-token-fill-challenge"
+            />
+            <FillFromWorkbench
+              label="credential"
+              available={rememberedCredential}
+              current={input}
+              onFill={changeInput}
+              testId="parse-token-fill-credential"
+            />
           </div>
 
           <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
@@ -306,8 +241,8 @@ export function ParseToken() {
             </button>
             {parseResult ? (
               <ViewModeToggle
-                value={activeView as ViewMode}
-                onChange={(m) => setViewMode(m)}
+                value={viewMode as ViewMode}
+                onChange={(m) => setViewMode(m as ViewModeValue)}
                 modes={["raw", "json", "stripe"] as ViewMode[]}
               />
             ) : null}
@@ -325,6 +260,62 @@ export function ParseToken() {
             </div>
           ) : null}
 
+          {parseResult?.challenge ? (
+            <div
+              data-testid="parse-token-challenge"
+              style={{
+                ...panelOutputStyle(),
+                display: "flex",
+                flexDirection: "column",
+                gap: 8,
+              }}
+            >
+              <div
+                style={{
+                  fontSize: "var(--size-11)",
+                  color: "var(--color-dim)",
+                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                }}
+              >
+                Challenge ({parseResult.challenge.scheme})
+              </div>
+              <div style={{ display: "flex", alignItems: "flex-start", gap: 8 }}>
+                <code
+                  data-testid="parse-token-invoice"
+                  style={{
+                    flex: 1,
+                    fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                    fontSize: "var(--size-12)",
+                    wordBreak: "break-all",
+                    color: "var(--color-text)",
+                  }}
+                >
+                  {parseResult.challenge.invoice}
+                </code>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void copyInvoice();
+                  }}
+                  data-testid="parse-token-copy-invoice"
+                  aria-label={invoiceCopied ? "Invoice copied" : "Copy invoice"}
+                  title={invoiceCopied ? "Invoice copied" : "Copy invoice"}
+                  style={{
+                    minWidth: 32,
+                    background: invoiceCopied ? "var(--color-accent-soft)" : "var(--color-surface)",
+                    color: invoiceCopied ? "var(--color-accent)" : "var(--color-text)",
+                    border: `1px solid ${invoiceCopied ? "var(--color-accent)" : "var(--color-border)"}`,
+                    borderRadius: 4,
+                    fontSize: "var(--size-13)",
+                    cursor: "pointer",
+                  }}
+                >
+                  {invoiceCopied ? "✓" : "⧉"}
+                </button>
+              </div>
+            </div>
+          ) : null}
+
           {parseResult ? (
             <div
               data-testid="parse-token-output"
@@ -339,7 +330,7 @@ export function ParseToken() {
               >
                 Decoded macaroon fields
               </div>
-              {activeView === "raw" && (
+              {viewMode === "raw" && (
                 <div
                   style={{
                     display: "grid",
@@ -377,7 +368,7 @@ export function ParseToken() {
                   </span>
                 </div>
               )}
-              {activeView === "json" && (
+              {viewMode === "json" && (
                 <pre
                   style={{
                     margin: 0,
@@ -409,7 +400,7 @@ export function ParseToken() {
                   )}
                 </pre>
               )}
-              {activeView === "stripe" && (
+              {viewMode === "stripe" && (
                 <MacaroonStripe segments={buildStripeSegments(parseResult.inspection)} />
               )}
             </div>
