@@ -7,13 +7,26 @@ type CaveatValue = Awaited<ReturnType<MiddlewareCaveatFactory>>;
 
 export type ProxyHttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
+/** Static or request-derived caveat attached to a protected proxy route. */
 export type ProxyCaveat =
   | CaveatValue
   | ((req: ExpressRequest) => CaveatValue | Promise<CaveatValue>);
 
-/** Route-level price and caveat policy for protected proxy requests. */
+/**
+ * Route-level price and caveat policy for protected proxy requests.
+ *
+ * Routes are evaluated before the proxy's `defaultPrice`. If no route matches
+ * and no default price is configured, the proxy returns `404` instead of an
+ * L402 challenge because there is no price to charge.
+ */
 export interface ProxyRoute {
-  /** Path matcher. String values support exact matches and trailing `*` prefix globs. */
+  /**
+   * Path matcher.
+   *
+   * String values support exact matches and trailing `*` prefix globs, such as
+   * `/pokemon/*`. Other `*` positions are literal; use `RegExp` for richer
+   * segment matching.
+   */
   path: string | RegExp;
   /** Allowed HTTP methods. Defaults to all methods. */
   methods?: ProxyHttpMethod[];

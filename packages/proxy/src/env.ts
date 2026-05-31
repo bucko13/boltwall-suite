@@ -47,7 +47,13 @@ const envSchema = z
 
 type ProxyEnvFields = z.infer<typeof envSchema>;
 
-/** Runtime proxy configuration loaded from environment variables. */
+/**
+ * Runtime proxy configuration loaded from environment variables.
+ *
+ * This is the environment-driven subset of {@link ProxyConfig}. It omits the
+ * live Lightning backend and `rootKeyStore`; callers provide those explicitly
+ * so secret-bearing dependencies stay outside config files.
+ */
 export type ProxyEnvConfig = Pick<
   ProxyConfig,
   | "targetUrl"
@@ -81,7 +87,13 @@ export interface LoadProxyEnvOptions {
  * Load secret-safe proxy runtime config from exported env vars and an optional env file.
  *
  * The returned config omits the live backend and root-key store, so spread it
- * into {@link ProxyConfig} alongside those constructed dependencies.
+ * into {@link ProxyConfig} alongside those constructed dependencies. Exported
+ * environment variables override `envFile` values.
+ *
+ * Validation errors name the missing or malformed variable without echoing
+ * secret values. Comma-separated fields are trimmed and empty entries are
+ * ignored. Origins are normalized to URL origins, and capability caveats require
+ * a service name.
  *
  * @example
  * ```ts

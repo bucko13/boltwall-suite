@@ -21,13 +21,19 @@ export type { ForwardHeadersPolicy } from "./header-policy.js";
 export { loadProxyEnv, type LoadProxyEnvOptions, type ProxyEnvConfig } from "./env.js";
 export type { ProxyRoute } from "./route-matching.js";
 
-/** Opt-in CORS policy for browser clients that need to inspect L402 challenges. */
+/**
+ * Opt-in CORS policy for browser clients that need to inspect L402 challenges.
+ *
+ * CORS is disabled unless this object is provided. Allowed origins are exact
+ * URL origins, and preflight responses are emitted only when the request origin
+ * is in `allowOrigins`.
+ */
 export interface ProxyCorsConfig {
   /** Exact browser origins allowed to read proxy responses. Wildcards are intentionally unsupported. */
   allowOrigins: string[];
   /** Response headers exposed to browser JavaScript. Defaults to `WWW-Authenticate`. */
   exposeHeaders?: string[];
-  /** Request headers allowed on CORS preflight. Defaults to common L402 demo headers. */
+  /** Request headers allowed on CORS preflight. Defaults to `Authorization`, `Content-Type`, and `Accept`. */
   allowHeaders?: string[];
   /** Methods allowed on CORS preflight. Defaults to `GET`, `HEAD`, and `OPTIONS`. */
   allowMethods?: string[];
@@ -35,7 +41,14 @@ export interface ProxyCorsConfig {
   maxAgeSeconds?: number;
 }
 
-/** Runtime configuration for the Express-based Boltwall reverse proxy. */
+/**
+ * Runtime configuration for the Express-based Boltwall reverse proxy.
+ *
+ * `ProxyConfig` protects an upstream HTTP origin with L402 middleware and then
+ * forwards authorized requests. Configure either `routes`, `defaultPrice`, or
+ * both. A request with no matching route and no default price returns `404`
+ * instead of a payment challenge because there is no price to charge.
+ */
 export interface ProxyConfig extends Pick<
   L402ExpressOptions,
   | "rate"
@@ -47,7 +60,7 @@ export interface ProxyConfig extends Pick<
   | "streamingInvoices"
   | "customDescription"
 > {
-  /** Upstream HTTP origin receiving requests after L402 authorization. */
+  /** Upstream HTTP origin receiving requests after L402 authorization. Use HTTPS for production deployments. */
   targetUrl: string;
   /** Lightning backend used by the underlying L402 middleware. */
   backend: LightningBackend;
@@ -65,11 +78,16 @@ export interface ProxyConfig extends Pick<
   invoiceMemo?: (req: ExpressRequest) => string;
   /** Paths that bypass L402 and proxy directly to the upstream. */
   unprotectedPaths?: (string | RegExp)[];
-  /** Header forwarding policy. Credentials and cookies are denied by default. */
+  /**
+   * Header forwarding policy.
+   *
+   * `Authorization`, `Proxy-Authorization`, and `Cookie` are denied by default
+   * before protected requests are forwarded upstream.
+   */
   forwardHeaders?: ForwardHeadersPolicy;
   /** Optional CORS policy for browser clients. Disabled by default. */
   cors?: ProxyCorsConfig;
-  /** Timeout applied to upstream proxy requests. */
+  /** Timeout applied to upstream proxy requests. Timeouts and upstream 5xx responses become redacted `502` JSON responses. */
   upstreamTimeoutMs?: number;
   /**
    * Challenge output mode.
@@ -89,6 +107,10 @@ export interface ProxyConfig extends Pick<
  * The proxy chooses a per-request price/caveat policy, delegates challenge and
  * credential verification to `@boltwall/middleware`, then forwards authorized
  * requests to `targetUrl` through `http-proxy-middleware`.
+ *
+ * Protected routes strip credential-bearing headers before upstream forwarding.
+ * CORS is opt-in. Unprotected paths bypass both L402 authorization and header
+ * sanitization so they behave like ordinary reverse-proxy routes.
  *
  * @example
  * ```ts

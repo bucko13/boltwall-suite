@@ -4,11 +4,27 @@ import type { Request as ExpressRequest } from "express";
 
 const DEFAULT_DENY = ["authorization", "proxy-authorization", "cookie"] as const;
 
-/** Header allow/deny policy applied before forwarding to the upstream. */
+/**
+ * Header allow/deny policy applied before forwarding to the upstream.
+ *
+ * Patterns are case-insensitive globs where `*` can appear anywhere, for
+ * example `x-forwarded-*`, `*-token`, or `x-*-id`. Credential-bearing headers
+ * are denied even when no custom policy is provided.
+ */
 export interface ForwardHeadersPolicy {
-  /** Optional case-insensitive allow patterns. `*` is supported as a wildcard. */
+  /**
+   * Optional allow patterns.
+   *
+   * When present, only matching headers are forwarded after deny rules are
+   * applied. Leave unset to forward non-denied headers.
+   */
   allow?: string[];
-  /** Optional case-insensitive deny patterns. Defaults still strip credentials and cookies. */
+  /**
+   * Optional deny patterns.
+   *
+   * These are added to the default deny list for `Authorization`,
+   * `Proxy-Authorization`, and `Cookie`.
+   */
   deny?: string[];
 }
 
