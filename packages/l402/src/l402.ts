@@ -56,7 +56,9 @@ export interface L402AuthenticateHeadersOptions {
    * Challenge compatibility mode.
    *
    * Defaults to `"dual"` so server object workflows emit `LSAT` first and
-   * `L402` second, as recommended by L402 protocol-specification.md §10.
+   * `L402` second, as recommended by the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §10.
    */
   compatibility?: AuthenticateHeaderCompatibility;
 }
@@ -165,10 +167,12 @@ function parseExpirationUnixMs(value: string): number {
  * credential.
  *
  * Spec references:
- * - L402 protocol-specification.md sections 5 and 10: Authorization /
- *   WWW-Authenticate grammar and LSAT/L402 backwards compatibility.
- * - L402 macaroon-spec.md Identifier Structure and Verification: payment hash
- *   extraction and `sha256(preimage) == payment_hash` validation.
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   sections 5 and 10: Authorization / WWW-Authenticate grammar and LSAT/L402
+ *   backwards compatibility.
+ * - [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ *   Identifier Structure and Verification: payment hash extraction and
+ *   `sha256(preimage) == payment_hash` validation.
  *
  * @example
  * // Parse a challenge, attach the paid preimage, then emit the Authorization token.
@@ -343,8 +347,9 @@ export class L402 {
    *
    * The payment preimage is intentionally omitted: L402 credentials are bearer
    * tokens whose macaroon/preimage material is cleartext in HTTP headers and
-   * must be protected per L402 protocol-specification.md §9.1 Transport
-   * Security.
+   * must be protected per the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §9.1 Transport Security.
    */
   toJSON(): {
     macaroons: string[];

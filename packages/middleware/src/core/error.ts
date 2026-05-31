@@ -1,7 +1,8 @@
 /**
  * L402Error — discriminated error model for the L402 middleware.
  *
- * Status mapping (L402 protocol-specification.md §5 Challenge / §6 Authorization):
+ * Status mapping ([L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5 Challenge / §6 Authorization):
  *   402  — payment-required: credential is ABSENT. Emit WWW-Authenticate challenge.
  *   401  — invalid-credential / invalid-preimage / caveat-rejected: credential is
  *          PRESENT but invalid. The spec requires 401 here, not 402.
@@ -65,8 +66,9 @@ export class L402Error extends Error {
 /**
  * Map an L402ErrorKind to the correct HTTP status code.
  *
- * L402 protocol-specification.md §5 — 402 is for the INITIAL missing-credential
- * challenge only. Credential present but invalid → 401. Backend failure → 502.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5 — 402 is for the INITIAL missing-credential challenge only. Credential
+ * present but invalid → 401. Backend failure → 502.
  */
 export function l402ErrorToStatus(kind: L402ErrorKind): number {
   switch (kind) {

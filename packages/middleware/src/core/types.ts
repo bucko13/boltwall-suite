@@ -30,7 +30,8 @@ export interface L402Config {
    *
    * When set, each freshly minted challenge macaroon receives an additional
    * `valid-until` caveat whose duration is derived from the invoice amount:
-   * `ceil((priceMsat / 1000) / rate)` seconds. L402 macaroon-spec.md
+   * `ceil((priceMsat / 1000) / rate)` seconds. The
+   * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
    * §Caveat Format governs the generated caveat shape.
    */
   rate?: number;
@@ -40,7 +41,9 @@ export interface L402Config {
    * Missing-credential requests must supply a 32-byte hex `paymentHash` in the
    * request body or query string. Held HODL invoices authorize access before
    * settlement; once settled, the HODL credential is expired. Standard L402 and
-   * LSAT credentials still follow L402 protocol-specification.md §5.2/§5.3.
+   * LSAT credentials still follow the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §5.2/§5.3.
    */
   hodl?: true;
   /**
@@ -52,8 +55,9 @@ export interface L402Config {
    * WWW-Authenticate scheme output mode.
    *
    * "dual" (default, recommended): emit LSAT first and L402 second.
-   * L402 protocol-specification.md §10 — servers SHOULD emit dual challenges
-   * with LSAT first for backwards compatibility with LSAT-only clients.
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §10 — servers SHOULD emit dual challenges with LSAT first for backwards
+   * compatibility with LSAT-only clients.
    */
   challengeCompatibility?: AuthenticateHeaderCompatibility;
   /** Optional human-readable memo for the Lightning invoice. */
@@ -63,10 +67,10 @@ export interface L402Config {
   /**
    * Allow cleartext `http:` requests.
    *
-   * L402 protocol-specification.md §9.1 requires TLS because L402 credentials
-   * are bearer credentials. Loopback HTTP is allowed for local development;
-   * leave this disabled in production and use it only for tests that do not
-   * cross a network boundary.
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §9.1 requires TLS because L402 credentials are bearer credentials.
+   * Loopback HTTP is allowed for local development; leave this disabled in
+   * production and use it only for tests that do not cross a network boundary.
    */
   allowInsecureHttp?: boolean;
   /** Called after a credential is fully verified (payment confirmed). */

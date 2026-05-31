@@ -35,10 +35,11 @@ interface ServiceCaveatEntry {
 /**
  * Creates a satisfier for the `services` caveat.
  *
- * L402 macaroon-spec.md §Caveat Format and §Verification define caveats as
- * `condition=value` strings evaluated by registered satisfiers. Unknown
- * caveats are skipped by the verifier; these factories represent known
- * caveats that middleware opts into explicitly.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveat Format and §Verification define caveats as `condition=value` strings
+ * evaluated by registered satisfiers. Unknown caveats are skipped by the
+ * verifier; these factories represent known caveats that middleware opts into
+ * explicitly.
  *
  * The value is parsed as `name:tier[,name:tier...]`. Final verification passes
  * when `targetService` is present with a non-negative tier; attenuation only
@@ -113,9 +114,10 @@ export function validUntilSatisfier(): CaveatSatisfier {
  *
  * New L402 macaroons should use the standard `valid-until=<ISO-8601>` caveat
  * and `validUntilSatisfier()`. This satisfier is supported for imported
- * LSAT-style macaroons that already carry `expiration` caveats. L402
- * protocol-specification.md §10 requires servers to accept legacy LSAT
- * credentials alongside current L402 credentials.
+ * LSAT-style macaroons that already carry `expiration` caveats. The
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §10 requires servers to accept legacy LSAT credentials alongside current
+ * L402 credentials.
  */
 export function expirationSatisfier(): CaveatSatisfier {
   return {
@@ -160,11 +162,11 @@ export function originSatisfier(allowedOrigins: string[] | "any"): CaveatSatisfi
 /**
  * Creates a satisfier for the legacy `ip` caveat.
  *
- * L402 macaroon-spec.md §Verification evaluates registered satisfiers for
- * known caveat conditions. Final verification compares the caveat value with
- * the first value in the `X-Forwarded-For` request header, falling back to
- * `context.clientIp`. Attenuation is exact: a later `ip` caveat must repeat the
- * same IP value.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Verification evaluates registered satisfiers for known caveat conditions.
+ * Final verification compares the caveat value with the first value in the
+ * `X-Forwarded-For` request header, falling back to `context.clientIp`.
+ * Attenuation is exact: a later `ip` caveat must repeat the same IP value.
  */
 export function ipSatisfier(): CaveatSatisfier {
   return {

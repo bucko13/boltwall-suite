@@ -44,8 +44,9 @@ const BOLT11_DEFAULT_EXPIRY_SECONDS = 3600;
  * - BOLT 11 `11-payment-encoding.md` §§Human-Readable Part / Tagged Fields:
  *   invoice HRP encodes network + optional amount, `p` is the 256-bit payment
  *   hash, `x` is expiry seconds and defaults to 3600 when absent.
- * - L402 protocol-specification.md §5.1 and §6: challenges carry a BOLT 11
- *   invoice whose payment hash is committed to by the macaroon identifier.
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   §5.1 and §6: challenges carry a BOLT 11 invoice whose payment hash is
+ *   committed to by the macaroon identifier.
  *
  * The wrapped decoder validates Bech32 structure/checksum and normalizes BOLT 11
  * amount units to millisatoshis. This function narrows the result to stable
@@ -161,4 +162,3 @@ function findNumberSection(
   const value = sections.find((section) => section.name === name)?.value;
   return typeof value === "number" ? value : undefined;
 }
-

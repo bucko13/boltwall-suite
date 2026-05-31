@@ -2,13 +2,17 @@
  * authorizeL402 — framework-agnostic L402 authentication gate.
  *
  * Spec citations:
- *   L402 protocol-specification.md §4.1 — 402 is ONLY for the initial
- *     missing-credential challenge. Present-but-invalid credentials → 401.
- *   L402 protocol-specification.md §6.1 — server flow for minting challenges
- *     and returning 401 on failed credential verification.
- *   L402 protocol-specification.md §10 — dual LSAT-first/L402-second
- *     WWW-Authenticate headers for backwards compatibility (default).
- *   L402 macaroon-spec.md §Verification — HMAC chain integrity check.
+ *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *     §4.1 — 402 is ONLY for the initial missing-credential challenge.
+ *     Present-but-invalid credentials → 401.
+ *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *     §6.1 — server flow for minting challenges and returning 401 on failed
+ *     credential verification.
+ *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *     §10 — dual LSAT-first/L402-second WWW-Authenticate headers for backwards
+ *     compatibility (default).
+ *   [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ *     §Verification — HMAC chain integrity check.
  *   docs/security-boundaries.md — invoice amount MUST be verified.
  */
 
@@ -83,8 +87,9 @@ async function resolveCaveats(
 /**
  * Build a dynamic time caveat from the paid amount.
  *
- * L402 macaroon-spec.md §Caveat Format — the generated caveat is serialized as
- * the standard `valid-until=<ISO>` first-party caveat.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveat Format — the generated caveat is serialized as the standard
+ * `valid-until=<ISO>` first-party caveat.
  */
 function rateCaveat(amountMsat: bigint, rate: number): Caveat {
   if (!Number.isFinite(rate) || rate <= 0) {
@@ -106,8 +111,8 @@ function orderValidUntilCaveats(caveats: Caveat[]): Caveat[] {
 
 /**
  * Map a verifyMacaroon failure reason to an L402ErrorKind.
- * L402 protocol-specification.md §4.1 / §6.1 — 401 for all present-
- * but-invalid-credential cases.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §4.1 / §6.1 — 401 for all present-but-invalid-credential cases.
  */
 function verifyReasonToKind(
   reason: string,
@@ -297,8 +302,10 @@ function credentialFieldsFromToken(
 /**
  * Emit a 402 Payment Required response with a fresh invoice + macaroon.
  *
- * L402 protocol-specification.md §4.1 / §6.1 — 402 is ONLY for absent credentials.
- * L402 protocol-specification.md §10 — dual LSAT-first/L402-second by default.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §4.1 / §6.1 — 402 is ONLY for absent credentials.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §10 — dual LSAT-first/L402-second by default.
  */
 async function emitChallenge(
   config: L402Config,
@@ -397,9 +404,12 @@ async function getOrGenerateRootKey(
  * is confirmed. Returns { ok: false, response, error } when a 402 or 401
  * response must be sent to the client.
  *
- * Security invariants (L402 protocol-specification.md and docs/security-boundaries.md):
+ * Security invariants ([L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * and docs/security-boundaries.md):
  *   - 402 is emitted ONLY when the Authorization header is absent or carries
- *     a non-L402/LSAT scheme. L402 protocol-specification.md §4.1.
+ *     a non-L402/LSAT scheme. See the
+ *     [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *     §4.1.
  *   - Invoice amount MUST match config.price. Amount mismatch is treated as
  *     invalid-credential (401).
  *   - Constant-time comparisons are handled inside verifyMacaroon /

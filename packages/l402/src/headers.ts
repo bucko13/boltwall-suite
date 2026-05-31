@@ -7,10 +7,10 @@ import { tokenizeHttpAuth } from "@boltwall/internal";
 /**
  * The two scheme keywords accepted by L402-aware clients and servers.
  *
- * Spec: L402 protocol-specification.md §10 Backwards Compatibility — clients
- * MUST accept both `LSAT` (legacy) and `L402` (current) in incoming headers,
- * and servers SHOULD emit dual challenges with `LSAT` first and `L402`
- * second.
+ * Spec: [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §10 Backwards Compatibility — clients MUST accept both `LSAT` (legacy) and
+ * `L402` (current) in incoming headers, and servers SHOULD emit dual
+ * challenges with `LSAT` first and `L402` second.
  */
 export type L402Scheme = "L402" | "LSAT";
 
@@ -35,7 +35,9 @@ export interface BuildAuthenticateHeadersArgs {
    * Challenge compatibility mode.
    *
    * Defaults to `"dual"` so servers emit legacy `LSAT` first and current
-   * `L402` second, as recommended by L402 protocol-specification.md §10.
+   * `L402` second, as recommended by the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §10.
    */
   compatibility?: AuthenticateHeaderCompatibility;
 }
@@ -48,12 +50,13 @@ function buildChallengeValue(scheme: L402Scheme, macaroon: string, invoice: stri
  * Build one or more `WWW-Authenticate` header values for an L402 payment
  * challenge.
  *
- * L402 protocol-specification.md §5.1 defines the challenge shape as
- * `L402 macaroon="...", invoice="..."`. Section §10 says servers SHOULD send
- * both `LSAT` and `L402` scheme names for backwards compatibility, with the
- * `LSAT` challenge first. This helper therefore defaults to dual LSAT-first
- * emission for server use while retaining explicit L402-only and LSAT-only
- * modes for greenfield deployments, tests, and migrations.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5.1 defines the challenge shape as `L402 macaroon="...", invoice="..."`.
+ * Section §10 says servers SHOULD send both `LSAT` and `L402` scheme names for
+ * backwards compatibility, with the `LSAT` challenge first. This helper
+ * therefore defaults to dual LSAT-first emission for server use while retaining
+ * explicit L402-only and LSAT-only modes for greenfield deployments, tests, and
+ * migrations.
  *
  * @example
  * const headers = buildAuthenticateHeaders({ macaroon, invoice });
@@ -122,11 +125,13 @@ const INVOICE_HRP = /^ln(bcrt|bc|tb|sb)/i;
  * inside quoted-string param values do not split.
  *
  * Spec citations:
- * - L402 protocol-specification.md §5 / §5.1 / §5.3 — challenge form,
- *   required `macaroon` and `invoice` parameters as quoted strings, and the
- *   `1*SP` separator after the scheme keyword.
- * - L402 protocol-specification.md §10 — dual `LSAT`/`L402` emission for
- *   backwards compatibility; servers send both, clients accept either.
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   §5 / §5.1 / §5.3 — challenge form, required `macaroon` and `invoice`
+ *   parameters as quoted strings, and the `1*SP` separator after the scheme
+ *   keyword.
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   §10 — dual `LSAT`/`L402` emission for backwards compatibility; servers
+ *   send both, clients accept either.
  *
  * Validation scope (deliberately narrow):
  * 1. Scheme keyword MUST be `L402` or `LSAT` (case-insensitive); other
@@ -240,10 +245,11 @@ function normalizeBuildMacaroons(macaroons: string | string[]): string[] {
 /**
  * Build an L402 / LSAT `Authorization` header value for a paid retry.
  *
- * L402 protocol-specification.md §5.2 / §5.3 defines credentials as
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5.2 / §5.3 defines credentials as
  * `<scheme> <macaroon[,macaroon...]>:<preimage-hex>`. This helper emits `L402`
- * by default for new clients. Passing `legacy: true` emits `LSAT`, matching the
- * legacy `Lsat#toToken()` scheme keyword so the compatibility facade can
+ * by default for new clients. Passing `legacy: true` emits `LSAT`, matching
+ * the legacy `Lsat#toToken()` scheme keyword so the compatibility facade can
  * preserve that migration path.
  *
  * @example
@@ -270,9 +276,10 @@ export function buildAuthorizationHeader(args: BuildAuthorizationHeaderArgs): st
  * request header.
  *
  * `macaroons` is always an array, even when the credential carries a single
- * macaroon (length 1 in that case). Per L402 protocol-specification.md §5 the
- * wire grammar is `<scheme> M1[,M2,...]:<preimage-hex>`, where the preimage
- * binds to one macaroon in the list — verifiers MUST iterate.
+ * macaroon (length 1 in that case). Per the
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5 the wire grammar is `<scheme> M1[,M2,...]:<preimage-hex>`, where the
+ * preimage binds to one macaroon in the list — verifiers MUST iterate.
  *
  * The single-macaroon case is therefore a special case of the multi case; we
  * keep the common shape so downstream verification code does not have to handle
@@ -295,8 +302,10 @@ export interface ParseAuthorizationHeaderOptions {
    * Accept the HODL pending-settlement token shape `LSAT/L402 <macaroon>:`
    * while the invoice is held and the client has not disclosed the preimage.
    *
-   * Defaults to `false`; L402 protocol-specification.md §5.2/§5.3 requires a
-   * 32-byte preimage for standard L402/LSAT authorization.
+   * Defaults to `false`; the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §5.2/§5.3 requires a 32-byte preimage for standard L402/LSAT
+   * authorization.
    */
   allowEmptyPreimage?: boolean;
 }
@@ -311,10 +320,12 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
  * comma-separated) from the preimage hex.
  *
  * Spec citations:
- * - L402 protocol-specification.md §5.3 Grammar — Authorization credentials:
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   §5.3 Grammar — Authorization credentials:
  *   `<scheme> <macaroons-csv>:<preimage-hex>`, preimage = 32 bytes hex.
- * - L402 protocol-specification.md §10 Backwards Compatibility — incoming
- *   `LSAT` scheme keyword MUST be accepted alongside `L402`.
+ * - [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ *   §10 Backwards Compatibility — incoming `LSAT` scheme keyword MUST be
+ *   accepted alongside `L402`.
  *
  * Throws synchronously with a short machine-readable code on malformed input:
  * `empty-header`, `missing-scheme`, `scheme-mismatch`, `missing-colon`,

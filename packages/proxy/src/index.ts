@@ -74,9 +74,9 @@ export interface ProxyConfig extends Pick<
   /**
    * Challenge output mode.
    *
-   * L402 protocol-specification.md §10 recommends dual LSAT-first/L402-second
-   * challenges for backwards compatibility. This proxy delegates emission to
-   * `@boltwall/middleware`.
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §10 recommends dual LSAT-first/L402-second challenges for backwards
+   * compatibility. This proxy delegates emission to `@boltwall/middleware`.
    */
   challengeCompatibility?: L402Config["challengeCompatibility"];
   /** Optional structured logger. Defaults to `console`. */

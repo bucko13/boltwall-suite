@@ -33,8 +33,9 @@ const FIELD_SIGNATURE = 6;
  * rather than the underlying string; the runtime values are guaranteed stable,
  * the keys are presentational and may evolve.
  *
- * Spec: L402 macaroon-spec.md §Verification — these reasons cover the HMAC
- * chain, preimage binding, and caveat evaluation steps `verifyMacaroon` runs.
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Verification — these reasons cover the HMAC chain, preimage binding, and
+ * caveat evaluation steps `verifyMacaroon` runs.
  *
  * @example
  * const result = await verifyMacaroon(args);
@@ -106,8 +107,9 @@ export interface MintMacaroonArgs {
  * Mint a base64-encoded L402 macaroon from a root key, v0 identifier, and
  * optional first-party caveats.
  *
- * Spec: L402 macaroon-spec.md §Identifier Structure / Version 0 Format and
- * §Minting require a 66-byte identifier encoded as
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Identifier Structure / Version 0 Format and §Minting require a 66-byte
+ * identifier encoded as
  * `uint16 version || 32-byte payment_hash || 32-byte token_id`, then an
  * HMAC-SHA256 chain over the identifier and each UTF-8 caveat string.
  *
@@ -188,9 +190,9 @@ function normalizeBytes32(value: Bytes32Input, label: string): Uint8Array {
  * `payment_hash` — i.e. that the bearer of this credential paid the invoice the
  * macaroon was minted against.
  *
- * Spec: L402 macaroon-spec.md §Identifier — the v0 identifier embeds
- * `payment_hash` (32 bytes); the verifier MUST check
- * `sha256(preimage) === payment_hash` in constant time.
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Identifier — the v0 identifier embeds `payment_hash` (32 bytes); the
+ * verifier MUST check `sha256(preimage) === payment_hash` in constant time.
  *
  * Inputs may be `Uint8Array` (32 bytes) or hex `string` (64 chars,
  * case-insensitive). Both are normalized to `Uint8Array` at the boundary.
@@ -246,7 +248,8 @@ export interface MacaroonInspection {
   /**
    * Decoded version-0 identifier fields.
    *
-   * Spec: L402 macaroon-spec.md §Identifier Structure / Version 0 Format.
+   * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+   * §Identifier Structure / Version 0 Format.
    */
   identifier: MacaroonIdentifierV0;
   /** Raw 66-byte identifier bytes. */
@@ -254,7 +257,8 @@ export interface MacaroonInspection {
   /**
    * First-party caveats in macaroon order.
    *
-   * Spec: L402 macaroon-spec.md §Caveat Format.
+   * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+   * §Caveat Format.
    */
   caveats: InspectedMacaroonCaveat[];
   /** Raw 32-byte HMAC signature. */
@@ -268,9 +272,10 @@ export interface MacaroonInspection {
  * verify the macaroon signature or payment preimage; use `verifyMacaroon` for
  * authorization decisions.
  *
- * Spec: L402 macaroon-spec.md §Serialization Formats / Macaroon V2 Binary
- * Format for the base64 V2 wrapper, §Identifier Structure for the v0
- * identifier, and §Caveat Format for UTF-8 first-party caveats.
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Serialization Formats / Macaroon V2 Binary Format for the base64 V2
+ * wrapper, §Identifier Structure for the v0 identifier, and §Caveat Format for
+ * UTF-8 first-party caveats.
  *
  * Throws synchronously on malformed macaroon input.
  *
@@ -345,9 +350,10 @@ export interface VerifyMacaroonArgs {
   /**
    * Require the L402 preimage proof after signature and caveat checks.
    *
-   * Defaults to `true` per L402 protocol-specification.md §6.1. Only set this
-   * to `false` for stateful HODL invoice flows that verify a held payment via
-   * a trusted Lightning backend before authorizing access.
+   * Defaults to `true` per the
+   * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+   * §6.1. Only set this to `false` for stateful HODL invoice flows that verify
+   * a held payment via a trusted Lightning backend before authorizing access.
    */
   requirePreimage?: boolean;
 }
@@ -366,13 +372,16 @@ export type VerifyMacaroonResult =
  * Verify L402 macaroons, preimage binding, signature integrity, and caveats.
  *
  * Spec citations:
- * - L402 macaroon-spec.md §Verification / Step 1: recompute the HMAC chain
- *   using the server-side root key and compare signatures in constant time.
- * - L402 macaroon-spec.md §Verification / Step 2: verify the credential
- *   preimage against the `payment_hash` embedded in the v0 identifier.
- * - L402 macaroon-spec.md §Verification / Step 3: evaluate repeated caveats
- *   with `SatisfyPrevious`, then the final caveat with `SatisfyFinal`; if no
- *   satisfier matches a caveat condition, the caveat MUST be skipped.
+ * - [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ *   §Verification / Step 1: recompute the HMAC chain using the server-side
+ *   root key and compare signatures in constant time.
+ * - [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ *   §Verification / Step 2: verify the credential preimage against the
+ *   `payment_hash` embedded in the v0 identifier.
+ * - [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ *   §Verification / Step 3: evaluate repeated caveats with `SatisfyPrevious`,
+ *   then the final caveat with `SatisfyFinal`; if no satisfier matches a caveat
+ *   condition, the caveat MUST be skipped.
  *
  * Returns a discriminated result rather than throwing for authorization
  * failures so callers can map `reason` onto HTTP 401 responses and log lines.

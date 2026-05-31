@@ -4,10 +4,11 @@ export type CaveatComparator = "=" | "<" | ">";
 /**
  * Runtime Caveat constructor for object-first L402 and LSAT migration code.
  *
- * L402 macaroon-spec.md §Caveat Format defines first-party caveats as UTF-8
- * `condition=value` strings. The class defaults to that standard `"="`
- * comparator while preserving `<` and `>` comparator caveats used by older
- * LSAT object workflows at the object/macaroon layer.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveat Format defines first-party caveats as UTF-8 `condition=value`
+ * strings. The class defaults to that standard `"="` comparator while
+ * preserving `<` and `>` comparator caveats used by older LSAT object
+ * workflows at the object/macaroon layer.
  */
 export class Caveat {
   readonly condition: string;
@@ -101,8 +102,8 @@ function assertComparator(comparator: string): asserts comparator is CaveatCompa
 /**
  * Parse one L402 caveat string into `{ condition, value }`.
  *
- * Spec: L402 macaroon-spec.md §Caveats defines caveats as UTF-8 strings in
- * `condition=value` form, including `services=...`,
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveats defines caveats as UTF-8 strings in `condition=value` form, including `services=...`,
  * `<service>_capabilities=...`, and `<capability>_<constraint>=...`.
  *
  * The first `=` is the separator; later `=` bytes belong to the value.
@@ -171,9 +172,10 @@ export function validUntil(args: ValidUntilArg): Caveat {
  *
  * New L402 macaroons should use the standard `valid-until=<ISO-8601>` caveat
  * through `validUntil(...)`. This helper is supported for imported LSAT-style
- * macaroons that already use the `expiration` condition. L402
- * protocol-specification.md §10 requires servers to accept legacy LSAT
- * credentials alongside current L402 credentials.
+ * macaroons that already use the `expiration` condition. The
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §10 requires servers to accept legacy LSAT credentials alongside current
+ * L402 credentials.
  */
 export function expirationCaveat(unixMs: number): Caveat {
   if (!Number.isFinite(unixMs)) {
@@ -198,11 +200,12 @@ export function originCaveat(allowed: string | string[]): Caveat {
 /**
  * Build an `ip=<client-ip>` compatibility caveat.
  *
- * L402 macaroon-spec.md §Caveat Format defines first-party caveats as
- * `condition=value` strings. This helper preserves the legacy Boltwall
- * `ip` caveat shape for deployments that explicitly bind credentials to a
- * request IP address. The caller is responsible for trusting the request IP
- * source, such as a configured reverse proxy.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveat Format defines first-party caveats as `condition=value` strings.
+ * This helper preserves the legacy Boltwall `ip` caveat shape for deployments
+ * that explicitly bind credentials to a request IP address. The caller is
+ * responsible for trusting the request IP source, such as a configured reverse
+ * proxy.
  */
 export function ipCaveat(ip: string): Caveat {
   const value = ip.trim();

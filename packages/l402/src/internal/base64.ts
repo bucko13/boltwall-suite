@@ -1,9 +1,10 @@
 /**
  * Shared base64 codec for L402 macaroon serialization.
  *
- * L402 macaroon-spec.md §Serialization Formats encodes the V2 binary macaroon
- * as base64 for the `Authorization`/`WWW-Authenticate` header and token forms.
- * Both the macaroon codec and the identifier decoder share this conversion.
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Serialization Formats encodes the V2 binary macaroon as base64 for the
+ * `Authorization`/`WWW-Authenticate` header and token forms. Both the macaroon
+ * codec and the identifier decoder share this conversion.
  */
 
 /**

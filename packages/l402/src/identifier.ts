@@ -32,8 +32,9 @@ const TOKEN_ID_LENGTH = 32;
  * edge-safe, and copies its byte fields at the boundary so the instance is
  * immutable by reference.
  *
- * Spec: L402 macaroon-spec.md §Identifier Structure / Version 0 Format defines
- * the 66-byte big-endian identifier embedded in every L402 macaroon.
+ * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Identifier Structure / Version 0 Format defines the 66-byte big-endian
+ * identifier embedded in every L402 macaroon.
  *
  * @example
  * // Decode the identifier from a base64 macaroon coming off the wire.
@@ -90,10 +91,11 @@ export class Identifier implements MacaroonIdentifierV0 {
   /**
    * Serialize this identifier to its 66-byte v0 binary layout.
    *
-   * Spec: L402 macaroon-spec.md §Identifier Structure — all multi-byte integers
-   * are big-endian; version 0 is two zero bytes followed by the 32-byte payment
-   * hash and 32-byte token id. This is the inverse of {@link Identifier.fromMacaroon}'s
-   * identifier extraction and matches the bytes `mintMacaroon` HMACs over.
+   * Spec: [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+   * §Identifier Structure — all multi-byte integers are big-endian; version 0
+   * is two zero bytes followed by the 32-byte payment hash and 32-byte token
+   * id. This is the inverse of {@link Identifier.fromMacaroon}'s identifier
+   * extraction and matches the bytes `mintMacaroon` HMACs over.
    *
    * @example
    * const bytes = Identifier.fromMacaroon(macaroonB64).toBytes();

@@ -30,8 +30,10 @@ export type L402ExpressOptions = L402Config & RequiredBackendCapabilities;
  *
  * Adds a `valid-until` caveat to newly minted challenges at a default rate of
  * one satoshi per second, and verifies both modern `valid-until` and legacy
- * `expiration` caveats. L402 macaroon-spec.md §Caveat Format and
- * §Verification govern the caveat serialization and satisfier checks.
+ * `expiration` caveats. The
+ * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
+ * §Caveat Format and §Verification govern the caveat serialization and
+ * satisfier checks.
  */
 export const TIME_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
   rate: 1,
@@ -88,8 +90,9 @@ export const ROUTE_CAVEAT_CONFIG: Partial<L402ExpressOptions> = {
  * - Express 5 supports promise-returning middleware natively.
  * - Express 4 does not; any thrown errors are forwarded to next(err).
  *
- * L402 protocol-specification.md §5, §10 — status codes and challenge headers
- * are handled by authorizeL402; this adapter only translates the layer.
+ * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
+ * §5, §10 — status codes and challenge headers are handled by authorizeL402;
+ * this adapter only translates the layer.
  */
 export function boltwall(
   options: L402ExpressOptions,
