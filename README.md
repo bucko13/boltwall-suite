@@ -6,27 +6,40 @@
 [![npm](https://img.shields.io/badge/npm-not%20yet%20published-inactive)](https://www.npmjs.com/org/boltwall)
 [![Vercel Production](https://img.shields.io/github/deployments/bucko13/boltwall-suite/Production?label=vercel&logo=vercel&logoColor=white)](https://boltwall-suite-playground.vercel.app)
 
-A TypeScript monorepo for **L402** — the Lightning Network service authentication protocol.
+A TypeScript toolkit for **L402**, the Lightning Network service authentication
+protocol.
 
-**[Try the live playground →](https://boltwall-suite-playground.vercel.app)** — inspect L402 challenges, generate and parse credentials, and walk a paid endpoint end to end.
+**[Try the live playground →](https://boltwall-suite-playground.vercel.app)**
+to inspect L402 challenges, generate and parse credentials, and walk a paid
+endpoint end to end.
 
 ## What is L402?
 
-L402 is a protocol for authenticating access to HTTP services with Lightning Network payments. It uses [macaroons](https://research.google/pubs/pub41892/) (cryptographic bearer tokens with attenuable caveats) bound to Lightning invoices, gating service endpoints behind per-request micropayments — no accounts, no API keys, no rate-limit dashboards.
+L402 authenticates access to HTTP services with Lightning Network payments. It
+uses [macaroons](https://research.google/pubs/pub41892/) (cryptographic bearer
+tokens with attenuable caveats) bound to Lightning invoices, so an endpoint can
+ask for a payment before serving a protected resource. No accounts, API keys, or
+rate-limit dashboard are required.
 
 L402 is the modern incarnation of what was originally called **LSAT**. The wire format and naming have settled; the spec lives at <https://github.com/lightninglabs/L402>.
 
 ## What is Boltwall Suite?
 
-A fresh TypeScript implementation of the L402 ecosystem, modernizing the patterns from earlier projects (`lsat-js`, `boltwall`, `now-boltwall`, `lsat-playground`). Boltwall suite is a monorepo providing a suite of standalone tools for working with L402s either
-to build with in your own codebases (e.g. [`@boltwall/l402`](./packages/l402/README.md) or [`@boltwall/middleware`](./packages/middleware/README.md)) or as simple L402 proxy deployments to use as a paywall for existing servers.
+Boltwall Suite is a fresh TypeScript implementation of the L402 ecosystem,
+modernizing patterns from earlier projects (`lsat-js`, `boltwall`,
+`now-boltwall`, `lsat-playground`). It provides standalone packages for
+protocol work, HTTP middleware, Lightning backends, and proxy deployments, so
+you can add L402 payments to new code or put a paywall in front of an existing
+service.
 
 Design goals:
 
 - **Protocol-correct.** The L402 spec is the source of truth. [Aperture](https://github.com/lightninglabs/aperture) (the Lightning Labs Go implementation) is the interop reference.
 - **Browser and Node.** The core protocol library runs in both. Public API uses `Uint8Array`, not `Buffer`.
-- **Plug and play.** Code should be easy to integrate into other compatible codebases and architectures
-- **Self-guided learning.** Easy to learn how macaroons and bitcoin powered paywalls work.
+- **Plug and play.** Packages should be easy to integrate into existing
+  services and deployment shapes.
+- **Self-guided learning.** The playground and docs should make macaroons and
+  Bitcoin-powered paywalls approachable.
 - **MIT-licensed.** Packages publish under the [`@boltwall`](https://www.npmjs.com/org/boltwall) npm scope.
 
 ## Packages
@@ -41,12 +54,12 @@ Design goals:
 
 These packages are not yet published to npm; clone the repo to use them (see Quickstart).
 
-**Which one do I use?**
+**Which package do I use?**
 
 - Protect an Express/Next.js/Hono endpoint → [`@boltwall/middleware`](./packages/middleware/README.md) + [`@boltwall/adapters`](./packages/adapters/README.md)
 - Parse, mint, or verify L402 headers and credentials → [`@boltwall/l402`](./packages/l402/README.md)
 - Put a payment gate in front of an existing API without changing it → [`@boltwall/proxy`](./packages/proxy/README.md)
-- Just try the full challenge → pay → retry flow → the [playground](https://boltwall-suite-playground.vercel.app)
+- Try the full challenge → pay → retry flow → the [playground](https://boltwall-suite-playground.vercel.app)
 
 ## Quickstart
 
@@ -60,16 +73,23 @@ bun run playground       # starts the playground on http://localhost:3000
 ```
 
 Open <http://localhost:3000> to inspect a `WWW-Authenticate` challenge, generate
-and parse credentials, and walk a paid endpoint end to end. Packages aren't
-published yet (see the badges above) — cloning and running the playground is the
-way to explore today.
+and parse credentials, and walk a paid endpoint end to end. Packages are not
+published yet, so cloning the repo and running the playground is the easiest way
+to explore today.
 
 Working on the suite itself? See [CONTRIBUTING.md](./CONTRIBUTING.md) for setup,
 tests, and the development checks.
 
 ## API Reference
 
-Generated API documentation — built from TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org) — covers the public surface of [`@boltwall/l402`](./packages/l402/README.md), [`@boltwall/middleware`](./packages/middleware/README.md), [`@boltwall/adapters`](./packages/adapters/README.md), and [`@boltwall/proxy`](./packages/proxy/README.md). The generated site starts with a short [API reference landing page](./docs/api-reference.md) that links to the main package entry points and high-value symbols.
+Generated API documentation, built from TypeScript signatures and JSDoc with
+[TypeDoc](https://typedoc.org), covers the public surface of
+[`@boltwall/l402`](./packages/l402/README.md),
+[`@boltwall/middleware`](./packages/middleware/README.md),
+[`@boltwall/adapters`](./packages/adapters/README.md), and
+[`@boltwall/proxy`](./packages/proxy/README.md). Start with the
+[API reference landing page](./docs/api-reference.md) for package entry points
+and high-value symbols.
 
 Build it locally:
 
@@ -78,9 +98,8 @@ bun run docs:api   # outputs a static HTML site to docs-site/
 ```
 
 Then open `docs-site/index.html`. The hosted reference publishes to GitHub Pages
-from `main` via the [Docs workflow](./.github/workflows/docs.yml). It serves
-from <https://bucko13.github.io/boltwall-suite/> once GitHub Pages is enabled
-for the repository (Settings → Pages → Source: "GitHub Actions").
+from `main` via the [Docs workflow](./.github/workflows/docs.yml) and serves at
+<https://bucko13.github.io/boltwall-suite/>.
 
 ## L402 / LSAT compatibility
 
@@ -152,10 +171,10 @@ challenge → pay → retry path end to end.
 
 These projects are referenced for historical context.
 
-- [Tierion/lsat-js](https://github.com/Tierion/lsat-js) — legacy MIT protocol library.
-- [bucko13/boltwall](https://github.com/bucko13/boltwall) — legacy server middleware (AGPL-3.0).
-- [bucko13/now-boltwall](https://github.com/bucko13/now-boltwall) — legacy Vercel deploy CLI.
-- [bucko13/lsat-playground](https://github.com/bucko13/lsat-playground) — legacy demo site.
+- [Tierion/lsat-js](https://github.com/Tierion/lsat-js): legacy MIT protocol library.
+- [bucko13/boltwall](https://github.com/bucko13/boltwall): legacy server middleware (AGPL-3.0).
+- [bucko13/now-boltwall](https://github.com/bucko13/now-boltwall): legacy Vercel deploy CLI.
+- [bucko13/lsat-playground](https://github.com/bucko13/lsat-playground): legacy demo site.
 
 For the Go reference implementation, see [lightninglabs/aperture](https://github.com/lightninglabs/aperture).
 
