@@ -1,6 +1,5 @@
 "use client";
 
-import { createParser, useQueryState } from "nuqs";
 import {
   createContext,
   createElement,
@@ -9,16 +8,8 @@ import {
   useContext,
   useEffect,
   useMemo,
-  useRef,
   useState,
 } from "react";
-
-export type ParseUrlInput<T> = (raw: string | null) => T;
-export type SerializeUrlInput<T> = (value: T) => string | null;
-
-export type UrlInputOptions = {
-  panel?: string;
-};
 
 export type WorkbenchMemoryField = "signingKey" | "macaroon" | "challenge" | "credential";
 
@@ -35,7 +26,6 @@ type WorkbenchMemoryContextValue = {
 };
 
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
-const WORKBENCH_MEMORY_CLEAR_EVENT = "boltwall:workbench-memory-clear";
 const WORKBENCH_MEMORY_STORAGE_KEY = "bw.workbench-memory";
 
 type WorkbenchMemorySnapshot = Record<WorkbenchMemoryField, string>;
@@ -78,11 +68,14 @@ function writeStoredWorkbenchMemory(snapshot: WorkbenchMemorySnapshot) {
   }
 }
 
-function notifyMemoryFieldCleared(field: WorkbenchMemoryField) {
-  if (typeof window === "undefined") return;
-  window.dispatchEvent(new CustomEvent(WORKBENCH_MEMORY_CLEAR_EVENT, { detail: { field } }));
-}
-
+/**
+ * Provides Workbench memory: the per-tab carrier for artifacts (signing key,
+ * macaroon, challenge, credential) staged in one panel and loaded into another.
+ * Panels never auto-sync their inputs here — values enter a panel only through an
+ * explicit "Fill from workbench" action, and a panel writes here only as a
+ * deliberate producer (e.g. Generate's minted outputs, Signing Key's key).
+ * Persisted in sessionStorage so it survives navigation within the tab.
+ */
 export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const [signingKey, setSigningKeyState] = useState("");
   const [macaroon, setMacaroonState] = useState("");
@@ -104,31 +97,12 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     writeStoredWorkbenchMemory({ signingKey, macaroon, challenge, credential });
   }, [challenge, credential, macaroon, signingKey, storageHydrated]);
 
-  const setSigningKey = useCallback((value: string | null) => {
-    if (!value) notifyMemoryFieldCleared("signingKey");
-    setSigningKeyState(value || "");
-  }, []);
-
-  const setMacaroon = useCallback((value: string | null) => {
-    if (!value) notifyMemoryFieldCleared("macaroon");
-    setMacaroonState(value || "");
-  }, []);
-
-  const setChallenge = useCallback((value: string | null) => {
-    if (!value) notifyMemoryFieldCleared("challenge");
-    setChallengeState(value || "");
-  }, []);
-
-  const setCredential = useCallback((value: string | null) => {
-    if (!value) notifyMemoryFieldCleared("credential");
-    setCredentialState(value || "");
-  }, []);
+  const setSigningKey = useCallback((value: string | null) => setSigningKeyState(value || ""), []);
+  const setMacaroon = useCallback((value: string | null) => setMacaroonState(value || ""), []);
+  const setChallenge = useCallback((value: string | null) => setChallengeState(value || ""), []);
+  const setCredential = useCallback((value: string | null) => setCredentialState(value || ""), []);
 
   const clear = useCallback(() => {
-    notifyMemoryFieldCleared("signingKey");
-    notifyMemoryFieldCleared("macaroon");
-    notifyMemoryFieldCleared("challenge");
-    notifyMemoryFieldCleared("credential");
     setSigningKeyState("");
     setMacaroonState("");
     setChallengeState("");
@@ -163,137 +137,13 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   return createElement(WorkbenchMemoryContext.Provider, { value: contextValue }, children);
 }
 
+/**
+ * Read the Workbench memory carrier. Returns null outside the provider.
+ *
+ * @example
+ * const workbench = useWorkbenchMemory();
+ * workbench?.setMacaroon(minted); // stage an artifact for other panels
+ */
 export function useWorkbenchMemory() {
   return useContext(WorkbenchMemoryContext);
-}
-
-function getMemoryValue(memory: WorkbenchMemoryContextValue | null, field: WorkbenchMemoryField) {
-  if (!memory) return "";
-  if (field === "signingKey") return memory.signingKey;
-  if (field === "challenge") return memory.challenge;
-  if (field === "credential") return memory.credential;
-  return memory.macaroon;
-}
-
-function setMemoryValue(
-  memory: WorkbenchMemoryContextValue | null,
-  field: WorkbenchMemoryField,
-  value: string | null,
-) {
-  if (!memory) return;
-  if (field === "signingKey") {
-    memory.setSigningKey(value);
-    return;
-  }
-  if (field === "challenge") {
-    memory.setChallenge(value);
-    return;
-  }
-  if (field === "credential") {
-    memory.setCredential(value);
-    return;
-  }
-  memory.setMacaroon(value);
-}
-
-/**
- * Keeps a single input value in sync with the current URL search params.
- * The API matches the planned panel usage so callers stay scoped to one key.
- */
-export function useUrlInput<T>(
-  key: string,
-  parse: ParseUrlInput<T>,
-  serialize: SerializeUrlInput<T>,
-  options: UrlInputOptions = {},
-) {
-  const scopedKey = options.panel ? `${options.panel}.${key}` : key;
-  return useQueryState(
-    scopedKey,
-    createParser({
-      parse: (value) => parse(value),
-      serialize: (value) => {
-        const serialized = serialize(value);
-        return serialized ?? "";
-      },
-    }).withOptions({
-      scroll: false,
-    }),
-  );
-}
-
-export function useRememberedStringInput(
-  key: string,
-  options: UrlInputOptions & {
-    field: WorkbenchMemoryField;
-    /**
-     * Optional validity gate. When provided, a non-empty value is only written
-     * to Workbench memory once it passes; partial or invalid input is left out
-     * of memory instead of storing a half-typed value. The URL value (and the
-     * panel's controlled input) still tracks every keystroke either way.
-     */
-    validate?: (value: string) => boolean;
-  },
-) {
-  const memory = useWorkbenchMemory();
-  const [urlValue, setUrlValue] = useUrlInput<string>(
-    key,
-    (raw) => raw ?? "",
-    (value) => value || null,
-    options.panel ? { panel: options.panel } : {},
-  );
-  const memoryValue = getMemoryValue(memory, options.field);
-  const value = urlValue ?? memoryValue;
-  const previousMemoryValue = useRef(memoryValue);
-
-  const validate = options.validate;
-  const commitToMemory = useCallback(
-    (next: string | null) => {
-      if (!next) {
-        // Cleared input clears the remembered field.
-        setMemoryValue(memory, options.field, null);
-        return;
-      }
-      if (validate && !validate(next)) {
-        // Partial / invalid input: leave Workbench memory untouched. Do not
-        // clear here — clearing fires the memory-clear cascade below and would
-        // wipe the in-progress input the user is still typing.
-        return;
-      }
-      setMemoryValue(memory, options.field, next);
-    },
-    [memory, options.field, validate],
-  );
-
-  useEffect(() => {
-    const memoryWasJustCleared = Boolean(previousMemoryValue.current && !memoryValue);
-    if (urlValue && !memoryWasJustCleared) {
-      commitToMemory(urlValue);
-    }
-  }, [commitToMemory, memoryValue, urlValue]);
-
-  useEffect(() => {
-    if (previousMemoryValue.current && !memoryValue && urlValue) {
-      void setUrlValue(null);
-    }
-    previousMemoryValue.current = memoryValue;
-  }, [memoryValue, setUrlValue, urlValue]);
-
-  useEffect(() => {
-    function onMemoryClear(event: Event) {
-      const detail = (event as CustomEvent<{ field?: WorkbenchMemoryField }>).detail;
-      if (detail?.field === options.field) {
-        void setUrlValue(null);
-      }
-    }
-
-    window.addEventListener(WORKBENCH_MEMORY_CLEAR_EVENT, onMemoryClear);
-    return () => window.removeEventListener(WORKBENCH_MEMORY_CLEAR_EVENT, onMemoryClear);
-  }, [options.field, setUrlValue]);
-
-  function setValue(next: string | null) {
-    commitToMemory(next);
-    return setUrlValue(next);
-  }
-
-  return [value, setValue] as const;
 }

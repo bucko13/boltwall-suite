@@ -3,24 +3,25 @@
 import { useState } from "react";
 
 import { bytesToHex } from "../../lib/hex";
-import { useRememberedStringInput } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
-import { CopyUrlButton } from "../ui/copy-url-button";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
 import { panelInputStyle } from "./panel-styles";
 
-const PANEL = "signing-key";
-
 export function SigningKey() {
-  const [key, setKey] = useRememberedStringInput("key", {
-    panel: PANEL,
-    field: "signingKey",
-  });
-
+  const workbenchMemory = useWorkbenchMemory();
+  // Local input state. Signing Key is the deliberate producer of the Workbench
+  // signing key, so it writes there explicitly (other panels Fill from it).
+  const [key, setKeyState] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
+
+  function setKey(value: string | null) {
+    setKeyState(value);
+    workbenchMemory?.setSigningKey(value);
+  }
 
   function generate() {
     const bytes = new Uint8Array(32);
@@ -55,12 +56,9 @@ export function SigningKey() {
           title="Signing Key"
           subtitle="32-byte root key for macaroon HMAC chain"
           trailing={
-            <>
-              <StatusPill state={status} details={error}>
-                {statusLabel}
-              </StatusPill>
-              <CopyUrlButton />
-            </>
+            <StatusPill state={status} details={error}>
+              {statusLabel}
+            </StatusPill>
           }
         />
       }
