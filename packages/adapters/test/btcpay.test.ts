@@ -5,6 +5,8 @@ import {
   BtcPayAdapter,
   BtcPayAdapterError,
   BtcPayEnvError,
+  btcPayEnvVariables,
+  btcPayProviderMetadata,
   createBtcPayAdapterFromEnv,
   loadBtcPayEnv,
   type BtcPayFetch,
@@ -283,6 +285,36 @@ describe("BtcPayAdapter", () => {
 });
 
 describe("loadBtcPayEnv", () => {
+  test("exports env metadata aligned with parsing and redaction", () => {
+    expect(btcPayEnvVariables.map((entry) => entry.name)).toEqual([
+      "BTCPAY_BASE_URL",
+      "BTCPAY_API_KEY",
+      "BTCPAY_STORE_ID",
+      "BTCPAY_CRYPTO_CODE",
+      "BTCPAY_HODL_INVOICES",
+      "BTCPAY_STREAMING_INVOICES",
+    ]);
+    expect(btcPayEnvVariables.find((entry) => entry.name === "BTCPAY_API_KEY")).toMatchObject({
+      required: true,
+      mapsTo: "apiKey",
+      secret: true,
+    });
+    expect(btcPayEnvVariables.find((entry) => entry.name === "BTCPAY_CRYPTO_CODE")).toMatchObject({
+      required: false,
+      mapsTo: "cryptoCode",
+      defaultValue: "BTC",
+    });
+    expect(btcPayEnvVariables.find((entry) => entry.name === "BTCPAY_HODL_INVOICES")).toMatchObject(
+      {
+        required: false,
+        mapsTo: "features.hodlInvoices",
+        valueType: "boolean",
+        defaultValue: "false",
+        allowedValues: ["true", "false", "1", "0"],
+      },
+    );
+  });
+
   test("returns a typed config with defaults", () => {
     expect(
       loadBtcPayEnv({
@@ -347,6 +379,29 @@ describe("loadBtcPayEnv", () => {
         BTCPAY_HODL_INVOICES: "true",
       }),
     ).toThrow("HODL invoices are not supported");
+  });
+});
+
+describe("btcPayProviderMetadata", () => {
+  test("matches adapter capabilities and env metadata", () => {
+    const adapter = new BtcPayAdapter({
+      baseUrl: "https://btcpay.example",
+      apiKey: API_KEY,
+      storeId: "store-123",
+    });
+
+    expect(btcPayProviderMetadata.provider).toBe(adapter.kind);
+    expect(btcPayProviderMetadata.env).toBe(btcPayEnvVariables);
+    expect(
+      Object.fromEntries(
+        btcPayProviderMetadata.features.map((feature) => [feature.name, feature.support]),
+      ),
+    ).toEqual({
+      customDescription: adapter.capabilities.customDescription ? "supported" : "unsupported",
+      hodlInvoices: adapter.capabilities.hodl ? "supported" : "unsupported",
+      cancelInvoice: adapter.capabilities.cancelInvoice ? "supported" : "unsupported",
+      streamingInvoices: adapter.capabilities.streamingInvoices ? "supported" : "unsupported",
+    });
   });
 });
 

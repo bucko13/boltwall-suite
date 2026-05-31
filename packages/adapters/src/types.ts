@@ -38,6 +38,65 @@ export interface BackendCapabilities {
  */
 export type RequiredBackendCapabilities = Partial<Record<keyof BackendCapabilities, true>>;
 
+/** Parsed value type used by adapter environment-variable metadata. */
+export type AdapterEnvValueType = "string" | "url" | "boolean";
+
+/**
+ * Public metadata for one supported adapter environment variable.
+ *
+ * Adapter READMEs link to these exported values instead of maintaining
+ * separate env-var tables. Secret metadata marks variables whose values must
+ * never be logged, echoed in errors, or committed in `.env` files.
+ */
+export interface AdapterEnvVariableMetadata {
+  /** Environment variable name read by the adapter env loader. */
+  readonly name: string;
+  /** `true` when the loader rejects missing or empty values. */
+  readonly required: boolean;
+  /** Adapter option path populated from this variable. */
+  readonly mapsTo: string;
+  /** Parsed value shape. */
+  readonly valueType: AdapterEnvValueType;
+  /** Default applied when an optional variable is omitted. */
+  readonly defaultValue?: string;
+  /** Accepted literal values for constrained variables. */
+  readonly allowedValues?: readonly string[];
+  /** Short description for users configuring the adapter. */
+  readonly description: string;
+  /** `true` when the value is credential material. */
+  readonly secret?: boolean;
+}
+
+/** Public support level for one provider capability. */
+export type AdapterFeatureSupport = "supported" | "unsupported";
+
+/** Public metadata for one provider capability. */
+export interface AdapterFeatureMetadata {
+  /** Capability or feature name as exposed in adapter options/contracts. */
+  readonly name: string;
+  /** Whether the current adapter implementation supports the capability. */
+  readonly support: AdapterFeatureSupport;
+  /** Short rationale for the support level. */
+  readonly description: string;
+}
+
+/**
+ * Public metadata for a concrete adapter provider.
+ *
+ * This describes facts that are useful in API reference and CLI/help output
+ * without requiring README-maintained capability tables.
+ */
+export interface AdapterProviderMetadata {
+  /** Provider identifier used by the adapter package. */
+  readonly provider: BackendKind;
+  /** Human-readable provider name. */
+  readonly label: string;
+  /** Environment variables consumed by the provider env loader. */
+  readonly env: readonly AdapterEnvVariableMetadata[];
+  /** Provider capability facts. */
+  readonly features: readonly AdapterFeatureMetadata[];
+}
+
 /**
  * Human-readable backend family. The string is descriptive only; security
  * decisions must use capabilities and verified invoice state instead.

@@ -1,4 +1,36 @@
+import type { AdapterEnvVariableMetadata } from "../types";
+
 import { OpenNodeApiError } from "./rest-client";
+
+const OPENNODE_API_KEY_ENV = "OPENNODE_API_KEY";
+const OPENNODE_BASE_URL_ENV = "OPENNODE_BASE_URL";
+
+/**
+ * Environment variables supported by `loadOpenNodeEnv`.
+ *
+ * The values are metadata only. Secret variables are marked so reference
+ * output, CLIs, and tests can describe the supported configuration without
+ * echoing credential values.
+ */
+export const openNodeEnvVariables = [
+  {
+    name: OPENNODE_API_KEY_ENV,
+    required: true,
+    mapsTo: "apiKey",
+    valueType: "string",
+    secret: true,
+    description: "OpenNode API key from the development or production dashboard.",
+  },
+  {
+    name: OPENNODE_BASE_URL_ENV,
+    required: false,
+    mapsTo: "baseUrl",
+    valueType: "url",
+    defaultValue: "https://api.opennode.com",
+    description:
+      "Optional OpenNode API base URL. Use https://dev-api.opennode.com with development-environment keys.",
+  },
+] as const satisfies readonly AdapterEnvVariableMetadata[];
 
 export interface OpenNodeEnv {
   /** API key from the OpenNode development or production dashboard. */
@@ -36,9 +68,8 @@ export class OpenNodeEnvError extends Error {
 /**
  * Validate and load OpenNode credentials from an env-like record.
  *
- * The matching environment variables are:
- * - `OPENNODE_API_KEY`
- * - `OPENNODE_BASE_URL` (optional; defaults in `OpenNodeAdapter`)
+ * The matching environment variables are exported as `openNodeEnvVariables` for
+ * API reference and CLI/help output.
  *
  * `OPENNODE_BASE_URL` must use HTTPS. Use `https://dev-api.opennode.com` with
  * OpenNode development-environment keys and `https://api.opennode.com` for
@@ -59,17 +90,17 @@ export function loadOpenNodeEnv(
   const missing: string[] = [];
   const invalid: string[] = [];
 
-  const apiKey = env.OPENNODE_API_KEY;
+  const apiKey = env[OPENNODE_API_KEY_ENV];
   if (apiKey === undefined || apiKey.trim() === "") {
-    missing.push("OPENNODE_API_KEY");
+    missing.push(OPENNODE_API_KEY_ENV);
   }
 
-  const baseUrl = env.OPENNODE_BASE_URL;
+  const baseUrl = env[OPENNODE_BASE_URL_ENV];
   if (baseUrl !== undefined && baseUrl.trim() !== "") {
     try {
       assertHttpsUrl(baseUrl);
     } catch {
-      invalid.push("OPENNODE_BASE_URL");
+      invalid.push(OPENNODE_BASE_URL_ENV);
     }
   }
 

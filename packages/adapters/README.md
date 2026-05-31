@@ -6,7 +6,7 @@ New to L402? See the [project README](../../README.md#what-is-l402) for how
 the packages fit together. The generated
 [API reference](https://bucko13.github.io/boltwall-suite/modules/_boltwall_adapters.html)
 is the durable reference for constructor options, capability flags, environment
-loaders, errors, and persistence hooks.
+loaders, provider metadata, errors, and persistence hooks.
 
 The root entrypoint exposes the shared backend contract only. Concrete adapters
 are loaded from subpath entrypoints so consumers do not pull unused provider
@@ -65,6 +65,10 @@ Use `OpenNodeAdapter` for explicit configuration or to inject a persistent
 that must look up invoices after a restart should persist the
 `paymentHash -> chargeId` mapping outside the adapter.
 
+`openNodeEnvVariables` and `openNodeProviderMetadata` describe supported
+environment variables and provider capability facts for API reference and
+CLI/help output.
+
 ## BTCPay Server
 
 ```ts
@@ -77,6 +81,9 @@ BTCPay lookups require the opaque provider invoice id returned during creation.
 The current adapter keeps that `paymentHash -> invoiceId` index in process
 memory. Deployments that need restart-safe BTCPay lookup should add or wrap
 persistent storage before relying on long-lived invoices.
+
+`btcPayEnvVariables` and `btcPayProviderMetadata` describe supported environment
+variables and provider capability facts for API reference and CLI/help output.
 
 ## Testing adapter
 

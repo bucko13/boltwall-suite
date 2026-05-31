@@ -1,4 +1,72 @@
+import type { AdapterEnvVariableMetadata } from "../types";
+
 import type { BtcPayAdapterFeatures } from "./index";
+
+const BTCPAY_BASE_URL_ENV = "BTCPAY_BASE_URL";
+const BTCPAY_API_KEY_ENV = "BTCPAY_API_KEY";
+const BTCPAY_STORE_ID_ENV = "BTCPAY_STORE_ID";
+const BTCPAY_CRYPTO_CODE_ENV = "BTCPAY_CRYPTO_CODE";
+const BTCPAY_HODL_INVOICES_ENV = "BTCPAY_HODL_INVOICES";
+const BTCPAY_STREAMING_INVOICES_ENV = "BTCPAY_STREAMING_INVOICES";
+
+/**
+ * Environment variables supported by `loadBtcPayEnv`.
+ *
+ * Secret variables are marked for reference output and CLIs. Boolean feature
+ * assertions are validated at startup and unsupported `true` values are later
+ * rejected by the adapter constructor.
+ */
+export const btcPayEnvVariables = [
+  {
+    name: BTCPAY_BASE_URL_ENV,
+    required: true,
+    mapsTo: "baseUrl",
+    valueType: "url",
+    description: "BTCPay Server origin, optionally including a reverse-proxy path prefix.",
+  },
+  {
+    name: BTCPAY_API_KEY_ENV,
+    required: true,
+    mapsTo: "apiKey",
+    valueType: "string",
+    secret: true,
+    description: "BTCPay Greenfield API key.",
+  },
+  {
+    name: BTCPAY_STORE_ID_ENV,
+    required: true,
+    mapsTo: "storeId",
+    valueType: "string",
+    description: "BTCPay store id that owns the Lightning node configuration.",
+  },
+  {
+    name: BTCPAY_CRYPTO_CODE_ENV,
+    required: false,
+    mapsTo: "cryptoCode",
+    valueType: "string",
+    defaultValue: "BTC",
+    description: "Greenfield cryptocurrency code used in BTCPay Lightning routes.",
+  },
+  {
+    name: BTCPAY_HODL_INVOICES_ENV,
+    required: false,
+    mapsTo: "features.hodlInvoices",
+    valueType: "boolean",
+    defaultValue: "false",
+    allowedValues: ["true", "false", "1", "0"],
+    description: "Deployment assertion for HODL invoice support. Current adapter rejects true.",
+  },
+  {
+    name: BTCPAY_STREAMING_INVOICES_ENV,
+    required: false,
+    mapsTo: "features.streamingInvoices",
+    valueType: "boolean",
+    defaultValue: "false",
+    allowedValues: ["true", "false", "1", "0"],
+    description:
+      "Deployment assertion for invoice streaming support. Current adapter rejects true.",
+  },
+] as const satisfies readonly AdapterEnvVariableMetadata[];
 
 /**
  * Validated BTCPay adapter configuration loaded from environment variables.
@@ -45,15 +113,8 @@ export class BtcPayEnvError extends Error {
 /**
  * Validate BTCPay Server Greenfield credentials from an env-like record.
  *
- * Required variables:
- * - `BTCPAY_BASE_URL`
- * - `BTCPAY_API_KEY`
- * - `BTCPAY_STORE_ID`
- *
- * Optional variables:
- * - `BTCPAY_CRYPTO_CODE` defaults to `BTC`
- * - `BTCPAY_HODL_INVOICES` defaults to `false`
- * - `BTCPAY_STREAMING_INVOICES` defaults to `false`
+ * Supported variables are exported as `btcPayEnvVariables` for API reference
+ * and CLI/help output.
  *
  * Boolean feature variables accept `true`, `false`, `1`, or `0`. Values are
  * validated at process startup and error messages never include secret values.
@@ -70,20 +131,20 @@ export function loadBtcPayEnv(env: Record<string, string | undefined> = process.
   const missing: string[] = [];
   const invalid: string[] = [];
 
-  const baseUrl = requiredEnv(env, "BTCPAY_BASE_URL", missing);
+  const baseUrl = requiredEnv(env, BTCPAY_BASE_URL_ENV, missing);
   if (baseUrl !== undefined && !isHttpUrl(baseUrl)) {
-    invalid.push("BTCPAY_BASE_URL");
+    invalid.push(BTCPAY_BASE_URL_ENV);
   }
 
-  const apiKey = requiredEnv(env, "BTCPAY_API_KEY", missing);
-  const storeId = requiredEnv(env, "BTCPAY_STORE_ID", missing);
-  const cryptoCode = optionalEnv(env, "BTCPAY_CRYPTO_CODE") ?? "BTC";
+  const apiKey = requiredEnv(env, BTCPAY_API_KEY_ENV, missing);
+  const storeId = requiredEnv(env, BTCPAY_STORE_ID_ENV, missing);
+  const cryptoCode = optionalEnv(env, BTCPAY_CRYPTO_CODE_ENV) ?? "BTC";
   if (!/^[A-Za-z0-9]+$/.test(cryptoCode)) {
-    invalid.push("BTCPAY_CRYPTO_CODE");
+    invalid.push(BTCPAY_CRYPTO_CODE_ENV);
   }
 
-  const hodlInvoices = parseOptionalBoolean(env, "BTCPAY_HODL_INVOICES", invalid);
-  const streamingInvoices = parseOptionalBoolean(env, "BTCPAY_STREAMING_INVOICES", invalid);
+  const hodlInvoices = parseOptionalBoolean(env, BTCPAY_HODL_INVOICES_ENV, invalid);
+  const streamingInvoices = parseOptionalBoolean(env, BTCPAY_STREAMING_INVOICES_ENV, invalid);
 
   if (missing.length > 0 || invalid.length > 0) {
     throw new BtcPayEnvError(missing, invalid);

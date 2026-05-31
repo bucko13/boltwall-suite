@@ -9,17 +9,52 @@ import type {
   CreateInvoiceRequest,
   InvoiceLookup,
   LightningBackend,
+  AdapterProviderMetadata,
 } from "../types";
 
-import { loadOpenNodeEnv, OpenNodeEnvError } from "./env";
+import { loadOpenNodeEnv, OpenNodeEnvError, openNodeEnvVariables } from "./env";
 import { OpenNodeRestClient, type OpenNodeCharge, type OpenNodeFetch } from "./rest-client";
 
-export { loadOpenNodeEnv, OpenNodeEnvError, type OpenNodeEnv } from "./env";
+export { loadOpenNodeEnv, OpenNodeEnvError, openNodeEnvVariables, type OpenNodeEnv } from "./env";
 export { OpenNodeApiError, type OpenNodeFetch } from "./rest-client";
 
 const OPENNODE_DEFAULT_BASE_URL = "https://api.opennode.com";
 const OPENNODE_MIN_TTL_MINUTES = 10;
 const OPENNODE_MAX_TTL_MINUTES = 4_320;
+
+/**
+ * Provider details for the OpenNode adapter.
+ *
+ * Use this value for environment-variable help and capability reference.
+ */
+export const openNodeProviderMetadata = {
+  provider: "opennode",
+  label: "OpenNode",
+  env: openNodeEnvVariables,
+  features: [
+    {
+      name: "customDescription",
+      support: "supported",
+      description: "Invoice descriptions are forwarded to OpenNode charge creation.",
+    },
+    {
+      name: "hodlInvoices",
+      support: "unsupported",
+      description: "The documented OpenNode charge lifecycle does not expose HODL settlement.",
+    },
+    {
+      name: "cancelInvoice",
+      support: "unsupported",
+      description:
+        "The adapter does not expose charge cancellation through the normalized backend contract.",
+    },
+    {
+      name: "streamingInvoices",
+      support: "unsupported",
+      description: "The adapter implements explicit lookup polling, not subscribeInvoices().",
+    },
+  ],
+} as const satisfies AdapterProviderMetadata;
 
 /**
  * Normalized fields recovered from an OpenNode BOLT 11 payment request.

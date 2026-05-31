@@ -8,6 +8,8 @@ import {
   OpenNodeEnvError,
   createOpenNodeAdapterFromEnv,
   loadOpenNodeEnv,
+  openNodeEnvVariables,
+  openNodeProviderMetadata,
   type OpenNodeChargeStore,
   type OpenNodeFetch,
 } from "../src/opennode";
@@ -255,18 +257,18 @@ describe("OpenNodeAdapter", () => {
     }
   });
 
-  test.each([
-    { hodlInvoices: true },
-    { streamingInvoices: true },
-  ])("rejects unsupported feature flags at construction (%o)", (features) => {
-    try {
-      new OpenNodeAdapter({ apiKey: API_KEY, features });
-      throw new Error("expected throw");
-    } catch (error) {
-      expect(error).toBeInstanceOf(OpenNodeAdapterError);
-      expect((error as OpenNodeAdapterError).kind).toBe("unsupported-feature");
-    }
-  });
+  test.each([{ hodlInvoices: true }, { streamingInvoices: true }])(
+    "rejects unsupported feature flags at construction (%o)",
+    (features) => {
+      try {
+        new OpenNodeAdapter({ apiKey: API_KEY, features });
+        throw new Error("expected throw");
+      } catch (error) {
+        expect(error).toBeInstanceOf(OpenNodeAdapterError);
+        expect((error as OpenNodeAdapterError).kind).toBe("unsupported-feature");
+      }
+    },
+  );
 
   test("has capability flags that reject HODL at boot-time validation", () => {
     const adapter = new OpenNodeAdapter({ apiKey: API_KEY });
@@ -282,6 +284,24 @@ describe("OpenNodeAdapter", () => {
 });
 
 describe("loadOpenNodeEnv", () => {
+  test("exports env metadata aligned with parsing and redaction", () => {
+    expect(openNodeEnvVariables.map((entry) => entry.name)).toEqual([
+      "OPENNODE_API_KEY",
+      "OPENNODE_BASE_URL",
+    ]);
+    expect(openNodeEnvVariables.find((entry) => entry.name === "OPENNODE_API_KEY")).toMatchObject({
+      required: true,
+      mapsTo: "apiKey",
+      secret: true,
+    });
+    expect(openNodeEnvVariables.find((entry) => entry.name === "OPENNODE_BASE_URL")).toMatchObject({
+      required: false,
+      mapsTo: "baseUrl",
+      valueType: "url",
+      defaultValue: "https://api.opennode.com",
+    });
+  });
+
   test("returns valid typed config", () => {
     expect(
       loadOpenNodeEnv({
@@ -311,6 +331,23 @@ describe("loadOpenNodeEnv", () => {
 });
 
 describe("createOpenNodeAdapterFromEnv", () => {
+  test("exports provider metadata aligned with adapter capabilities", () => {
+    const adapter = new OpenNodeAdapter({ apiKey: API_KEY });
+
+    expect(openNodeProviderMetadata.provider).toBe(adapter.kind);
+    expect(openNodeProviderMetadata.env).toBe(openNodeEnvVariables);
+    expect(
+      Object.fromEntries(
+        openNodeProviderMetadata.features.map((feature) => [feature.name, feature.support]),
+      ),
+    ).toEqual({
+      customDescription: adapter.capabilities.customDescription ? "supported" : "unsupported",
+      hodlInvoices: adapter.capabilities.hodl ? "supported" : "unsupported",
+      cancelInvoice: adapter.capabilities.cancelInvoice ? "supported" : "unsupported",
+      streamingInvoices: adapter.capabilities.streamingInvoices ? "supported" : "unsupported",
+    });
+  });
+
   test("composes env loading and adapter construction", async () => {
     const calls: RequestCall[] = [];
     const adapter = createOpenNodeAdapterFromEnv(

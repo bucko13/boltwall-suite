@@ -8,9 +8,10 @@ import type {
   CreateInvoiceRequest,
   InvoiceLookup,
   LightningBackend,
+  AdapterProviderMetadata,
 } from "../types";
 
-import { loadBtcPayEnv, type BtcPayEnv } from "./env";
+import { btcPayEnvVariables, loadBtcPayEnv, type BtcPayEnv } from "./env";
 import {
   BtcPayAdapterError,
   BtcPayRestClient,
@@ -25,9 +26,44 @@ export {
   type BtcPayFetch,
   type BtcPayLightningInvoiceData,
 } from "./rest-client";
-export { BtcPayEnvError, loadBtcPayEnv, type BtcPayEnv } from "./env";
+export { BtcPayEnvError, btcPayEnvVariables, loadBtcPayEnv, type BtcPayEnv } from "./env";
 
 const DEFAULT_CRYPTO_CODE = "BTC";
+
+/**
+ * Provider details for the BTCPay Server adapter.
+ *
+ * Use this value for environment-variable help and capability reference.
+ */
+export const btcPayProviderMetadata = {
+  provider: "btcpay",
+  label: "BTCPay Server",
+  env: btcPayEnvVariables,
+  features: [
+    {
+      name: "customDescription",
+      support: "supported",
+      description: "Invoice descriptions are forwarded to the Greenfield create-invoice request.",
+    },
+    {
+      name: "hodlInvoices",
+      support: "unsupported",
+      description:
+        "The documented Greenfield store Lightning invoice schema does not expose HODL creation.",
+    },
+    {
+      name: "cancelInvoice",
+      support: "unsupported",
+      description:
+        "The adapter does not expose cancellation through the normalized backend contract.",
+    },
+    {
+      name: "streamingInvoices",
+      support: "unsupported",
+      description: "The adapter implements explicit lookup polling, not subscribeInvoices().",
+    },
+  ],
+} as const satisfies AdapterProviderMetadata;
 
 /**
  * Clock injection point used to make expiry-sensitive status mapping

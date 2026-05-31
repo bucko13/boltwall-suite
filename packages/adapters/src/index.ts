@@ -1,6 +1,11 @@
 export type {
   BackendCapabilities,
   BackendKind,
+  AdapterEnvValueType,
+  AdapterEnvVariableMetadata,
+  AdapterFeatureMetadata,
+  AdapterFeatureSupport,
+  AdapterProviderMetadata,
   CreatedInvoice,
   CreateInvoiceRequest,
   InvoiceLookup,
