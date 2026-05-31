@@ -39,6 +39,8 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("error");
 
     await page.click("[data-testid='signing-key-generate']");
+    // The signing key is carried via the Workbench; load it into Generate explicitly.
+    await page.click("[data-testid='generate-token-fill-key']");
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(
       /^[0-9a-f]{64}$/,
     );
@@ -48,12 +50,10 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
 
   test("reset clears output", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
-    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(2);
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
     await page.click("[data-testid='generate-token-reset']");
     await expect(page.locator("[data-testid='generate-token-output']")).not.toBeVisible();
-    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(0);
   });
 
   test("code snippet reflects key value", async ({ page }) => {

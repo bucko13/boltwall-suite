@@ -97,13 +97,19 @@ test.describe("panels / signing-key", () => {
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
     await page.getByRole("link", { name: "Generate" }).click();
+    // Generate's key input is local; load the remembered key explicitly.
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue("");
+    await page.click("[data-testid='generate-token-fill-key']");
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
+    // Clearing the Workbench no longer retroactively wipes the local input; the
+    // fill action just becomes unavailable.
     await page.click("[data-testid='workbench-memory-key-clear']");
-    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue("");
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
       "signing key: empty",
     );
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
+    await expect(page.locator("[data-testid='generate-token-fill-key']")).toBeDisabled();
   });
 });

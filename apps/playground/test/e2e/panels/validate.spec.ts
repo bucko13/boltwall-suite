@@ -130,6 +130,8 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
 
     await page.getByRole("link", { name: "Generate" }).click();
+    // Generate inputs are local now; load the signing key from the Workbench.
+    await page.click("[data-testid='generate-token-fill-key']");
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();

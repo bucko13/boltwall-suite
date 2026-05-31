@@ -1,25 +1,19 @@
 "use client";
 
-import {
-  decodeBolt11Invoice,
-  L402,
-  mintMacaroon,
-  type MacaroonIdentifierV0,
-} from "@boltwall/l402";
+import { decodeBolt11Invoice, L402, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
 import { useEffect, useState } from "react";
 
 import { bytesToHex, hexToBytes } from "../../lib/hex";
-import { useRememberedStringInput, useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
-import { CopyUrlButton } from "../ui/copy-url-button";
+import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
 import { panelInputStyle } from "./panel-styles";
 
-const PANEL = "from-invoice";
 const MISSING_KEY_ERROR = "Paste a 64-char hex root key.";
 const INVALID_KEY_ERROR = "Root key must be exactly 64 hex characters (32 bytes).";
 const INVALID_PREIMAGE_ERROR = "Preimage must be exactly 64 hex characters (32 bytes).";
@@ -27,24 +21,12 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
 
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();
-  const [key, setKey] = useRememberedStringInput("key", {
-    panel: PANEL,
-    field: "signingKey",
-  });
-
-  const [invoice, setInvoice] = useUrlInput<string>(
-    "invoice",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-
-  const [preimage, setPreimage] = useUrlInput<string>(
-    "preimage",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  // Inputs are plain local state — never auto-synced to the URL or Workbench.
+  // The signing key is loaded from the Workbench via the explicit Fill button;
+  // minted outputs are still written to the Workbench (Generate is a producer).
+  const [key, setKey] = useState<string | null>(null);
+  const [invoice, setInvoice] = useState<string | null>(null);
+  const [preimage, setPreimage] = useState<string | null>(null);
 
   const [macaroon, setMacaroon] = useState<string | null>(null);
   const [mintedIdentifier, setMintedIdentifier] = useState<{
@@ -218,12 +200,9 @@ export function GenerateL402Token() {
           title="Generate"
           subtitle="Mint a macaroon from a root key; add an invoice for a challenge, a preimage for a credential"
           trailing={
-            <>
-              <StatusPill state={status} details={error}>
-                {statusLabel}
-              </StatusPill>
-              <CopyUrlButton />
-            </>
+            <StatusPill state={status} details={error}>
+              {statusLabel}
+            </StatusPill>
           }
         />
       }
@@ -254,6 +233,31 @@ export function GenerateL402Token() {
               }}
             />
           </label>
+
+          <div
+            data-testid="generate-token-workbench-actions"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "var(--size-11)",
+              color: "var(--color-dim)",
+            }}
+          >
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
+            <FillFromWorkbench
+              label="key"
+              available={workbenchMemory?.signingKey ?? ""}
+              current={key ?? ""}
+              onFill={(value) => {
+                setKey(value);
+                clearGenerated();
+                setError(null);
+              }}
+              testId="generate-token-fill-key"
+            />
+          </div>
 
           <label
             style={{

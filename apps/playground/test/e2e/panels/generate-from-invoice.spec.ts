@@ -12,7 +12,7 @@ import { expect, test } from "@playwright/test";
 
 import { BOLT11_SPEC_EXAMPLES } from "@boltwall/test-fixtures";
 
-import { grantClipboard, readClipboard, setTheme } from "../setup";
+import { setTheme } from "../setup";
 
 const invoiceFixture = BOLT11_SPEC_EXAMPLES.find((f) => f.name === "bolt11-spec-microbtc-mainnet");
 if (!invoiceFixture) {
@@ -67,19 +67,6 @@ test.describe("panels / generate-from-invoice", () => {
     await expect(snippet).toContainText("paymentHash: hexToBytes(");
     await expect(snippet).toContainText("tokenId: hexToBytes(");
     await expect(snippet).not.toContainText("decodeBolt11Invoice");
-  });
-
-  test("copy-URL puts a hydrating URL on the clipboard", async ({ page, context }) => {
-    await grantClipboard(context);
-    await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
-    await page.fill("[data-testid='generate-token-invoice-input']", invoiceFixture.invoice);
-
-    const copyBtn = page.locator("[data-testid='copy-url-button']").first();
-    if (await copyBtn.isVisible()) {
-      await copyBtn.click();
-      const url = await readClipboard(page);
-      expect(url).toContain("/p/generate");
-    }
   });
 
   test("reset clears invoice input and output", async ({ page }) => {
@@ -176,7 +163,9 @@ test.describe("panels / generate-from-invoice", () => {
     // avoid racing the SPA nav link against the panel's URL-param updates.
     await page.goto("/p/validate");
     await page.click("[data-testid='validate-fill-credential']");
-    await page.click("[data-testid='validate-fill-key']");
+    // The signing key is a local Generate input (not carried in Workbench), so
+    // enter it directly in Validate to verify the generated credential.
+    await page.fill("[data-testid='validate-key-input']", SIGNING_KEY);
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(SIGNING_KEY);
 
     await page.click("[data-testid='validate-verify']");
