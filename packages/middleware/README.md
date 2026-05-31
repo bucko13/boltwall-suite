@@ -50,6 +50,18 @@ terminating proxy, configure `trust proxy` and forward `X-Forwarded-Proto:
 https`. Cleartext loopback requests (`localhost`, `127.0.0.1`, `::1`) are
 accepted for local development. Set `allowInsecureHttp: true` only in tests; it is rejected on non-loopback addresses.
 
+### Try it without a Lightning node
+
+The snippet above needs a real LND backend. To exercise the full
+challenge → pay → retry flow without one:
+
+- **In-process (no node):** `test/readme/express-quickstart.test.ts` mirrors this
+  quick start against `MockAdapter` and asserts the 402 challenge and 401 paths.
+  Run it with `bun test` from `packages/middleware`.
+- **Real Lightning (full pay/retry):** the
+  [local regtest runbook](../../docs/local-regtest-proxy-playground.md) starts a
+  two-node LND topology, pays the invoice, and retries with the credential.
+
 ## Caveat factories
 
 Imported from `@boltwall/middleware/express` (re-exported from [`@boltwall/l402`](../l402/README.md)):
