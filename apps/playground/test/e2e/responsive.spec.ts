@@ -54,7 +54,6 @@ test.describe("responsive layout", () => {
       await page.goto(route);
       await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
       await expect(page.locator("[data-testid='status-pill']").first()).toBeVisible();
-      await expect(page.getByRole("button", { name: /copy url/i }).first()).toBeVisible();
       await expectNoPageHorizontalOverflow(page);
     }
   });

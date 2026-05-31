@@ -252,6 +252,9 @@ test.describe("panels / demo", () => {
       "white-space",
       "nowrap",
     );
+    // Validate inputs are local state now; the credential is carried in Workbench
+    // memory and loaded via the explicit fill button.
+    await page.click("[data-testid='validate-fill-credential']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       `L402 abc:${TEST_PREIMAGE}`,
     );

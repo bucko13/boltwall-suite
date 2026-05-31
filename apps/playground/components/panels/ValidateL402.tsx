@@ -10,22 +10,37 @@ import {
 import { useState } from "react";
 
 import { bytesToHex, hexToBytes } from "../../lib/hex";
-import { useUrlInput, useWorkbenchMemory } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
-import { CopyUrlButton } from "../ui/copy-url-button";
+import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
 import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
-const PANEL = "validate";
+/**
+ * A check is `pass`/`fail`, or `warn` when it could not be performed (e.g. the
+ * macaroon signature cannot be verified without the minting root key). A `warn`
+ * is NOT a pass — it must not let the overall result read as fully valid.
+ */
+type CheckState = "pass" | "fail" | "warn";
 
 type CheckItem = {
   label: string;
-  pass: boolean;
+  state: CheckState;
   detail?: string;
 };
+
+function checkVisual(state: CheckState): { badge: string; color: string; soft: string } {
+  if (state === "pass") {
+    return { badge: "OK", color: "var(--color-accent)", soft: "var(--color-accent-soft)" };
+  }
+  if (state === "warn") {
+    return { badge: "SKIPPED", color: "var(--color-warn)", soft: "var(--color-warn-soft)" };
+  }
+  return { badge: "FAIL", color: "var(--color-danger)", soft: "var(--color-danger-soft)" };
+}
 
 function normalizeAuthorizationInput(input: string): string {
   return input.replace(/^Authorization:\s*/i, "").trim();
@@ -78,41 +93,13 @@ function extractCredentialInput(input: string): {
   }
 }
 
-function workbenchButtonStyle(enabled: boolean) {
-  return {
-    padding: "4px 8px",
-    background: enabled ? "var(--color-surface)" : "var(--color-surface-alt)",
-    color: enabled ? "var(--color-text)" : "var(--color-dim)",
-    border: "1px solid var(--color-border)",
-    borderRadius: 4,
-    fontSize: "var(--size-11)",
-    fontWeight: 500,
-    cursor: enabled ? "pointer" : "not-allowed",
-  } as const;
-}
-
 export function ValidateL402() {
   const workbenchMemory = useWorkbenchMemory();
-  const [token, setToken] = useUrlInput<string>(
-    "token",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-
-  const [rootKeyHex, setRootKeyHex] = useUrlInput<string>(
-    "key",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
-
-  const [preimageHex, setPreimageHex] = useUrlInput<string>(
-    "preimage",
-    (raw) => raw ?? "",
-    (v) => v || null,
-    { panel: PANEL },
-  );
+  // Inputs are plain local state — never auto-synced to the URL or Workbench.
+  // A carried value enters an input only via the explicit Fill buttons below.
+  const [token, setToken] = useState<string | null>(null);
+  const [rootKeyHex, setRootKeyHex] = useState<string | null>(null);
+  const [preimageHex, setPreimageHex] = useState<string | null>(null);
 
   const [checks, setChecks] = useState<CheckItem[] | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -148,13 +135,13 @@ export function ValidateL402() {
       paymentHash = id.paymentHash;
       newChecks.push({
         label: "Identifier decoded",
-        pass: true,
+        state: "pass",
         detail: `v${id.version} / tokenId: ${bytesToHex(tokenId).slice(0, 16)}...`,
       });
     } catch (e) {
       newChecks.push({
         label: "Identifier decoded",
-        pass: false,
+        state: "fail",
         detail: e instanceof Error ? e.message : String(e),
       });
       setChecks(newChecks);
@@ -170,13 +157,13 @@ export function ValidateL402() {
       });
       newChecks.push({
         label: "Preimage matches paymentHash",
-        pass: preimageOk,
+        state: preimageOk ? "pass" : "fail",
         ...(preimageOk ? {} : { detail: "sha256(preimage) != paymentHash" }),
       });
     } catch (e) {
       newChecks.push({
         label: "Preimage matches paymentHash",
-        pass: false,
+        state: "fail",
         detail: e instanceof Error ? e.message : String(e),
       });
     }
@@ -190,7 +177,7 @@ export function ValidateL402() {
       }
       newChecks.push({
         label: "Macaroon signature not checked",
-        pass: true,
+        state: "warn",
         detail: "Paste the minting root key to verify the macaroon signature.",
       });
       setChecks(newChecks);
@@ -214,13 +201,13 @@ export function ValidateL402() {
 
       newChecks.push({
         label: "Macaroon signature valid",
-        pass: result.ok,
+        state: result.ok ? "pass" : "fail",
         ...(result.ok ? {} : { detail: result.reason }),
       });
     } catch (e) {
       newChecks.push({
         label: "Macaroon signature valid",
-        pass: false,
+        state: "fail",
         detail: e instanceof Error ? e.message : String(e),
       });
     }
@@ -277,9 +264,20 @@ export function ValidateL402() {
     setError(null);
   }
 
-  const allPass = checks?.every((c) => c.pass) ?? false;
-  const status = error ? "fail" : checks ? (allPass ? "pass" : "fail") : "idle";
-  const statusLabel = error ? "error" : checks ? (allPass ? "valid" : "invalid") : "idle";
+  // A skipped (warn) check must not read as fully valid: without the root key the
+  // signature is unverified, so the result is "partially verified", not green.
+  const hasFail = checks?.some((c) => c.state === "fail") ?? false;
+  const hasWarn = checks?.some((c) => c.state === "warn") ?? false;
+  const status = error ? "fail" : !checks ? "idle" : hasFail ? "fail" : hasWarn ? "warn" : "pass";
+  const statusLabel = error
+    ? "error"
+    : !checks
+      ? "idle"
+      : hasFail
+        ? "invalid"
+        : hasWarn
+          ? "partially verified"
+          : "valid";
   const inputValue = tampered && tamperedToken ? tamperedToken : (token ?? "");
   const extractedInput = extractCredentialInput(inputValue);
   const tokenLiteral = JSON.stringify(extractedInput.macaroons[0] ?? "<base64 macaroon>");
@@ -298,12 +296,9 @@ export function ValidateL402() {
           title="Validate L402"
           subtitle="Verify signature, preimage, and caveats"
           trailing={
-            <>
-              <StatusPill state={status} details={error}>
-                {statusLabel}
-              </StatusPill>
-              <CopyUrlButton />
-            </>
+            <StatusPill state={status} details={error}>
+              {statusLabel}
+            </StatusPill>
           }
         />
       }
@@ -323,7 +318,6 @@ export function ValidateL402() {
               value={inputValue}
               onChange={(e) => {
                 setToken(e.target.value);
-                workbenchMemory?.setCredential(null);
                 setTampered(false);
                 setTamperedToken(null);
                 setChecks(null);
@@ -362,33 +356,27 @@ export function ValidateL402() {
             }}
           >
             <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
-            <button
-              type="button"
-              onClick={() => fillTokenFromWorkbench(rememberedMacaroon)}
-              disabled={!rememberedMacaroon}
-              data-testid="validate-fill-macaroon"
-              style={workbenchButtonStyle(Boolean(rememberedMacaroon))}
-            >
-              Fill macaroon
-            </button>
-            <button
-              type="button"
-              onClick={() => fillTokenFromWorkbench(rememberedCredential)}
-              disabled={!rememberedCredential}
-              data-testid="validate-fill-credential"
-              style={workbenchButtonStyle(Boolean(rememberedCredential))}
-            >
-              Fill credential
-            </button>
-            <button
-              type="button"
-              onClick={() => fillKeyFromWorkbench(rememberedSigningKey)}
-              disabled={!rememberedSigningKey}
-              data-testid="validate-fill-key"
-              style={workbenchButtonStyle(Boolean(rememberedSigningKey))}
-            >
-              Fill key
-            </button>
+            <FillFromWorkbench
+              label="macaroon"
+              available={rememberedMacaroon}
+              current={inputValue}
+              onFill={fillTokenFromWorkbench}
+              testId="validate-fill-macaroon"
+            />
+            <FillFromWorkbench
+              label="credential"
+              available={rememberedCredential}
+              current={inputValue}
+              onFill={fillTokenFromWorkbench}
+              testId="validate-fill-credential"
+            />
+            <FillFromWorkbench
+              label="key"
+              available={rememberedSigningKey}
+              current={rootKeyHex ?? ""}
+              onFill={fillKeyFromWorkbench}
+              testId="validate-fill-key"
+            />
           </div>
 
           <label
@@ -531,52 +519,56 @@ export function ValidateL402() {
               data-testid="validate-output"
               style={{ display: "flex", flexDirection: "column", gap: 8 }}
             >
-              {checks.map((c, i) => (
-                <div
-                  key={i}
-                  style={{
-                    display: "flex",
-                    alignItems: "flex-start",
-                    gap: 10,
-                    padding: "8px 12px",
-                    background: c.pass ? "var(--color-accent-soft)" : "var(--color-danger-soft)",
-                    border: `1px solid ${c.pass ? "var(--color-accent)" : "var(--color-danger)"}`,
-                    borderRadius: 4,
-                  }}
-                >
-                  <span
+              {checks.map((c, i) => {
+                const v = checkVisual(c.state);
+                return (
+                  <div
+                    key={i}
                     style={{
-                      fontSize: "var(--size-16)",
-                      lineHeight: 1,
-                      marginTop: 1,
+                      display: "flex",
+                      alignItems: "flex-start",
+                      gap: 10,
+                      padding: "8px 12px",
+                      background: v.soft,
+                      border: `1px solid ${v.color}`,
+                      borderRadius: 4,
                     }}
                   >
-                    {c.pass ? "OK" : "FAIL"}
-                  </span>
-                  <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                     <span
                       style={{
-                        fontSize: "var(--size-13)",
-                        fontWeight: 500,
-                        color: c.pass ? "var(--color-accent)" : "var(--color-danger)",
+                        fontSize: "var(--size-16)",
+                        lineHeight: 1,
+                        marginTop: 1,
+                        color: v.color,
                       }}
                     >
-                      {c.label}
+                      {v.badge}
                     </span>
-                    {c.detail ? (
+                    <div style={{ display: "flex", flexDirection: "column", gap: 2 }}>
                       <span
                         style={{
-                          fontSize: "var(--size-12)",
-                          color: "var(--color-dim)",
-                          fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                          fontSize: "var(--size-13)",
+                          fontWeight: 500,
+                          color: v.color,
                         }}
                       >
-                        {c.detail}
+                        {c.label}
                       </span>
-                    ) : null}
+                      {c.detail ? (
+                        <span
+                          style={{
+                            fontSize: "var(--size-12)",
+                            color: "var(--color-dim)",
+                            fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                          }}
+                        >
+                          {c.detail}
+                        </span>
+                      ) : null}
+                    </div>
                   </div>
-                </div>
-              ))}
+                );
+              })}
             </div>
           ) : null}
         </div>

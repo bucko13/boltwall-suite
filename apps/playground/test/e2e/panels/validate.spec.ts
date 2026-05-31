@@ -3,8 +3,14 @@ import { expect, test } from "@playwright/test";
 const FIXTURE_MACAROON =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
 const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-const URL_KEY = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
 const WRONG_PREIMAGE = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff";
+
+// Matched pair (zero-preimage-canonical): sha256(ZERO_PREIMAGE) is this
+// macaroon's payment hash, so the preimage check passes. Used to exercise the
+// no-root-key path where only the signature stays unverified.
+const MATCHED_MACAROON =
+  "AgJCAABmaHqt+GK9d2yPwYuOn44gCJcUhW7iM7OQKlkdDV8pJUJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCAAAGIH9hp+uMItiKi8tWoZlifmqpAXGfIYkWOdhGLJw3aWRR";
+const ZERO_PREIMAGE = "0000000000000000000000000000000000000000000000000000000000000000";
 
 test.describe("panels / validate", () => {
   test.beforeEach(async ({ page }) => {
@@ -71,13 +77,26 @@ test.describe("panels / validate", () => {
     );
   });
 
+  test("credential without a root key reads as partially verified, not valid", async ({ page }) => {
+    await page.fill(
+      "[data-testid='validate-token-input']",
+      `L402 ${MATCHED_MACAROON}:${ZERO_PREIMAGE}`,
+    );
+    await page.click("[data-testid='validate-verify']");
+
+    await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='validate-output']")).toContainText(
+      "Macaroon signature not checked",
+    );
+    await expect(page.locator("[data-testid='validate-output']")).toContainText("SKIPPED");
+    // The signature is unverified without the root key — not green/"valid".
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
+  });
+
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
-    // Navigate with params pre-set in URL so nuqs state is populated immediately
-    const url =
-      `/p/validate?validate.token=${encodeURIComponent(FIXTURE_MACAROON)}` +
-      `&validate.key=${FIXTURE_KEY}&validate.preimage=${WRONG_PREIMAGE}`;
-    await page.goto(url);
-    await expect(page.locator("[data-testid='cell']")).toBeVisible();
+    await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
 
     await page.click("[data-testid='validate-tamper']");
 
@@ -99,12 +118,10 @@ test.describe("panels / validate", () => {
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
     await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
-    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toBeVisible();
     await page.click("[data-testid='validate-verify']");
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
     await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
-    await expect(page.locator("[data-testid='copy-url-sensitive-warning']")).toHaveCount(0);
   });
 
   test("saved macaroon and signing key are filled from Workbench explicitly", async ({ page }) => {
@@ -164,15 +181,5 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
       "signing key: empty",
     );
-  });
-
-  test("URL params override remembered values", async ({ page }) => {
-    await page.goto("/p/generate");
-    await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
-
-    await page.goto(`/p/validate?validate.key=${URL_KEY}`);
-    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(URL_KEY);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
   });
 });
