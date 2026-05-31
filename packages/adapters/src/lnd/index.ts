@@ -28,6 +28,14 @@ import type {
   LightningBackend,
 } from "../types";
 
+/**
+ * Credentials and endpoint for an authenticated LND gRPC connection.
+ *
+ * The `lightning` package accepts credential content, not path names. Local
+ * helper scripts emit base64 certificate and macaroon values that can be passed
+ * directly here; tools that start from files should read the file content before
+ * constructing the adapter.
+ */
 export interface LndAdapterOptions {
   /** LND gRPC socket, for example `127.0.0.1:10009`. */
   socket: string;
@@ -45,6 +53,9 @@ export interface LndAdapterOptions {
   macaroon: string;
 }
 
+/**
+ * Stable classification for `LndAdapterError`.
+ */
 export type LndAdapterErrorKind =
   | "connection-refused"
   | "unauthorized"
@@ -52,6 +63,10 @@ export type LndAdapterErrorKind =
   | "invalid-request"
   | "lnd-error";
 
+/**
+ * Error thrown by `LndAdapter` when LND rejects a request, credentials are
+ * invalid, or provider responses cannot be normalized.
+ */
 export class LndAdapterError extends Error {
   readonly kind: LndAdapterErrorKind;
   override readonly cause: unknown;
@@ -104,6 +119,16 @@ const defaultLndApi: LndApi = {
   subscribeToInvoices,
 };
 
+/**
+ * Server-side LND backend over the `lightning` package's authenticated gRPC
+ * client.
+ *
+ * LND exposes the full adapter capability surface used by Boltwall: standard
+ * and HODL invoice creation, invoice cancellation, HODL settlement by preimage,
+ * subscription streams, custom descriptions, and settled preimages when the
+ * node returns them. Hosted LND providers such as Voltage can use this adapter
+ * when they expose the node's gRPC socket, TLS certificate, and admin macaroon.
+ */
 export class LndAdapter implements LightningBackend {
   readonly kind: BackendKind = "lnd";
   readonly capabilities: BackendCapabilities = {

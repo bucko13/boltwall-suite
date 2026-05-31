@@ -2,18 +2,41 @@
  * Feature flags advertised by a Lightning backend adapter.
  *
  * Middleware reads these flags at construction time and rejects unsupported
- * configurations before serving requests.
+ * configurations before serving requests. Concrete adapters should advertise
+ * only behavior they implement directly through the `LightningBackend`
+ * contract; provider webhooks or dashboard controls do not count unless the
+ * adapter exposes them through the normalized methods below.
  */
 export interface BackendCapabilities {
+  /**
+   * `true` when `createInvoice({ hodl: true, paymentHash })` creates an invoice
+   * that can be settled later with `settleHodlInvoice(preimage)`.
+   */
   readonly hodl: boolean;
+  /**
+   * `true` when `cancelInvoice(paymentHash)` is available for invoices created
+   * by this backend.
+   */
   readonly cancelInvoice: boolean;
+  /**
+   * `true` when `subscribeInvoices()` streams normalized invoice state changes
+   * without the caller polling the provider directly.
+   */
   readonly streamingInvoices: boolean;
+  /**
+   * `true` when `createInvoice({ description })` forwards caller-provided
+   * descriptions to the provider invoice or charge.
+   */
   readonly customDescription: boolean;
 }
 
-export type RequiredBackendCapabilities = Partial<
-  Record<keyof BackendCapabilities, true>
->;
+/**
+ * Capability set required by middleware or proxy configuration.
+ *
+ * Keys set to `true` are checked by `assertBackendSupports`; omitted keys are
+ * not required for that deployment.
+ */
+export type RequiredBackendCapabilities = Partial<Record<keyof BackendCapabilities, true>>;
 
 /**
  * Human-readable backend family. The string is descriptive only; security
@@ -47,10 +70,21 @@ export class BackendCapabilityError extends Error {
  * millisatoshis as `bigint` throughout to avoid sats/msats truncation bugs.
  */
 export interface CreateInvoiceRequest {
+  /** Invoice amount in millisatoshis. Must not be rounded to satoshis by callers. */
   amountMsat: bigint;
+  /** Optional provider-facing invoice description when the backend supports it. */
   description?: string;
+  /** Optional invoice lifetime in seconds. Backend-specific min/max values may apply. */
   expirySeconds?: number;
+  /**
+   * Adapter-specific metadata. Concrete adapters document the keys they
+   * recognize; unknown keys are ignored by the shared contract.
+   */
   metadata?: Record<string, string>;
+  /**
+   * Request a HODL invoice. Requires `capabilities.hodl === true` and a
+   * caller-supplied `paymentHash`.
+   */
   hodl?: boolean;
   /**
    * Hex-encoded payment hash required when creating a HODL invoice.
@@ -78,10 +112,13 @@ export type InvoiceStatus = "open" | "held" | "settled" | "canceled" | "expired"
  * Current invoice state returned by lookup and subscription streams.
  */
 export interface InvoiceLookup {
+  /** Normalized Boltwall status, independent of provider-specific business names. */
   status: InvoiceStatus;
   /** Lowercase hex payment hash, without a `0x` prefix. */
   paymentHash: string;
+  /** Invoice amount in millisatoshis when the backend exposes it. */
   amountMsat?: bigint;
+  /** Settlement timestamp when the backend exposes it. */
   settledAt?: Date;
   /**
    * Hex-encoded preimage. Only present when `status === "settled"` and the
@@ -92,16 +129,27 @@ export interface InvoiceLookup {
 
 /**
  * Minimal contract implemented by every Lightning backend adapter.
+ *
+ * Provider-specific charge IDs, checkout IDs, or invoice IDs remain inside the
+ * concrete adapter. Middleware and proxy integrations use `paymentHash`,
+ * normalized statuses, and capability flags only.
  */
 export interface LightningBackend {
+  /** Human-readable backend family for diagnostics and error messages. */
   readonly kind: BackendKind;
+  /** Feature flags used for boot-time configuration validation. */
   readonly capabilities: BackendCapabilities;
 
+  /** Create a Lightning invoice and return the normalized payment hash. */
   createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice>;
+  /** Look up an invoice previously created or indexed by this backend. */
   lookupInvoice(paymentHash: string): Promise<InvoiceLookup>;
 
+  /** Cancel an invoice when `capabilities.cancelInvoice` is `true`. */
   cancelInvoice?(paymentHash: string): Promise<void>;
+  /** Settle a held HODL invoice when `capabilities.hodl` is `true`. */
   settleHodlInvoice?(preimage: string): Promise<void>;
+  /** Stream invoice updates when `capabilities.streamingInvoices` is `true`. */
   subscribeInvoices?(): AsyncIterable<InvoiceLookup>;
 }
 

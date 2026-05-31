@@ -4,15 +4,18 @@ import type { BtcPayAdapterFeatures } from "./index";
  * Validated BTCPay adapter configuration loaded from environment variables.
  */
 export interface BtcPayEnv {
-  /** BTCPay Server origin. */
+  /** BTCPay Server origin, optionally including a reverse-proxy path prefix. */
   baseUrl: string;
-  /** Greenfield API key. */
+  /** Greenfield API key. The adapter never includes this value in errors. */
   apiKey: string;
   /** BTCPay store id. */
   storeId: string;
   /** Greenfield cryptocurrency code, normally `BTC`. */
   cryptoCode: string;
-  /** Explicit adapter feature flags parsed from env. */
+  /**
+   * Explicit adapter feature flags parsed from env. Unsupported `true` values
+   * are rejected by the adapter constructor.
+   */
   features: BtcPayAdapterFeatures;
 }
 
@@ -52,8 +55,8 @@ export class BtcPayEnvError extends Error {
  * - `BTCPAY_HODL_INVOICES` defaults to `false`
  * - `BTCPAY_STREAMING_INVOICES` defaults to `false`
  *
- * Values are validated at process startup and error messages never include
- * secret values.
+ * Boolean feature variables accept `true`, `false`, `1`, or `0`. Values are
+ * validated at process startup and error messages never include secret values.
  *
  * @throws {BtcPayEnvError} when a required variable is missing or a value is
  *   invalid.

@@ -49,6 +49,13 @@ export interface BtcPayLogger {
   error?(bindings: Record<string, unknown>, message: string): void;
 }
 
+/**
+ * Optional deployment feature assertions for the BTCPay adapter.
+ *
+ * These options are not feature toggles for hidden behavior. They let
+ * deployment config fail fast if it asks for capabilities this adapter cannot
+ * provide from the documented Greenfield store Lightning invoice API.
+ */
 export interface BtcPayAdapterFeatures {
   /**
    * Reserved for deployments with verified HODL invoice support. The current
@@ -63,9 +70,16 @@ export interface BtcPayAdapterFeatures {
 }
 
 export interface BtcPayAdapterOptions {
-  /** BTCPay Server origin, optionally including a reverse-proxy path prefix. */
+  /**
+   * BTCPay Server origin, optionally including a reverse-proxy path prefix.
+   * Credentialed deployments should use HTTPS, except for explicit localhost
+   * URLs used by local test deployments.
+   */
   baseUrl: string;
-  /** Greenfield API key. Never logged or exposed as an adapter property. */
+  /**
+   * Greenfield API key. Sent as `Authorization: token <api-key>` by the REST
+   * client and never logged or exposed as an adapter property.
+   */
   apiKey: string;
   /** BTCPay store id that owns the Lightning node configuration. */
   storeId: string;
@@ -91,6 +105,16 @@ export interface BtcPayAdapterOptions {
  * invoice `id` is kept in a private payment-hash index so middleware and proxy
  * callers continue to use normalized `paymentHash` lookup only.
  *
+ * The adapter advertises `customDescription: true` and leaves HODL,
+ * cancellation, and adapter-level invoice streaming disabled because those
+ * behaviors are not available through the documented store Lightning invoice
+ * endpoints. BTCPay webhooks or polling can still be handled by an application,
+ * but this adapter does not expose them as `subscribeInvoices()`.
+ *
+ * Lookup persistence is process-local in the current implementation. If a
+ * deployment needs to look up invoices after a restart, wrap this adapter or add
+ * a dedicated persistence hook before relying on long-lived invoices.
+ *
  * @throws {BtcPayAdapterError} when options request HODL or streaming behavior
  *   that the documented endpoint shape cannot provide.
  */
@@ -112,6 +136,9 @@ export class BtcPayAdapter implements LightningBackend {
    *
    * Unsupported `true` feature flags are rejected here rather than at call time
    * so misconfigured deployments fail during boot.
+   *
+   * The API key needs BTCPay permissions to create internal-node Lightning
+   * invoices and view store Lightning invoices.
    *
    * @throws {BtcPayAdapterError} when options request HODL or streaming behavior
    *   that the documented endpoint shape cannot provide.
@@ -156,6 +183,8 @@ export class BtcPayAdapter implements LightningBackend {
    *
    * The returned amount is re-validated against the request because BTCPay echoes
    * the amount as a millisatoshi string and callers rely on the exact match.
+   * `description`, when provided, is forwarded to the Greenfield create-invoice
+   * request.
    *
    * @example
    * ```ts
@@ -215,6 +244,8 @@ export class BtcPayAdapter implements LightningBackend {
    *
    * Only payment hashes returned by this adapter's `createInvoice` are known;
    * BTCPay's `GetInvoice` endpoint is keyed by opaque id, not payment hash.
+   * The current provider-id index is process-local memory, so it does not
+   * survive adapter reconstruction or process restart.
    *
    * @throws {BtcPayAdapterError} `not-found` when the payment hash was not
    *   created by this adapter instance.
@@ -246,6 +277,10 @@ export class BtcPayAdapter implements LightningBackend {
  * `loadBtcPayEnv`. Feature flags that this adapter cannot implement are
  * rejected by the adapter constructor so unsupported deployment config fails
  * during boot.
+ *
+ * Reads `BTCPAY_BASE_URL`, `BTCPAY_API_KEY`, `BTCPAY_STORE_ID`, optional
+ * `BTCPAY_CRYPTO_CODE`, and optional unsupported-feature assertions from the
+ * supplied env record.
  *
  * @example
  * ```ts

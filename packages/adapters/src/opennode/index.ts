@@ -21,12 +21,22 @@ const OPENNODE_DEFAULT_BASE_URL = "https://api.opennode.com";
 const OPENNODE_MIN_TTL_MINUTES = 10;
 const OPENNODE_MAX_TTL_MINUTES = 4_320;
 
+/**
+ * Normalized fields recovered from an OpenNode BOLT 11 payment request.
+ */
 export interface OpenNodeInvoiceDecoderResult {
   paymentHashHex: string;
   amountMsat: bigint;
   expiresAt: Date;
 }
 
+/**
+ * Decoder used after OpenNode creates a charge.
+ *
+ * OpenNode returns an opaque charge id plus a BOLT 11 invoice. The adapter
+ * decodes the invoice to recover the payment hash that Boltwall uses for
+ * provider-neutral lookup.
+ */
 export type OpenNodeInvoiceDecoder = (paymentRequest: string) => OpenNodeInvoiceDecoderResult;
 
 /**
@@ -35,10 +45,14 @@ export type OpenNodeInvoiceDecoder = (paymentRequest: string) => OpenNodeInvoice
  *
  * The default implementation is process-local memory. Long-running production
  * deployments that need invoice lookup across restarts should inject a
- * persistent store.
+ * persistent store. The store values are provider IDs, not bearer credentials,
+ * but they still reveal payment-provider business state and should be protected
+ * like application data.
  */
 export interface OpenNodeChargeStore {
+  /** Return the OpenNode charge id for a normalized lowercase payment hash. */
   get(paymentHash: string): Promise<string | undefined> | string | undefined;
+  /** Persist the OpenNode charge id for later `lookupInvoice(paymentHash)`. */
   set(paymentHash: string, chargeId: string): Promise<void> | void;
 }
 
@@ -54,10 +68,20 @@ export interface SecretRedactingLogger {
   error?(fields: Record<string, unknown>, message: string): void;
 }
 
+/**
+ * Clock injection point reserved for future timestamp-sensitive behavior.
+ */
 export interface Clock {
   now(): Date;
 }
 
+/**
+ * Optional deployment feature assertions for the OpenNode adapter.
+ *
+ * These options are not feature toggles for hidden behavior. They let
+ * deployment config fail fast if it asks for capabilities this adapter cannot
+ * provide from OpenNode's documented charge API.
+ */
 export interface OpenNodeAdapterFeatures {
   /**
    * Reserved for deployments with verified HODL invoice support. OpenNode's
@@ -72,7 +96,10 @@ export interface OpenNodeAdapterFeatures {
 }
 
 export interface OpenNodeAdapterOptions {
-  /** OpenNode API key. Stored privately and never exposed on the adapter. */
+  /**
+   * OpenNode API key. Sent as the raw `Authorization` header value and never
+   * exposed as an adapter property.
+   */
   apiKey: string;
   /**
    * OpenNode API base URL. Defaults to production. Use
@@ -81,7 +108,10 @@ export interface OpenNodeAdapterOptions {
   baseUrl?: string;
   /** Injected fetch implementation for tests and custom runtimes. */
   fetch?: OpenNodeFetch;
-  /** Optional persistent mapping from Boltwall payment hash to OpenNode charge ID. */
+  /**
+   * Optional persistent mapping from Boltwall payment hash to OpenNode charge
+   * ID. Required for deployments that must look up invoices after restart.
+   */
   chargeStore?: OpenNodeChargeStore;
   /** Optional BOLT 11 decoder. Defaults to `@boltwall/l402`'s public decoder. */
   decodeInvoice?: OpenNodeInvoiceDecoder;
@@ -93,6 +123,9 @@ export interface OpenNodeAdapterOptions {
   features?: OpenNodeAdapterFeatures;
 }
 
+/**
+ * Stable classification for `OpenNodeAdapterError`.
+ */
 export type OpenNodeAdapterErrorKind =
   | "invalid-request"
   | "invalid-response"
@@ -100,6 +133,10 @@ export type OpenNodeAdapterErrorKind =
   | "unsupported-feature"
   | "opennode-error";
 
+/**
+ * Error thrown by `OpenNodeAdapter` for invalid configuration, unsupported
+ * features, provider failures, and unnormalizable provider responses.
+ */
 export class OpenNodeAdapterError extends Error {
   readonly kind: OpenNodeAdapterErrorKind;
   override readonly cause: unknown;
@@ -114,6 +151,14 @@ export class OpenNodeAdapterError extends Error {
 
 /**
  * Server-side OpenNode Lightning backend adapter.
+ *
+ * The adapter creates Lightning-capable OpenNode charges, decodes the returned
+ * BOLT 11 invoice to recover Boltwall's normalized payment hash, and keeps
+ * OpenNode's opaque charge id behind `lookupInvoice(paymentHash)`. It advertises
+ * `customDescription: true` and leaves HODL, cancellation, and adapter-level
+ * invoice streaming disabled because those behaviors are not exposed by the
+ * documented charge lifecycle. OpenNode webhooks can still be handled by an
+ * application, but this adapter does not expose them as `subscribeInvoices()`.
  *
  * Official OpenNode docs verified for this implementation:
  * - Authentication: https://developers.opennode.com/docs/authorization
@@ -141,6 +186,8 @@ export class OpenNodeAdapter implements LightningBackend {
    *
    * Unsupported `true` feature flags are rejected here so misconfigured
    * deployments fail during boot rather than on the first paid request.
+   * `baseUrl` defaults to OpenNode production; use
+   * `https://dev-api.opennode.com` with development-environment keys.
    *
    * @throws {OpenNodeAdapterError} when `apiKey` is empty or when HODL/streaming
    *   features are requested.
@@ -182,6 +229,10 @@ export class OpenNodeAdapter implements LightningBackend {
    * amount, which are then validated against the request because OpenNode keys
    * charges by an opaque id rather than payment hash.
    *
+   * Amounts must resolve to an integer number of satoshis because the OpenNode
+   * create-charge API accepts satoshi amounts. `metadata.order_id` or
+   * `metadata.orderId` is forwarded as OpenNode's `order_id` field.
+   *
    * @example
    * ```ts
    * const invoice = await adapter.createInvoice({ amountMsat: 1_000_000n });
@@ -216,6 +267,8 @@ export class OpenNodeAdapter implements LightningBackend {
    *
    * Only payment hashes created by this adapter (and persisted in the charge
    * store) are resolvable, since OpenNode's charge-info endpoint is keyed by id.
+   * Production deployments that need restart-safe lookup should inject a
+   * persistent `OpenNodeChargeStore`.
    *
    * @throws {OpenNodeAdapterError} `not-found` when no charge id is stored for
    *   the payment hash.

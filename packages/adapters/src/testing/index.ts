@@ -53,6 +53,10 @@ interface StoredInvoice extends InvoiceLookup {
  * downstream tests can exercise HODL, cancellation, subscription, and custom
  * description flows without a real Lightning node. Its `paymentRequest` values
  * are mock placeholders, not real BOLT 11 invoices.
+ *
+ * This is the only adapter entrypoint intended for browser import. Production
+ * provider adapters are server-only and keep payment-provider dependencies out
+ * of client module graphs.
  */
 export class MockAdapter implements LightningBackend {
   readonly kind: BackendKind = "mock";
@@ -68,14 +72,9 @@ export class MockAdapter implements LightningBackend {
   readonly #listeners = new Set<(invoice: InvoiceLookup) => void>();
 
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
-    const paymentHash = normalizePaymentHash(
-      request.paymentHash ?? this.#nextPaymentHash(request),
-    );
+    const paymentHash = normalizePaymentHash(request.paymentHash ?? this.#nextPaymentHash(request));
     if (request.hodl === true && request.paymentHash === undefined) {
-      throw new MockAdapterError(
-        "hodl-payment-hash-required",
-        "mock-hodl-payment-hash-required",
-      );
+      throw new MockAdapterError("hodl-payment-hash-required", "mock-hodl-payment-hash-required");
     }
 
     const expiresAt =

@@ -3,7 +3,10 @@ import { OpenNodeApiError } from "./rest-client";
 export interface OpenNodeEnv {
   /** API key from the OpenNode development or production dashboard. */
   apiKey: string;
-  /** Optional API base URL, e.g. `https://dev-api.opennode.com`. */
+  /**
+   * Optional API base URL, e.g. `https://dev-api.opennode.com`.
+   * `OpenNodeAdapter` defaults to `https://api.opennode.com` when omitted.
+   */
   baseUrl?: string;
 }
 
@@ -39,7 +42,8 @@ export class OpenNodeEnvError extends Error {
  *
  * `OPENNODE_BASE_URL` must use HTTPS. Use `https://dev-api.opennode.com` with
  * OpenNode development-environment keys and `https://api.opennode.com` for
- * production.
+ * production. The returned values are trimmed; secret values are never echoed in
+ * validation errors.
  *
  * @param env - Optional record of env values; defaults to `process.env`.
  * @throws {OpenNodeEnvError} when a field is missing or invalid.
