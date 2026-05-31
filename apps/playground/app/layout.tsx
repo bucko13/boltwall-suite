@@ -155,7 +155,10 @@ export default function RootLayout({ children }: RootLayoutProps) {
         />
         <script dangerouslySetInnerHTML={{ __html: themeBootstrapScript }} />
       </head>
-      <body>
+      {/* suppressHydrationWarning: browser extensions (e.g. ColorZilla's
+          cz-shortcut-listen) inject attributes onto <body> after SSR, which
+          would otherwise trip a React hydration-mismatch warning. */}
+      <body suppressHydrationWarning>
         <NuqsAdapter>
           <ThemeProvider>
             <Nav />
