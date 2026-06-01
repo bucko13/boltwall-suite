@@ -139,6 +139,10 @@ export function Caveats() {
     setAdded([]);
     setError(null);
     setWorkbenchFeedback(null);
+    // Reset the add-caveat draft too, so a half-filled condition/value/time-limit
+    // from the previous artifact doesn't linger against the new one.
+    setDraft({ condition: "", value: "" });
+    setSeconds("");
   }
 
   function addCustom() {

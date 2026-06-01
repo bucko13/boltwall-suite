@@ -693,7 +693,10 @@ export function Demo() {
             <div
               style={{
                 display: "grid",
-                gridTemplateColumns: endpointEdited ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
+                // Reserve the Reset column even when the button is absent so the
+                // input keeps its width — otherwise the first keystroke flips the
+                // grid 1→2 columns and shrinks the input mid-typing.
+                gridTemplateColumns: "minmax(0, 1fr) minmax(72px, auto)",
                 gap: 8,
                 alignItems: "center",
               }}

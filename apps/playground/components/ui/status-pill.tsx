@@ -92,6 +92,9 @@ export function StatusPill({
           fontSize: "var(--size-11)",
           fontWeight: 500,
           lineHeight: 1.5,
+          // Keep multi-word labels (e.g. "partially verified") on one line so a
+          // status change never wraps the pill or reflows the header row.
+          whiteSpace: "nowrap",
           cursor: hasDetails ? "help" : "default",
           outlineOffset: 2,
           ...STATE_STYLES[state],
