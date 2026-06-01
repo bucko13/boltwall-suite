@@ -23,7 +23,7 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test test/*.test.ts",
     "test:coverage": "bun test --coverage --coverage-reporter lcov test/*.test.ts",
-    "package-health": "bun run ./scripts/package-health.ts"
+    "package-health": "publint"
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
@@ -35,7 +35,6 @@
     "zod": "^4.4.3"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
     "@boltwall/internal": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",

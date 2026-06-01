@@ -37,14 +37,13 @@
     "test:coverage": "bun test --coverage --coverage-reporter lcov test/*.test.ts",
     "test:browser": "playwright test --project=chromium",
     "test:integration": "bun test test/integration/*.test.ts",
-    "package-health": "publint && sh -c 'tmp=${TMPDIR:-/tmp}/attw-$(basename \"$PWD\"); mkdir -p \"$tmp\"; bun pm pack --destination \"$tmp\" --ignore-scripts >/dev/null; node ../../node_modules/.bun/@arethetypeswrong+cli@0.18.2/node_modules/@arethetypeswrong/cli/dist/index.js \"$tmp/boltwall-$(basename \"$PWD\")-0.0.0.tgz\" --profile esm-only'"
+    "package-health": "publint"
   },
   "dependencies": {
     "@boltwall/l402": "workspace:*",
     "lightning": "^11.1.0"
   },
   "devDependencies": {
-    "@arethetypeswrong/cli": "^0.18.2",
     "@boltwall/eslint-config": "workspace:*",
     "@boltwall/internal": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",

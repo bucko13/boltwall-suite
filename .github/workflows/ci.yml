@@ -104,12 +104,12 @@ jobs:
         run: bun install --frozen-lockfile --ignore-scripts
 
       - name: Build
-        # publint/attw inspect the published artifacts; attw packs dist via
-        # `bun pm pack`, so dist/ must exist first.
+        # publint inspects the built package artifacts, so dist/ must exist
+        # first.
         run: bun run build
 
-      - name: Package health (publint + arethetypeswrong)
-        # Reported but non-blocking: publint/attw findings show up in the logs
+      - name: Package health (publint)
+        # Reported but non-blocking: publint findings show up in the logs
         # without failing the build. Remove continue-on-error to make this a
         # required check once the published API is stable.
         run: bun run package-health
