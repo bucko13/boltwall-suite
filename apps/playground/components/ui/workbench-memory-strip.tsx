@@ -84,8 +84,8 @@ function slotButtonStyle(enabled: boolean) {
     display: "inline-flex",
     alignItems: "center",
     justifyContent: "center",
-    width: 24,
-    height: 24,
+    width: 22,
+    height: 22,
     padding: 0,
     borderRadius: 3,
     color: enabled ? "var(--color-accent)" : "var(--color-dim)",
@@ -156,12 +156,12 @@ function MemorySlot({
       style={{
         position: "relative",
         display: "grid",
-        gridTemplateRows: "auto 24px",
-        alignContent: "space-between",
+        gridTemplateColumns: "minmax(0, 1fr) 8px auto",
+        alignItems: "center",
         gap: 7,
         minWidth: 0,
-        minHeight: 62,
-        padding: "7px 8px",
+        minHeight: 34,
+        padding: "5px 6px 5px 8px",
         borderRadius: 4,
         border: "1px solid var(--color-border)",
         background: hasValue ? "var(--color-accent-soft)" : "var(--color-surface)",
@@ -173,8 +173,6 @@ function MemorySlot({
         style={{
           display: "flex",
           alignItems: "center",
-          justifyContent: "space-between",
-          gap: 8,
           minWidth: 0,
         }}
       >
@@ -183,23 +181,14 @@ function MemorySlot({
             color: hasValue ? "var(--color-text)" : "var(--color-dim)",
             fontSize: "var(--size-12)",
             fontWeight: 600,
-            lineHeight: 1.2,
+            lineHeight: 1.1,
+            overflow: "hidden",
+            textOverflow: "ellipsis",
+            whiteSpace: "nowrap",
           }}
         >
           {label}
         </span>
-        <span
-          aria-hidden="true"
-          title={hasValue ? "Stored" : "Empty"}
-          style={{
-            width: 8,
-            height: 8,
-            borderRadius: 999,
-            background: hasValue ? "var(--color-accent)" : "transparent",
-            border: `1px solid ${hasValue ? "var(--color-accent)" : "var(--color-border)"}`,
-            flexShrink: 0,
-          }}
-        />
         <span
           data-testid={`${testId}-status`}
           aria-label={`${ariaName} ${hasValue ? "stored" : "empty"}`}
@@ -208,7 +197,19 @@ function MemorySlot({
           {hasValue ? "stored" : "empty"}
         </span>
       </div>
-      <div style={{ display: "flex", gap: 6 }}>
+      <span
+        aria-hidden="true"
+        title={hasValue ? "Stored" : "Empty"}
+        style={{
+          width: 8,
+          height: 8,
+          borderRadius: 999,
+          background: hasValue ? "var(--color-accent)" : "transparent",
+          border: `1px solid ${hasValue ? "var(--color-accent)" : "var(--color-border)"}`,
+          flexShrink: 0,
+        }}
+      />
+      <div style={{ display: "flex", gap: 4 }}>
         <button
           type="button"
           disabled={!hasValue}
@@ -340,7 +341,7 @@ export function WorkbenchMemoryStrip() {
       data-testid="workbench-memory-strip"
       style={{
         maxWidth: 920,
-        margin: "12px auto 0",
+        margin: "8px auto 0",
         padding: "0 24px",
       }}
     >
@@ -396,9 +397,9 @@ export function WorkbenchMemoryStrip() {
           style={{
             display: "grid",
             gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
-            gap: 8,
+            gap: 6,
             minWidth: 0,
-            padding: 8,
+            padding: 6,
             border: "1px solid var(--color-border)",
             borderRadius: 6,
             background: "var(--color-surface-alt)",
