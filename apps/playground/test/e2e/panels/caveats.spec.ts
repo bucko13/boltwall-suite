@@ -5,9 +5,45 @@ const FIXTURE_MACAROON =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
 const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 const PREIMAGE = "0000000000000000000000000000000000000000000000000000000000000000";
+const FIXTURE_CHALLENGE = `L402 macaroon="${FIXTURE_MACAROON}", invoice="lnbc1demo"`;
+const FIXTURE_CREDENTIAL = `L402 ${FIXTURE_MACAROON}:${PREIMAGE}`;
 
 async function macaroonOutput(page: Page): Promise<string> {
   return (await page.locator("[data-testid='caveats-output'] pre").first().textContent()) ?? "";
+}
+
+async function setWorkbenchMemory(
+  page: Page,
+  memory: Partial<Record<"signingKey" | "macaroon" | "challenge" | "credential", string>>,
+) {
+  await page.evaluate((next) => {
+    window.sessionStorage.setItem(
+      "bw.workbench-memory",
+      JSON.stringify({
+        signingKey: "",
+        macaroon: "",
+        challenge: "",
+        credential: "",
+        ...next,
+      }),
+    );
+  }, memory);
+  await page.reload();
+  await expect(page.locator("[data-testid='cell']")).toBeVisible();
+}
+
+async function workbenchMemory(page: Page) {
+  return page.evaluate(() => {
+    const raw = window.sessionStorage.getItem("bw.workbench-memory");
+    return raw
+      ? (JSON.parse(raw) as {
+          signingKey?: string;
+          macaroon?: string;
+          challenge?: string;
+          credential?: string;
+        })
+      : {};
+  });
 }
 
 test.describe("panels / caveats", () => {
@@ -71,6 +107,116 @@ test.describe("panels / caveats", () => {
 
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("addFirstPartyCaveat");
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("services");
+  });
+
+  test("adds an attenuated bare macaroon to Workbench and clears derived fields", async ({
+    page,
+  }) => {
+    await setWorkbenchMemory(page, {
+      signingKey: FIXTURE_KEY,
+      challenge: 'L402 macaroon="stale", invoice="lnbc1stale"',
+      credential: "L402 stale:0000000000000000000000000000000000000000000000000000000000000000",
+    });
+    await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
+      "Updated macaroon; cleared challenge and credential.",
+    );
+    await expect
+      .poll(() => workbenchMemory(page))
+      .toMatchObject({
+        signingKey: FIXTURE_KEY,
+        macaroon: attenuated,
+        challenge: "",
+        credential: "",
+      });
+  });
+
+  test("adds an attenuated challenge to Workbench and clears stale credential", async ({
+    page,
+  }) => {
+    await setWorkbenchMemory(page, {
+      signingKey: FIXTURE_KEY,
+      credential: FIXTURE_CREDENTIAL,
+    });
+    await page.fill("[data-testid='caveats-input']", FIXTURE_CHALLENGE);
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
+      "Updated macaroon and challenge; cleared credential.",
+    );
+    await expect
+      .poll(() => workbenchMemory(page))
+      .toMatchObject({
+        signingKey: FIXTURE_KEY,
+        macaroon: attenuated,
+        challenge: `L402 macaroon="${attenuated}", invoice="lnbc1demo"`,
+        credential: "",
+      });
+  });
+
+  test("adds an attenuated credential and matching source challenge to Workbench", async ({
+    page,
+  }) => {
+    await setWorkbenchMemory(page, {
+      signingKey: FIXTURE_KEY,
+      challenge: FIXTURE_CHALLENGE,
+      credential: FIXTURE_CREDENTIAL,
+    });
+    await page.click("[data-testid='caveats-fill-credential']");
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
+      "Updated macaroon, credential, and challenge.",
+    );
+    await expect
+      .poll(() => workbenchMemory(page))
+      .toMatchObject({
+        signingKey: FIXTURE_KEY,
+        macaroon: attenuated,
+        challenge: `L402 macaroon="${attenuated}", invoice="lnbc1demo"`,
+        credential: `L402 ${attenuated}:${PREIMAGE}`,
+      });
+  });
+
+  test("adds an attenuated credential to Workbench and clears unrelated challenge", async ({
+    page,
+  }) => {
+    await setWorkbenchMemory(page, {
+      signingKey: FIXTURE_KEY,
+      challenge: 'L402 macaroon="stale", invoice="lnbc1stale"',
+    });
+    await page.fill("[data-testid='caveats-input']", FIXTURE_CREDENTIAL);
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
+      "Updated macaroon and credential; cleared challenge.",
+    );
+    await expect
+      .poll(() => workbenchMemory(page))
+      .toMatchObject({
+        signingKey: FIXTURE_KEY,
+        macaroon: attenuated,
+        challenge: "",
+        credential: `L402 ${attenuated}:${PREIMAGE}`,
+      });
   });
 
   test("a re-pasted attenuated macaroon shows the caveat as existing (not removable)", async ({

@@ -18,6 +18,21 @@ import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 type CaveatRow = { condition: string; value: string };
 const EMPTY_CAVEATS: CaveatRow[] = [];
 
+function buildChallenge(macaroon: string, invoice: string): string {
+  return L402.fromMacaroon(macaroon, invoice).toChallenge();
+}
+
+function buildCredential(macaroon: string, preimage: string): string {
+  return new L402({ macaroons: macaroon, paymentPreimage: preimage }).toToken();
+}
+
+function matchingWorkbenchInvoice(challenge: string, macaroon: string): string | null {
+  const detected = challenge ? detectArtifact(challenge) : null;
+  if (!detected?.ok || detected.value.kind !== "challenge") return null;
+  if (detected.value.macaroon !== macaroon) return null;
+  return detected.value.token.invoice ?? null;
+}
+
 /**
  * Re-derives the attenuated macaroon and its full caveat list from a base
  * macaroon plus the caveats the user has appended. Attenuation is append-only
@@ -89,6 +104,7 @@ export function Caveats() {
   const [draft, setDraft] = useState<CaveatRow>({ condition: "", value: "" });
   const [seconds, setSeconds] = useState("");
   const [error, setError] = useState<string | null>(null);
+  const [workbenchFeedback, setWorkbenchFeedback] = useState<string | null>(null);
 
   // Re-render the expiry pills on a timer so countdowns stay live.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -117,6 +133,7 @@ export function Caveats() {
     // Appended caveats are relative to the base macaroon; a new base invalidates them.
     setAdded([]);
     setError(null);
+    setWorkbenchFeedback(null);
   }
 
   function addCustom() {
@@ -135,6 +152,7 @@ export function Caveats() {
       setAdded((rows) => [...rows, { condition, value: draft.value }]);
       setDraft({ condition: "", value: "" });
       setError(null);
+      setWorkbenchFeedback(null);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
     }
@@ -154,11 +172,13 @@ export function Caveats() {
     setAdded((rows) => [...rows, { condition: caveat.condition, value: caveat.value }]);
     setSeconds("");
     setError(null);
+    setWorkbenchFeedback(null);
   }
 
   function removeAdded(index: number) {
     setAdded((rows) => rows.filter((_, i) => i !== index));
     setError(null);
+    setWorkbenchFeedback(null);
   }
 
   function reset() {
@@ -167,6 +187,51 @@ export function Caveats() {
     setDraft({ condition: "", value: "" });
     setSeconds("");
     setError(null);
+    setWorkbenchFeedback(null);
+  }
+
+  function addToWorkbench() {
+    if (!base || !result || !workbenchMemory) return;
+
+    const sourceInvoice =
+      base.token.invoice ??
+      matchingWorkbenchInvoice(workbenchMemory.challenge, base.macaroon) ??
+      null;
+
+    workbenchMemory.setMacaroon(result.macaroon);
+
+    if (base.kind === "macaroon") {
+      workbenchMemory.setChallenge(null);
+      workbenchMemory.setCredential(null);
+      setWorkbenchFeedback("Updated macaroon; cleared challenge and credential.");
+      return;
+    }
+
+    if (base.kind === "challenge") {
+      if (!sourceInvoice) {
+        setError("Loaded challenge is missing an invoice.");
+        return;
+      }
+      workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
+      workbenchMemory.setCredential(null);
+      setWorkbenchFeedback("Updated macaroon and challenge; cleared credential.");
+      return;
+    }
+
+    const preimage = base.token.paymentPreimage;
+    if (!preimage) {
+      setError("Loaded credential is missing a preimage.");
+      return;
+    }
+
+    workbenchMemory.setCredential(buildCredential(result.macaroon, preimage));
+    if (sourceInvoice) {
+      workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
+      setWorkbenchFeedback("Updated macaroon, credential, and challenge.");
+    } else {
+      workbenchMemory.setChallenge(null);
+      setWorkbenchFeedback("Updated macaroon and credential; cleared challenge.");
+    }
   }
 
   const inputError = Boolean(input.trim()) && detected !== null && !detected.ok;
@@ -291,11 +356,37 @@ export function Caveats() {
           ) : null}
 
           {result ? (
-            <div data-testid="caveats-output">
+            <div
+              data-testid="caveats-output"
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
               <BigBlob
                 value={result.macaroon}
                 label={added.length > 0 ? "Attenuated macaroon" : "Macaroon"}
               />
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={addToWorkbench}
+                  data-testid="caveats-add-workbench"
+                  style={secondaryButtonStyle}
+                >
+                  Add to Workbench
+                </button>
+                <span
+                  aria-live="polite"
+                  data-testid="caveats-workbench-feedback"
+                  style={{
+                    minHeight: 16,
+                    color: workbenchFeedback ? "var(--color-accent)" : "transparent",
+                    fontSize: "var(--size-12)",
+                    opacity: workbenchFeedback ? 1 : 0,
+                    transition: "opacity 180ms ease",
+                  }}
+                >
+                  {workbenchFeedback ?? ""}
+                </span>
+              </div>
             </div>
           ) : null}
         </div>
