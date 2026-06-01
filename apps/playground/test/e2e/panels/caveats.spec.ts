@@ -98,6 +98,39 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-list']")).toContainText("expires");
   });
 
+  for (const value of ["1", "2", "3600"]) {
+    test(`accepts positive integer time limit ${value}`, async ({ page }) => {
+      await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+      await page.fill("[data-testid='caveat-seconds-input']", value);
+      await page.click("[data-testid='caveat-add-time-limit']");
+
+      await expect(page.locator("[data-testid='caveats-list']")).toContainText("valid-until");
+      await expect(page.locator("[data-testid='caveats-error']")).toHaveCount(0);
+      await expect(page.locator("[data-testid='caveat-seconds-input']")).toHaveValue("");
+    });
+  }
+
+  for (const { value, label } of [
+    { value: "0", label: "zero" },
+    { value: "-1", label: "negative" },
+    { value: "1.5", label: "decimal" },
+    { value: "1e2", label: "scientific notation" },
+    { value: "", label: "empty" },
+    { value: "soon", label: "non-numeric" },
+  ]) {
+    test(`rejects ${label} time limit input`, async ({ page }) => {
+      await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+      await page.fill("[data-testid='caveat-seconds-input']", value);
+      await page.click("[data-testid='caveat-add-time-limit']");
+
+      await expect(page.locator("[data-testid='caveats-error']")).toContainText(
+        "positive whole number",
+      );
+      await expect(page.locator("[data-testid='caveat-seconds-input']")).toHaveValue(value);
+      await expect(page.locator("[data-testid='caveats-list']")).not.toContainText("valid-until");
+    });
+  }
+
   test("removes an added caveat", async ({ page }) => {
     await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
     await page.fill("[data-testid='caveat-condition-input']", "origin");

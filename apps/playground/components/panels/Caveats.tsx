@@ -1,7 +1,7 @@
 "use client";
 
 import { Caveat, L402, validUntil } from "@boltwall/l402";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 
 import { describeArtifactError, detectArtifact } from "../../lib/detect-artifact";
 import { useWorkbenchMemory } from "../../lib/url-state";
@@ -16,6 +16,7 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 type CaveatRow = { condition: string; value: string };
+const EMPTY_CAVEATS: CaveatRow[] = [];
 
 /**
  * Re-derives the attenuated macaroon and its full caveat list from a base
@@ -72,6 +73,13 @@ function pillState(expiryMs: number | null, nowMs: number) {
   return expiryMs <= nowMs ? ("rejected" as const) : ("matched" as const);
 }
 
+function parsePositiveIntegerSeconds(value: string): number | null {
+  const trimmed = value.trim();
+  if (!/^[1-9]\d*$/.test(trimmed)) return null;
+  const seconds = Number(trimmed);
+  return Number.isSafeInteger(seconds) ? seconds : null;
+}
+
 export function Caveats() {
   const workbenchMemory = useWorkbenchMemory();
 
@@ -87,9 +95,16 @@ export function Caveats() {
 
   const detected = input.trim() ? detectArtifact(input) : null;
   const base = detected?.ok ? detected.value : null;
-  const result = base ? attenuate(base.macaroon, added) : null;
-  const baseCaveatCount = base ? (attenuate(base.macaroon, [])?.caveats.length ?? 0) : 0;
-  const caveats = result?.caveats ?? [];
+  const baseMacaroon = base?.macaroon ?? null;
+  const result = useMemo(
+    () => (baseMacaroon ? attenuate(baseMacaroon, added) : null),
+    [baseMacaroon, added],
+  );
+  const baseCaveatCount = useMemo(
+    () => (baseMacaroon ? (attenuate(baseMacaroon, [])?.caveats.length ?? 0) : 0),
+    [baseMacaroon],
+  );
+  const caveats = result?.caveats ?? EMPTY_CAVEATS;
 
   useEffect(() => {
     if (!caveats.some((c) => caveatExpiryMs(c.condition, c.value) !== null)) return;
@@ -130,9 +145,9 @@ export function Caveats() {
       setError("Load a macaroon, challenge, or credential first.");
       return;
     }
-    const n = Number.parseInt(seconds, 10);
-    if (Number.isNaN(n) || n < 0) {
-      setError("Enter a positive number of seconds.");
+    const n = parsePositiveIntegerSeconds(seconds);
+    if (n === null) {
+      setError("Enter a positive whole number of seconds.");
       return;
     }
     const caveat = validUntil({ seconds: n });
