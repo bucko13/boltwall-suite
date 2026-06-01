@@ -301,6 +301,16 @@ test.describe("panels / caveats", () => {
     );
   });
 
+  test("uses a native numeric control for time limits", async ({ page }) => {
+    await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+
+    const input = page.locator("[data-testid='caveat-seconds-input']");
+    await expect(input).toHaveAttribute("type", "number");
+    await expect(input).toHaveAttribute("min", "1");
+    await expect(input).toHaveAttribute("step", "1");
+    await expect(input).toHaveAttribute("inputmode", "numeric");
+  });
+
   for (const value of ["1", "2", "3600"]) {
     test(`accepts positive integer time limit ${value}`, async ({ page }) => {
       await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
@@ -319,7 +329,6 @@ test.describe("panels / caveats", () => {
     { value: "1.5", label: "decimal" },
     { value: "1e2", label: "scientific notation" },
     { value: "", label: "empty" },
-    { value: "soon", label: "non-numeric" },
   ]) {
     test(`rejects ${label} time limit input`, async ({ page }) => {
       await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);

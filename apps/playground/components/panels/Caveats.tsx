@@ -556,12 +556,13 @@ function AddControls({
         <label style={labelStyle}>
           Time limit (seconds)
           <input
-            type="text"
+            type="number"
+            min={1}
+            step={1}
             inputMode="numeric"
-            pattern="[0-9]*"
             value={seconds}
             onChange={(e) => setSeconds(e.target.value)}
-            placeholder="e.g. 3600"
+            placeholder="3600"
             data-testid="caveat-seconds-input"
             style={{ ...panelInputStyle(), width: 160 }}
           />
