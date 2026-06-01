@@ -88,6 +88,11 @@ function pillState(expiryMs: number | null, nowMs: number) {
   return expiryMs <= nowMs ? ("rejected" as const) : ("matched" as const);
 }
 
+function timeState(expiryMs: number | null, nowMs: number): "active" | "expired" | null {
+  if (expiryMs === null) return null;
+  return expiryMs <= nowMs ? "expired" : "active";
+}
+
 function parsePositiveIntegerSeconds(value: string): number | null {
   const trimmed = value.trim();
   if (!/^[1-9]\d*$/.test(trimmed)) return null;
@@ -256,7 +261,7 @@ export function Caveats() {
       header={
         <HeaderRow
           title="Caveats"
-          subtitle="Load a macaroon, challenge, or credential; inspect its caveats, attenuate with more, and copy the result"
+          subtitle="Inspect, attenuate, and stage artifacts"
           trailing={
             <StatusPill
               state={status}
@@ -272,14 +277,14 @@ export function Caveats() {
       body={
         <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
           <label style={labelStyle}>
-            Macaroon, L402 challenge, or credential
+            Artifact
             <textarea
               value={input}
               onChange={(e) => changeInput(e.target.value)}
-              placeholder='AgI...   ·   L402 macaroon="...", invoice="..."   ·   L402 &lt;macaroon&gt;:&lt;preimage&gt;'
+              placeholder="Paste a macaroon, challenge, or credential"
               data-testid="caveats-input"
-              rows={2}
-              style={panelTextareaStyle(inputError)}
+              rows={3}
+              style={{ ...panelTextareaStyle(inputError), minHeight: 88, resize: "vertical" }}
             />
           </label>
 
@@ -424,8 +429,8 @@ function CurrentCaveats({
       style={{
         display: "flex",
         flexDirection: "column",
-        gap: 8,
-        padding: 10,
+        gap: 6,
+        padding: 12,
         border: "1px solid var(--color-border)",
         background: "var(--color-surface-alt)",
       }}
@@ -438,20 +443,40 @@ function CurrentCaveats({
       ) : (
         caveats.map((c, i) => {
           const expiryMs = caveatExpiryMs(c.condition, c.value);
+          const temporalState = timeState(expiryMs, nowMs);
+          const temporalTitle =
+            expiryMs !== null && expiryMs > nowMs
+              ? `expires ${new Date(expiryMs).toLocaleString()}`
+              : null;
           const isAdded = i >= baseCount;
           const addedIndex = i - baseCount;
           return (
-            <div key={i} style={{ display: "flex", alignItems: "center", gap: 8 }}>
-              <CaveatPill state={pillState(expiryMs, nowMs)}>
-                <span data-testid={`caveat-${i}`}>
-                  {c.value === "" ? c.condition : `${c.condition}=${c.value}`}
-                </span>
-              </CaveatPill>
-              {expiryMs !== null ? (
-                <span style={timerStyle} data-testid={`caveat-expiry-${i}`}>
-                  {expiryMs <= nowMs ? "expired" : `expires ${new Date(expiryMs).toLocaleString()}`}
-                </span>
-              ) : null}
+            <div key={i} data-testid={`caveat-row-${i}`} style={caveatRowStyle}>
+              <div data-testid={`caveat-${i}`} style={caveatMainStyle}>
+                <CaveatPill state={pillState(expiryMs, nowMs)}>{c.condition}</CaveatPill>
+                {c.value !== "" ? (
+                  <>
+                    <span style={equalsStyle}>=</span>
+                    <span title={c.value} style={caveatValueStyle}>
+                      {c.value}
+                    </span>
+                  </>
+                ) : null}
+              </div>
+              <div style={caveatMetaStyle}>
+                {temporalState ? (
+                  <StateBadge
+                    state={temporalState}
+                    testId={`caveat-state-${i}`}
+                    {...(temporalTitle ? { title: temporalTitle } : {})}
+                  >
+                    {temporalState}
+                  </StateBadge>
+                ) : null}
+                <StateBadge state={isAdded ? "new" : "existing"} testId={`caveat-origin-${i}`}>
+                  {isAdded ? "new" : "existing"}
+                </StateBadge>
+              </div>
               {isAdded ? (
                 <button
                   type="button"
@@ -462,11 +487,7 @@ function CurrentCaveats({
                 >
                   x
                 </button>
-              ) : (
-                <span style={{ fontSize: "var(--size-11)", color: "var(--color-dim)" }}>
-                  existing
-                </span>
-              )}
+              ) : null}
             </div>
           );
         })
@@ -562,6 +583,24 @@ function AddControls({
   );
 }
 
+function StateBadge({
+  state,
+  testId,
+  title,
+  children,
+}: {
+  state: "active" | "expired" | "existing" | "new";
+  testId: string;
+  title?: string;
+  children: string;
+}) {
+  return (
+    <span data-testid={testId} data-state={state} title={title} style={stateBadgeStyle[state]}>
+      {children}
+    </span>
+  );
+}
+
 const labelStyle = {
   fontSize: "var(--size-12)",
   color: "var(--color-dim)",
@@ -588,10 +627,84 @@ const outputLabelStyle = {
   marginBottom: 2,
 } as const;
 
-const timerStyle = {
-  fontSize: "var(--size-12)",
+const caveatRowStyle = {
+  display: "grid",
+  gridTemplateColumns: "minmax(0, 1fr) auto auto",
+  alignItems: "center",
+  gap: 8,
+  minHeight: 32,
+} as const;
+
+const caveatMainStyle = {
+  display: "flex",
+  alignItems: "center",
+  gap: 6,
+  minWidth: 0,
+} as const;
+
+const caveatMetaStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "flex-end",
+  gap: 6,
+  minWidth: 0,
+} as const;
+
+const equalsStyle = {
+  flex: "0 0 auto",
   color: "var(--color-dim)",
   fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+  fontSize: "var(--size-12)",
+} as const;
+
+const caveatValueStyle = {
+  minWidth: 0,
+  overflow: "hidden",
+  textOverflow: "ellipsis",
+  whiteSpace: "nowrap",
+  color: "var(--color-text)",
+  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+  fontSize: "var(--size-12)",
+} as const;
+
+const badgeBaseStyle = {
+  display: "inline-flex",
+  alignItems: "center",
+  minHeight: 20,
+  padding: "1px 7px",
+  borderRadius: 999,
+  border: "1px solid transparent",
+  fontSize: "var(--size-11)",
+  fontWeight: 500,
+  lineHeight: 1.4,
+  whiteSpace: "nowrap",
+} as const;
+
+const stateBadgeStyle = {
+  active: {
+    ...badgeBaseStyle,
+    background: "var(--color-accent-soft)",
+    borderColor: "var(--color-accent)",
+    color: "var(--color-accent)",
+  },
+  expired: {
+    ...badgeBaseStyle,
+    background: "var(--color-danger-soft)",
+    borderColor: "var(--color-danger)",
+    color: "var(--color-danger)",
+  },
+  existing: {
+    ...badgeBaseStyle,
+    background: "var(--color-surface)",
+    borderColor: "var(--color-border)",
+    color: "var(--color-dim)",
+  },
+  new: {
+    ...badgeBaseStyle,
+    background: "var(--color-primary-soft, var(--color-surface))",
+    borderColor: "var(--color-primary)",
+    color: "var(--color-primary)",
+  },
 } as const;
 
 const primaryButtonStyle = {
@@ -617,11 +730,14 @@ const secondaryButtonStyle = {
 } as const;
 
 const removeButtonStyle = {
-  padding: "1px 6px",
+  width: 26,
+  height: 26,
+  padding: 0,
   fontSize: "var(--size-11)",
   background: "var(--color-danger-soft)",
   color: "var(--color-danger)",
   border: "1px solid var(--color-danger)",
   borderRadius: 4,
   cursor: "pointer",
+  lineHeight: 1,
 } as const;

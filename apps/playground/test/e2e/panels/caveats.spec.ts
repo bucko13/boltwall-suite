@@ -54,8 +54,12 @@ test.describe("panels / caveats", () => {
 
   test("renders header, empty hint, and no satisfier/mode UI", async ({ page }) => {
     await expect(page.locator("[data-testid='header-row']")).toContainText("Caveats");
-    await expect(page.locator("[data-testid='header-row']")).toContainText("attenuate");
+    await expect(page.locator("[data-testid='header-row']")).toContainText("stage artifacts");
     await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
+    await expect(page.locator("[data-testid='caveats-input']")).toHaveAttribute(
+      "placeholder",
+      "Paste a macaroon, challenge, or credential",
+    );
     await expect(page.locator("[data-testid='caveats-empty-hint']")).toBeVisible();
     // The satisfier framework and the add/check mode tabs are gone.
     await expect(page.locator("[data-testid='caveats-mode-add']")).toHaveCount(0);
@@ -99,6 +103,10 @@ test.describe("panels / caveats", () => {
 
     await expect(page.locator("[data-testid='caveats-list']")).toContainText("services=pokedex:0");
     await expect(page.locator("[data-testid='caveat-remove-0']")).toBeVisible();
+    await expect(page.locator("[data-testid='caveat-origin-0']")).toHaveAttribute(
+      "data-state",
+      "new",
+    );
 
     const after = await macaroonOutput(page);
     // Appending a caveat re-serializes a longer, different macaroon.
@@ -231,7 +239,10 @@ test.describe("panels / caveats", () => {
     await page.fill("[data-testid='caveats-input']", attenuated);
     await expect(page.locator("[data-testid='caveats-list']")).toContainText("services=pokedex:0");
     // It is baked into the macaroon now, so it is "existing" with no remove button.
-    await expect(page.locator("[data-testid='caveats-list']")).toContainText("existing");
+    await expect(page.locator("[data-testid='caveat-origin-0']")).toHaveAttribute(
+      "data-state",
+      "existing",
+    );
     await expect(page.locator("[data-testid='caveat-remove-0']")).toHaveCount(0);
   });
 
@@ -241,7 +252,33 @@ test.describe("panels / caveats", () => {
     await page.click("[data-testid='caveat-add-time-limit']");
 
     await expect(page.locator("[data-testid='caveats-list']")).toContainText("valid-until");
-    await expect(page.locator("[data-testid='caveats-list']")).toContainText("expires");
+    await expect(page.locator("[data-testid='caveat-state-0']")).toHaveAttribute(
+      "data-state",
+      "active",
+    );
+    await expect(page.locator("[data-testid='caveat-origin-0']")).toHaveAttribute(
+      "data-state",
+      "new",
+    );
+  });
+
+  test("renders expired existing caveats as distinct badges", async ({ page }) => {
+    await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='caveat-condition-input']", "valid-until");
+    await page.fill("[data-testid='caveat-value-input']", "2020-01-01T00:00:00.000Z");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.fill("[data-testid='caveats-input']", attenuated);
+
+    await expect(page.locator("[data-testid='caveat-state-0']")).toHaveAttribute(
+      "data-state",
+      "expired",
+    );
+    await expect(page.locator("[data-testid='caveat-origin-0']")).toHaveAttribute(
+      "data-state",
+      "existing",
+    );
   });
 
   for (const value of ["1", "2", "3600"]) {
