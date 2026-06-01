@@ -6,7 +6,13 @@
   "excludePrivate": true,
   "excludeInternal": true,
   "excludeExternals": true,
-  "intentionallyNotExported": ["ProxyCaveat", "ProxyHttpMethod"],
+  "intentionallyNotExported": [
+    "ProxyCaveat",
+    "ProxyHttpMethod",
+    "backendKindSchema",
+    "configSchema",
+    "routeSchema"
+  ],
   "validation": {
     "notExported": true,
     "invalidLink": true,

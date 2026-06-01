@@ -1,9 +1,5 @@
 import type { MinimalLogger } from "@boltwall/middleware/core";
-import type {
-  NextFunction,
-  Request as ExpressRequest,
-  Response as ExpressResponse,
-} from "express";
+import type { NextFunction, Request as ExpressRequest, Response as ExpressResponse } from "express";
 import { createProxyMiddleware, responseInterceptor } from "http-proxy-middleware";
 
 import { applyForwardHeaderPolicy, type ForwardHeadersPolicy } from "./header-policy.js";
@@ -16,6 +12,16 @@ interface UpstreamProxyOptions {
   logger: MinimalLogger;
 }
 
+/**
+ * Create the upstream forwarding handler used by `createProxy`.
+ *
+ * The handler changes origin headers for the upstream, strips credential-bearing
+ * request headers by default, maps upstream 5xx responses and proxy errors to
+ * redacted `502` JSON responses, and enforces a request timeout.
+ *
+ * @param options - Target URL, header policy, timeout, and logger.
+ * @returns Express-compatible middleware with `upgrade` support from the proxy.
+ */
 export function createUpstreamProxy(options: UpstreamProxyOptions) {
   const target = new URL(options.targetUrl);
   const timeout = options.timeoutMs ?? 30_000;

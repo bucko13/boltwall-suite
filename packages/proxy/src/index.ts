@@ -19,6 +19,26 @@ import { createUpstreamProxy } from "./upstream.js";
 
 export type { ForwardHeadersPolicy } from "./header-policy.js";
 export {
+  backendEnvDescription,
+  backendEnvNames,
+  BoltwallConfigError,
+  configSummary,
+  createBackendFromEnv,
+  parseBoltwallConfig,
+  requiredSecretEnvNames,
+  toProxyConfig,
+  validateBackendCapabilities,
+  vercelRuntimeEnv,
+  type BoltwallBackendEnv,
+  type BoltwallBackendEnvNames,
+  type BoltwallBackendKind,
+  type BoltwallConfig,
+  type BoltwallConfigInput,
+  type BoltwallPaywallPolicy,
+  type BoltwallRoute,
+  type BoltwallRouteRequirements,
+} from "./config-schema.js";
+export {
   loadProxyEnv,
   proxyEnvVariables,
   type LoadProxyEnvOptions,
@@ -27,7 +47,7 @@ export {
   type ProxyEnvVariableMetadata,
   type ProxyEnvVariableName,
 } from "./env.js";
-export type { ProxyRoute } from "./route-matching.js";
+export { type ProxyRoute } from "./route-matching.js";
 
 /**
  * Opt-in CORS policy for browser clients that need to inspect L402 challenges.

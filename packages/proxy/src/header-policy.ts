@@ -28,6 +28,22 @@ export interface ForwardHeadersPolicy {
   deny?: string[];
 }
 
+/**
+ * Decide whether a request header should be forwarded upstream.
+ *
+ * Header names are matched case-insensitively. Deny rules are applied before
+ * allow rules, and `Authorization`, `Proxy-Authorization`, and `Cookie` are
+ * denied by default to avoid leaking bearer credentials upstream.
+ *
+ * @param name - Request header name.
+ * @param policy - Optional allow and deny glob policy.
+ * @returns `true` when the header may be forwarded.
+ * @example
+ * ```ts
+ * shouldForwardHeader("authorization"); // false
+ * shouldForwardHeader("x-request-id", { allow: ["x-*"] }); // true
+ * ```
+ */
 export function shouldForwardHeader(name: string, policy: ForwardHeadersPolicy = {}): boolean {
   const normalized = name.toLowerCase();
   const deny = [...DEFAULT_DENY, ...(policy.deny ?? [])];
@@ -36,6 +52,17 @@ export function shouldForwardHeader(name: string, policy: ForwardHeadersPolicy =
   return policy.allow.some((pattern) => matchesHeaderPattern(pattern, normalized));
 }
 
+/**
+ * Remove disallowed request headers from an upstream proxy request.
+ *
+ * This is called before forwarding protected requests. It strips the proxy's
+ * own credential headers unless an application intentionally changes the
+ * default policy.
+ *
+ * @param proxyReq - Outgoing request created by `http-proxy-middleware`.
+ * @param req - Incoming Express request.
+ * @param policy - Optional allow and deny glob policy.
+ */
 export function applyForwardHeaderPolicy(
   proxyReq: ClientRequest,
   req: ExpressRequest,

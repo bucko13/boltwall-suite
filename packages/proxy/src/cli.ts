@@ -46,22 +46,37 @@ Commands:
   --help                                          Show this help
 `;
 
+/** Dependency injection and runtime options for the `boltwall` CLI entrypoint. */
 export interface CliOptions {
+  /** CLI arguments excluding executable and script path. */
   argv?: string[];
+  /** Env-like record used for config loading and backend construction. */
   env?: Record<string, string | undefined>;
+  /** Input stream used by interactive prompts. */
   stdin?: Readable;
+  /** Standard output stream. */
   stdout?: Writable;
+  /** Error output stream. */
   stderr?: Writable;
+  /** Optional saved-config directory override. */
   configDir?: string;
+  /** Command runner used by deploy flows. */
   runner?: CommandRunner;
+  /** Prompt implementation for tests or non-readline hosts. */
   prompt?: PromptDriver;
+  /** Start the dev HTTP server when true. Tests can set false to validate setup only. */
   startServer?: boolean;
 }
 
+/** Prompt abstraction used by interactive config and deploy commands. */
 export interface PromptDriver {
+  /** Ask for a visible text value. */
   input(message: string, defaultValue?: string): Promise<string>;
+  /** Ask for a secret value without echoing input. */
   secret(message: string): Promise<string>;
+  /** Ask for a yes/no confirmation. */
   confirm(message: string, defaultValue?: boolean): Promise<boolean>;
+  /** Ask the user to choose one value from a list. */
   select(message: string, choices: string[], defaultValue?: string): Promise<string>;
 }
 
@@ -72,6 +87,15 @@ interface LoadedConfig {
 
 type ConfigPromptMode = "create" | "deploy" | "dev";
 
+/**
+ * Run the `boltwall` CLI.
+ *
+ * This function is exported for tests and embedded tooling. It writes human
+ * output to the configured streams and returns a process-style exit code.
+ *
+ * @param options - CLI arguments, streams, env, prompts, and command runner.
+ * @returns `0` on success, `1` on validation or command failure.
+ */
 export async function runCli(options: CliOptions = {}): Promise<number> {
   const argv = options.argv ?? process.argv.slice(2);
   const stdout = options.stdout ?? process.stdout;
@@ -815,6 +839,12 @@ interface MaskedInterface {
 }
 
 export class ReadlinePrompt implements PromptDriver {
+  /**
+   * Create a prompt driver backed by Node readline streams.
+   *
+   * @param inputStream - Stream to read answers from.
+   * @param outputStream - Stream to write prompts to.
+   */
   constructor(
     private readonly inputStream: Readable,
     private readonly outputStream: Writable,

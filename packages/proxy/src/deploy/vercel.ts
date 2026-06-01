@@ -14,40 +14,66 @@ import { deploymentDirForConfig } from "../config-store.js";
 
 const VERCEL_ROOT_KEY_ENV = "BOLTWALL_PROXY_ROOT_KEY";
 
+/** Result of one shell command run during Vercel deployment. */
 export interface CommandResult {
+  /** Process exit code, or `null` if the process ended without one. */
   code: number | null;
+  /** Captured stdout. */
   stdout: string;
+  /** Captured stderr. */
   stderr: string;
 }
 
+/** Minimal command runner used by deployment code and tests. */
 export interface CommandRunner {
   run(command: string, args: string[], options?: CommandRunnerOptions): Promise<CommandResult>;
 }
 
+/** Options passed to a command runner. */
 export interface CommandRunnerOptions {
+  /** Working directory for the command. */
   cwd?: string;
+  /** Optional stdin sent to the command. */
   stdin?: string;
 }
 
+/** Inputs for deploying a generated Boltwall proxy project to Vercel. */
 export interface VercelDeployOptions {
+  /** Validated saved proxy config. */
   config: BoltwallConfig;
+  /** Optional config directory used to place generated deployment files. */
   configDir?: string;
+  /** Env-like record used for backend credential lookup. */
   env?: Record<string, string | undefined>;
+  /** Deploy to Vercel production when true; otherwise create a preview deployment. */
   production?: boolean;
+  /** Secret values supplied by the caller or prompt flow. Values are never logged. */
   secretValues?: Record<string, string>;
+  /** Command runner injection for tests and custom shells. */
   runner?: CommandRunner;
 }
 
+/** Result returned after a Vercel deployment succeeds. */
 export interface VercelDeployResult {
+  /** Directory containing the generated Vercel project files. */
   projectDir: string;
+  /** URL printed by `vercel deploy`. */
   deploymentUrl: string;
+  /** Vercel environment targeted by the deploy. */
   environment: "preview" | "production";
 }
 
+/** Thrown when Vercel CLI readiness or deployment fails. */
 export class VercelDeployError extends Error {
   override readonly name = "VercelDeployError";
 }
 
+/**
+ * Verify that the Vercel CLI is installed and authenticated.
+ *
+ * @param runner - Command runner used to invoke `vercel`.
+ * @throws {VercelDeployError} when the CLI is missing or not logged in.
+ */
 export async function assertVercelCliReady(
   runner: CommandRunner = nodeCommandRunner,
 ): Promise<void> {
@@ -79,6 +105,7 @@ export async function assertVercelCliReady(
   }
 }
 
+/** Default command runner backed by `node:child_process.spawn`. */
 export const nodeCommandRunner: CommandRunner = {
   run(command, args, options) {
     return new Promise((resolve, reject) => {
@@ -111,6 +138,16 @@ export const nodeCommandRunner: CommandRunner = {
   },
 };
 
+/**
+ * Generate and deploy a Vercel project for a saved proxy config.
+ *
+ * Backend credentials and the generated proxy root key are provisioned as
+ * Vercel env vars. Command failures are redacted before they are surfaced.
+ *
+ * @param options - Deployment config, environment, secret values, and runner.
+ * @returns Generated project directory and deployed URL.
+ * @throws {VercelDeployError} when CLI commands fail.
+ */
 export async function deployVercel(options: VercelDeployOptions): Promise<VercelDeployResult> {
   const runner = options.runner ?? nodeCommandRunner;
   const config = options.config;

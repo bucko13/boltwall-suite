@@ -5,6 +5,7 @@ type MiddlewareCaveat = NonNullable<L402Config["caveats"]>[number];
 type MiddlewareCaveatFactory = Extract<MiddlewareCaveat, (req: Request) => unknown>;
 type CaveatValue = Awaited<ReturnType<MiddlewareCaveatFactory>>;
 
+/** HTTP methods accepted by route-level proxy policy. */
 export type ProxyHttpMethod = "GET" | "POST" | "PUT" | "DELETE" | "PATCH";
 
 /** Static or request-derived caveat attached to a protected proxy route. */
@@ -36,6 +37,16 @@ export interface ProxyRoute {
   caveats?: ProxyCaveat[];
 }
 
+/**
+ * Return the first route whose method and path match an Express request.
+ *
+ * Route order matters. Put more specific routes before broader trailing-star
+ * routes when both could match the same request.
+ *
+ * @param routes - Candidate route policies in evaluation order.
+ * @param req - Express request being priced.
+ * @returns The first matching route, or `undefined` when none match.
+ */
 export function findMatchingRoute(
   routes: readonly ProxyRoute[],
   req: ExpressRequest,
@@ -48,12 +59,22 @@ export function findMatchingRoute(
   });
 }
 
-// Route `path` matching honors only a trailing `*` as a prefix glob (for
-// example `/api/*`); any other string is compared literally, and a RegExp is
-// the escape hatch for richer matching such as path-segment constraints. This
-// differs from header patterns in header-policy.ts, where `*` is a wildcard
-// that can appear anywhere. Route paths are hierarchical and benefit from the
-// RegExp escape hatch rather than a positional glob.
+/**
+ * Test a proxy route path pattern against a request path.
+ *
+ * String patterns are exact matches unless they end in `*`, in which case the
+ * prefix before `*` is matched with `startsWith`. Other `*` positions are
+ * literal. Use `RegExp` for richer path-segment matching.
+ *
+ * @param pattern - Route pattern from `ProxyRoute.path`.
+ * @param path - Express request path, such as `/api/items/1`.
+ * @returns `true` when the pattern matches the path.
+ * @example
+ * ```ts
+ * isPathMatch("/pokemon/*", "/pokemon/25"); // true
+ * isPathMatch("/pokemon/*", "/digimon/25"); // false
+ * ```
+ */
 export function isPathMatch(pattern: string | RegExp, path: string): boolean {
   if (pattern instanceof RegExp) {
     pattern.lastIndex = 0;

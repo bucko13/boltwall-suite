@@ -135,29 +135,70 @@ const configSchema = z
     }
   });
 
+/** Backend identifiers accepted by saved Boltwall proxy config files. */
 export type BoltwallBackendKind = z.infer<typeof backendKindSchema>;
+
+/**
+ * Validated saved proxy configuration.
+ *
+ * This is the shape returned by `parseBoltwallConfig` and loaded by the CLI
+ * before it is converted into runtime `ProxyConfig`.
+ */
 export type BoltwallConfig = z.output<typeof configSchema>;
+
+/** Raw input shape accepted by the saved-config validator. */
 export type BoltwallConfigInput = z.input<typeof configSchema>;
+
+/** Validated route object from a saved proxy config file. */
 export type BoltwallRoute = z.output<typeof routeSchema>;
+
+/** Backend capability requirements declared by a saved proxy route. */
 export type BoltwallRouteRequirements = NonNullable<BoltwallRoute["requires"]>;
+
+/** Global paywall policy declared by a saved proxy config file. */
 export type BoltwallPaywallPolicy = NonNullable<BoltwallConfig["policy"]>;
+
+/** Env-var name overrides declared under `backend.env` in saved config. */
 export type BoltwallBackendEnv = NonNullable<BoltwallConfig["backend"]["env"]>;
+
+/** Fully resolved environment variable names for one backend kind. */
 export interface BoltwallBackendEnvNames {
+  /** LND gRPC host and port. */
   socket: string;
+  /** LND TLS certificate content. */
   cert: string;
+  /** LND admin macaroon content. */
   macaroon: string;
+  /** Provider API key. */
   apiKey: string;
+  /** Provider base URL. */
   baseUrl: string;
+  /** BTCPay store id. */
   storeId: string;
+  /** BTCPay Greenfield cryptocurrency code. */
   cryptoCode: string;
+  /** BTCPay HODL support assertion variable name. */
   hodlInvoices: string;
+  /** BTCPay streaming support assertion variable name. */
   streamingInvoices: string;
 }
 
+/**
+ * Thrown when saved proxy config or backend env conversion fails.
+ *
+ * Messages identify fields or env names, but do not include secret values.
+ */
 export class BoltwallConfigError extends Error {
   override readonly name = "BoltwallConfigError";
 }
 
+/**
+ * Validate an unknown JSON/YAML object as saved Boltwall proxy config.
+ *
+ * @param input - Parsed config object from JSON, YAML, or tests.
+ * @returns Normalized config with defaults applied.
+ * @throws {BoltwallConfigError} when required fields are missing or invalid.
+ */
 export function parseBoltwallConfig(input: unknown): BoltwallConfig {
   const parsed = configSchema.safeParse(input);
   if (!parsed.success) {
@@ -166,6 +207,18 @@ export function parseBoltwallConfig(input: unknown): BoltwallConfig {
   return parsed.data;
 }
 
+/**
+ * Convert saved config plus a live backend into runtime proxy config.
+ *
+ * The conversion creates an in-memory root-key store and maps saved policy
+ * fields into middleware caveats, satisfiers, capabilities, and HODL mode.
+ * Production deployments that need restart-safe credentials should provide a
+ * different root-key store through the programmatic API.
+ *
+ * @param config - Validated saved config.
+ * @param backend - Live Lightning backend constructed for `config.backend`.
+ * @returns Runtime config accepted by `createProxy`.
+ */
 export function toProxyConfig(config: BoltwallConfig, backend: LightningBackend): ProxyConfig {
   return {
     targetUrl: config.targetUrl,
@@ -188,6 +241,17 @@ export function toProxyConfig(config: BoltwallConfig, backend: LightningBackend)
   };
 }
 
+/**
+ * Build a Lightning backend from environment variables named by saved config.
+ *
+ * Required env names are resolved by `backendEnvNames`. Secret values are read
+ * directly from `env` and are not included in thrown error messages.
+ *
+ * @param config - Validated saved config containing backend kind and env-name overrides.
+ * @param env - Env-like record, usually `process.env`.
+ * @returns A configured LND, OpenNode, or BTCPay adapter.
+ * @throws {BoltwallConfigError} when required env values are missing or invalid.
+ */
 export function createBackendFromEnv(
   config: BoltwallConfig,
   env: Record<string, string | undefined> = process.env,
@@ -222,6 +286,17 @@ export function createBackendFromEnv(
   });
 }
 
+/**
+ * Fail fast when config requires backend features the adapter cannot provide.
+ *
+ * Global policy requirements and route-level `requires` entries are checked
+ * before serving traffic, so unsupported HODL, cancellation, streaming, or
+ * description behavior fails during startup.
+ *
+ * @param config - Validated saved config.
+ * @param backend - Backend instance to check.
+ * @throws {BackendCapabilityError} from `@boltwall/adapters` when unsupported.
+ */
 export function validateBackendCapabilities(
   config: BoltwallConfig,
   backend: LightningBackend,
@@ -235,6 +310,22 @@ export function validateBackendCapabilities(
   }
 }
 
+/**
+ * Resolve the environment variable names used for a backend.
+ *
+ * Defaults are based on backend kind and optional `envPrefix`. Explicit
+ * `backend.env` overrides win for individual fields.
+ *
+ * @param kind - Backend kind from saved config.
+ * @param envPrefix - Optional prefix such as `VOLTAGE`.
+ * @param overrides - Optional per-field env names.
+ * @returns Complete env-name map for all backend fields.
+ * @example
+ * ```ts
+ * backendEnvNames("opennode").apiKey; // "OPENNODE_API_KEY"
+ * backendEnvNames("lnd", "VOLTAGE").socket; // "VOLTAGE_SOCKET"
+ * ```
+ */
 export function backendEnvNames(
   kind: BoltwallBackendKind,
   envPrefix?: string,
@@ -277,6 +368,13 @@ export function backendEnvNames(
   );
 }
 
+/**
+ * Return a short user-facing description for a backend env field.
+ *
+ * @param kind - Backend kind being configured.
+ * @param key - Env-name map key to describe.
+ * @returns Description suitable for CLI prompts and generated docs.
+ */
 export function backendEnvDescription(
   kind: BoltwallBackendKind,
   key: keyof BoltwallBackendEnvNames,
@@ -302,6 +400,16 @@ export function backendEnvDescription(
   return "backend environment value";
 }
 
+/**
+ * List env names whose values should be treated as deployment secrets.
+ *
+ * The returned names are suitable for provider secret-manager prompts. Some
+ * non-secret identifiers, such as BTCPay store id, are included because the
+ * deployment flow provisions backend configuration as a single protected set.
+ *
+ * @param config - Validated saved config.
+ * @returns Env names required for the selected backend.
+ */
 export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
 
@@ -310,6 +418,15 @@ export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   return [vars.baseUrl, vars.apiKey, vars.storeId];
 }
 
+/**
+ * Convert saved config into non-secret runtime env values for Vercel.
+ *
+ * Backend credentials are intentionally omitted. Use `requiredSecretEnvNames`
+ * to provision provider secrets separately.
+ *
+ * @param config - Validated saved config.
+ * @returns Plain env map used by generated Vercel project files.
+ */
 export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string> {
   const base: Record<string, string> = {
     TARGET_URL: config.targetUrl,
@@ -367,6 +484,15 @@ export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string>
   return base;
 }
 
+/**
+ * Build a redacted, scan-friendly summary of a saved config.
+ *
+ * The summary is intended for CLI confirmation output and excludes backend
+ * credential values.
+ *
+ * @param config - Validated saved config.
+ * @returns Plain object suitable for console rendering.
+ */
 export function configSummary(config: BoltwallConfig): Record<string, unknown> {
   return {
     name: config.name ?? "(unnamed)",
