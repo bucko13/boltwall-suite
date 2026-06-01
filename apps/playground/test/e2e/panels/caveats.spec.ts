@@ -9,7 +9,14 @@ const FIXTURE_CHALLENGE = `L402 macaroon="${FIXTURE_MACAROON}", invoice="lnbc1de
 const FIXTURE_CREDENTIAL = `L402 ${FIXTURE_MACAROON}:${PREIMAGE}`;
 
 async function macaroonOutput(page: Page): Promise<string> {
-  return (await page.locator("[data-testid='caveats-output'] pre").first().textContent()) ?? "";
+  // Wait for the attenuated macaroon to actually render before reading it.
+  // Reading textContent unconditionally can return "" if the output has not
+  // painted yet (e.g. dev-server cold compile under parallel load), which then
+  // feeds an impossible value into downstream Workbench assertions and flakes.
+  const output = page.locator("[data-testid='caveats-output'] pre").first();
+  await expect(output).toBeVisible();
+  await expect(output).not.toHaveText("");
+  return (await output.textContent()) ?? "";
 }
 
 async function setWorkbenchMemory(
