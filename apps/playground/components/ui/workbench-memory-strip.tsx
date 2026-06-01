@@ -98,6 +98,18 @@ function slotButtonStyle(enabled: boolean) {
   } as const;
 }
 
+const visuallyHiddenStyle = {
+  position: "absolute",
+  width: 1,
+  height: 1,
+  padding: 0,
+  margin: -1,
+  overflow: "hidden",
+  clip: "rect(0, 0, 0, 0)",
+  whiteSpace: "nowrap",
+  border: 0,
+} as const;
+
 function MemorySlot({
   label,
   value,
@@ -113,6 +125,7 @@ function MemorySlot({
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
+  const ariaName = label.toLowerCase();
 
   async function copyValue() {
     if (!hasValue) return;
@@ -143,12 +156,12 @@ function MemorySlot({
       style={{
         position: "relative",
         display: "grid",
-        gridTemplateColumns: "minmax(0, 1fr) repeat(3, 24px)",
-        alignItems: "center",
-        gap: 5,
+        gridTemplateRows: "auto 24px",
+        alignContent: "space-between",
+        gap: 7,
         minWidth: 0,
-        minHeight: 34,
-        padding: "4px 5px 4px 8px",
+        minHeight: 62,
+        padding: "7px 8px",
         borderRadius: 4,
         border: "1px solid var(--color-border)",
         background: hasValue ? "var(--color-accent-soft)" : "var(--color-surface)",
@@ -158,81 +171,88 @@ function MemorySlot({
     >
       <div
         style={{
-          display: "grid",
-          gap: 1,
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "space-between",
+          gap: 8,
           minWidth: 0,
         }}
       >
         <span
           style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
             color: hasValue ? "var(--color-text)" : "var(--color-dim)",
-            fontSize: "var(--size-11)",
+            fontSize: "var(--size-12)",
             fontWeight: 600,
+            lineHeight: 1.2,
           }}
         >
           {label}
         </span>
         <span
-          data-testid={`${testId}-status`}
+          aria-hidden="true"
+          title={hasValue ? "Stored" : "Empty"}
           style={{
-            overflow: "hidden",
-            textOverflow: "ellipsis",
-            whiteSpace: "nowrap",
-            color: hasValue ? "var(--color-accent)" : "var(--color-dim)",
-            fontFamily:
-              "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
-            fontSize: "var(--size-10)",
+            width: 8,
+            height: 8,
+            borderRadius: 999,
+            background: hasValue ? "var(--color-accent)" : "transparent",
+            border: `1px solid ${hasValue ? "var(--color-accent)" : "var(--color-border)"}`,
+            flexShrink: 0,
           }}
+        />
+        <span
+          data-testid={`${testId}-status`}
+          aria-label={`${ariaName} ${hasValue ? "stored" : "empty"}`}
+          style={visuallyHiddenStyle}
         >
           {hasValue ? "stored" : "empty"}
         </span>
       </div>
-      <button
-        type="button"
-        disabled={!hasValue}
-        onClick={() => {
-          if (hasValue) setRevealed((current) => !current);
-        }}
-        onFocus={() => {
-          if (hasValue) setRevealed(true);
-        }}
-        data-testid={`${testId}-reveal`}
-        aria-label={revealed ? `Hide remembered ${label}` : `Reveal remembered ${label}`}
-        aria-expanded={hasValue ? revealed : false}
-        title={revealed ? "Hide" : "Reveal"}
-        style={slotButtonStyle(hasValue)}
-      >
-        <RevealGlyph />
-      </button>
-      <button
-        type="button"
-        disabled={!hasValue}
-        onClick={copyValue}
-        data-testid={`${testId}-copy`}
-        aria-label={copied ? `Copied remembered ${label}` : `Copy remembered ${label}`}
-        title={copied ? "Copied" : "Copy"}
-        style={slotButtonStyle(hasValue)}
-      >
-        <CopyGlyph copied={copied} />
-      </button>
-      <button
-        type="button"
-        disabled={!hasValue}
-        onClick={onClear}
-        data-testid={`${testId}-clear`}
-        aria-label={`Clear remembered ${label}`}
-        title="Clear"
-        style={slotButtonStyle(hasValue)}
-      >
-        <ClearGlyph />
-      </button>
+      <div style={{ display: "flex", gap: 6 }}>
+        <button
+          type="button"
+          disabled={!hasValue}
+          onClick={() => {
+            if (hasValue) setRevealed((current) => !current);
+          }}
+          onFocus={() => {
+            if (hasValue) setRevealed(true);
+          }}
+          data-testid={`${testId}-reveal`}
+          aria-label={revealed ? `Hide remembered ${ariaName}` : `Reveal remembered ${ariaName}`}
+          aria-expanded={hasValue ? revealed : false}
+          title={revealed ? "Hide" : "Reveal"}
+          style={slotButtonStyle(hasValue)}
+        >
+          <RevealGlyph />
+        </button>
+        <button
+          type="button"
+          disabled={!hasValue}
+          onClick={copyValue}
+          data-testid={`${testId}-copy`}
+          aria-label={copied ? `Copied remembered ${ariaName}` : `Copy remembered ${ariaName}`}
+          title={copied ? "Copied" : "Copy"}
+          style={slotButtonStyle(hasValue)}
+        >
+          <CopyGlyph copied={copied} />
+        </button>
+        <button
+          type="button"
+          disabled={!hasValue}
+          onClick={onClear}
+          data-testid={`${testId}-clear`}
+          aria-label={`Clear remembered ${ariaName}`}
+          title="Clear"
+          style={slotButtonStyle(hasValue)}
+        >
+          <ClearGlyph />
+        </button>
+      </div>
       {hasValue && revealed ? (
         <div
           role="dialog"
-          aria-label={`Remembered ${label} value`}
+          aria-label={`Remembered ${ariaName} value`}
           data-testid={`${testId}-popover`}
           style={{
             position: "absolute",
@@ -258,7 +278,7 @@ function MemorySlot({
               textTransform: "uppercase",
             }}
           >
-            remembered {label}
+            remembered {ariaName}
           </span>
           <code
             style={{
@@ -283,25 +303,25 @@ function MemorySlot({
 
 const MEMORY_SLOTS = [
   {
-    label: "signing key",
+    label: "Signing key",
     field: "signingKey",
     clear: "setSigningKey",
     testId: "workbench-memory-key",
   },
   {
-    label: "macaroon",
+    label: "Macaroon",
     field: "macaroon",
     clear: "setMacaroon",
     testId: "workbench-memory-macaroon",
   },
   {
-    label: "challenge",
+    label: "Challenge",
     field: "challenge",
     clear: "setChallenge",
     testId: "workbench-memory-challenge",
   },
   {
-    label: "credential",
+    label: "Credential",
     field: "credential",
     clear: "setCredential",
     testId: "workbench-memory-credential",
@@ -320,34 +340,28 @@ export function WorkbenchMemoryStrip() {
       data-testid="workbench-memory-strip"
       style={{
         maxWidth: 920,
-        margin: "16px auto 0",
+        margin: "12px auto 0",
         padding: "0 24px",
       }}
     >
       <div
         style={{
           display: "grid",
-          gridTemplateColumns: "minmax(0, 1fr) auto",
-          alignItems: "start",
-          gap: 10,
-          padding: "8px 10px",
-          border: "1px solid var(--color-border)",
-          borderRadius: 6,
-          background: "var(--color-surface-alt)",
+          gap: 6,
         }}
       >
         <div
           style={{
-            display: "grid",
-            gridTemplateColumns: "auto minmax(0, 1fr)",
+            display: "flex",
             alignItems: "center",
-            gap: 10,
+            justifyContent: "space-between",
+            gap: 12,
             minWidth: 0,
           }}
         >
           <span
             style={{
-              fontSize: "var(--size-11)",
+              fontSize: "var(--size-10)",
               color: "var(--color-dim)",
               fontWeight: 600,
               textTransform: "uppercase",
@@ -356,48 +370,50 @@ export function WorkbenchMemoryStrip() {
           >
             Workbench memory
           </span>
-          <div
+          <button
+            type="button"
+            disabled={!hasAnyValue}
+            onClick={memory.clear}
+            data-testid="workbench-memory-clear-all"
             style={{
-              display: "grid",
-              gridTemplateColumns: "repeat(auto-fit, minmax(142px, 1fr))",
-              gap: 8,
-              minWidth: 0,
+              minHeight: 24,
+              padding: "3px 7px",
+              borderRadius: 4,
+              border: "1px solid var(--color-border)",
+              background: "var(--color-surface)",
+              color: "var(--color-dim)",
+              fontSize: "var(--size-11)",
+              fontWeight: 500,
+              whiteSpace: "nowrap",
+              opacity: hasAnyValue ? 1 : 0.45,
+              cursor: hasAnyValue ? "pointer" : "not-allowed",
             }}
           >
-            {MEMORY_SLOTS.map((slot) => (
-              <MemorySlot
-                key={slot.field}
-                label={slot.label}
-                value={memory[slot.field]}
-                onClear={() => memory[slot.clear](null)}
-                testId={slot.testId}
-              />
-            ))}
-          </div>
+            Clear all
+          </button>
         </div>
-
-        <button
-          type="button"
-          disabled={!hasAnyValue}
-          onClick={memory.clear}
-          data-testid="workbench-memory-clear-all"
+        <div
           style={{
-            width: 68,
-            minHeight: 34,
-            padding: "4px 8px",
-            borderRadius: 4,
+            display: "grid",
+            gridTemplateColumns: "repeat(auto-fit, minmax(132px, 1fr))",
+            gap: 8,
+            minWidth: 0,
+            padding: 8,
             border: "1px solid var(--color-border)",
-            background: "var(--color-surface)",
-            color: "var(--color-dim)",
-            fontSize: "var(--size-11)",
-            fontWeight: 500,
-            whiteSpace: "nowrap",
-            opacity: hasAnyValue ? 1 : 0.45,
-            cursor: hasAnyValue ? "pointer" : "not-allowed",
+            borderRadius: 6,
+            background: "var(--color-surface-alt)",
           }}
         >
-          Clear all
-        </button>
+          {MEMORY_SLOTS.map((slot) => (
+            <MemorySlot
+              key={slot.field}
+              label={slot.label}
+              value={memory[slot.field]}
+              onClear={() => memory[slot.clear](null)}
+              testId={slot.testId}
+            />
+          ))}
+        </div>
       </div>
     </div>
   );
