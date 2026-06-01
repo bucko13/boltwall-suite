@@ -63,6 +63,42 @@ test.describe("Workbench Memory strip", () => {
     );
   });
 
+  test("keeps the revealed value open while the pointer moves into the popover", async ({
+    page,
+  }) => {
+    await seedWorkbenchMemory(page);
+    await page.goto("/p/generate");
+
+    const reveal = page.getByTestId("workbench-memory-macaroon-reveal");
+    await reveal.hover();
+
+    const popover = page.getByTestId("workbench-memory-macaroon-popover");
+    await expect(popover).toBeVisible();
+
+    const box = await popover.boundingBox();
+    expect(box).not.toBeNull();
+    await page.mouse.move(box!.x + box!.width / 2, box!.y + box!.height / 2);
+
+    await expect(popover).toBeVisible();
+    await expect(popover).toContainText(FIXTURE_MEMORY.macaroon);
+  });
+
+  test("keeps the revealed value open after a mobile tap", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 });
+    await seedWorkbenchMemory(page);
+    await page.goto("/p/generate");
+
+    const reveal = page.getByTestId("workbench-memory-macaroon-reveal");
+    await reveal.click();
+
+    const popover = page.getByTestId("workbench-memory-macaroon-popover");
+    await expect(popover).toBeVisible();
+    await popover.click();
+
+    await expect(popover).toBeVisible();
+    await expect(popover).toContainText(FIXTURE_MEMORY.macaroon);
+  });
+
   test("enables copy and clear controls for populated slots", async ({ context, page }) => {
     await grantClipboard(context);
     await seedWorkbenchMemory(page);

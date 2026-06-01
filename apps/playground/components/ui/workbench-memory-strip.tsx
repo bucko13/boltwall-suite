@@ -125,6 +125,8 @@ function MemorySlot({
   const [copied, setCopied] = useState(false);
   const [revealed, setRevealed] = useState(false);
   const slotRef = useRef<HTMLDivElement>(null);
+  const revealedOnPointerDownRef = useRef<boolean | null>(null);
+  const pointerDownInsidePopoverRef = useRef(false);
   const ariaName = label.toLowerCase();
 
   async function copyValue() {
@@ -139,6 +141,9 @@ function MemorySlot({
   }
 
   function handleBlur(event: FocusEvent<HTMLDivElement>) {
+    if (pointerDownInsidePopoverRef.current) {
+      return;
+    }
     if (!slotRef.current?.contains(event.relatedTarget)) {
       setRevealed(false);
     }
@@ -213,8 +218,14 @@ function MemorySlot({
         <button
           type="button"
           disabled={!hasValue}
+          onPointerDown={() => {
+            revealedOnPointerDownRef.current = revealed;
+          }}
           onClick={() => {
-            if (hasValue) setRevealed((current) => !current);
+            if (!hasValue) return;
+            const wasRevealed = revealedOnPointerDownRef.current;
+            revealedOnPointerDownRef.current = null;
+            setRevealed((current) => (wasRevealed === null ? !current : !wasRevealed));
           }}
           onFocus={() => {
             if (hasValue) setRevealed(true);
@@ -255,47 +266,60 @@ function MemorySlot({
           role="dialog"
           aria-label={`Remembered ${ariaName} value`}
           data-testid={`${testId}-popover`}
+          onPointerDown={() => {
+            pointerDownInsidePopoverRef.current = true;
+            window.setTimeout(() => {
+              pointerDownInsidePopoverRef.current = false;
+            }, 0);
+          }}
           style={{
             position: "absolute",
             zIndex: 20,
             left: 0,
             right: 0,
-            top: "calc(100% + 6px)",
+            top: "100%",
             display: "grid",
-            gap: 4,
-            padding: "8px",
-            border: "1px solid var(--color-border)",
-            borderRadius: 4,
-            background: "var(--color-surface)",
-            color: "var(--color-text)",
-            boxShadow: "0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent)",
+            paddingTop: 6,
           }}
         >
-          <span
+          <div
             style={{
-              color: "var(--color-dim)",
-              fontSize: "var(--size-10)",
-              fontWeight: 600,
-              textTransform: "uppercase",
-            }}
-          >
-            remembered {ariaName}
-          </span>
-          <code
-            style={{
-              display: "block",
-              maxHeight: 104,
-              overflow: "auto",
-              overflowWrap: "anywhere",
+              display: "grid",
+              gap: 4,
+              padding: "8px",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
+              background: "var(--color-surface)",
               color: "var(--color-text)",
-              fontFamily:
-                "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
-              fontSize: "var(--size-11)",
-              lineHeight: 1.45,
+              boxShadow: "0 0 0 1px color-mix(in srgb, var(--color-primary) 18%, transparent)",
             }}
           >
-            {value}
-          </code>
+            <span
+              style={{
+                color: "var(--color-dim)",
+                fontSize: "var(--size-10)",
+                fontWeight: 600,
+                textTransform: "uppercase",
+              }}
+            >
+              remembered {ariaName}
+            </span>
+            <code
+              style={{
+                display: "block",
+                maxHeight: 104,
+                overflow: "auto",
+                overflowWrap: "anywhere",
+                color: "var(--color-text)",
+                fontFamily:
+                  "var(--font-geist-mono), 'IBM Plex Mono', 'JetBrains Mono', ui-monospace, monospace",
+                fontSize: "var(--size-11)",
+                lineHeight: 1.45,
+              }}
+            >
+              {value}
+            </code>
+          </div>
         </div>
       ) : null}
     </div>
