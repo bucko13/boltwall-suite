@@ -1,4 +1,4 @@
-import { expect, test } from "@playwright/test";
+import { expect, type Page, test } from "@playwright/test";
 
 const FIXTURE_MACAROON =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
@@ -11,6 +11,17 @@ const WRONG_PREIMAGE = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 const MATCHED_MACAROON =
   "AgJCAABmaHqt+GK9d2yPwYuOn44gCJcUhW7iM7OQKlkdDV8pJUJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCAAAGIH9hp+uMItiKi8tWoZlifmqpAXGfIYkWOdhGLJw3aWRR";
 const ZERO_PREIMAGE = "0000000000000000000000000000000000000000000000000000000000000000";
+
+async function seedWorkbenchSigningKey(page: Page) {
+  await page.goto("/p/generate");
+  await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+  await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
+  await page.goto("/p/validate");
+  await expect(page.locator("[data-testid='cell']")).toBeVisible();
+  await expect(page.locator("[data-testid='validate-workbench-signing-key']")).toContainText(
+    "Workbench signing key",
+  );
+}
 
 test.describe("panels / validate", () => {
   test.beforeEach(async ({ page }) => {
@@ -33,18 +44,18 @@ test.describe("panels / validate", () => {
     await expect(actions).not.toContainText("Fill macaroon from workbench");
     await expect(page.getByTestId("validate-fill-macaroon")).toHaveText("Macaroon");
     await expect(page.getByTestId("validate-fill-credential")).toHaveText("Credential");
-    await expect(page.getByTestId("validate-fill-key")).toHaveText("Key");
-    await expect(page.getByTestId("validate-fill-key")).toHaveAttribute(
-      "aria-label",
-      "No key in Workbench",
+    await expect(page.getByTestId("validate-fill-key")).toHaveCount(0);
+    await expect(page.getByTestId("validate-key-input")).toHaveCount(0);
+    await expect(page.getByTestId("validate-workbench-signing-key")).toContainText(
+      "not in Workbench",
     );
   });
 
   test("verify with mismatched preimage shows check results including preimage row", async ({
     page,
   }) => {
+    await seedWorkbenchSigningKey(page);
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
     await page.click("[data-testid='validate-verify']");
 
@@ -56,11 +67,11 @@ test.describe("panels / validate", () => {
   });
 
   test("verify accepts a full Authorization credential", async ({ page }) => {
+    await seedWorkbenchSigningKey(page);
     await page.fill(
       "[data-testid='validate-token-input']",
       `Authorization: L402 ${FIXTURE_MACAROON}:${WRONG_PREIMAGE}`,
     );
-    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.click("[data-testid='validate-verify']");
 
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
@@ -70,7 +81,7 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("invalid");
   });
 
-  test("credential checks do not dead-end without a root key", async ({ page }) => {
+  test("credential checks do not dead-end without a Workbench signing key", async ({ page }) => {
     await page.fill(
       "[data-testid='validate-token-input']",
       `Authorization: L402 ${FIXTURE_MACAROON}:${WRONG_PREIMAGE}`,
@@ -90,7 +101,50 @@ test.describe("panels / validate", () => {
     );
   });
 
-  test("credential without a root key reads as partially verified, not valid", async ({ page }) => {
+  test("macaroon-only verification skips missing preimage and signing key", async ({ page }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
+    await page.click("[data-testid='validate-verify']");
+
+    const output = page.locator("[data-testid='validate-output']");
+    await expect(page.locator("[data-testid='validate-error']")).toHaveCount(0);
+    await expect(output).toBeVisible();
+    await expect(output).toContainText("Identifier decoded");
+    await expect(output).toContainText("Preimage check skipped");
+    await expect(output).toContainText("Macaroon signature not checked");
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
+  });
+
+  test("signature check uses the Workbench signing key when present", async ({ page }) => {
+    await seedWorkbenchSigningKey(page);
+    await expect(page.getByTestId("validate-workbench-signing-key")).toContainText(
+      "Workbench signing key",
+    );
+    await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
+    await page.fill("[data-testid='validate-preimage-input']", ZERO_PREIMAGE);
+    await page.click("[data-testid='validate-verify']");
+
+    const output = page.locator("[data-testid='validate-output']");
+    await expect(output).toContainText("Preimage matches paymentHash");
+    await expect(output).toContainText("Macaroon signature and caveats valid");
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("valid");
+  });
+
+  test("malformed preimage is skipped instead of blocking verification", async ({ page }) => {
+    await seedWorkbenchSigningKey(page);
+    await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
+    await page.fill("[data-testid='validate-preimage-input']", "abc");
+    await page.click("[data-testid='validate-verify']");
+
+    const output = page.locator("[data-testid='validate-output']");
+    await expect(page.locator("[data-testid='validate-error']")).toHaveCount(0);
+    await expect(output).toContainText("Preimage check skipped");
+    await expect(output).toContainText("Macaroon signature and caveats valid");
+    await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
+  });
+
+  test("credential without a Workbench signing key reads as partially verified, not valid", async ({
+    page,
+  }) => {
     await page.fill(
       "[data-testid='validate-token-input']",
       `L402 ${MATCHED_MACAROON}:${ZERO_PREIMAGE}`,
@@ -102,13 +156,13 @@ test.describe("panels / validate", () => {
       "Macaroon signature not checked",
     );
     await expect(page.locator("[data-testid='validate-output']")).toContainText("SKIPPED");
-    // The signature is unverified without the root key — not green/"valid".
+    // The signature is unverified without the Workbench signing key — not green/"valid".
     await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
   });
 
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
+    await seedWorkbenchSigningKey(page);
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
 
     await page.click("[data-testid='validate-tamper']");
@@ -116,20 +170,19 @@ test.describe("panels / validate", () => {
     await expect(page.locator("text=Token tampered")).toBeVisible();
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
     await expect(page.locator("[data-testid='validate-output']")).toContainText(
-      "Macaroon signature valid",
+      "Macaroon signature and caveats valid",
     );
   });
 
   test("empty token shows error", async ({ page }) => {
-    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
     await page.click("[data-testid='validate-verify']");
     await expect(page.locator("[data-testid='validate-error']")).toBeVisible();
   });
 
   test("reset clears output", async ({ page }) => {
+    await seedWorkbenchSigningKey(page);
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", FIXTURE_KEY);
     await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
     await page.click("[data-testid='validate-verify']");
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
@@ -169,11 +222,12 @@ test.describe("panels / validate", () => {
     );
 
     await page.getByRole("link", { name: "Validate" }).click();
-    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='validate-workbench-signing-key']")).toContainText(
+      "Workbench signing key",
+    );
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
-    await page.click("[data-testid='validate-fill-key']");
     await page.click("[data-testid='validate-fill-macaroon']");
-    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(FIXTURE_KEY);
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue(
       macaroon?.trim() ?? "",
     );
@@ -186,14 +240,13 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
 
     await page.click("[data-testid='validate-fill-macaroon']");
-    await page.click("[data-testid='validate-fill-key']");
     await expect(page.locator("[data-testid='validate-fill-macaroon']")).toHaveAttribute(
       "aria-label",
       "Macaroon already filled",
     );
     await page.click("[data-testid='validate-clear-both']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue("");
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveCount(0);
     await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
       "empty",
     );

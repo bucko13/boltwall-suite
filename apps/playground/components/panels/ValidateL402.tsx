@@ -21,8 +21,8 @@ import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 /**
  * A check is `pass`/`fail`, or `warn` when it could not be performed (e.g. the
- * macaroon signature cannot be verified without the minting root key). A `warn`
- * is NOT a pass — it must not let the overall result read as fully valid.
+ * macaroon signature cannot be verified without the Workbench signing key). A
+ * `warn` is NOT a pass — it must not let the overall result read as fully valid.
  */
 type CheckState = "pass" | "fail" | "warn";
 
@@ -98,7 +98,6 @@ export function ValidateL402() {
   // Inputs are plain local state — never auto-synced to the URL or Workbench.
   // A carried value enters an input only via the explicit Fill buttons below.
   const [token, setToken] = useState<string | null>(null);
-  const [rootKeyHex, setRootKeyHex] = useState<string | null>(null);
   const [preimageHex, setPreimageHex] = useState<string | null>(null);
 
   const [checks, setChecks] = useState<CheckItem[] | null>(null);
@@ -112,14 +111,10 @@ export function ValidateL402() {
     const credentialToken = credentialInput.token;
     const macaroons = credentialToken?.macaroons ?? credentialInput.macaroons;
     const preimage = credentialInput.preimage ?? (preimageHex ?? "").trim();
+    const validPreimage = /^[0-9a-fA-F]{64}$/.test(preimage);
     const mac = macaroons[0] ?? "";
     if (!mac) {
       setError("Paste a base64-encoded macaroon or full Authorization credential.");
-      setChecks(null);
-      return;
-    }
-    if (!preimage || !/^[0-9a-fA-F]{64}$/.test(preimage)) {
-      setError("Preimage must be 64 hex chars.");
       setChecks(null);
       return;
     }
@@ -150,35 +145,46 @@ export function ValidateL402() {
     }
 
     // Step 2: preimage check
-    try {
-      const preimageOk = verifyPreimage({
-        paymentHash,
-        preimage,
-      });
+    if (!preimage) {
       newChecks.push({
-        label: "Preimage matches paymentHash",
-        state: preimageOk ? "pass" : "fail",
-        ...(preimageOk ? {} : { detail: "sha256(preimage) != paymentHash" }),
+        label: "Preimage check skipped",
+        state: "warn",
+        detail: "Paste a 64-char hex preimage or full credential to prove payment.",
       });
-    } catch (e) {
+    } else if (!validPreimage) {
       newChecks.push({
-        label: "Preimage matches paymentHash",
-        state: "fail",
-        detail: e instanceof Error ? e.message : String(e),
+        label: "Preimage check skipped",
+        state: "warn",
+        detail: "Preimage must be 64 hex characters before payment proof can be checked.",
       });
+    } else {
+      try {
+        const preimageOk = verifyPreimage({
+          paymentHash,
+          preimage,
+        });
+        newChecks.push({
+          label: "Preimage matches paymentHash",
+          state: preimageOk ? "pass" : "fail",
+          ...(preimageOk ? {} : { detail: "sha256(preimage) != paymentHash" }),
+        });
+      } catch (e) {
+        newChecks.push({
+          label: "Preimage matches paymentHash",
+          state: "fail",
+          detail: e instanceof Error ? e.message : String(e),
+        });
+      }
     }
 
-    const rootKey = (rootKeyHex ?? "").trim();
+    const rootKey = workbenchMemory?.signingKey.trim() ?? "";
     if (!rootKey || !/^[0-9a-fA-F]{64}$/.test(rootKey)) {
-      if (credentialInput.source !== "credential") {
-        setError("Root key must be 64 hex chars.");
-        setChecks(null);
-        return;
-      }
       newChecks.push({
         label: "Macaroon signature not checked",
         state: "warn",
-        detail: "Paste the minting root key to verify the macaroon signature.",
+        detail: rootKey
+          ? "Workbench signing key must be 64 hex characters before signature checks can run."
+          : "Generate or paste a signing key into Workbench to verify the macaroon signature.",
       });
       setChecks(newChecks);
       setError(null);
@@ -193,20 +199,21 @@ export function ValidateL402() {
 
       const tokenToVerify = credentialToken ?? new L402({ macaroons });
       const result = await tokenToVerify.verify({
-        preimage,
+        ...(validPreimage ? { preimage } : {}),
         rootKeyStore: store,
         satisfiers: [validUntilSatisfier()],
         context: { now: new Date() },
+        requirePreimage: false,
       });
 
       newChecks.push({
-        label: "Macaroon signature valid",
+        label: "Macaroon signature and caveats valid",
         state: result.ok ? "pass" : "fail",
         ...(result.ok ? {} : { detail: result.reason }),
       });
     } catch (e) {
       newChecks.push({
-        label: "Macaroon signature valid",
+        label: "Macaroon signature and caveats valid",
         state: "fail",
         detail: e instanceof Error ? e.message : String(e),
       });
@@ -235,7 +242,6 @@ export function ValidateL402() {
 
   function clearPage() {
     setToken(null);
-    setRootKeyHex(null);
     setPreimageHex(null);
     setChecks(null);
     setError(null);
@@ -258,14 +264,9 @@ export function ValidateL402() {
     setError(null);
   }
 
-  function fillKeyFromWorkbench(value: string) {
-    setRootKeyHex(value);
-    setChecks(null);
-    setError(null);
-  }
-
-  // A skipped (warn) check must not read as fully valid: without the root key the
-  // signature is unverified, so the result is "partially verified", not green.
+  // A skipped (warn) check must not read as fully valid: without the Workbench
+  // signing key the signature is unverified, so the result is "partially
+  // verified", not green.
   const hasFail = checks?.some((c) => c.state === "fail") ?? false;
   const hasWarn = checks?.some((c) => c.state === "warn") ?? false;
   const status = error ? "fail" : !checks ? "idle" : hasFail ? "fail" : hasWarn ? "warn" : "pass";
@@ -281,13 +282,13 @@ export function ValidateL402() {
   const inputValue = tampered && tamperedToken ? tamperedToken : (token ?? "");
   const extractedInput = extractCredentialInput(inputValue);
   const tokenLiteral = JSON.stringify(extractedInput.macaroons[0] ?? "<base64 macaroon>");
-  const rootKeyLiteral = JSON.stringify((rootKeyHex ?? "").trim() || "<64-char hex key>");
+  const rememberedSigningKey = workbenchMemory?.signingKey.trim() ?? "";
+  const rootKeyLiteral = JSON.stringify(rememberedSigningKey || "<Workbench signing key>");
   const preimageLiteral = JSON.stringify(
     (extractedInput.preimage ?? (preimageHex ?? "").trim()) || "<64-char hex preimage>",
   );
   const rememberedMacaroon = workbenchMemory?.macaroon.trim() ?? "";
   const rememberedCredential = workbenchMemory?.credential.trim() ?? "";
-  const rememberedSigningKey = workbenchMemory?.signingKey.trim() ?? "";
 
   return (
     <Cell
@@ -370,40 +371,26 @@ export function ValidateL402() {
               onFill={fillTokenFromWorkbench}
               testId="validate-fill-credential"
             />
-            <FillFromWorkbench
-              label="key"
-              available={rememberedSigningKey}
-              current={rootKeyHex ?? ""}
-              onFill={fillKeyFromWorkbench}
-              testId="validate-fill-key"
-            />
           </div>
 
-          <label
+          <div
+            data-testid="validate-workbench-signing-key"
             style={{
               fontSize: "var(--size-12)",
               color: "var(--color-dim)",
-              display: "flex",
-              flexDirection: "column",
-              gap: 4,
+              padding: "8px 10px",
+              background: "var(--color-surface-alt)",
+              border: "1px solid var(--color-border)",
+              borderRadius: 4,
             }}
           >
-            Root key (64-char hex)
-            <input
-              type="text"
-              value={rootKeyHex ?? ""}
-              onChange={(e) => {
-                setRootKeyHex(e.target.value);
-                setChecks(null);
-                setError(null);
-              }}
-              placeholder="000102030405..."
-              data-testid="validate-key-input"
-              style={{
-                ...panelInputStyle(Boolean(error)),
-              }}
-            />
-          </label>
+            Signing key source:{" "}
+            <span
+              style={{ color: rememberedSigningKey ? "var(--color-text)" : "var(--color-dim)" }}
+            >
+              {rememberedSigningKey ? "Workbench signing key" : "not in Workbench"}
+            </span>
+          </div>
 
           <label
             style={{
@@ -577,7 +564,7 @@ export function ValidateL402() {
         <CodeSnippet
           language="typescript"
           contract="current-input"
-          template={`import { L402, Identifier, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst macaroon = {{tokenLiteral}};\nconst rootKey = hexToBytes({{rootKeyLiteral}});\nconst preimage = {{preimageLiteral}};\nconst { tokenId } = Identifier.fromMacaroon(macaroon);\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, rootKey);\n\nconst token = new L402({ macaroons: [macaroon], paymentPreimage: preimage });\nconst result = await token.verify({\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
+          template={`import { L402, Identifier, InMemoryRootKeyStore, validUntilSatisfier } from "@boltwall/l402";\n\nfunction hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}\n\nconst macaroon = {{tokenLiteral}};\nconst workbenchSigningKey = {{rootKeyLiteral}};\nconst preimage = {{preimageLiteral}};\nconst { tokenId } = Identifier.fromMacaroon(macaroon);\n\nconst store = new InMemoryRootKeyStore();\nawait store.put(tokenId, hexToBytes(workbenchSigningKey));\n\nconst token = new L402({ macaroons: [macaroon], paymentPreimage: preimage });\nconst result = await token.verify({\n  rootKeyStore: store,\n  satisfiers: [validUntilSatisfier()],\n  context: { now: new Date() },\n});\n// -> { ok: true } or { ok: false, reason: "..." }`}
           values={{
             tokenLiteral,
             rootKeyLiteral,

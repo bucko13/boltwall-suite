@@ -19,7 +19,7 @@ if (!invoiceFixture) {
   throw new Error("generate-from-invoice: missing bolt11-spec-microbtc-mainnet fixture");
 }
 
-// Arbitrary known root key — 32 bytes.
+// Arbitrary known signing key — 32 bytes.
 const SIGNING_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 // Arbitrary 32-byte hex preimage; Generate binds the macaroon to sha256 of it.
 const PREIMAGE = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";
@@ -153,21 +153,32 @@ test.describe("panels / generate-from-invoice", () => {
     await expect(page.locator("[data-testid='generate-token-credential']")).not.toBeVisible();
   });
 
-  test("generated credential verifies in Validate with the same root key", async ({ page }) => {
+  test("generated credential verifies in Validate with the Workbench signing key", async ({
+    page,
+  }) => {
     await page.fill("[data-testid='generate-token-key-input']", SIGNING_KEY);
     await page.fill("[data-testid='generate-token-preimage-input']", PREIMAGE);
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-credential']")).toBeVisible();
 
-    // Carry the credential + root key into Validate via Workbench memory.
+    await page.evaluate((signingKey) => {
+      const raw = window.sessionStorage.getItem("bw.workbench-memory");
+      const memory = raw ? (JSON.parse(raw) as Record<string, string>) : {};
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({ macaroon: "", challenge: "", credential: "", ...memory, signingKey }),
+      );
+    }, SIGNING_KEY);
+
+    // Carry the credential + signing key into Validate via Workbench memory.
     // Use a full navigation (sessionStorage-backed Workbench survives it) to
     // avoid racing the SPA nav link against the panel's URL-param updates.
     await page.goto("/p/validate");
     await page.click("[data-testid='validate-fill-credential']");
-    // The signing key is a local Generate input (not carried in Workbench), so
-    // enter it directly in Validate to verify the generated credential.
-    await page.fill("[data-testid='validate-key-input']", SIGNING_KEY);
-    await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue(SIGNING_KEY);
+    await expect(page.locator("[data-testid='validate-key-input']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='validate-workbench-signing-key']")).toContainText(
+      "Workbench signing key",
+    );
 
     await page.click("[data-testid='validate-verify']");
 

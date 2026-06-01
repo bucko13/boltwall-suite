@@ -2,8 +2,9 @@
  * ValidateL402 panel — Tamper action e2es.
  *
  * Uses a static macaroon generated from @boltwall/test-fixtures'
- * zero-preimage-canonical fixture and a known root key. Keeping the macaroon
- * static avoids importing the browser bundle into the Playwright Node runner.
+ * zero-preimage-canonical fixture and a known Workbench signing key. Keeping
+ * the macaroon static avoids importing the browser bundle into the Playwright
+ * Node runner.
  *
  * Tamper button flips the last byte of the base64 macaroon, invalidating the
  * HMAC signature. Tests confirm the signature check fails while the preimage
@@ -13,7 +14,7 @@ import { expect, test } from "@playwright/test";
 
 import { setTheme } from "../setup";
 
-// Root key — arbitrary known value, not a secret.
+// Workbench signing key — arbitrary known value, not a secret.
 const ROOT_KEY_HEX = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 const FIXTURE_PREIMAGE = "0000000000000000000000000000000000000000000000000000000000000000";
 const FIXTURE_MACAROON =
@@ -22,13 +23,18 @@ const FIXTURE_MACAROON =
 test.describe("panels / validate — tamper action", () => {
   test.beforeEach(async ({ page }) => {
     await setTheme(page, "light");
+    await page.addInitScript((signingKey) => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({ signingKey, macaroon: "", challenge: "", credential: "" }),
+      );
+    }, ROOT_KEY_HEX);
     await page.goto("/p/validate");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
   });
 
   test("valid inputs: all checks pass before tamper", async ({ page }) => {
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", ROOT_KEY_HEX);
     await page.fill("[data-testid='validate-preimage-input']", FIXTURE_PREIMAGE);
     await page.click("[data-testid='validate-verify']");
 
@@ -42,7 +48,6 @@ test.describe("panels / validate — tamper action", () => {
     page,
   }) => {
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", ROOT_KEY_HEX);
     await page.fill("[data-testid='validate-preimage-input']", FIXTURE_PREIMAGE);
 
     // First run — everything passes.
@@ -78,7 +83,6 @@ test.describe("panels / validate — tamper action", () => {
 
   test("reset clears token and output", async ({ page }) => {
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);
-    await page.fill("[data-testid='validate-key-input']", ROOT_KEY_HEX);
     await page.fill("[data-testid='validate-preimage-input']", FIXTURE_PREIMAGE);
     await page.click("[data-testid='validate-verify']");
     await expect(page.locator("[data-testid='validate-output']")).toBeVisible();
