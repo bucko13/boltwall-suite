@@ -23,9 +23,29 @@ const geistMono = Geist_Mono({
   display: "swap",
 });
 
+const playgroundTitle = "L402 Playground";
+const playgroundDescription =
+  "Interactive browser tools for minting, parsing, attenuating, and validating L402 Lightning authentication credentials.";
+
 export const metadata: Metadata = {
-  title: "playground",
-  description: "Interactive browser tools for the L402 Lightning authentication protocol.",
+  title: {
+    default: playgroundTitle,
+    template: `%s · ${playgroundTitle}`,
+  },
+  applicationName: playgroundTitle,
+  description: playgroundDescription,
+  keywords: ["L402", "Lightning authentication", "macaroon", "Boltwall", "playground"],
+  openGraph: {
+    title: playgroundTitle,
+    description: playgroundDescription,
+    siteName: playgroundTitle,
+    type: "website",
+  },
+  twitter: {
+    card: "summary",
+    title: playgroundTitle,
+    description: playgroundDescription,
+  },
 };
 
 type RootLayoutProps = {
