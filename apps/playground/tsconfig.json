@@ -9,5 +9,8 @@
     "allowJs": true
   },
   "include": ["next-env.d.ts", "**/*.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
-  "exclude": ["node_modules", "scripts"]
+  // Co-located unit tests run under `bun test` (which provides `bun:test`
+  // types); they are not part of the Next.js app's `tsc --noEmit` typecheck,
+  // matching the convention in the workspace packages.
+  "exclude": ["node_modules", "scripts", "**/*.test.ts"]
 }

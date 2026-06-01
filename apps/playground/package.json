@@ -10,7 +10,7 @@
     "lint": "eslint app components lib",
     "lint:fix": "eslint app components lib --fix",
     "typecheck": "tsc --noEmit",
-    "test": "echo \"no unit tests in playground; see test:e2e\"",
+    "test": "bun test components lib",
     "test:e2e": "node node_modules/@playwright/test/cli.js test",
     "test:a11y": "node node_modules/@playwright/test/cli.js test test/e2e/lighthouse.spec.ts",
     "lhci:a11y": "lhci autorun"
