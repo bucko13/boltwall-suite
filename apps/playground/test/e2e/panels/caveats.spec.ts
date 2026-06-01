@@ -26,6 +26,19 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='satisfy-run']")).toHaveCount(0);
   });
 
+  test("Workbench fill controls use concise labels with accessible state", async ({ page }) => {
+    const actions = page.getByTestId("caveats-workbench-actions");
+    await expect(actions).toContainText("Use from Workbench");
+    await expect(actions).not.toContainText("Fill macaroon from workbench");
+    await expect(page.getByTestId("caveats-fill-macaroon")).toHaveText("Macaroon");
+    await expect(page.getByTestId("caveats-fill-challenge")).toHaveText("Challenge");
+    await expect(page.getByTestId("caveats-fill-credential")).toHaveText("Credential");
+    await expect(page.getByTestId("caveats-fill-macaroon")).toHaveAttribute(
+      "aria-label",
+      "No macaroon in Workbench",
+    );
+  });
+
   test("loads a pasted macaroon and surfaces it as copyable output", async ({ page }) => {
     await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
     await expect(page.locator("[data-testid='caveats-list']")).toBeVisible();
@@ -141,5 +154,9 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-list']")).toBeVisible();
     // Already-filled: the fill button is now disabled.
     await expect(page.locator("[data-testid='caveats-fill-macaroon']")).toBeDisabled();
+    await expect(page.locator("[data-testid='caveats-fill-macaroon']")).toHaveAttribute(
+      "aria-label",
+      "Macaroon already filled",
+    );
   });
 });

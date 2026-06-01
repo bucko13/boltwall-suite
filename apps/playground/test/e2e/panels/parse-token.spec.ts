@@ -19,6 +19,20 @@ test.describe("panels / parse", () => {
     await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
   });
 
+  test("Workbench fill controls use concise labels with accessible state", async ({ page }) => {
+    const actions = page.getByTestId("parse-token-workbench-actions");
+    await expect(actions).toContainText("Use from Workbench");
+    await expect(actions).not.toContainText("Fill macaroon from workbench");
+
+    await expect(page.getByTestId("parse-token-fill-macaroon")).toHaveText("Macaroon");
+    await expect(page.getByTestId("parse-token-fill-challenge")).toHaveText("Challenge");
+    await expect(page.getByTestId("parse-token-fill-credential")).toHaveText("Credential");
+    await expect(page.getByTestId("parse-token-fill-macaroon")).toHaveAttribute(
+      "aria-label",
+      "No macaroon in Workbench",
+    );
+  });
+
   test("decode shows identifier fields", async ({ page }) => {
     await page.fill("[data-testid='parse-token-input']", FIXTURE_MACAROON);
     await page.click("[data-testid='parse-token-decode']");
@@ -68,8 +82,8 @@ test.describe("panels / parse", () => {
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
 
     expect(macaroon).toBeTruthy();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.goto("/p/parse");
@@ -101,15 +115,19 @@ test.describe("panels / parse", () => {
 
     await page.click("[data-testid='parse-token-reset']");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.click("[data-testid='parse-token-fill-macaroon']");
+    await expect(page.locator("[data-testid='parse-token-fill-macaroon']")).toHaveAttribute(
+      "aria-label",
+      "Macaroon already filled",
+    );
     await page.click("[data-testid='parse-token-clear-both']");
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: empty",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "empty",
     );
   });
 

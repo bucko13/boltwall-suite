@@ -355,7 +355,7 @@ export function ValidateL402() {
               color: "var(--color-dim)",
             }}
           >
-            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Workbench</span>
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Use from Workbench</span>
             <FillFromWorkbench
               label="macaroon"
               available={rememberedMacaroon}

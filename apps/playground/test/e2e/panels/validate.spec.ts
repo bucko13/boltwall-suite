@@ -27,6 +27,19 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("idle");
   });
 
+  test("Workbench fill controls use concise labels with accessible state", async ({ page }) => {
+    const actions = page.getByTestId("validate-workbench-actions");
+    await expect(actions).toContainText("Use from Workbench");
+    await expect(actions).not.toContainText("Fill macaroon from workbench");
+    await expect(page.getByTestId("validate-fill-macaroon")).toHaveText("Macaroon");
+    await expect(page.getByTestId("validate-fill-credential")).toHaveText("Credential");
+    await expect(page.getByTestId("validate-fill-key")).toHaveText("Key");
+    await expect(page.getByTestId("validate-fill-key")).toHaveAttribute(
+      "aria-label",
+      "No key in Workbench",
+    );
+  });
+
   test("verify with mismatched preimage shows check results including preimage row", async ({
     page,
   }) => {
@@ -127,7 +140,7 @@ test.describe("panels / validate", () => {
   test("saved macaroon and signing key are filled from Workbench explicitly", async ({ page }) => {
     await page.goto("/p/generate");
     await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
 
     await page.getByRole("link", { name: "Generate" }).click();
     // Generate inputs are local now; load the signing key from the Workbench.
@@ -135,24 +148,24 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.getByTestId("nav-link-parse").click();
     await expect(page.locator("[data-testid='parse-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.getByTestId("nav-link-caveats").click();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.getByTestId("nav-link-demo").click();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.getByRole("link", { name: "Validate" }).click();
@@ -167,21 +180,23 @@ test.describe("panels / validate", () => {
 
     await page.click("[data-testid='validate-reset']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
 
     await page.click("[data-testid='validate-fill-macaroon']");
     await page.click("[data-testid='validate-fill-key']");
+    await expect(page.locator("[data-testid='validate-fill-macaroon']")).toHaveAttribute(
+      "aria-label",
+      "Macaroon already filled",
+    );
     await page.click("[data-testid='validate-clear-both']");
     await expect(page.locator("[data-testid='validate-token-input']")).toHaveValue("");
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveValue("");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      "macaroon: empty",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "empty",
     );
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
-      "signing key: empty",
-    );
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("empty");
   });
 });

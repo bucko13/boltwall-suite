@@ -5,7 +5,7 @@
  */
 export interface FillFromWorkbenchProps {
   /**
-   * The noun this button fills, used in the label and tooltip — e.g.
+   * The noun this button fills, used in the short label and tooltip — e.g.
    * `"macaroon"`, `"credential"`, `"challenge"`, `"key"`.
    */
   label: string;
@@ -29,7 +29,13 @@ function workbenchButtonStyle(enabled: boolean) {
     fontSize: "var(--size-11)",
     fontWeight: 500,
     cursor: enabled ? "pointer" : "not-allowed",
+    minWidth: 68,
+    textAlign: "center",
   } as const;
+}
+
+function displayLabel(label: string) {
+  return label.charAt(0).toUpperCase() + label.slice(1);
 }
 
 /**
@@ -61,10 +67,10 @@ export function FillFromWorkbench({
   const enabled = hasValue && !alreadyFilled;
 
   const title = !hasValue
-    ? `No ${label} in workbench`
+    ? `No ${label} in Workbench`
     : alreadyFilled
-      ? `${label} already filled`
-      : `Fill ${label} from workbench`;
+      ? `${displayLabel(label)} already filled`
+      : `Use ${label} from Workbench`;
 
   return (
     <button
@@ -76,7 +82,7 @@ export function FillFromWorkbench({
       data-testid={testId}
       style={workbenchButtonStyle(enabled)}
     >
-      Fill {label} from workbench
+      {displayLabel(label)}
     </button>
   );
 }

@@ -13,6 +13,17 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("idle");
   });
 
+  test("Workbench fill control uses concise Key label with accessible state", async ({ page }) => {
+    const actions = page.getByTestId("generate-token-workbench-actions");
+    await expect(actions).toContainText("Use from Workbench");
+    await expect(actions).not.toContainText("Fill key from workbench");
+    await expect(page.getByTestId("generate-token-fill-key")).toHaveText("Key");
+    await expect(page.getByTestId("generate-token-fill-key")).toHaveAttribute(
+      "aria-label",
+      "No key in Workbench",
+    );
+  });
+
   test("root key + empty invoice mints a macaroon (random paymentHash)", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
@@ -86,8 +97,8 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
 
     expect(macaroon).toBeTruthy();
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toContainText(
-      macaroon?.slice(0, 8) ?? "",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.goto("/p/parse");
@@ -101,8 +112,8 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
   test("clearing remembered macaroon disables Workbench fill for parse", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
-    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).not.toContainText(
-      "empty",
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
     );
 
     await page.click("[data-testid='workbench-memory-macaroon-clear']");
