@@ -35,6 +35,11 @@ export interface BackendCapabilities {
  *
  * Keys set to `true` are checked by `assertBackendSupports`; omitted keys are
  * not required for that deployment.
+ *
+ * @example
+ * ```ts
+ * assertBackendSupports(backend, { hodl: true });
+ * ```
  */
 export type RequiredBackendCapabilities = Partial<Record<keyof BackendCapabilities, true>>;
 
@@ -153,6 +158,9 @@ export interface CreateInvoiceRequest {
 
 /**
  * Invoice fields returned after backend creation.
+ *
+ * `paymentHash` is the provider-neutral lookup key used by middleware and
+ * proxy packages. Provider-specific invoice ids stay inside concrete adapters.
  */
 export interface CreatedInvoice {
   /** BOLT 11 payment request string. */
@@ -192,6 +200,12 @@ export interface InvoiceLookup {
  * Provider-specific charge IDs, checkout IDs, or invoice IDs remain inside the
  * concrete adapter. Middleware and proxy integrations use `paymentHash`,
  * normalized statuses, and capability flags only.
+ *
+ * @example
+ * ```ts
+ * const invoice = await backend.createInvoice({ amountMsat: 1_000n });
+ * const lookup = await backend.lookupInvoice(invoice.paymentHash);
+ * ```
  */
 export interface LightningBackend {
   /** Human-readable backend family for diagnostics and error messages. */

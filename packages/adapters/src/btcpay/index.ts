@@ -34,6 +34,13 @@ const DEFAULT_CRYPTO_CODE = "BTC";
  * Provider details for the BTCPay Server adapter.
  *
  * Use this value for environment-variable help and capability reference.
+ *
+ * @example
+ * ```ts
+ * for (const variable of btcPayProviderMetadata.env) {
+ *   console.log(variable.name, variable.required);
+ * }
+ * ```
  */
 export const btcPayProviderMetadata = {
   provider: "btcpay",
@@ -323,6 +330,8 @@ export class BtcPayAdapter implements LightningBackend {
  * // Reads BTCPAY_BASE_URL, BTCPAY_API_KEY, BTCPAY_STORE_ID from process.env.
  * const adapter = createBtcPayAdapterFromEnv();
  * ```
+ * @param env - Optional env-like record. Defaults to `process.env`.
+ * @param overrides - Optional clock, fetch, and logger injection.
  */
 export function createBtcPayAdapterFromEnv(
   env?: Record<string, string | undefined>,
@@ -355,6 +364,7 @@ export function createBtcPayAdapterFromEnv(
  *   storeId: process.env.BTCPAY_STORE_ID!,
  * });
  * ```
+ * @param opts - Validated BTCPay Server adapter options.
  */
 export function createBtcPayAdapter(opts: BtcPayAdapterOptions): BtcPayAdapter {
   return new BtcPayAdapter(opts);

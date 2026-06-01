@@ -57,6 +57,13 @@ interface StoredInvoice extends InvoiceLookup {
  * This is the only adapter entrypoint intended for browser import. Production
  * provider adapters are server-only and keep payment-provider dependencies out
  * of client module graphs.
+ *
+ * @example
+ * ```ts
+ * const backend = new MockAdapter();
+ * const invoice = await backend.createInvoice({ amountMsat: 1_000n });
+ * backend.settle(invoice.paymentHash);
+ * ```
  */
 export class MockAdapter implements LightningBackend {
   readonly kind: BackendKind = "mock";
@@ -71,6 +78,12 @@ export class MockAdapter implements LightningBackend {
   readonly #invoices = new Map<string, StoredInvoice>();
   readonly #listeners = new Set<(invoice: InvoiceLookup) => void>();
 
+  /**
+   * Create a deterministic mock invoice.
+   *
+   * Standard invoices derive a repeatable payment hash from request data and an
+   * internal nonce. HODL invoices require the caller to supply `paymentHash`.
+   */
   async createInvoice(request: CreateInvoiceRequest): Promise<CreatedInvoice> {
     const paymentHash = normalizePaymentHash(request.paymentHash ?? this.#nextPaymentHash(request));
     if (request.hodl === true && request.paymentHash === undefined) {
@@ -100,14 +113,21 @@ export class MockAdapter implements LightningBackend {
     };
   }
 
+  /** Look up a mock invoice by normalized payment hash. */
   async lookupInvoice(paymentHash: string): Promise<InvoiceLookup> {
     return copyLookup(this.#requireInvoice(paymentHash));
   }
 
+  /** Mark a mock invoice canceled and emit an invoice update. */
   async cancelInvoice(paymentHash: string): Promise<void> {
     this.#transition(paymentHash, { status: "canceled" });
   }
 
+  /**
+   * Settle a held mock HODL invoice by preimage.
+   *
+   * The preimage must hash to an existing HODL invoice payment hash.
+   */
   async settleHodlInvoice(preimage: string): Promise<void> {
     const paymentHash = await sha256Hex(hexToBytes(preimage, "preimage"));
     const invoice = this.#invoices.get(paymentHash);
@@ -117,6 +137,9 @@ export class MockAdapter implements LightningBackend {
     this.#transition(paymentHash, { status: "settled", preimage: normalizeHex(preimage) });
   }
 
+  /**
+   * Stream mock invoice updates in the order state transitions occur.
+   */
   async *subscribeInvoices(): AsyncIterable<InvoiceLookup> {
     const queue: InvoiceLookup[] = [];
     let resume: ((invoice: InvoiceLookup) => void) | undefined;

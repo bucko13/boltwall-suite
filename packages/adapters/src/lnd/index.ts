@@ -82,9 +82,10 @@ export class LndAdapterError extends Error {
 /**
  * Injection point for the `lightning` package gRPC client surface.
  *
- * Exposed for unit tests that need to substitute the gRPC client. Production callers should
- * not pass an `LndApi`; the default `lightning`-package implementation is
- * used when the second `LndAdapter` constructor argument is omitted.
+ * Exposed for unit tests that need to substitute the gRPC client. Production
+ * callers should not pass an `LndApi`; the default `lightning` package
+ * implementation is used when the second `LndAdapter` constructor argument is
+ * omitted.
  */
 export interface LndApi {
   authenticatedLndGrpc(auth: LndAdapterOptions): { lnd: AuthenticatedLnd };
@@ -145,7 +146,7 @@ export class LndAdapter implements LightningBackend {
    * Open an authenticated gRPC client to an LND node.
    *
    * The gRPC client is created eagerly so credential or connection problems
-   * surface at construction time. The second `api` argument is a test seam; omit
+   * surface at construction time. The second `api` argument is for tests; omit
    * it in production to use the `lightning` package implementation.
    *
    * @param opts - Socket, TLS cert, and admin macaroon for the node.

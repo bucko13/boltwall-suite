@@ -121,6 +121,7 @@ export class BtcPayEnvError extends Error {
  *
  * @throws {BtcPayEnvError} when a required variable is missing or a value is
  *   invalid.
+ * @param env - Optional env record. Defaults to `process.env`.
  * @example
  * ```ts
  * const env = loadBtcPayEnv();

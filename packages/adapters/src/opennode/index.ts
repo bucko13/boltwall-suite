@@ -26,6 +26,11 @@ const OPENNODE_MAX_TTL_MINUTES = 4_320;
  * Provider details for the OpenNode adapter.
  *
  * Use this value for environment-variable help and capability reference.
+ *
+ * @example
+ * ```ts
+ * openNodeProviderMetadata.features.map((feature) => feature.name);
+ * ```
  */
 export const openNodeProviderMetadata = {
   provider: "opennode",
@@ -347,6 +352,8 @@ export class OpenNodeAdapter implements LightningBackend {
  * // Reads OPENNODE_API_KEY (and optional OPENNODE_BASE_URL) from process.env.
  * const adapter = createOpenNodeAdapterFromEnv();
  * ```
+ * @param env - Optional env-like record. Defaults to `process.env`.
+ * @param opts - Optional adapter dependencies other than API key and base URL.
  */
 export function createOpenNodeAdapterFromEnv(
   env: Record<string, string | undefined> = process.env,
