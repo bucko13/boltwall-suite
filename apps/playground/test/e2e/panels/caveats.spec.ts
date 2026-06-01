@@ -23,20 +23,33 @@ async function setWorkbenchMemory(
   page: Page,
   memory: Partial<Record<"signingKey" | "macaroon" | "challenge" | "credential", string>>,
 ) {
-  await page.evaluate((next) => {
-    window.sessionStorage.setItem(
-      "bw.workbench-memory",
-      JSON.stringify({
-        signingKey: "",
-        macaroon: "",
-        challenge: "",
-        credential: "",
-        ...next,
-      }),
-    );
-  }, memory);
+  // Seed via addInitScript so the value is written before app JS runs on the
+  // reloaded document. Setting sessionStorage on the *current* page and then
+  // reloading is racy: the old page's Workbench persist effect can overwrite the
+  // seed with its empty state before the reload, so it never hydrates.
+  const snapshot = { signingKey: "", macaroon: "", challenge: "", credential: "", ...memory };
+  await page.addInitScript((next) => {
+    window.sessionStorage.setItem("bw.workbench-memory", JSON.stringify(next));
+  }, snapshot);
   await page.reload();
   await expect(page.locator("[data-testid='cell']")).toBeVisible();
+  // Gate on the hook having hydrated the seeded values into the UI before the
+  // test interacts: until client hydration runs the strip shows its
+  // server-rendered "empty" state, and a write before then (e.g. Add to
+  // Workbench) would race the hydration. This waits on a real observable state,
+  // so the default expect timeout is enough — the seed is already present from
+  // addInitScript above, so hydration resolves promptly.
+  const slotTestIds: Record<string, string> = {
+    signingKey: "workbench-memory-key",
+    macaroon: "workbench-memory-macaroon",
+    challenge: "workbench-memory-challenge",
+    credential: "workbench-memory-credential",
+  };
+  for (const [field, value] of Object.entries(memory)) {
+    if (value) {
+      await expect(page.getByTestId(`${slotTestIds[field]}-status`)).toHaveText("stored");
+    }
+  }
 }
 
 async function workbenchMemory(page: Page) {
