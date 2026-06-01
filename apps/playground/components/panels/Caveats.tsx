@@ -110,6 +110,7 @@ export function Caveats() {
   const [seconds, setSeconds] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [workbenchFeedback, setWorkbenchFeedback] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
 
   // Re-render the expiry pills on a timer so countdowns stay live.
   const [nowMs, setNowMs] = useState(() => Date.now());
@@ -139,6 +140,7 @@ export function Caveats() {
     setAdded([]);
     setError(null);
     setWorkbenchFeedback(null);
+    setCopied(false);
     // Reset the add-caveat draft too, so a half-filled condition/value/time-limit
     // from the previous artifact doesn't linger against the new one.
     setDraft({ condition: "", value: "" });
@@ -197,6 +199,18 @@ export function Caveats() {
     setSeconds("");
     setError(null);
     setWorkbenchFeedback(null);
+    setCopied(false);
+  }
+
+  async function copyMacaroon() {
+    if (!result) return;
+    try {
+      await navigator.clipboard.writeText(result.macaroon);
+      setCopied(true);
+      window.setTimeout(() => setCopied(false), 1500);
+    } catch {
+      // Clipboard is a progressive enhancement; the BigBlob copy still works.
+    }
   }
 
   function addToWorkbench() {
@@ -381,6 +395,16 @@ export function Caveats() {
                   style={secondaryButtonStyle}
                 >
                   Add to Workbench
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    void copyMacaroon();
+                  }}
+                  data-testid="caveats-copy"
+                  style={secondaryButtonStyle}
+                >
+                  {copied ? "Copied" : "Copy"}
                 </button>
                 <span
                   aria-live="polite"

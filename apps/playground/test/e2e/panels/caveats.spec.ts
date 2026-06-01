@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 
+import { grantClipboard, readClipboard } from "../setup";
+
 // A valid macaroon (shared with the validate specs) used as a paste fixture.
 const FIXTURE_MACAROON =
   "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
@@ -70,6 +72,19 @@ test.describe("panels / caveats", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/caveats");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
+  });
+
+  test("copies the attenuated macaroon to the clipboard", async ({ page, context }) => {
+    await grantClipboard(context);
+    await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    const attenuated = await macaroonOutput(page);
+
+    await page.click("[data-testid='caveats-copy']");
+    await expect(page.getByTestId("caveats-copy")).toHaveText("Copied");
+    await expect.poll(() => readClipboard(page)).toBe(attenuated);
   });
 
   test("renders header, empty hint, and no satisfier/mode UI", async ({ page }) => {
