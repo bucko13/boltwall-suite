@@ -2,114 +2,73 @@ import { expect, test } from "@playwright/test";
 
 import { grantClipboard, readClipboard } from "../setup";
 
-test.describe("panels / signing-key", () => {
+const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
+
+// The standalone Signing Key card was folded into the single Generate card
+// (bw-9zp.34.5). These cover the signing-key sub-section: the one root-key input
+// is the producer of the Workbench signing key, and generating/pasting a key
+// stages it for other panels to Fill from.
+test.describe("panels / generate — signing key section", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/generate");
     await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
   });
 
-  test("renders panel with header and idle status", async ({ page }) => {
-    await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
-  });
-
-  test("generate button produces a 64-char hex key", async ({ page }) => {
+  test("Generate key button produces a 64-char hex key in the root key input", async ({ page }) => {
     await page.click("[data-testid='signing-key-generate']");
-    await expect(page.locator("[data-testid='signing-key-output']")).toBeVisible();
-    const input = page.locator("[data-testid='signing-key-input']");
-    const value = await input.inputValue();
+    const value = await page.locator("[data-testid='generate-token-key-input']").inputValue();
     expect(value).toMatch(/^[0-9a-f]{64}$/);
-    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("ready");
   });
 
-  test("paste a valid 64-char hex key shows output", async ({ page }) => {
-    const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-    await page.fill("[data-testid='signing-key-input']", key);
-    await expect(page.locator("[data-testid='signing-key-output']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("ready");
+  test("pasting a valid 64-char hex key stages it to the Workbench", async ({ page }) => {
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("empty");
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
   });
 
-  test("paste invalid key shows error with hover details and copy affordance", async ({
+  test("pasting an invalid key surfaces an error with hover details and copy affordance", async ({
     page,
     context,
   }) => {
     await grantClipboard(context);
 
-    await page.fill("[data-testid='signing-key-input']", "notahexkey");
-    await expect(page.locator("[data-testid='signing-key-error']")).toBeVisible();
+    await page.fill("[data-testid='generate-token-key-input']", "notahexkey");
+    await expect(page.locator("[data-testid='generate-token-error']")).toBeVisible();
     const statusPill = page.locator("[data-testid='status-pill']").first();
     await expect(statusPill).toContainText("error");
 
     await statusPill.hover();
     const details = page.locator("[data-testid='status-pill-details']");
     await expect(details).toBeVisible();
-    await expect(details).toContainText("Key must be exactly 64 hex characters (32 bytes).");
+    await expect(details).toContainText("Root key must be exactly 64 hex characters (32 bytes).");
 
     await page.locator("[data-testid='status-pill-copy']").click();
     await expect(page.locator("[data-testid='status-pill-copy']")).toContainText("Copied");
     await expect
       .poll(() => readClipboard(page))
-      .toContain("Key must be exactly 64 hex characters (32 bytes).");
+      .toContain("Root key must be exactly 64 hex characters (32 bytes).");
   });
 
-  test("reset clears output", async ({ page }) => {
+  test("the staged signing key carries into Validate via Workbench memory", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
+
+    await page.goto("/p/validate");
+    await expect(page.locator("[data-testid='validate-workbench-signing-key']")).toContainText(
+      "Workbench signing key",
+    );
+  });
+
+  test("reset clears the root key and unstages the Workbench signing key", async ({ page }) => {
     await page.click("[data-testid='signing-key-generate']");
-    await expect(page.locator("[data-testid='signing-key-output']")).toBeVisible();
-    await page.click("[data-testid='signing-key-reset']");
-    await expect(page.locator("[data-testid='signing-key-output']")).not.toBeVisible();
-  });
-
-  test("does not render a superfluous code snippet", async ({ page }) => {
-    const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-    await page.fill("[data-testid='signing-key-input']", key);
-    await expect(
-      page.locator("[data-testid='cell']").first().locator("[data-testid='code-snippet']"),
-    ).not.toBeVisible();
-  });
-
-  test("input and copyable output have distinct visual treatments", async ({ page }) => {
-    const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-    await page.fill("[data-testid='signing-key-input']", key);
-    await expect(page.getByRole("group", { name: "Generated signing key" })).toBeVisible();
-    await expect(page.locator("[data-testid='big-blob-label']")).toContainText(
-      "Generated signing key",
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(
+      /^[0-9a-f]{64}$/,
     );
-    await expect(page.locator("[data-testid='big-blob-copy']")).toBeVisible();
-    await expect(page.locator("[data-testid='signing-key-output'] input")).toHaveCount(0);
-    await expect(page.locator("[data-testid='signing-key-output'] textarea")).toHaveCount(0);
-    const inputBackground = await page
-      .locator("[data-testid='signing-key-input']")
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    const outputBackground = await page
-      .locator("[data-testid='signing-key-output'] pre")
-      .evaluate((el) => getComputedStyle(el).backgroundColor);
-    expect(inputBackground).not.toBe(outputBackground);
-  });
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
 
-  test("saved signing key carries into token generation", async ({ page }) => {
-    const key = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
-      "signing key: empty",
-    );
-
-    await page.fill("[data-testid='signing-key-input']", key);
-    await expect(page.locator("[data-testid='signing-key-input']")).toHaveValue(key);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
-
-    await page.getByRole("link", { name: "Generate" }).click();
-    // Generate's key input is local; load the remembered key explicitly.
+    await page.click("[data-testid='generate-token-reset']");
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue("");
-    await page.click("[data-testid='generate-token-fill-key']");
-    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText("00010203");
-
-    // Clearing the Workbench no longer retroactively wipes the local input; the
-    // fill action just becomes unavailable.
-    await page.click("[data-testid='workbench-memory-key-clear']");
-    await expect(page.locator("[data-testid='workbench-memory-key']")).toContainText(
-      "signing key: empty",
-    );
-    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(key);
-    await expect(page.locator("[data-testid='generate-token-fill-key']")).toBeDisabled();
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("empty");
   });
 });

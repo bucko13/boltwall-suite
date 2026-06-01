@@ -1,14 +1,13 @@
 "use client";
 
 import { decodeBolt11Invoice, L402, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
-import { useEffect, useState } from "react";
+import { useState } from "react";
 
 import { bytesToHex, hexToBytes } from "../../lib/hex";
 import { useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
-import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
@@ -21,9 +20,13 @@ const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
 
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();
-  // Inputs are plain local state — never auto-synced to the URL or Workbench.
-  // The signing key is loaded from the Workbench via the explicit Fill button;
-  // minted outputs are still written to the Workbench (Generate is a producer).
+  // Inputs are plain local state. The root key is the one signing-key control on
+  // this page (the standalone Signing Key card was folded in here): Generate is
+  // the producer of the Workbench signing key, so a valid key edit stages it for
+  // other panels to Fill from. Minted outputs are likewise written to the
+  // Workbench on a successful mint — but ordinary input edits and Reset clear
+  // only the local outputs, never the Workbench (a prior mint stays available
+  // until the next mint overwrites it).
   const [key, setKey] = useState<string | null>(null);
   const [invoice, setInvoice] = useState<string | null>(null);
   const [preimage, setPreimage] = useState<string | null>(null);
@@ -38,39 +41,54 @@ export function GenerateL402Token() {
   const [credential, setCredential] = useState<string | null>(null);
 
   // The macaroon, identifier, challenge, and credential are all derived from the
-  // current inputs; clear them together whenever an input changes or on reset.
-  function clearGenerated() {
+  // current inputs. Clearing them only resets this panel's local view — it never
+  // touches Workbench memory, so the last successful mint persists there.
+  function clearLocalOutputs() {
     setMacaroon(null);
     setMintedIdentifier(null);
     setChallenge(null);
     setCredential(null);
-    workbenchMemory?.setMacaroon(null);
-    workbenchMemory?.setChallenge(null);
-    workbenchMemory?.setCredential(null);
   }
 
-  useEffect(() => {
-    const keyError = error === MISSING_KEY_ERROR || error === INVALID_KEY_ERROR;
-    if (keyError && /^[0-9a-fA-F]{64}$/.test((key ?? "").trim())) {
-      setError(null);
-    }
-  }, [error, key]);
+  // The root key mirrors into Workbench memory as the signing key (producer
+  // role): a valid/partial key stages it, an empty key clears it. Other panels
+  // (e.g. Validate) read the Workbench signing key, never this local input.
+  function applyKey(value: string | null) {
+    setKey(value);
+    const trimmed = (value ?? "").trim();
+    workbenchMemory?.setSigningKey(trimmed || null);
+  }
+
+  function generateKey() {
+    const bytes = new Uint8Array(32);
+    crypto.getRandomValues(bytes);
+    applyKey(bytesToHex(bytes));
+    clearLocalOutputs();
+    setError(null);
+  }
+
+  function onKeyChange(value: string) {
+    applyKey(value);
+    clearLocalOutputs();
+    const trimmed = value.trim();
+    setError(trimmed && !HEX_64_RE.test(trimmed) ? INVALID_KEY_ERROR : null);
+  }
 
   async function generate() {
     if (!(key ?? "").trim()) {
       setError(MISSING_KEY_ERROR);
-      clearGenerated();
+      clearLocalOutputs();
       return;
     }
     if (!HEX_64_RE.test((key ?? "").trim())) {
       setError(INVALID_KEY_ERROR);
-      clearGenerated();
+      clearLocalOutputs();
       return;
     }
     const trimmedPreimage = (preimage ?? "").trim();
     if (trimmedPreimage && !HEX_64_RE.test(trimmedPreimage)) {
       setError(INVALID_PREIMAGE_ERROR);
-      clearGenerated();
+      clearLocalOutputs();
       return;
     }
 
@@ -107,13 +125,6 @@ export function GenerateL402Token() {
       };
 
       const result = mintMacaroon({ rootKey, identifier });
-      setKey((key ?? "").trim());
-      setMacaroon(result);
-      setMintedIdentifier({
-        paymentHashHex: bytesToHex(paymentHash),
-        tokenIdHex: bytesToHex(tokenId),
-      });
-      workbenchMemory?.setMacaroon(result);
 
       // A bare macaroon is not yet a challenge: pairing it with the invoice
       // produces the full WWW-Authenticate value a server returns on a 402.
@@ -121,51 +132,54 @@ export function GenerateL402Token() {
       // the dual LSAT-first / L402-second emission. Joining the two values
       // mirrors how the same header repeated on the wire is folded into one
       // comma-separated string.
-      if (trimmedInvoice) {
-        const challengeValue = new L402({
-          macaroons: result,
-          invoice: trimmedInvoice,
-          paymentHash,
-        })
-          .toAuthenticateHeaders()
-          .join(", ");
-        setChallenge(challengeValue);
-        workbenchMemory?.setChallenge(challengeValue);
-      } else {
-        setChallenge(null);
-        workbenchMemory?.setChallenge(null);
-      }
+      const challengeValue = trimmedInvoice
+        ? new L402({
+            macaroons: result,
+            invoice: trimmedInvoice,
+            paymentHash,
+          })
+            .toAuthenticateHeaders()
+            .join(", ")
+        : null;
 
       // With a preimage, pair it with the macaroon to form the Authorization
       // credential (`L402 <macaroon>:<preimage>`). Because the macaroon's
       // payment hash was bound to sha256(preimage) above, this credential
       // verifies in the Validate panel with the same root key.
-      if (trimmedPreimage) {
-        const credentialValue = new L402({
-          macaroons: result,
-          paymentPreimage: trimmedPreimage,
-        }).toAuthorizationHeader();
-        setCredential(credentialValue);
-        workbenchMemory?.setCredential(credentialValue);
-      } else {
-        setCredential(null);
-        workbenchMemory?.setCredential(null);
-      }
+      const credentialValue = trimmedPreimage
+        ? new L402({
+            macaroons: result,
+            paymentPreimage: trimmedPreimage,
+          }).toAuthorizationHeader()
+        : null;
+
+      setKey((key ?? "").trim());
+      setMacaroon(result);
+      setMintedIdentifier({
+        paymentHashHex: bytesToHex(paymentHash),
+        tokenIdHex: bytesToHex(tokenId),
+      });
+      setChallenge(challengeValue);
+      setCredential(credentialValue);
       setError(null);
+
+      // A successful mint is the only thing that writes Workbench memory, and it
+      // overwrites all three artifacts coherently: the macaroon, the challenge
+      // (or null when no invoice), and the credential (or null when no preimage).
+      workbenchMemory?.setMacaroon(result);
+      workbenchMemory?.setChallenge(challengeValue);
+      workbenchMemory?.setCredential(credentialValue);
     } catch (e) {
       setError(e instanceof Error ? e.message : String(e));
-      setMacaroon(null);
-      setMintedIdentifier(null);
-      setChallenge(null);
-      setCredential(null);
+      clearLocalOutputs();
     }
   }
 
   function reset() {
-    setKey(null);
+    applyKey(null);
     setInvoice(null);
     setPreimage(null);
-    clearGenerated();
+    clearLocalOutputs();
     setError(null);
   }
 
@@ -221,11 +235,7 @@ export function GenerateL402Token() {
             <input
               type="text"
               value={key ?? ""}
-              onChange={(e) => {
-                setKey(e.target.value);
-                clearGenerated();
-                setError(null);
-              }}
+              onChange={(e) => onKeyChange(e.target.value)}
               placeholder="000102030405..."
               data-testid="generate-token-key-input"
               style={{
@@ -234,29 +244,24 @@ export function GenerateL402Token() {
             />
           </label>
 
-          <div
-            data-testid="generate-token-workbench-actions"
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              alignItems: "center",
-              gap: 8,
-              fontSize: "var(--size-11)",
-              color: "var(--color-dim)",
-            }}
-          >
-            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Use from Workbench</span>
-            <FillFromWorkbench
-              label="key"
-              available={workbenchMemory?.signingKey ?? ""}
-              current={key ?? ""}
-              onFill={(value) => {
-                setKey(value);
-                clearGenerated();
-                setError(null);
+          <div>
+            <button
+              type="button"
+              onClick={generateKey}
+              data-testid="signing-key-generate"
+              style={{
+                padding: "6px 12px",
+                background: "var(--color-surface)",
+                color: "var(--color-text)",
+                border: "1px solid var(--color-border)",
+                borderRadius: 4,
+                fontSize: "var(--size-13)",
+                fontWeight: 500,
+                cursor: "pointer",
               }}
-              testId="generate-token-fill-key"
-            />
+            >
+              Generate key
+            </button>
           </div>
 
           <label
@@ -277,7 +282,7 @@ export function GenerateL402Token() {
               value={invoice ?? ""}
               onChange={(e) => {
                 setInvoice(e.target.value);
-                clearGenerated();
+                clearLocalOutputs();
                 setError(null);
               }}
               placeholder="lnbc1500n1..."
@@ -306,7 +311,7 @@ export function GenerateL402Token() {
               value={preimage ?? ""}
               onChange={(e) => {
                 setPreimage(e.target.value);
-                clearGenerated();
+                clearLocalOutputs();
                 setError(null);
               }}
               placeholder="00000000..."
@@ -384,7 +389,7 @@ export function GenerateL402Token() {
                   marginTop: 4,
                 }}
               >
-                Stored in Workbench memory as the challenge — open From Challenge to parse it.
+                Stored in Workbench memory as the challenge — open Parse to decode it.
               </div>
             </div>
           ) : null}

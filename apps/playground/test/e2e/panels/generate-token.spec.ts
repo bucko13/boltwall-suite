@@ -2,26 +2,34 @@ import { expect, test } from "@playwright/test";
 
 const FIXTURE_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 
-test.describe("panels / from-invoice (GenerateL402Token)", () => {
+test.describe("panels / generate (GenerateL402Token)", () => {
   test.beforeEach(async ({ page }) => {
     await page.goto("/p/generate");
-    await expect(page.locator("[data-testid='cell']").nth(1)).toBeVisible();
+    await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
   });
 
-  test("renders panel with header and idle status", async ({ page }) => {
-    await expect(page.locator("[data-testid='header-row']").nth(1)).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("idle");
+  test("renders a single Generate card with header and idle status", async ({ page }) => {
+    // The standalone Signing Key card was folded into Generate: one card, one pill.
+    await expect(page.locator("[data-testid='cell']")).toHaveCount(1);
+    await expect(page.locator("[data-testid='header-row']").first()).toBeVisible();
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
   });
 
-  test("Workbench fill control uses concise Key label with accessible state", async ({ page }) => {
-    const actions = page.getByTestId("generate-token-workbench-actions");
-    await expect(actions).toContainText("Use from Workbench");
-    await expect(actions).not.toContainText("Fill key from workbench");
-    await expect(page.getByTestId("generate-token-fill-key")).toHaveText("Key");
-    await expect(page.getByTestId("generate-token-fill-key")).toHaveAttribute(
-      "aria-label",
-      "No key in Workbench",
+  test("Generate key button fills the root key input and stages the Workbench key", async ({
+    page,
+  }) => {
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("empty");
+
+    await page.click("[data-testid='signing-key-generate']");
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(
+      /^[0-9a-f]{64}$/,
     );
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
+  });
+
+  test("pasting a valid root key stages the Workbench signing key", async ({ page }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
   });
 
   test("root key + empty invoice mints a macaroon (random paymentHash)", async ({ page }) => {
@@ -32,31 +40,29 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.getByRole("group", { name: "Generated macaroon" })).toBeVisible();
     await expect(page.locator("[data-testid='generate-token-output'] input")).toHaveCount(0);
     await expect(page.locator("[data-testid='generate-token-output'] textarea")).toHaveCount(0);
-    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("minted");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("minted");
   });
 
   test("invalid key shows error", async ({ page }) => {
     await page.fill("[data-testid='generate-token-key-input']", "tooshort");
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-error']")).toBeVisible();
-    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("error");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("error");
   });
 
-  test("generated signing key clears a stale missing-key mint error", async ({ page }) => {
+  test("generating a key clears a stale missing-key mint error", async ({ page }) => {
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-error']")).toContainText(
       "Paste a 64-char hex root key.",
     );
-    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("error");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("error");
 
     await page.click("[data-testid='signing-key-generate']");
-    // The signing key is carried via the Workbench; load it into Generate explicitly.
-    await page.click("[data-testid='generate-token-fill-key']");
     await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(
       /^[0-9a-f]{64}$/,
     );
     await expect(page.locator("[data-testid='generate-token-error']")).toHaveCount(0);
-    await expect(page.locator("[data-testid='status-pill']").nth(1)).toContainText("idle");
+    await expect(page.locator("[data-testid='status-pill']").first()).toContainText("idle");
   });
 
   test("reset clears output", async ({ page }) => {
@@ -65,6 +71,25 @@ test.describe("panels / from-invoice (GenerateL402Token)", () => {
     await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
     await page.click("[data-testid='generate-token-reset']");
     await expect(page.locator("[data-testid='generate-token-output']")).not.toBeVisible();
+  });
+
+  test("editing an input clears local output but keeps the minted macaroon in Workbench", async ({
+    page,
+  }) => {
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='generate-token-output']")).toBeVisible();
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
+    );
+
+    // Editing the invoice clears the local view of the mint...
+    await page.fill("[data-testid='generate-token-invoice-input']", "lnbc1");
+    await expect(page.locator("[data-testid='generate-token-output']")).not.toBeVisible();
+    // ...but the Workbench still holds the last successful mint (bug #21 fix).
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
+    );
   });
 
   test("code snippet reflects key value", async ({ page }) => {

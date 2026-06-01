@@ -5,8 +5,8 @@
  * fixture invoice + a known signing key, mints, and asserts the output macaroon
  * decodes to an identifier whose paymentHash matches the fixture. Also covers
  * the full-challenge emission (macaroon + invoice) and its handoff into the
- * From Challenge panel via Workbench memory, plus credential emission
- * (macaroon + preimage) and its end-to-end verification in the Validate panel.
+ * Parse panel via Workbench memory, plus credential emission (macaroon +
+ * preimage) and its end-to-end verification in the Validate panel.
  */
 import { expect, test } from "@playwright/test";
 
@@ -28,7 +28,7 @@ test.describe("panels / generate-from-invoice", () => {
   test.beforeEach(async ({ page }) => {
     await setTheme(page, "light");
     await page.goto("/p/generate");
-    await expect(page.locator("[data-testid='cell']").nth(1)).toBeVisible();
+    await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
   });
 
   test("minting with fixture invoice produces a base64 macaroon output", async ({ page }) => {
@@ -161,18 +161,8 @@ test.describe("panels / generate-from-invoice", () => {
     await page.click("[data-testid='generate-token-mint']");
     await expect(page.locator("[data-testid='generate-token-credential']")).toBeVisible();
 
-    await page.evaluate((signingKey) => {
-      const raw = window.sessionStorage.getItem("bw.workbench-memory");
-      const memory = raw ? (JSON.parse(raw) as Record<string, string>) : {};
-      window.sessionStorage.setItem(
-        "bw.workbench-memory",
-        JSON.stringify({ macaroon: "", challenge: "", credential: "", ...memory, signingKey }),
-      );
-    }, SIGNING_KEY);
-
-    // Carry the credential + signing key into Validate via Workbench memory.
-    // Use a full navigation (sessionStorage-backed Workbench survives it) to
-    // avoid racing the SPA nav link against the panel's URL-param updates.
+    // The mint already staged the signing key into the Workbench (producer role),
+    // so Validate can read it directly — carry it + the credential into Validate.
     await page.goto("/p/validate");
     await page.click("[data-testid='validate-fill-credential']");
     await expect(page.locator("[data-testid='validate-key-input']")).toHaveCount(0);

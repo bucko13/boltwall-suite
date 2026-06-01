@@ -7,7 +7,6 @@ import { Caveats } from "../../../components/panels/Caveats";
 import { Demo } from "../../../components/panels/Demo";
 import { GenerateL402Token } from "../../../components/panels/GenerateL402Token";
 import { ParseToken } from "../../../components/panels/ParseToken";
-import { SigningKey } from "../../../components/panels/SigningKey";
 import { ValidateL402 } from "../../../components/panels/ValidateL402";
 
 type Props = {
@@ -28,12 +27,7 @@ export default async function PanelPage({ params }: Props) {
   const { panel } = await params;
 
   const panelMap: Record<string, React.ReactNode> = {
-    generate: (
-      <>
-        <SigningKey />
-        <GenerateL402Token />
-      </>
-    ),
+    generate: <GenerateL402Token />,
     parse: <ParseToken />,
     caveats: <Caveats />,
     validate: <ValidateL402 />,

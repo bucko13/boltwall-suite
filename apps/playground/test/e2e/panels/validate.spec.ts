@@ -14,7 +14,7 @@ const ZERO_PREIMAGE = "000000000000000000000000000000000000000000000000000000000
 
 async function seedWorkbenchSigningKey(page: Page) {
   await page.goto("/p/generate");
-  await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+  await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
   await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
   await page.goto("/p/validate");
   await expect(page.locator("[data-testid='cell']")).toBeVisible();
@@ -190,15 +190,13 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='validate-output']")).not.toBeVisible();
   });
 
-  test("saved macaroon and signing key are filled from Workbench explicitly", async ({ page }) => {
+  test("minted macaroon persists across panels via Workbench memory", async ({ page }) => {
     await page.goto("/p/generate");
-    await page.fill("[data-testid='signing-key-input']", FIXTURE_KEY);
+    // The merged Generate card's single key input both mints and stages the
+    // Workbench signing key (producer role).
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
     await expect(page.locator("[data-testid='workbench-memory-key-status']")).toHaveText("stored");
 
-    await page.getByRole("link", { name: "Generate" }).click();
-    // Generate inputs are local now; load the signing key from the Workbench.
-    await page.click("[data-testid='generate-token-fill-key']");
-    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(FIXTURE_KEY);
     await page.click("[data-testid='generate-token-mint']");
     const macaroon = await page.locator("[data-testid='generate-token-output'] pre").textContent();
     await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
