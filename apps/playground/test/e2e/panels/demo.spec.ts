@@ -38,6 +38,10 @@ async function expectMemoryValue(page: Page, testId: WorkbenchMemoryTestId, expe
   await expect.poll(() => getWorkbenchMemoryValue(page, testId)).toContain(expected);
 }
 
+async function fillEndpoint(page: Page, endpoint: string) {
+  await page.fill("[data-testid='demo-endpoint-input']", endpoint);
+}
+
 test.describe("panels / demo", () => {
   test("fetches a random public Pokedex endpoint and renders the sprite", async ({ page }) => {
     await page.route(POKEMON_RE, async (route) => {
@@ -53,28 +57,21 @@ test.describe("panels / demo", () => {
 
     await page.goto("/p/demo");
     await expect(page.locator("[data-testid='cell']")).toBeVisible();
-    await expect(page.locator("[data-testid='demo-endpoint-input']")).not.toBeVisible();
-    await expect(
-      page.locator("[data-testid='demo-endpoint-settings']").locator("summary"),
-    ).toContainText("Use a different endpoint");
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
+      "https://pokeapi.co/api/v2/pokemon/{id}",
+    );
+    await expect(page.locator("[data-testid='demo-endpoint-settings']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-active-endpoint']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-endpoint-reset']")).toHaveCount(0);
     await expect(
       page.locator("[data-testid='demo-custom-credential']").locator("summary"),
     ).toContainText("BYOC");
     await expect(page.locator("[data-testid='demo-get-pokemon']")).toHaveText("Get Random Pokemon");
-    await expect(page.locator("[data-testid='demo-endpoint-settings-icon']")).toHaveAttribute(
-      "data-state",
-      "closed",
-    );
     await expect(page.locator("[data-testid='demo-custom-credential-icon']")).toHaveAttribute(
       "data-state",
       "closed",
     );
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await expect(page.locator("[data-testid='demo-endpoint-settings-icon']")).toHaveAttribute(
-      "data-state",
-      "open",
-    );
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pokemon']")).toBeVisible();
@@ -94,26 +91,25 @@ test.describe("panels / demo", () => {
       "recipe code",
     );
     const pokemonBox = await page.locator("[data-testid='demo-pokemon']").boundingBox();
-    const settingsBox = await page.locator("[data-testid='demo-endpoint-settings']").boundingBox();
+    const endpointBox = await page.locator("[data-testid='demo-endpoint-input']").boundingBox();
     expect(pokemonBox).not.toBeNull();
-    expect(settingsBox).not.toBeNull();
-    expect(pokemonBox!.y).toBeLessThan(settingsBox!.y);
+    expect(endpointBox).not.toBeNull();
+    expect(endpointBox!.y).toBeLessThan(pokemonBox!.y);
   });
 
-  test("surfaces the existing-credential option above the endpoint settings", async ({ page }) => {
+  test("surfaces the existing-credential option below the endpoint field", async ({ page }) => {
     await page.goto("/p/demo");
     const existing = page.locator("[data-testid='demo-custom-credential']");
-    const endpointSettings = page.locator("[data-testid='demo-endpoint-settings']");
+    const endpointInput = page.locator("[data-testid='demo-endpoint-input']");
     await expect(existing).toBeVisible();
-    await expect(endpointSettings).toBeVisible();
+    await expect(endpointInput).toBeVisible();
     await expect(existing.locator("summary")).toContainText("BYOC");
 
     const existingBox = await existing.boundingBox();
-    const endpointBox = await endpointSettings.boundingBox();
+    const endpointBox = await endpointInput.boundingBox();
     expect(existingBox).not.toBeNull();
     expect(endpointBox).not.toBeNull();
-    // The BYOC credential disclosure sits above "Use a different endpoint".
-    expect(existingBox!.y).toBeLessThan(endpointBox!.y);
+    expect(endpointBox!.y).toBeLessThan(existingBox!.y);
   });
 
   test("can use an advanced explicit unprotected endpoint", async ({ page }) => {
@@ -126,8 +122,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", "https://demo.example.test/pokemon/25");
+    await fillEndpoint(page, "https://demo.example.test/pokemon/25");
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
@@ -143,8 +138,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
@@ -236,8 +230,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await expect(page.locator("[data-testid='demo-captured-challenge']")).toBeVisible();
     await expectMemoryEmpty(page, "workbench-memory-macaroon");
@@ -276,8 +269,7 @@ test.describe("panels / demo", () => {
     });
     await page.reload();
     await expectMemoryValue(page, "workbench-memory-key", "00010203");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-created-credential']")).toBeVisible();
@@ -319,8 +311,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page, `L402 macaroon="${CAVEATED_MACAROON}", invoice="lnbc1demo"`);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-caveats']")).toContainText("Restrictions");
@@ -380,8 +371,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
@@ -425,8 +415,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.click("[data-testid='demo-pay-webln']");
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
@@ -440,7 +429,6 @@ test.describe("panels / demo", () => {
     await page.getByTestId("nav-link-demo").click();
     await expect(page).toHaveURL(/\/p\/demo/);
 
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
     await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
       PROTECTED_ENDPOINT,
     );
@@ -494,8 +482,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-preimage-submit']");
@@ -515,8 +502,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-preimage-submit']");
@@ -524,7 +510,7 @@ test.describe("panels / demo", () => {
       "credential active for this endpoint",
     );
 
-    await page.fill("[data-testid='demo-endpoint-input']", "https://other.example.test/pokemon/25");
+    await fillEndpoint(page, "https://other.example.test/pokemon/25");
 
     await expect(page.locator("[data-testid='demo-credential-status']")).toHaveCount(0);
   });
@@ -533,8 +519,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
@@ -576,8 +561,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
     await page.fill(
       "[data-testid='demo-custom-authorization']",
@@ -616,8 +600,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
     await page.fill("[data-testid='demo-custom-macaroon']", "abc");
     await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
@@ -659,8 +642,7 @@ test.describe("panels / demo", () => {
     // Seed the Workbench macaroon through Demo's explicit challenge handoff,
     // independent of any other panel.
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await expectMemoryEmpty(page, "workbench-memory-macaroon");
     await page.click("[data-testid='demo-add-challenge-workbench']");
@@ -704,8 +686,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
     await page.fill("[data-testid='demo-custom-authorization']", `L402 abc:${TEST_PREIMAGE}`);
     await page.click("[data-testid='demo-use-custom-authorization']");
@@ -745,8 +726,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
@@ -782,8 +762,7 @@ test.describe("panels / demo", () => {
     });
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
@@ -799,8 +778,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
 
@@ -822,8 +800,7 @@ test.describe("panels / demo", () => {
     await routeProtectedPokemon(page);
 
     await page.goto("/p/demo");
-    await page.locator("[data-testid='demo-endpoint-settings']").locator("summary").click();
-    await page.fill("[data-testid='demo-endpoint-input']", PROTECTED_ENDPOINT);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pay-webln']")).toBeDisabled();

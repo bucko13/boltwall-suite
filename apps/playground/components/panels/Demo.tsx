@@ -261,7 +261,6 @@ export function Demo() {
   const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
   const [addedArtifact, setAddedArtifact] = useState<AddedArtifact>(null);
-  const [endpointSettingsOpen, setEndpointSettingsOpen] = useState(false);
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
   const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
 
@@ -296,7 +295,9 @@ export function Demo() {
     () => pickEndpointTemplate(endpointOverride),
     [endpointOverride],
   );
-  const usingConfiguredEndpoint = endpointOverride.trim() !== "" || CONFIGURED_DEMO_ENDPOINT !== "";
+  const defaultEndpointTemplate = pickEndpointTemplate("");
+  const endpointEdited = endpointOverride.trim() !== "";
+  const endpointInputValue = endpointEdited ? endpointOverride : defaultEndpointTemplate;
   // The slot only counts as active when it was captured for the current
   // endpoint. A freshly pasted custom credential wins over a cached paid one
   // for the same endpoint because pasting replaces the whole slot (see
@@ -441,6 +442,16 @@ export function Demo() {
   function resetCredentialStateForEndpoint() {
     setCredentialSlot(null);
     clearCustomBuffers();
+  }
+
+  function updateEndpoint(value: string) {
+    setEndpointOverride(value.trim() === defaultEndpointTemplate ? "" : value);
+    resetCredentialStateForEndpoint();
+  }
+
+  function resetEndpoint() {
+    setEndpointOverride("");
+    resetCredentialStateForEndpoint();
   }
 
   async function copyText(value: string, target: CopyTarget) {
@@ -668,6 +679,67 @@ export function Demo() {
             receive the data. Point it at any L402 endpoint, or bring your own credential to skip
             straight to the retry.
           </p>
+          <div
+            style={{
+              display: "flex",
+              flexDirection: "column",
+              gap: 6,
+              order: 0,
+              fontSize: "var(--size-12)",
+              color: "var(--color-dim)",
+            }}
+          >
+            <span>Endpoint URL</span>
+            <div
+              style={{
+                display: "grid",
+                gridTemplateColumns: endpointEdited ? "minmax(0, 1fr) auto" : "minmax(0, 1fr)",
+                gap: 8,
+                alignItems: "center",
+              }}
+            >
+              <input
+                type="url"
+                aria-label="Endpoint URL"
+                value={endpointInputValue}
+                onChange={(event) => updateEndpoint(event.target.value)}
+                data-testid="demo-endpoint-input"
+                style={{
+                  width: "100%",
+                  minWidth: 0,
+                  padding: "8px 10px",
+                  background: "var(--color-surface)",
+                  border: "1px solid var(--color-border)",
+                  borderRadius: 4,
+                  color: "var(--color-text)",
+                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+                  fontSize: "var(--size-12)",
+                }}
+              />
+              {endpointEdited ? (
+                <button
+                  type="button"
+                  onClick={resetEndpoint}
+                  data-testid="demo-endpoint-reset"
+                  style={{
+                    minHeight: 34,
+                    padding: "7px 12px",
+                    background: "var(--color-surface)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    color: "var(--color-dim)",
+                    fontSize: "var(--size-12)",
+                    fontWeight: 600,
+                    whiteSpace: "nowrap",
+                    cursor: "pointer",
+                  }}
+                >
+                  Reset
+                </button>
+              ) : null}
+            </div>
+          </div>
+
           <button
             type="button"
             onClick={() => {
@@ -685,74 +757,15 @@ export function Demo() {
               fontWeight: 600,
               cursor: busy ? "wait" : "pointer",
               alignSelf: "flex-start",
-              order: 0,
+              order: 1,
             }}
           >
             {busy ? "Loading..." : primaryActionLabel}
           </button>
 
-          <details
-            data-testid="demo-endpoint-settings"
-            open={endpointSettingsOpen}
-            onToggle={(event) => setEndpointSettingsOpen(event.currentTarget.open)}
-            style={{ order: 30 }}
-          >
-            <DisclosureSummary iconTestId="demo-endpoint-settings-icon" open={endpointSettingsOpen}>
-              Use a different endpoint
-            </DisclosureSummary>
-            <label
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: 6,
-                marginTop: 8,
-                fontSize: "var(--size-12)",
-                color: "var(--color-dim)",
-              }}
-            >
-              Endpoint URL
-              <input
-                type="url"
-                value={endpointOverride}
-                placeholder={CONFIGURED_DEMO_ENDPOINT || PUBLIC_POKEMON_ENDPOINT_TEMPLATE}
-                onChange={(event) => {
-                  setEndpointOverride(event.target.value);
-                  resetCredentialStateForEndpoint();
-                }}
-                data-testid="demo-endpoint-input"
-                style={{
-                  width: "100%",
-                  minWidth: 0,
-                  padding: "8px 10px",
-                  background: "var(--color-surface)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  color: "var(--color-text)",
-                  fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                  fontSize: "var(--size-12)",
-                }}
-              />
-            </label>
-          </details>
-
-          {usingConfiguredEndpoint ? (
-            <div
-              data-testid="demo-active-endpoint"
-              style={{
-                color: "var(--color-dim)",
-                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-                fontSize: "var(--size-12)",
-                wordBreak: "break-all",
-                order: 29,
-              }}
-            >
-              {endpointTemplate}
-            </div>
-          ) : null}
-
           {/* Surfaced as the first secondary option (above "Use a different
-              endpoint") so a returning payer with a credential can paste it
-              instead of re-running the pay flow. */}
+              fetch controls) so a returning payer with a credential can paste
+              it instead of re-running the pay flow. */}
           <details
             data-testid="demo-custom-credential"
             open={customCredentialOpen}
