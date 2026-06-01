@@ -1,19 +1,19 @@
 /**
- * authorizeL402 — framework-agnostic L402 authentication gate.
+ * Framework-neutral L402 authentication gate.
  *
  * Spec citations:
  *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- *     §4.1 — 402 is ONLY for the initial missing-credential challenge.
- *     Present-but-invalid credentials → 401.
+ *     §4.1: 402 is only for the initial missing-credential challenge.
+ *     Present but invalid credentials return 401.
  *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- *     §6.1 — server flow for minting challenges and returning 401 on failed
+ *     §6.1: server flow for minting challenges and returning 401 on failed
  *     credential verification.
  *   [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- *     §10 — dual LSAT-first/L402-second WWW-Authenticate headers for backwards
+ *     §10: dual LSAT-first/L402-second WWW-Authenticate headers for backwards
  *     compatibility (default).
  *   [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
- *     §Verification — HMAC chain integrity check.
- *   docs/security-boundaries.md — invoice amount MUST be verified.
+ *     §Verification: HMAC chain integrity check.
+ *   docs/security-boundaries.md: invoice amount must be verified.
  */
 
 import type { InvoiceLookup } from "@boltwall/adapters";
@@ -88,7 +88,7 @@ async function resolveCaveats(
  * Build a dynamic time caveat from the paid amount.
  *
  * [L402 macaroon spec](https://github.com/lightninglabs/L402/blob/master/macaroon-spec.md)
- * §Caveat Format — the generated caveat is serialized as the standard
+ * §Caveat Format: the generated caveat is serialized as the standard
  * `valid-until=<ISO>` first-party caveat.
  */
 function rateCaveat(amountMsat: bigint, rate: number): Caveat {
@@ -112,7 +112,7 @@ function orderValidUntilCaveats(caveats: Caveat[]): Caveat[] {
 /**
  * Map a verifyMacaroon failure reason to an L402ErrorKind.
  * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- * §4.1 / §6.1 — 401 for all present-but-invalid-credential cases.
+ * §4.1 / §6.1: 401 for all present but invalid credential cases.
  */
 function verifyReasonToKind(
   reason: string,
@@ -303,9 +303,9 @@ function credentialFieldsFromToken(
  * Emit a 402 Payment Required response with a fresh invoice + macaroon.
  *
  * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- * §4.1 / §6.1 — 402 is ONLY for absent credentials.
+ * §4.1 / §6.1: 402 is only for absent credentials.
  * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
- * §10 — dual LSAT-first/L402-second by default.
+ * §10: dual LSAT-first/L402-second by default.
  */
 async function emitChallenge(
   config: L402Config,
@@ -365,7 +365,7 @@ async function emitChallenge(
     compatibility: config.challengeCompatibility ?? "dual",
   });
 
-  // L402#toAuthenticateHeaders returns string[] — each element is a full
+  // L402#toAuthenticateHeaders returns string[]; each element is a full
   // WWW-Authenticate header value. Append each as a separate header line.
   const headers = new Headers();
   for (const value of wwwAuth) {
@@ -400,28 +400,35 @@ async function getOrGenerateRootKey(
 /**
  * Authorize an incoming L402-protected request.
  *
- * Returns { ok: true, context } when the credential is valid and payment
- * is confirmed. Returns { ok: false, response, error } when a 402 or 401
- * response must be sent to the client.
+ * Returns `{ ok: true, context }` when the credential is valid and payment is
+ * confirmed. Returns `{ ok: false, response, error }` when the caller should
+ * send a 402, 401, 400, or 502 response to the client.
  *
  * Security invariants ([L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
  * and docs/security-boundaries.md):
- *   - 402 is emitted ONLY when the Authorization header is absent or carries
+ *   - 402 is emitted only when the Authorization header is absent or carries
  *     a non-L402/LSAT scheme. See the
  *     [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
  *     §4.1.
- *   - Invoice amount MUST match config.price. Amount mismatch is treated as
+ *   - Invoice amount must match `config.price`. Amount mismatch is treated as
  *     invalid-credential (401).
  *   - Constant-time comparisons are handled inside verifyMacaroon /
  *     verifyPreimage upstream; this function does not compare secrets directly.
  *
- * @param request - Web Fetch Request object.
- * @param config  - L402 middleware configuration.
+ * @param request - Web Fetch Request object for the protected request.
+ * @param config - L402 middleware configuration.
+ *
+ * @example
+ * ```ts
+ * const result = await authorizeL402(request, config);
+ * if (!result.ok) return result.response;
+ * return handleProtectedRequest(request, result.context);
+ * ```
  */
 export async function authorizeL402(request: Request, config: L402Config): Promise<L402GateResult> {
   const log = config.logger ?? noopLogger;
 
-  // L402 protocol-specification.md §9.1 — credentials are bearer credentials,
+  // L402 protocol-specification.md §9.1: credentials are bearer credentials,
   // so cleartext HTTP is refused before challenges or credentials are handled.
   const requestUrl = new URL(request.url);
   if (
@@ -439,13 +446,13 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
   const authHeader = request.headers.get("Authorization") ?? "";
   const scheme = authHeader.split(" ")[0]?.toUpperCase() ?? "";
 
-  // L402 protocol-specification.md §4.1 — absent or non-L402/LSAT credential
+  // L402 protocol-specification.md §4.1: absent or non-L402/LSAT credential
   // triggers a 402 challenge. "Bearer" and other schemes are treated as absent.
   if (!authHeader || (scheme !== "L402" && scheme !== "LSAT")) {
     return emitChallenge(config, request, log);
   }
 
-  // --- Credential is present. All failures below → 401. ---
+  // Credential is present. All failures below become 401.
 
   // Parse the Authorization header through the L402 object facade.
   let token: L402;
@@ -494,7 +501,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
     };
   }
 
-  // L402 protocol-specification.md §6.1 — after a credential is presented,
+  // L402 protocol-specification.md §6.1: after a credential is presented,
   // failures are 401 rather than a fresh 402 challenge.
   if (lookup.status === "open") {
     return errorResult("invalid-credential", "Invoice is not settled");
@@ -552,7 +559,7 @@ export async function authorizeL402(request: Request, config: L402Config): Promi
   if (verifyError !== undefined) return verifyError;
 
   // Security: verify invoice amount matches configured price.
-  // The bolt11 amount MUST match config.price; skipping this is an auth-bypass.
+  // The bolt11 amount must match config.price; skipping this is an auth-bypass.
   const amountError = await requireAmountMatch(config, request, lookup, log);
   if (amountError !== undefined) return amountError;
 

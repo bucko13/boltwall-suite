@@ -8,7 +8,7 @@ import { noopLogger, type MinimalLogger } from "./core/types.js";
  *
  * This is a security boundary, not a cosmetic filter: every path here is a
  * place a macaroon, preimage, root key, payment request, or Authorization
- * header can surface. Only add entries — removing one can leak a bearer
+ * header can surface. Only add entries. Removing one can leak a bearer
  * credential into log aggregation. Consumed by {@link createLogger}.
  *
  * @example
@@ -43,6 +43,13 @@ export const REDACTED_PATHS = [
  * Security boundary: macaroons, preimages, root keys, and payment requests
  * are redacted to [REDACTED] at all log levels. This prevents bearer
  * credentials from appearing in log aggregation pipelines.
+ *
+ * @param opts - Optional pino level, logger name, and destination stream.
+ *
+ * @example
+ * ```ts
+ * const logger = createLogger({ level: "debug", name: "api" });
+ * ```
  */
 export function createLogger(
   opts: { level?: string; name?: string; stream?: DestinationStream } = {},

@@ -12,9 +12,17 @@ import type { L402Error } from "./error.js";
 
 export type { AuthenticateHeaderCompatibility };
 
+/**
+ * Framework-neutral configuration for the L402 authorization gate.
+ *
+ * `authorizeL402` uses this object to create payment challenges, verify paid
+ * credentials, check invoice amount, and evaluate caveats. Amounts are always
+ * millisatoshis as `bigint`.
+ */
 export interface L402Config {
   /** Optional service name used to mint a `services=<name>:0` caveat. */
   service?: string;
+  /** Required capabilities for `service`; requires `service` to be set. */
   capabilities?: string[];
   /** Lightning backend (MockAdapter, LndAdapter, etc.). */
   backend: LightningBackend;
@@ -56,7 +64,7 @@ export interface L402Config {
    *
    * "dual" (default, recommended): emit LSAT first and L402 second.
    * [L402 protocol specification](https://github.com/lightninglabs/L402/blob/master/protocol-specification.md)
-   * §10 — servers SHOULD emit dual challenges with LSAT first for backwards
+   * §10 says servers SHOULD emit dual challenges with LSAT first for backwards
    * compatibility with LSAT-only clients.
    */
   challengeCompatibility?: AuthenticateHeaderCompatibility;
@@ -79,7 +87,12 @@ export interface L402Config {
   logger?: MinimalLogger;
 }
 
-/** Minimal pino-compatible logger interface. */
+/**
+ * Minimal pino-compatible logger interface used by the middleware.
+ *
+ * Implementations must avoid logging macaroons, preimages, root keys, or raw
+ * authorization headers. The default logger applies redaction for those paths.
+ */
 export interface MinimalLogger {
   info(obj: object, msg?: string): void;
   warn(obj: object, msg?: string): void;
@@ -115,6 +128,14 @@ export interface L402RequestContext {
   identifier: MacaroonIdentifierV0;
 }
 
+/**
+ * Result returned by `authorizeL402`.
+ *
+ * `ok: true` means the caller can continue handling the protected request and
+ * may attach `context` to framework request state. `ok: false` means the caller
+ * should send `response` as-is. Missing credentials produce 402 with
+ * `WWW-Authenticate`; present but invalid credentials produce 401.
+ */
 export type L402GateResult =
   | { ok: true; context: L402RequestContext }
   | { ok: false; response: Response; error: L402Error };
