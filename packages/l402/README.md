@@ -15,11 +15,12 @@ L402 is and how the packages fit together.
 ## Contents
 
 - [Installation](#installation)
-- [Quick start: parse an L402 challenge](#quick-start-parse-an-l402-challenge)
-- [Quick start: emit a payment challenge](#quick-start-emit-a-payment-challenge)
-- [Quick start: build a paid retry credential](#quick-start-build-a-paid-retry-credential)
-- [Quick start: decode invoice amount](#quick-start-decode-invoice-amount)
-- [Quick start: mint and verify a macaroon](#quick-start-mint-and-verify-a-macaroon)
+- [Common Workflows](#common-workflows)
+  - [Parse an L402 challenge](#parse-an-l402-challenge)
+  - [Emit a payment challenge](#emit-a-payment-challenge)
+  - [Build a paid retry credential](#build-a-paid-retry-credential)
+  - [Decode invoice amount](#decode-invoice-amount)
+  - [Mint and verify a macaroon](#mint-and-verify-a-macaroon)
 - [Public API surface](#public-api-surface)
 - [Protocol behavior](#protocol-behavior)
 - [Runtime boundary](#runtime-boundary)
@@ -33,7 +34,9 @@ bun add @boltwall/l402
 
 `@boltwall/l402` is ESM-only and runs in both browser and Node runtimes.
 
-## Quick start: parse an L402 challenge
+## Common Workflows
+
+### Parse an L402 challenge
 
 An **L402 challenge** is a `WWW-Authenticate` header the server sends when a
 resource requires payment. It carries a **macaroon** (a bearer token encoding
@@ -54,7 +57,7 @@ console.log(token.invoice); // "lnbc1500n1pw5kjhmpp5..."
 The parser also accepts legacy `LSAT` challenges so migration clients can
 handle old servers, but new servers should emit `L402` by default.
 
-## Quick start: emit a payment challenge
+### Emit a payment challenge
 
 ```ts
 import { L402 } from "@boltwall/l402";
@@ -76,7 +79,7 @@ for (const value of token.toAuthenticateHeaders()) {
 Use `compatibility: "l402-only"` only when a deployment or test explicitly
 does not need legacy LSAT challenge compatibility.
 
-## Quick start: build a paid retry credential
+### Build a paid retry credential
 
 ```ts
 import { L402 } from "@boltwall/l402";
@@ -96,7 +99,7 @@ console.log(credential.paymentPreimage?.length); // 64
 The preimage is bearer-sensitive proof of payment. Do not log it at info level
 or expose it outside the retry request.
 
-## Quick start: decode invoice amount
+### Decode invoice amount
 
 ```ts
 import { decodeBolt11Invoice } from "@boltwall/l402";
@@ -113,7 +116,7 @@ The decoded amount is always `bigint` millisatoshis. Downstream pricing policy
 must compare against that unit directly; avoid `number` satoshi conversions in
 verification paths.
 
-## Quick start: mint and verify a macaroon
+### Mint and verify a macaroon
 
 ```ts
 import {
