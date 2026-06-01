@@ -1,6 +1,7 @@
 # Boltwall Suite
 
 [![CI](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml)
+[![Docs](https://github.com/bucko13/boltwall-suite/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/docs.yml)
 [![Coverage](https://codecov.io/gh/bucko13/boltwall-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/bucko13/boltwall-suite)
 [![l402 bundle size](https://img.shields.io/badge/%40boltwall%2Fl402-%E2%89%A4150%20kB%20brotli-blue)](packages/l402)
 [![npm](https://img.shields.io/npm/v/@boltwall/l402?label=%40boltwall%2Fl402)](https://www.npmjs.com/package/@boltwall/l402)
