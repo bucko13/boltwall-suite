@@ -402,9 +402,17 @@ export function Caveats() {
                     void copyMacaroon();
                   }}
                   data-testid="caveats-copy"
-                  style={secondaryButtonStyle}
+                  style={{ ...secondaryButtonStyle, display: "inline-grid", placeItems: "center" }}
                 >
-                  {copied ? "Copied" : "Copy"}
+                  {/* Stack both labels in one grid cell so the button always sizes
+                      to the wider word ("Copied") — its width stays constant when
+                      the state flips, with no magic pixel width. */}
+                  <span style={{ gridArea: "1 / 1", visibility: copied ? "hidden" : "visible" }}>
+                    Copy
+                  </span>
+                  <span style={{ gridArea: "1 / 1", visibility: copied ? "visible" : "hidden" }}>
+                    Copied
+                  </span>
                 </button>
                 <span
                   aria-live="polite"

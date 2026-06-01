@@ -82,8 +82,14 @@ test.describe("panels / caveats", () => {
     await page.click("[data-testid='caveat-add']");
     const attenuated = await macaroonOutput(page);
 
-    await page.click("[data-testid='caveats-copy']");
-    await expect(page.getByTestId("caveats-copy")).toHaveText("Copied");
+    const copyButton = page.getByTestId("caveats-copy");
+    const widthBefore = (await copyButton.boundingBox())?.width ?? 0;
+    await copyButton.click();
+    // The "Copied" label is shown; "Copy" is hidden in the same grid cell, so the
+    // button width must not change when the state flips.
+    await expect(copyButton.getByText("Copied", { exact: true })).toBeVisible();
+    const widthAfter = (await copyButton.boundingBox())?.width ?? 0;
+    expect(Math.abs(widthAfter - widthBefore)).toBeLessThan(0.5);
     await expect.poll(() => readClipboard(page)).toBe(attenuated);
   });
 
