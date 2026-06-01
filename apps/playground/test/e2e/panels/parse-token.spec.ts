@@ -140,15 +140,16 @@ test.describe("panels / parse", () => {
     await expect(page.locator("[data-testid='status-pill']").first()).toContainText("decoded");
   });
 
-  test("stripe view shows macaroon-stripe primitive", async ({ page }) => {
+  test("Decode Map view shows macaroon-stripe primitive", async ({ page }) => {
     await page.fill("[data-testid='parse-token-input']", FIXTURE_MACAROON);
     await page.click("[data-testid='parse-token-decode']");
     await expect(page.locator("[data-testid='parse-token-output']")).toBeVisible();
 
-    await page
-      .locator("[data-testid='view-mode-toggle'] button")
-      .filter({ hasText: "stripe" })
-      .click();
+    const toggle = page.locator("[data-testid='view-mode-toggle']");
+    // The decode visualization is labeled "Decode Map", never "Stripe".
+    await expect(toggle).not.toContainText(/stripe/i);
+
+    await toggle.locator("button").filter({ hasText: "Decode Map" }).click();
     await expect(page.locator("[data-testid='macaroon-stripe']")).toBeVisible();
   });
 

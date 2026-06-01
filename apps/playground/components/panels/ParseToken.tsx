@@ -143,7 +143,7 @@ export function ParseToken() {
             <textarea
               value={input}
               onChange={(e) => changeInput(e.target.value)}
-              placeholder='AGIA...   ·   L402 macaroon="AGIA...", invoice="lnbc1..."   ·   L402 <macaroon>:<preimage>'
+              placeholder="Paste a macaroon, L402 challenge, or credential"
               data-testid="parse-token-input"
               rows={3}
               style={{
@@ -244,6 +244,7 @@ export function ParseToken() {
                 value={viewMode as ViewMode}
                 onChange={(m) => setViewMode(m as ViewModeValue)}
                 modes={["raw", "json", "stripe"] as ViewMode[]}
+                labels={{ stripe: "Decode Map" }}
               />
             ) : null}
           </div>
