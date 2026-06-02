@@ -12,19 +12,8 @@ permissions:
   contents: read
 
 jobs:
-  aperture-interop-fork-notice:
-    name: Aperture Interop fork notice
-    if: github.event_name == 'pull_request' && github.event.pull_request.head.repo.full_name != github.repository
-    runs-on: ubuntu-latest
-    steps:
-      - name: Explain skipped interop
-        run: |
-          echo "Aperture interop uses repository LND regtest secrets, which are not exposed to fork pull requests."
-          echo "A maintainer can run this workflow with workflow_dispatch after reviewing the fork changes."
-
   aperture-interop:
     name: Aperture Interop
-    if: github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
@@ -45,18 +34,25 @@ jobs:
       - name: Build @boltwall/l402
         run: bun run build --filter @boltwall/l402
 
-      - name: Verify Aperture secrets
-        env:
-          LND_TLS_CERT_PATH: ${{ secrets.LND_TLS_CERT_PATH }}
-          LND_MACAROON_DIR: ${{ secrets.LND_MACAROON_DIR }}
+      - name: Prepare LND regtest credentials
         run: |
-          test -n "$LND_TLS_CERT_PATH" || { echo "::error::LND_TLS_CERT_PATH repository secret is required for same-repo Aperture interop."; exit 1; }
-          test -n "$LND_MACAROON_DIR" || { echo "::error::LND_MACAROON_DIR repository secret is required for same-repo Aperture interop."; exit 1; }
+          bun run bootstrap -- --nodes aperture-payer,aperture-server
+
+          LND_APERTURE_DIR="$RUNNER_TEMP/boltwall-aperture-lnd"
+          LND_MACAROON_DIR="$LND_APERTURE_DIR/macaroons"
+          mkdir -p "$LND_MACAROON_DIR"
+
+          docker compose \
+            -f packages/adapters/src/lnd/docker-compose.smoke.yml \
+            cp lnd-alice:/root/.lnd/tls.cert "$LND_APERTURE_DIR/tls.cert"
+          docker compose \
+            -f packages/adapters/src/lnd/docker-compose.smoke.yml \
+            cp lnd-alice:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon "$LND_MACAROON_DIR/admin.macaroon"
+
+          echo "LND_TLS_CERT_PATH=$LND_APERTURE_DIR/tls.cert" >> "$GITHUB_ENV"
+          echo "LND_MACAROON_DIR=$LND_MACAROON_DIR" >> "$GITHUB_ENV"
 
       - name: Start Aperture stack
-        env:
-          LND_TLS_CERT_PATH: ${{ secrets.LND_TLS_CERT_PATH }}
-          LND_MACAROON_DIR: ${{ secrets.LND_MACAROON_DIR }}
         run: |
           docker compose \
             -f packages/test-fixtures/aperture-smoke/docker-compose.yml \
@@ -87,4 +83,7 @@ jobs:
         run: |
           docker compose \
             -f packages/test-fixtures/aperture-smoke/docker-compose.yml \
+            down --volumes
+          docker compose \
+            -f packages/adapters/src/lnd/docker-compose.smoke.yml \
             down --volumes

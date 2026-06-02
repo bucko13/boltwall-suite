@@ -17,6 +17,8 @@ services:
       context: ${APERTURE_SOURCE:-https://github.com/lightninglabs/aperture.git#master}
     depends_on:
       - backend
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
     volumes:
       - ./aperture.yaml:/root/.aperture/aperture.yaml:ro
       - ${LND_TLS_CERT_PATH:?set LND_TLS_CERT_PATH to your regtest lnd tls.cert}:/lnd/tls.cert:ro
