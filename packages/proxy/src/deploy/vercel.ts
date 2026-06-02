@@ -297,7 +297,7 @@ async function addVercelEnv(
 }
 
 async function generatedPackageJson(config: BoltwallConfig): Promise<string> {
-  const boltwallVersion = await generatorPackageVersion();
+  const boltwallVersions = await generatorPackageVersions();
   return `${JSON.stringify(
     {
       name: config.deploy.projectName ?? config.name ?? "boltwall-proxy",
@@ -307,9 +307,9 @@ async function generatedPackageJson(config: BoltwallConfig): Promise<string> {
         start: "node api/index.ts",
       },
       dependencies: {
-        "@boltwall/adapters": boltwallVersion,
-        "@boltwall/l402": boltwallVersion,
-        "@boltwall/proxy": boltwallVersion,
+        "@boltwall/adapters": boltwallVersions.adapters,
+        "@boltwall/l402": boltwallVersions.l402,
+        "@boltwall/proxy": boltwallVersions.proxy,
         express: "^5.1.0",
       },
       devDependencies: {
@@ -321,20 +321,73 @@ async function generatedPackageJson(config: BoltwallConfig): Promise<string> {
   )}\n`;
 }
 
-async function generatorPackageVersion(): Promise<string> {
+async function generatorPackageVersions(): Promise<{
+  adapters: string;
+  l402: string;
+  proxy: string;
+}> {
+  const proxyManifest = await readProxyManifest();
+  return {
+    adapters: await dependencyVersion(proxyManifest, "@boltwall/adapters", "adapters"),
+    l402: await dependencyVersion(proxyManifest, "@boltwall/l402", "l402"),
+    proxy: manifestVersion(proxyManifest, "@boltwall/proxy"),
+  };
+}
+
+async function dependencyVersion(
+  proxyManifest: PackageManifest,
+  dependencyName: "@boltwall/adapters" | "@boltwall/l402",
+  workspacePackageDir: "adapters" | "l402",
+): Promise<string> {
+  const declared = proxyManifest.dependencies?.[dependencyName];
+  if (declared !== undefined && !declared.startsWith("workspace:")) {
+    return declared;
+  }
+
+  const manifest = await readSiblingManifest(workspacePackageDir);
+  return manifestVersion(manifest, dependencyName);
+}
+
+async function readProxyManifest(): Promise<PackageManifest> {
   const here = dirname(fileURLToPath(import.meta.url));
   const candidates = [join(here, "../../package.json"), join(here, "../package.json")];
   for (const candidate of candidates) {
     try {
-      const parsed = JSON.parse(await readFile(candidate, "utf8")) as { version?: unknown };
-      if (typeof parsed.version === "string" && parsed.version.length > 0) {
-        return parsed.version;
-      }
+      return parsePackageManifest(await readFile(candidate, "utf8"));
     } catch {
       // Try the next layout. Source tests run from src/deploy; packaged CLI runs from dist.
     }
   }
-  throw new VercelDeployError("Unable to resolve @boltwall/proxy package version");
+  throw new VercelDeployError("Unable to resolve @boltwall/proxy package metadata");
+}
+
+async function readSiblingManifest(packageDir: "adapters" | "l402"): Promise<PackageManifest> {
+  const here = dirname(fileURLToPath(import.meta.url));
+  const candidates = [join(here, `../../../${packageDir}/package.json`)];
+  for (const candidate of candidates) {
+    try {
+      return parsePackageManifest(await readFile(candidate, "utf8"));
+    } catch {
+      // Try the next layout if this package gains another generated CLI layout.
+    }
+  }
+  throw new VercelDeployError(`Unable to resolve @boltwall/${packageDir} package metadata`);
+}
+
+function parsePackageManifest(raw: string): PackageManifest {
+  return JSON.parse(raw) as PackageManifest;
+}
+
+function manifestVersion(manifest: PackageManifest, packageName: string): string {
+  if (typeof manifest.version === "string" && manifest.version.length > 0) {
+    return manifest.version;
+  }
+  throw new VercelDeployError(`Unable to resolve ${packageName} package version`);
+}
+
+interface PackageManifest {
+  version?: unknown;
+  dependencies?: Record<string, string | undefined>;
 }
 
 function generatedVercelJson(): string {

@@ -1,6 +1,6 @@
 {
   "name": "@boltwall/l402",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -14,6 +14,9 @@
     "dist"
   ],
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "lint": "eslint src",
@@ -24,6 +27,7 @@
     "test:browser": "playwright test --project=chromium-import",
     "test:interop": "APERTURE_INTEROP=1 APERTURE_URL=${APERTURE_URL:-http://localhost:8081} bun test test/interop/aperture-pr.test.ts",
     "package-health": "publint",
+    "publish:npm": "bun publish --tolerate-republish",
     "size": "size-limit"
   },
   "dependencies": {

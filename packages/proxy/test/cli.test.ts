@@ -616,9 +616,11 @@ describe("boltwall CLI", () => {
     const generatedPackage = JSON.parse(
       await readFile(join(dir, "deployments", "pokedex", "package.json"), "utf8"),
     ) as { dependencies: Record<string, string> };
-    expect(generatedPackage.dependencies["@boltwall/adapters"]).toBe("0.0.0");
-    expect(generatedPackage.dependencies["@boltwall/l402"]).toBe("0.0.0");
-    expect(generatedPackage.dependencies["@boltwall/proxy"]).toBe("0.0.0");
+    expect(generatedPackage.dependencies["@boltwall/adapters"]).toBe(
+      await packageVersion("adapters"),
+    );
+    expect(generatedPackage.dependencies["@boltwall/l402"]).toBe(await packageVersion("l402"));
+    expect(generatedPackage.dependencies["@boltwall/proxy"]).toBe(await packageVersion("proxy"));
 
     const generatedApi = await readFile(
       join(dir, "deployments", "pokedex", "api", "index.ts"),
@@ -1037,4 +1039,16 @@ async function fixtureDir(label: string): Promise<string> {
   );
   await mkdir(dir, { recursive: true });
   return dir;
+}
+
+async function packageVersion(packageDir: "adapters" | "l402" | "proxy"): Promise<string> {
+  const parsed = JSON.parse(
+    await readFile(new URL(`../../${packageDir}/package.json`, import.meta.url), "utf8"),
+  ) as {
+    version?: unknown;
+  };
+  if (typeof parsed.version !== "string" || parsed.version.length === 0) {
+    throw new Error(`Unable to resolve @boltwall/${packageDir} package version`);
+  }
+  return parsed.version;
 }
