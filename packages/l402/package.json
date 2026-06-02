@@ -27,6 +27,7 @@
     "test:browser": "playwright test --project=chromium-import",
     "test:interop": "APERTURE_INTEROP=1 APERTURE_URL=${APERTURE_URL:-http://localhost:8081} bun test test/interop/aperture-pr.test.ts",
     "package-health": "publint",
+    "publish:npm": "bun publish --tolerate-republish",
     "size": "size-limit"
   },
   "dependencies": {

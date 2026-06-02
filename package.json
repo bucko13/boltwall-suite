@@ -29,8 +29,8 @@
     "docs:api": "typedoc",
     "size": "turbo run size",
     "dev": "turbo run dev --parallel",
-    "version-packages": "changeset version",
-    "release": "bun run build && changeset publish"
+    "version-packages": "changeset version && bun update",
+    "release": "bun run build && bun run --workspaces --if-present --sequential publish:npm && changeset tag"
   },
   "devDependencies": {
     "@types/node": "^24.12.3",

@@ -32,7 +32,8 @@
     "typecheck": "tsc --noEmit",
     "test": "bun test",
     "test:coverage": "bun test --coverage --coverage-reporter lcov",
-    "package-health": "publint"
+    "package-health": "publint",
+    "publish:npm": "bun publish --tolerate-republish"
   },
   "dependencies": {
     "@boltwall/adapters": "workspace:*",
