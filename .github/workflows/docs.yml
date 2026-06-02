@@ -45,12 +45,8 @@ jobs:
 
   deploy:
     name: Deploy to GitHub Pages
-    # Deploy from main only after the owner opts in by setting the
-    # PUBLISH_API_DOCS repository variable to "true" (which requires a public
-    # repository with GitHub Pages enabled). Until then this job is skipped, so
-    # it does not fail; the build job above still runs as the docs build check
-    # on every pull request and push.
-    if: github.ref == 'refs/heads/main' && vars.PUBLISH_API_DOCS == 'true'
+    # Pull requests build the docs as a check; only main deploys to Pages.
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     permissions:
