@@ -1,7 +1,7 @@
 # Boltwall Suite
 
 [![CI](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/ci.yml)
-[![Docs](https://github.com/bucko13/boltwall-suite/actions/workflows/docs.yml/badge.svg?branch=main)](https://github.com/bucko13/boltwall-suite/actions/workflows/docs.yml)
+[![Docs](https://github.com/bucko13/boltwall-suite/actions/workflows/docs.yml/badge.svg?branch=main)](https://bucko13.github.io/boltwall-suite/)
 [![Coverage](https://codecov.io/gh/bucko13/boltwall-suite/branch/main/graph/badge.svg)](https://codecov.io/gh/bucko13/boltwall-suite)
 [![l402 bundle size](https://img.shields.io/badge/%40boltwall%2Fl402-%E2%89%A4150%20kB%20brotli-blue)](packages/l402)
 [![npm](https://img.shields.io/npm/v/@boltwall/l402?label=%40boltwall%2Fl402)](https://www.npmjs.com/package/@boltwall/l402)
@@ -13,6 +13,12 @@ protocol.
 **[Try the live playground →](https://boltwall-suite-playground.vercel.app)**
 to inspect L402 challenges, generate and parse credentials, and walk a paid
 endpoint end to end.
+
+Start here:
+[Playground](https://boltwall-suite-playground.vercel.app) ·
+[API docs](https://bucko13.github.io/boltwall-suite/) ·
+[Packages](#packages) ·
+[Local regtest guide](./docs/local-regtest-proxy-playground.md)
 
 ## What is L402?
 
@@ -98,14 +104,15 @@ tests, and the development checks.
 
 ## API Reference
 
-Generated API documentation, built from TypeScript signatures and JSDoc with
-[TypeDoc](https://typedoc.org), covers the public surface of
+The hosted [API reference](https://bucko13.github.io/boltwall-suite/) covers the
+public surface of
 [`@boltwall/l402`](./packages/l402/README.md),
 [`@boltwall/middleware`](./packages/middleware/README.md),
 [`@boltwall/adapters`](./packages/adapters/README.md), and
-[`@boltwall/proxy`](./packages/proxy/README.md). Start with the
-[API reference landing page](./docs/api-reference.md) for package entry points
-and high-value symbols.
+[`@boltwall/proxy`](./packages/proxy/README.md). It is generated from
+TypeScript signatures and JSDoc with [TypeDoc](https://typedoc.org). Start with
+the local [API reference landing page](./docs/api-reference.md) for package
+entry points and high-value symbols.
 
 Build it locally:
 
