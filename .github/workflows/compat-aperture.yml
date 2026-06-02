@@ -1,11 +1,6 @@
 name: Aperture Interop
 
 on:
-  pull_request:
-    paths:
-      - "packages/l402/**"
-      - "packages/test-fixtures/**"
-      - ".github/workflows/compat-aperture.yml"
   workflow_dispatch:
 
 permissions:
