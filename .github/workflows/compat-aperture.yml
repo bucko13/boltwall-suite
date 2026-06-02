@@ -49,6 +49,8 @@ jobs:
             -f packages/adapters/src/lnd/docker-compose.smoke.yml \
             cp lnd-alice:/root/.lnd/data/chain/bitcoin/regtest/admin.macaroon "$LND_MACAROON_DIR/admin.macaroon"
 
+          echo "APERTURE_HOST_PORT=18081" >> "$GITHUB_ENV"
+          echo "APERTURE_URL=http://localhost:18081" >> "$GITHUB_ENV"
           echo "LND_TLS_CERT_PATH=$LND_APERTURE_DIR/tls.cert" >> "$GITHUB_ENV"
           echo "LND_MACAROON_DIR=$LND_MACAROON_DIR" >> "$GITHUB_ENV"
 
@@ -64,8 +66,6 @@ jobs:
 
       - name: Run interop tests
         working-directory: packages/l402
-        env:
-          APERTURE_URL: "http://localhost:8081"
         run: bun run test:interop
 
       - name: Upload artifacts
