@@ -41,15 +41,15 @@ the check-mode `lint`.
 Unit tests run with `bun run test` and gate every push. A few surfaces need infrastructure, so they are
 **opt-in** — excluded from `bun run test` and run via their own scripts:
 
-| Command | Covers | Needs |
-|---|---|---|
-| `bun run test` | unit tests, all packages | nothing |
-| `bun run test:coverage` | unit coverage (informational thresholds) | nothing |
-| `bun run test:browser` | built browser bundles import cleanly in Chromium | nothing (turbo builds first) |
-| `bun run test:e2e` (`apps/playground`) | playground UI flows | nothing (dev server auto-starts) |
-| `bun run test:interop` (`packages/l402`) | Aperture wire-format interop | **Docker + an LND regtest node** |
-| `bun run test:integration` (`packages/adapters`) | live OpenNode / BTCPay adapters | **per-adapter credentials** (skipped without) |
-| `bun run package-health` · `bun run size` | publint package-shape checks · l402 bundle budget | built packages |
+| Command                                          | Covers                                               | Needs                                         |
+| ------------------------------------------------ | ---------------------------------------------------- | --------------------------------------------- |
+| `bun run test`                                   | unit tests, all packages                             | nothing                                       |
+| `bun run test:coverage`                          | unit coverage report with informational thresholds   | nothing                                       |
+| `bun run test:browser`                           | built browser bundles import cleanly in Chromium     | nothing (turbo builds first)                  |
+| `bun run test:e2e` (`apps/playground`)           | playground UI flows                                  | nothing (dev server auto-starts)              |
+| `bun run test:interop` (`packages/l402`)         | Aperture wire-format interop                         | **Docker + an LND regtest node**              |
+| `bun run test:integration` (`packages/adapters`) | live OpenNode / BTCPay adapters                      | **per-adapter credentials** (skipped without) |
+| `bun run package-health` · `bun run size`        | publint/package-boundary checks · l402 bundle budget | built packages                                |
 
 Setup for the infra-dependent suites (`test:interop`, `test:integration`) lives
 in their package READMEs. Add a regression test before fixing a bug, cover
@@ -105,6 +105,8 @@ changes small and reviewable. Rules, enforced in review:
   that requests it.
 - CI installs run with `--frozen-lockfile`; locally `bun install` is enough (the
   `bunfig.toml` `ignoreScripts` baseline applies to both).
+- Public package changes need a Changeset. CI runs `changeset status` on pull
+  requests so version and changelog intent is explicit before merge.
 - `pull_request_target` needs explicit maintainer sign-off — it grants
   write-scoped tokens to untrusted PR code; default to `pull_request`.
 

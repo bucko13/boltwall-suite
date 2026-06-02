@@ -66,11 +66,7 @@ jobs:
         run: bun run build
 
       - name: Size limit (@boltwall/l402)
-        # Reported but non-blocking: the bundle-size budget shows up in the logs
-        # without failing the build. Remove continue-on-error to make this a
-        # required check once the published API is stable.
         run: bun run size --filter @boltwall/l402
-        continue-on-error: true
 
       - name: Bundle secret audit
         working-directory: apps/playground
@@ -109,11 +105,7 @@ jobs:
         run: bun run build
 
       - name: Package health (publint)
-        # Reported but non-blocking: publint findings show up in the logs
-        # without failing the build. Remove continue-on-error to make this a
-        # required check once the published API is stable.
         run: bun run package-health
-        continue-on-error: true
 
   coverage:
     name: Coverage
