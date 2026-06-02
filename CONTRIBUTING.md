@@ -137,6 +137,11 @@ changes, but API stability declarations, production deploy decisions, and npm
 publishing happen only after maintainer approval. Once approved and merged,
 Changesets automation handles the publish mechanics.
 
+Maintainer note: this repository uses Bun workspaces, so release automation runs
+`changeset version && bun update` before opening the Version Packages PR. The
+publish step uses each public package's `publish:npm` script so Bun resolves
+`workspace:*` runtime dependencies in the published package metadata.
+
 ## Licensing
 
 By contributing, you agree your contribution is submitted under the repository's
