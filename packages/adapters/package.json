@@ -1,6 +1,6 @@
 {
   "name": "@boltwall/adapters",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "type": "module",
   "exports": {
     ".": {
@@ -28,6 +28,9 @@
     "dist"
   ],
   "sideEffects": false,
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "build": "tsup",
     "lint": "eslint src",
