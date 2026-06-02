@@ -53,6 +53,32 @@ bun run --cwd apps/playground test:a11y
 
 Playwright starts its own dev server for `test:e2e` and `test:a11y`.
 
+## Preview deployments
+
+Pull requests that affect the playground should produce a Vercel Preview
+deployment linked from the PR. Use that preview to check the changed flow in the
+same environment reviewers will see.
+
+For major playground changes, verify:
+
+- The preview loads without console errors.
+- Generate/Parse can create and decode L402 challenges and credentials.
+- Caveats can inspect a macaroon and apply a first-party caveat.
+- Validate accepts a matching credential and rejects a mismatched one.
+- Demo changes still handle unpaid `402` responses without exposing secrets.
+
+Preview deployments use Vercel's Preview environment variables. Keep demo
+endpoints pointed at non-production infrastructure unless a maintainer
+explicitly chooses otherwise. `NEXT_PUBLIC_*` values are bundled for browsers,
+so never put backend credentials, root keys, production macaroons, preimages, or
+API keys in them.
+
+If a preview is missing or failing, confirm the Vercel project is connected to
+this repository, uses `apps/playground` as its root directory, and has the needed
+Preview environment variables. Then inspect the Vercel build logs from the PR
+deployment link and redeploy after fixing the underlying configuration or code
+issue.
+
 ## Demo endpoint
 
 With no configured proxy endpoint, the Demo panel fetches a random Pokemon from

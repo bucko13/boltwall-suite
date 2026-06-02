@@ -116,6 +116,10 @@ Keep PRs narrow and reviewable. Include the problem being solved, the validation
 commands you ran, spec citations for protocol-sensitive changes, and migration
 notes for public API or behavior changes.
 
+For playground changes, open the Vercel Preview linked from the pull request and
+include what you checked in the PR notes. The playground README covers the
+preview-specific checks and troubleshooting steps.
+
 Do not commit credentials, `.env` files, API keys, root keys, production
 macaroons, or generated local state, and don't include secret values in logs,
 screenshots, fixtures, or issue text.
