@@ -100,8 +100,11 @@ preimage manually, then retry the request with the paid credential.
 Protected endpoints on another origin need CORS headers that allow the
 playground origin and expose `WWW-Authenticate`; otherwise the browser cannot
 read the challenge. [`@boltwall/proxy`](../../packages/proxy/README.md) supports
-this with `cors.allowOrigins`. Configure the local or hosted playground origin
-on the proxy deployment, not in client-side secrets.
+stable frontend origins with `cors.allowOrigins` and dynamic preview origins
+with `cors.allowOriginPatterns`. Configure both on the proxy deployment, not in
+client-side secrets. Production and preview playground builds can use the same
+`NEXT_PUBLIC_BOLTWALL_PLAYGROUND_DEMO_ENDPOINT`; the proxy decides which browser
+origins are allowed to read challenges.
 
 The Demo panel also accepts reusable bearer credentials. Paste a full
 `Authorization` value, compose one from a macaroon and preimage, or load the

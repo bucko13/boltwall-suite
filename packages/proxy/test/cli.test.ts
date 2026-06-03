@@ -192,6 +192,23 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).toContain('"name": "pokedex"');
   });
 
+  test("validate rejects invalid CORS origin patterns", async () => {
+    const dir = await fixtureDir("validate-cors-pattern");
+    await writeFile(join(dir, "pokedex.yaml"), yamlConfig({ previewOriginPattern: "[" }));
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["validate", "--config", "pokedex"],
+      stderr,
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("allowOriginPatterns");
+    expect(stderr.text()).toContain("must be a valid regular expression");
+  });
+
   test("validate accepts config paths", async () => {
     const dir = await fixtureDir("validate-path");
     const configPath = join(dir, "boltwall.yaml");
@@ -808,6 +825,39 @@ describe("boltwall CLI", () => {
     });
   });
 
+  test("deploy maps CORS origin patterns to Vercel runtime env", async () => {
+    const dir = await fixtureDir("deploy-cors-origin-pattern");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(
+      configPath,
+      yamlConfig({ previewOriginPattern: "^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$" }),
+    );
+    const runner = new MockRunner();
+
+    const code = await runCli({
+      argv: ["deploy", "--config", configPath, "--yes"],
+      configDir: dir,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      runner,
+      prompt: new FailingPrompt(),
+    });
+
+    expect(code).toBe(0);
+    expect(runner.commands).toContainEqual({
+      command: "vercel",
+      args: [
+        "env",
+        "add",
+        "CORS_ALLOW_ORIGIN_PATTERNS",
+        "preview",
+        "--force",
+        "--cwd",
+        join(dir, "deployments", "pokedex"),
+      ],
+      stdin: "^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$\n",
+    });
+  });
+
   test("deploy interactive creates config and collects missing secrets", async () => {
     const dir = await fixtureDir("interactive");
     const stdout = new CaptureStream();
@@ -862,7 +912,12 @@ describe("boltwall CLI", () => {
 
   test("config allow-origin updates a saved config without hand-editing YAML", async () => {
     const dir = await fixtureDir("allow-origin");
-    await writeFile(join(dir, "pokedex.yaml"), yamlConfig());
+    await writeFile(
+      join(dir, "pokedex.yaml"),
+      yamlConfig({
+        previewOriginPattern: "^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$",
+      }),
+    );
     const stdout = new CaptureStream();
 
     const code = await runCli({
@@ -877,6 +932,7 @@ describe("boltwall CLI", () => {
     const saved = await readFile(join(dir, "pokedex.yaml"), "utf8");
     expect(saved).toContain("http://127.0.0.1:3000");
     expect(saved).toContain("http://localhost:3001");
+    expect(saved).toContain("^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$");
   });
 
   test("config allow-origin creates CORS config when one is not present", async () => {
@@ -995,6 +1051,7 @@ function yamlConfig(
     policy?: boolean;
     requireHodl?: boolean;
     deployProjectName?: string;
+    previewOriginPattern?: string;
   } = {},
 ): string {
   return [
@@ -1023,6 +1080,9 @@ function yamlConfig(
     "  allowOrigins:",
     "    - http://127.0.0.1:3000",
     "    - https://boltwall-suite-playground.vercel.app",
+    ...(options.previewOriginPattern === undefined
+      ? []
+      : ["  allowOriginPatterns:", `    - ${JSON.stringify(options.previewOriginPattern)}`]),
     "  allowMethods: [GET, OPTIONS]",
     "  allowHeaders: [Authorization, Content-Type]",
     "  maxAgeSeconds: 600",

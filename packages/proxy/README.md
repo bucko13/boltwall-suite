@@ -108,7 +108,10 @@ const app = createProxy({
   ],
   unprotectedPaths: ["/healthz"],
   forwardHeaders: { allow: ["x-request-id", "x-forwarded-*"] },
-  cors: { allowOrigins: ["https://playground.example.com"] },
+  cors: {
+    allowOrigins: ["https://playground.example.com"],
+    allowOriginPatterns: ["^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$"],
+  },
 });
 ```
 
@@ -165,6 +168,8 @@ forwardHeaders:
 cors:
   allowOrigins:
     - https://boltwall-suite-playground.vercel.app
+  allowOriginPatterns:
+    - "^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$"
   allowMethods: [GET, OPTIONS]
   allowHeaders: [Authorization, Content-Type]
   maxAgeSeconds: 600
@@ -187,7 +192,22 @@ store environment variable names for backend credentials, not credential values.
 If no custom `backend.env` names are provided, Boltwall uses the provider
 defaults documented by the CLI prompts and validation output.
 
-Use this helper when a frontend origin is added after the first deployment:
+Use exact origins for stable production frontends. For nondeterministic preview
+deployments, add `cors.allowOriginPatterns` with a narrow regular expression
+that matches only the trusted preview origin shape. The proxy matches patterns
+against normalized request origins, not paths or query strings, and echoes the
+request origin when it matches. The equivalent deploy-time variables are:
+
+```sh
+BOLTWALL_PROXY_CORS_ALLOW_ORIGINS=https://playground.example.com
+BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS='^https://boltwall-suite-[a-z0-9-]+\.vercel\.app$'
+```
+
+Generated Vercel proxy deployments use the unprefixed forms:
+`CORS_ALLOW_ORIGINS` and `CORS_ALLOW_ORIGIN_PATTERNS`.
+
+Use this helper when a stable frontend origin is added after the first
+deployment:
 
 ```sh
 boltwall config allow-origin <name-or-path> <origin> [<origin>...]
@@ -198,8 +218,10 @@ confirmation. Run `boltwall deploy` again to push the change to Vercel.
 
 ## Security notes
 
-- Browser CORS is disabled by default. Configure `cors.allowOrigins` only for
-  trusted browser origins that need to read L402 challenges.
+- Browser CORS is disabled by default. Configure `cors.allowOrigins` and
+  `cors.allowOriginPatterns` only for trusted browser origins that need to read
+  L402 challenges. Broad origin patterns are security-sensitive because every
+  matching browser origin can read exposed challenge headers.
 - Protected upstream requests strip `Authorization`, `Proxy-Authorization`, and
   `Cookie` headers by default before forwarding. Use `forwardHeaders.allow` and
   `forwardHeaders.deny` to narrow or extend forwarding policy.

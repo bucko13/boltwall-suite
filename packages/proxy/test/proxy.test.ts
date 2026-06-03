@@ -272,10 +272,34 @@ describe("createProxy", () => {
     expect(backend.lastCreateInvoice).toBeUndefined();
   });
 
+  test("configured CORS allows origins matching a pattern", async () => {
+    const upstream = await buildUpstream();
+    const { app } = buildProxy(upstream.url, {
+      cors: {
+        allowOrigins: ["https://playground.example"],
+        allowOriginPatterns: ["^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$"],
+      },
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: { origin: "https://boltwall-suite-pr-42.vercel.app/deploy/path" },
+    });
+
+    expect(res.status).toBe(402);
+    expect(res.headers.get("access-control-allow-origin")).toBe(
+      "https://boltwall-suite-pr-42.vercel.app",
+    );
+    expect(res.headers.get("access-control-expose-headers")).toBe("WWW-Authenticate");
+  });
+
   test("configured CORS does not allow unlisted origins", async () => {
     const upstream = await buildUpstream();
     const { app } = buildProxy(upstream.url, {
-      cors: { allowOrigins: ["https://playground.example"] },
+      cors: {
+        allowOrigins: ["https://playground.example"],
+        allowOriginPatterns: ["^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$"],
+      },
     });
     const proxy = await listen(app);
 
@@ -286,6 +310,16 @@ describe("createProxy", () => {
     expect(res.status).toBe(402);
     expect(res.headers.get("access-control-allow-origin")).toBeNull();
     expect(res.headers.get("access-control-expose-headers")).toBeNull();
+  });
+
+  test("configured CORS rejects invalid origin patterns at startup", async () => {
+    const upstream = await buildUpstream();
+
+    expect(() =>
+      buildProxy(upstream.url, {
+        cors: { allowOriginPatterns: ["["] },
+      }),
+    ).toThrow("Invalid CORS origin pattern");
   });
 
   test("legacy LSAT credential proxies through the same paid path", async () => {
