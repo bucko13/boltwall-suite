@@ -4,7 +4,6 @@
   "version": "0.0.0",
   "type": "module",
   "scripts": {
-    "build": "echo \"typescript-config: no build output\"",
     "lint": "bun run typecheck",
     "typecheck": "for cfg in test/base/tsconfig.json test/library/tsconfig.json test/node/tsconfig.json test/browser/tsconfig.json test/nextjs/tsconfig.json; do bunx tsc --noEmit -p \"$cfg\"; done",
     "test": "bun run typecheck && bun -e 'import ts from \"typescript\"; const read = ts.readConfigFile(\"./node.json\", ts.sys.readFile); if (read.error) throw new Error(ts.flattenDiagnosticMessageText(read.error.messageText, \"\\n\")); const parsed = ts.parseJsonConfigFileContent(read.config, ts.sys, process.cwd()); const types = parsed.options.types ?? []; if (types.length !== 1 || types[0] !== \"node\") throw new Error(`Expected node.json to resolve types=[\"node\"], got ${JSON.stringify(types)}`);'"
