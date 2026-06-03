@@ -445,6 +445,36 @@ const backend = (() => {
   throw new Error("LN_BACKEND must be lnd, opennode, or btcpay");
 })();
 
+class EnvRootKeyStore {
+  #secret;
+
+  constructor(secret: string) {
+    const trimmed = secret.trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      throw new Error("BOLTWALL_PROXY_ROOT_KEY must be a 32-byte hex secret");
+    }
+    this.#secret = Buffer.from(trimmed, "hex");
+  }
+
+  async get(tokenId: Uint8Array) {
+    // L402 macaroon-spec.md §Identifier Structure / §Minting require a
+    // server-side 32-byte root key per token id. This release-MVP Vercel store
+    // deterministically derives that key from a deployment secret and token id.
+    return createHmac("sha256", this.#secret).update(tokenId).digest();
+  }
+
+  async put() {
+    // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
+    // per-token write surface in this Vercel MVP store.
+  }
+
+  async delete() {
+    // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
+    // This env-secret MVP cannot revoke individual credentials; rotate the
+    // deployment secret to invalidate every credential minted by this proxy.
+  }
+}
+
 const app = createProxy({
   targetUrl: requireEnv("TARGET_URL"),
   backend,
@@ -479,36 +509,6 @@ function optionalEnv(name: string): string | undefined {
 
 function splitList(value: string): string[] {
   return value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
-}
-
-class EnvRootKeyStore {
-  #secret;
-
-  constructor(secret) {
-    const trimmed = secret.trim();
-    if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
-      throw new Error("BOLTWALL_PROXY_ROOT_KEY must be a 32-byte hex secret");
-    }
-    this.#secret = Buffer.from(trimmed, "hex");
-  }
-
-  async get(tokenId) {
-    // L402 macaroon-spec.md §Identifier Structure / §Minting require a
-    // server-side 32-byte root key per token id. This release-MVP Vercel store
-    // deterministically derives that key from a deployment secret and token id.
-    return createHmac("sha256", this.#secret).update(tokenId).digest();
-  }
-
-  async put() {
-    // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
-    // per-token write surface in this Vercel MVP store.
-  }
-
-  async delete() {
-    // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
-    // This env-secret MVP cannot revoke individual credentials; rotate the
-    // deployment secret to invalidate every credential minted by this proxy.
-  }
 }
 
 function corsConfig() {
@@ -554,7 +554,7 @@ function paywallPolicy() {
   return {
     ...(caveats.length === 0 ? {} : { caveats, satisfiers }),
     ...(optionalEnv("CAPABILITIES") === undefined ? {} : { capabilities: splitList(requireEnv("CAPABILITIES")) }),
-    ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true } : {}),
+    ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true as const } : {}),
   };
 }
 
