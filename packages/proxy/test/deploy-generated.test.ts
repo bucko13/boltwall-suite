@@ -31,11 +31,12 @@ async function generateApiIndex(): Promise<string> {
 
   await deployVercel({
     config: await loadBoltwallConfig(join(dir, "boltwall.yaml")),
+    // No BOLTWALL_PROXY_ROOT_KEY: the deploy generates a random one when it is
+    // absent, and the key never appears in the generated source we assert on.
     env: {
       LND_SOCKET: "node:10009",
       LND_TLS_CERT: "Zm9v",
       LND_MACAROON: "YmFy",
-      BOLTWALL_PROXY_ROOT_KEY: "00112233445566778899aabbccddeeff00112233445566778899aabbccddeeff",
     },
     secretValues: {},
     production: false,
