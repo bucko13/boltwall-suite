@@ -11,6 +11,10 @@
       "types": "./dist/lnd/index.d.ts",
       "import": "./dist/lnd/index.js"
     },
+    "./lnd/rest": {
+      "types": "./dist/lnd/rest.d.ts",
+      "import": "./dist/lnd/rest.js"
+    },
     "./opennode": {
       "types": "./dist/opennode/index.d.ts",
       "import": "./dist/opennode/index.js"

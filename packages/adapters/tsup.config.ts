@@ -4,6 +4,7 @@ export default defineConfig({
   entry: [
     "src/index.ts",
     "src/lnd/index.ts",
+    "src/lnd/rest.ts",
     "src/opennode/index.ts",
     "src/btcpay/index.ts",
     "src/testing/index.ts",
