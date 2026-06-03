@@ -189,7 +189,7 @@ async function writeVercelProject(projectDir: string, config: BoltwallConfig): P
     mode: 0o600,
   });
   await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
-  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
+  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(config), { mode: 0o600 });
 }
 
 async function linkVercelProject(
@@ -363,7 +363,12 @@ async function readProxyManifest(): Promise<PackageManifest> {
 
 async function readSiblingManifest(packageDir: "adapters" | "l402"): Promise<PackageManifest> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [join(here, `../../../${packageDir}/package.json`)];
+  // Two monorepo layouts, mirroring readProxyManifest: source/tests run from
+  // packages/proxy/src/deploy, the bundled CLI runs from packages/proxy/dist.
+  const candidates = [
+    join(here, `../../../${packageDir}/package.json`),
+    join(here, `../../${packageDir}/package.json`),
+  ];
   for (const candidate of candidates) {
     try {
       return parsePackageManifest(await readFile(candidate, "utf8"));
@@ -400,15 +405,29 @@ function generatedVercelJson(): string {
   )}\n`;
 }
 
-function generatedApiIndex(): string {
+function generatedApiIndex(config: BoltwallConfig): string {
+  // The LND backend pulls in `lightning` -> `tiny-secp256k1`, which loads
+  // `secp256k1.wasm` at runtime via a readFileSync the Vercel file tracer does
+  // not follow, so the asset is dropped and the deployed function crashes with
+  // ENOENT. A `new URL(<literal>, import.meta.url)` reference IS traced by the
+  // bundler, so it forces the wasm into the function. The path resolves the same
+  // at build and runtime, and the read is a harmless no-op.
+  const lndWasmImport =
+    config.backend.kind === "lnd"
+      ? `import { readFileSync as __bundleWasm } from "node:fs";\n`
+      : "";
+  const lndWasmAssetHint =
+    config.backend.kind === "lnd"
+      ? `\ntry {\n  __bundleWasm(new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm", import.meta.url));\n} catch {}\n`
+      : "";
   return `import { createHmac } from "node:crypto";
-
+${lndWasmImport}
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
-
+${lndWasmAssetHint}
 const env = process.env;
 // Backend credential env values are never generated into config. For local LND,
 // LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
@@ -445,6 +464,36 @@ const backend = (() => {
   throw new Error("LN_BACKEND must be lnd, opennode, or btcpay");
 })();
 
+class EnvRootKeyStore {
+  #secret;
+
+  constructor(secret: string) {
+    const trimmed = secret.trim();
+    if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
+      throw new Error("BOLTWALL_PROXY_ROOT_KEY must be a 32-byte hex secret");
+    }
+    this.#secret = Buffer.from(trimmed, "hex");
+  }
+
+  async get(tokenId: Uint8Array) {
+    // L402 macaroon-spec.md §Identifier Structure / §Minting require a
+    // server-side 32-byte root key per token id. This release-MVP Vercel store
+    // deterministically derives that key from a deployment secret and token id.
+    return createHmac("sha256", this.#secret).update(tokenId).digest();
+  }
+
+  async put() {
+    // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
+    // per-token write surface in this Vercel MVP store.
+  }
+
+  async delete() {
+    // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
+    // This env-secret MVP cannot revoke individual credentials; rotate the
+    // deployment secret to invalidate every credential minted by this proxy.
+  }
+}
+
 const app = createProxy({
   targetUrl: requireEnv("TARGET_URL"),
   backend,
@@ -479,36 +528,6 @@ function optionalEnv(name: string): string | undefined {
 
 function splitList(value: string): string[] {
   return value.split(",").map((part) => part.trim()).filter((part) => part.length > 0);
-}
-
-class EnvRootKeyStore {
-  #secret;
-
-  constructor(secret) {
-    const trimmed = secret.trim();
-    if (!/^[0-9a-fA-F]{64}$/.test(trimmed)) {
-      throw new Error("BOLTWALL_PROXY_ROOT_KEY must be a 32-byte hex secret");
-    }
-    this.#secret = Buffer.from(trimmed, "hex");
-  }
-
-  async get(tokenId) {
-    // L402 macaroon-spec.md §Identifier Structure / §Minting require a
-    // server-side 32-byte root key per token id. This release-MVP Vercel store
-    // deterministically derives that key from a deployment secret and token id.
-    return createHmac("sha256", this.#secret).update(tokenId).digest();
-  }
-
-  async put() {
-    // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
-    // per-token write surface in this Vercel MVP store.
-  }
-
-  async delete() {
-    // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
-    // This env-secret MVP cannot revoke individual credentials; rotate the
-    // deployment secret to invalidate every credential minted by this proxy.
-  }
 }
 
 function corsConfig() {
@@ -568,7 +587,7 @@ function paywallPolicy() {
   return {
     ...(caveats.length === 0 ? {} : { caveats, satisfiers }),
     ...(optionalEnv("CAPABILITIES") === undefined ? {} : { capabilities: splitList(requireEnv("CAPABILITIES")) }),
-    ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true } : {}),
+    ...(optionalEnv("PAYWALL_HODL") === "true" ? { hodl: true as const } : {}),
   };
 }
 
