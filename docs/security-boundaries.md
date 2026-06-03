@@ -23,6 +23,13 @@ code uses a `Uint8Array`-native helper from `@boltwall/internal`.
 Documented deployment paths require TLS. Examples that omit TLS must say so
 clearly.
 
+## Browser CORS
+
+Proxy CORS is opt-in. Allow only trusted browser origins that need to read L402
+challenge headers. Origin regex patterns must be narrowly scoped to the expected
+preview domain shape; broad patterns can let unintended browser origins read
+exposed `WWW-Authenticate` challenges.
+
 ## Invoice Amount Verification
 
 Middleware must verify the bolt11 amount matches the configured price. Skipping

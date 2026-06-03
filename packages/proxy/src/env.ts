@@ -119,6 +119,15 @@ const proxyEnvVariableDefinitions = [
     schema: z.string().optional(),
   },
   {
+    name: "BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS",
+    required: false,
+    valueKind: "comma-list",
+    configPath: "cors.allowOriginPatterns",
+    description: "Comma-separated regex patterns matched against normalized browser origins.",
+    listSeparator: ",",
+    schema: z.string().optional(),
+  },
+  {
     name: "BOLTWALL_PROXY_CORS_EXPOSE_HEADERS",
     required: false,
     valueKind: "comma-list",
@@ -404,13 +413,37 @@ function parsePolicy(
 }
 
 function parseCors(fields: ProxyEnvFields): ProxyEnvConfig["cors"] | undefined {
-  if (fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS === undefined) return undefined;
+  if (
+    fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS === undefined &&
+    fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS === undefined
+  ) {
+    return undefined;
+  }
+
+  const allowOrigins =
+    fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS === undefined
+      ? undefined
+      : normalizeOrigins(
+          splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS),
+          "BOLTWALL_PROXY_CORS_ALLOW_ORIGINS",
+        );
+  const allowOriginPatterns =
+    fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS === undefined
+      ? undefined
+      : parseOriginPatterns(
+          splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS),
+          "BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS",
+        );
+
+  if ((allowOrigins?.length ?? 0) === 0 && (allowOriginPatterns?.length ?? 0) === 0) {
+    throw new Error(
+      "Invalid Boltwall proxy environment: CORS requires at least one allowed origin or origin pattern",
+    );
+  }
 
   return {
-    allowOrigins: normalizeOrigins(
-      splitList(fields.BOLTWALL_PROXY_CORS_ALLOW_ORIGINS),
-      "BOLTWALL_PROXY_CORS_ALLOW_ORIGINS",
-    ),
+    ...(allowOrigins === undefined ? {} : { allowOrigins }),
+    ...(allowOriginPatterns === undefined ? {} : { allowOriginPatterns }),
     ...(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS === undefined
       ? {}
       : { exposeHeaders: splitList(fields.BOLTWALL_PROXY_CORS_EXPOSE_HEADERS) }),
@@ -440,6 +473,26 @@ function normalizeOrigins(values: string[], fieldName: string): string[] {
       `Invalid Boltwall proxy environment: ${fieldName}: must contain valid URL origins`,
     );
   }
+}
+
+function parseOriginPatterns(values: string[], fieldName: string): string[] {
+  if (values.length === 0) {
+    throw new Error(
+      `Invalid Boltwall proxy environment: ${fieldName}: must contain at least one pattern`,
+    );
+  }
+
+  for (const pattern of values) {
+    try {
+      new RegExp(pattern, "u");
+    } catch {
+      throw new Error(
+        `Invalid Boltwall proxy environment: ${fieldName}: must contain valid regex patterns`,
+      );
+    }
+  }
+
+  return values;
 }
 
 function parseForwardHeaders(fields: ProxyEnvFields): ForwardHeadersPolicy | undefined {

@@ -53,12 +53,15 @@ export { type ProxyRoute } from "./route-matching.js";
  * Opt-in CORS policy for browser clients that need to inspect L402 challenges.
  *
  * CORS is disabled unless this object is provided. Allowed origins are exact
- * URL origins, and preflight responses are emitted only when the request origin
- * is in `allowOrigins`.
+ * URL origins, or regex patterns matched against normalized request origins.
+ * Preflight responses are emitted only when the request origin matches one of
+ * those allow rules.
  */
 export interface ProxyCorsConfig {
   /** Exact browser origins allowed to read proxy responses. Wildcards are intentionally unsupported. */
-  allowOrigins: string[];
+  allowOrigins?: string[];
+  /** Regex patterns matched against normalized request origins. Keep patterns narrowly scoped. */
+  allowOriginPatterns?: string[];
   /** Response headers exposed to browser JavaScript. Defaults to `WWW-Authenticate`. */
   exposeHeaders?: string[];
   /** Request headers allowed on CORS preflight. Defaults to `Authorization`, `Content-Type`, and `Accept`. */
@@ -166,6 +169,7 @@ export function createProxy(config: ProxyConfig): Express {
     ...(config.forwardHeaders === undefined ? {} : { forwardHeaders: config.forwardHeaders }),
     ...(config.upstreamTimeoutMs === undefined ? {} : { timeoutMs: config.upstreamTimeoutMs }),
   });
+  const cors = config.cors === undefined ? undefined : compileCorsConfig(config.cors);
   const app = express();
 
   if (target.protocol === "http:") {
@@ -176,8 +180,8 @@ export function createProxy(config: ProxyConfig): Express {
   }
 
   app.use((req, res, next) => {
-    const corsAllowed = applyCorsHeaders(req, res, config.cors);
-    if (config.cors !== undefined && req.method === "OPTIONS") {
+    const corsAllowed = applyCorsHeaders(req, res, cors);
+    if (cors !== undefined && req.method === "OPTIONS") {
       res.status(corsAllowed ? 204 : 403).end();
       return;
     }
@@ -240,15 +244,40 @@ const DEFAULT_CORS_EXPOSE_HEADERS = ["WWW-Authenticate"] as const;
 const DEFAULT_CORS_ALLOW_HEADERS = ["Authorization", "Content-Type", "Accept"] as const;
 const DEFAULT_CORS_ALLOW_METHODS = ["GET", "HEAD", "OPTIONS"] as const;
 
+type CompiledCorsConfig = ProxyCorsConfig & {
+  allowOriginRegexes?: RegExp[];
+};
+
+function compileCorsConfig(cors: ProxyCorsConfig): CompiledCorsConfig {
+  if ((cors.allowOrigins?.length ?? 0) === 0 && (cors.allowOriginPatterns?.length ?? 0) === 0) {
+    throw new Error("CORS requires at least one allowed origin or origin pattern");
+  }
+
+  return {
+    ...cors,
+    ...(cors.allowOriginPatterns === undefined
+      ? {}
+      : { allowOriginRegexes: cors.allowOriginPatterns.map(compileOriginPattern) }),
+  };
+}
+
+function compileOriginPattern(pattern: string): RegExp {
+  try {
+    return new RegExp(pattern, "u");
+  } catch {
+    throw new Error("Invalid CORS origin pattern");
+  }
+}
+
 function applyCorsHeaders(
   req: ExpressRequest,
   res: ExpressResponse,
-  cors: ProxyCorsConfig | undefined,
+  cors: CompiledCorsConfig | undefined,
 ): boolean {
   if (cors === undefined) return false;
 
-  const origin = req.get("origin");
-  if (origin === undefined || !cors.allowOrigins.includes(origin)) return false;
+  const origin = normalizedRequestOrigin(req.get("origin"));
+  if (origin === undefined || !isCorsOriginAllowed(origin, cors)) return false;
 
   res.vary("Origin");
   res.setHeader("Access-Control-Allow-Origin", origin);
@@ -272,6 +301,20 @@ function applyCorsHeaders(
   }
 
   return true;
+}
+
+function normalizedRequestOrigin(origin: string | undefined): string | undefined {
+  if (origin === undefined) return undefined;
+  try {
+    return new URL(origin).origin;
+  } catch {
+    return undefined;
+  }
+}
+
+function isCorsOriginAllowed(origin: string, cors: CompiledCorsConfig): boolean {
+  if (cors.allowOrigins?.includes(origin) === true) return true;
+  return cors.allowOriginRegexes?.some((pattern) => pattern.test(origin)) ?? false;
 }
 
 function listHeader(values: readonly string[]): string {

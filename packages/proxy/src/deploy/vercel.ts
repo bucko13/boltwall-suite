@@ -492,7 +492,7 @@ const app = createProxy({
     ...(optionalEnv("FORWARD_ALLOW") === undefined ? {} : { allow: splitList(requireEnv("FORWARD_ALLOW")) }),
     ...(optionalEnv("FORWARD_DENY") === undefined ? {} : { deny: splitList(requireEnv("FORWARD_DENY")) }),
   },
-  ...(optionalEnv("CORS_ALLOW_ORIGINS") === undefined ? {} : { cors: corsConfig() }),
+  ...(optionalEnv("CORS_ALLOW_ORIGINS") === undefined && optionalEnv("CORS_ALLOW_ORIGIN_PATTERNS") === undefined ? {} : { cors: corsConfig() }),
   ...(optionalEnv("UPSTREAM_TIMEOUT_MS") === undefined ? {} : { upstreamTimeoutMs: Number(optionalEnv("UPSTREAM_TIMEOUT_MS")) }),
   ...paywallPolicy(),
 });
@@ -518,7 +518,8 @@ function splitList(value: string): string[] {
 
 function corsConfig() {
   return {
-    allowOrigins: corsOrigins(),
+    ...(optionalEnv("CORS_ALLOW_ORIGINS") === undefined ? {} : { allowOrigins: corsOrigins() }),
+    ...(optionalEnv("CORS_ALLOW_ORIGIN_PATTERNS") === undefined ? {} : { allowOriginPatterns: corsOriginPatterns() }),
     ...(optionalEnv("CORS_EXPOSE_HEADERS") === undefined ? {} : { exposeHeaders: splitList(requireEnv("CORS_EXPOSE_HEADERS")) }),
     ...(optionalEnv("CORS_ALLOW_HEADERS") === undefined ? {} : { allowHeaders: splitList(requireEnv("CORS_ALLOW_HEADERS")) }),
     ...(optionalEnv("CORS_ALLOW_METHODS") === undefined ? {} : { allowMethods: splitList(requireEnv("CORS_ALLOW_METHODS")) }),
@@ -530,6 +531,19 @@ function corsOrigins(): string[] {
   const origins = splitList(requireEnv("CORS_ALLOW_ORIGINS"));
   if (origins.length === 0) throw new Error("CORS_ALLOW_ORIGINS must include at least one origin");
   return origins.map((origin) => new URL(origin).origin);
+}
+
+function corsOriginPatterns(): string[] {
+  const patterns = splitList(requireEnv("CORS_ALLOW_ORIGIN_PATTERNS"));
+  if (patterns.length === 0) throw new Error("CORS_ALLOW_ORIGIN_PATTERNS must include at least one pattern");
+  for (const pattern of patterns) {
+    try {
+      new RegExp(pattern, "u");
+    } catch {
+      throw new Error("CORS_ALLOW_ORIGIN_PATTERNS must contain valid regular expressions");
+    }
+  }
+  return patterns;
 }
 
 function positiveIntegerEnv(name: string): number {
