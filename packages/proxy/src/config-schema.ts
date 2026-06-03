@@ -32,6 +32,9 @@ const envNameSchema = z
   .string()
   .regex(/^[A-Z_][A-Z0-9_]*$/u, "must be an uppercase environment variable name");
 const corsOriginSchema = z.url().transform((value) => new URL(value).origin);
+const corsOriginPatternSchema = z.string().min(1).refine(isValidRegexPattern, {
+  message: "must be a valid regular expression",
+});
 const headerNameSchema = z.string().min(1);
 
 const backendEnvSchema = z
@@ -107,11 +110,21 @@ const configSchema = z
       .optional(),
     cors: z
       .object({
-        allowOrigins: z.array(corsOriginSchema).min(1),
+        allowOrigins: z.array(corsOriginSchema).min(1).optional(),
+        allowOriginPatterns: z.array(corsOriginPatternSchema).min(1).optional(),
         exposeHeaders: z.array(headerNameSchema).min(1).optional(),
         allowHeaders: z.array(headerNameSchema).min(1).optional(),
         allowMethods: z.array(corsMethodSchema).min(1).optional(),
         maxAgeSeconds: z.number().int().nonnegative().optional(),
+      })
+      .superRefine((cors, ctx) => {
+        if (cors.allowOrigins === undefined && cors.allowOriginPatterns === undefined) {
+          ctx.addIssue({
+            code: "custom",
+            path: ["allowOrigins"],
+            message: "at least one of allowOrigins or allowOriginPatterns is required",
+          });
+        }
       })
       .strict()
       .optional(),
@@ -445,7 +458,12 @@ export function vercelRuntimeEnv(config: BoltwallConfig): Record<string, string>
     base.FORWARD_DENY = config.forwardHeaders.deny.join(",");
   }
   if (config.cors !== undefined) {
-    base.CORS_ALLOW_ORIGINS = config.cors.allowOrigins.join(",");
+    if (config.cors.allowOrigins !== undefined) {
+      base.CORS_ALLOW_ORIGINS = config.cors.allowOrigins.join(",");
+    }
+    if (config.cors.allowOriginPatterns !== undefined) {
+      base.CORS_ALLOW_ORIGIN_PATTERNS = config.cors.allowOriginPatterns.join(",");
+    }
     if (config.cors.exposeHeaders !== undefined) {
       base.CORS_EXPOSE_HEADERS = config.cors.exposeHeaders.join(",");
     }
@@ -508,7 +526,8 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
         ? { enabled: false }
         : {
             enabled: true,
-            allowOrigins: config.cors.allowOrigins,
+            allowOrigins: config.cors.allowOrigins ?? [],
+            allowOriginPatterns: config.cors.allowOriginPatterns ?? [],
             exposeHeaders: config.cors.exposeHeaders ?? ["WWW-Authenticate"],
             allowHeaders: config.cors.allowHeaders ?? ["Authorization", "Content-Type", "Accept"],
             allowMethods: config.cors.allowMethods ?? ["GET", "HEAD", "OPTIONS"],
@@ -540,7 +559,10 @@ function forwardHeadersPolicy(
 
 function corsPolicy(policy: NonNullable<BoltwallConfig["cors"]>): ProxyCorsConfig {
   return {
-    allowOrigins: policy.allowOrigins,
+    ...(policy.allowOrigins === undefined ? {} : { allowOrigins: policy.allowOrigins }),
+    ...(policy.allowOriginPatterns === undefined
+      ? {}
+      : { allowOriginPatterns: policy.allowOriginPatterns }),
     ...(policy.exposeHeaders === undefined ? {} : { exposeHeaders: policy.exposeHeaders }),
     ...(policy.allowHeaders === undefined ? {} : { allowHeaders: policy.allowHeaders }),
     ...(policy.allowMethods === undefined ? {} : { allowMethods: policy.allowMethods }),
@@ -606,6 +628,15 @@ function policySummary(policy: BoltwallPaywallPolicy): Record<string, unknown> {
     ...(policy.hodl === true ? { hodl: true } : {}),
     ...(policy.requires === undefined ? {} : { requirements: policy.requires }),
   };
+}
+
+function isValidRegexPattern(pattern: string): boolean {
+  try {
+    new RegExp(pattern, "u");
+    return true;
+  } catch {
+    return false;
+  }
 }
 
 function parseMsat(value: string, label: string): bigint {

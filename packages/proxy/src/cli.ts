@@ -425,11 +425,14 @@ async function promptForConfig(
         allowOrigins: splitListRequired(
           await prompt.input(
             "Browser origins allowed to call this proxy (comma separated)",
-            existing?.cors?.allowOrigins.join(",") ??
+            existing?.cors?.allowOrigins?.join(",") ??
               (mode === "dev" ? "http://127.0.0.1:3000,http://localhost:3000" : ""),
           ),
           "Allowed browser origins",
         ),
+        ...(existing?.cors?.allowOriginPatterns === undefined
+          ? {}
+          : { allowOriginPatterns: existing.cors.allowOriginPatterns }),
         exposeHeaders: existing?.cors?.exposeHeaders ?? ["WWW-Authenticate"],
         allowMethods: existing?.cors?.allowMethods ?? ["GET", "OPTIONS"],
         allowHeaders: existing?.cors?.allowHeaders ?? ["Authorization", "Content-Type"],
@@ -554,6 +557,9 @@ function addCorsOrigins(config: BoltwallConfig, origins: string[]): BoltwallConf
     ...config,
     cors: {
       allowOrigins: Array.from(new Set(allowOrigins)),
+      ...(existing?.allowOriginPatterns === undefined
+        ? {}
+        : { allowOriginPatterns: existing.allowOriginPatterns }),
       exposeHeaders: existing?.exposeHeaders ?? ["WWW-Authenticate"],
       allowMethods: existing?.allowMethods ?? ["GET", "OPTIONS"],
       allowHeaders: existing?.allowHeaders ?? ["Authorization", "Content-Type"],

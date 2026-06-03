@@ -11,6 +11,7 @@ const fullProxyEnv = {
   BOLTWALL_PROXY_FORWARD_DENY: "x-secret-*",
   BOLTWALL_PROXY_CORS_ALLOW_ORIGINS:
     "http://127.0.0.1:3000, https://boltwall-suite-playground.vercel.app",
+  BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS: "^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$",
   BOLTWALL_PROXY_CORS_EXPOSE_HEADERS: "WWW-Authenticate",
   BOLTWALL_PROXY_CORS_ALLOW_HEADERS: "Authorization, Content-Type",
   BOLTWALL_PROXY_CORS_ALLOW_METHODS: "GET, OPTIONS",
@@ -63,6 +64,7 @@ describe("loadProxyEnv", () => {
       },
       cors: {
         allowOrigins: ["http://127.0.0.1:3000", "https://boltwall-suite-playground.vercel.app"],
+        allowOriginPatterns: ["^https://boltwall-suite-[a-z0-9-]+\\.vercel\\.app$"],
         exposeHeaders: ["WWW-Authenticate"],
         allowHeaders: ["Authorization", "Content-Type"],
         allowMethods: ["GET", "OPTIONS"],
@@ -112,6 +114,17 @@ describe("loadProxyEnv", () => {
         },
       }),
     ).not.toThrow(/secret-token/);
+  });
+
+  test("rejects invalid CORS origin pattern values", () => {
+    expect(() =>
+      loadProxyEnv({
+        env: {
+          BOLTWALL_PROXY_TARGET_URL: "https://api.example.com",
+          BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS: "[",
+        },
+      }),
+    ).toThrow(/BOLTWALL_PROXY_CORS_ALLOW_ORIGIN_PATTERNS/);
   });
 
   test("requires service when capability caveats are configured", () => {
