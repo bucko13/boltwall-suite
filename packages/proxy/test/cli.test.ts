@@ -41,6 +41,30 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).not.toContain("secret-api-key");
   });
 
+  test("readline multiline secret captures a full certificate chain", async () => {
+    const stdout = new CaptureStream();
+    const chain = [
+      "-----BEGIN CERTIFICATE-----",
+      "TEAFbGVhZmxlYWZsZWFmbGVhZmxlYWY=",
+      "-----END CERTIFICATE-----",
+      "-----BEGIN CERTIFICATE-----",
+      "SW50ZXJtZWRpYXRlSW50ZXJtZWRpYXRl",
+      "-----END CERTIFICATE-----",
+    ].join("\n");
+    // The chain, then Enter on a blank line to terminate input.
+    const prompt = new ReadlinePrompt(Readable.from([`${chain}\n\n`]), stdout);
+
+    const value = await prompt.secret("LND_TLS_CERT", { multiline: true });
+
+    // The whole chain is captured — not truncated to the first BEGIN line,
+    // and both certificate blocks are preserved.
+    expect(value).toBe(chain);
+    expect(value.match(/-----BEGIN CERTIFICATE-----/g)).toHaveLength(2);
+    expect(stdout.text()).toContain("blank line");
+    // Input stays hidden — the certificate body is not echoed.
+    expect(stdout.text()).not.toContain("SW50ZXJtZWRpYXRl");
+  });
+
   test("validate reports missing config names and paths", async () => {
     const stderr = new CaptureStream();
     const code = await runCli({

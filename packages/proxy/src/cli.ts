@@ -4,7 +4,10 @@ import { existsSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
-import { createInterface as createMaskedInterface } from "node:readline";
+import {
+  createInterface as createMaskedInterface,
+  type Interface as ReadlineInterface,
+} from "node:readline";
 import { createInterface as createQuestionInterface } from "node:readline/promises";
 import type { Readable, Writable } from "node:stream";
 import { fileURLToPath } from "node:url";
@@ -72,8 +75,11 @@ export interface CliOptions {
 export interface PromptDriver {
   /** Ask for a visible text value. */
   input(message: string, defaultValue?: string): Promise<string>;
-  /** Ask for a secret value without echoing input. */
-  secret(message: string): Promise<string>;
+  /**
+   * Ask for a secret value without echoing input. Pass `multiline` for values
+   * that span several lines, such as a PEM TLS certificate chain.
+   */
+  secret(message: string, options?: { multiline?: boolean }): Promise<string>;
   /** Ask for a yes/no confirmation. */
   confirm(message: string, defaultValue?: boolean): Promise<boolean>;
   /** Ask the user to choose one value from a list. */
@@ -645,7 +651,10 @@ async function promptForSecrets(
       missing.push(`${name} (${description})`);
       continue;
     }
-    const value = await prompt.secret(`${name} (${description}; not saved to config)`);
+    // A TLS certificate is multi-line (and often a chain); read it as a block.
+    const value = await prompt.secret(`${name} (${description}; not saved to config)`, {
+      multiline: key === "cert",
+    });
     if (value.trim() === "") {
       throw new Error(
         `${name} is required. Paste the value at the hidden prompt, then press Enter.`,
@@ -832,10 +841,8 @@ function isDefined(value: string | undefined): value is string {
   return value !== undefined;
 }
 
-interface MaskedInterface {
+interface MaskedInterface extends ReadlineInterface {
   _writeToOutput?: (value: string) => void;
-  close(): void;
-  question(query: string, callback: (answer: string) => void): void;
 }
 
 export class ReadlinePrompt implements PromptDriver {
@@ -861,9 +868,14 @@ export class ReadlinePrompt implements PromptDriver {
     }
   }
 
-  async secret(message: string): Promise<string> {
+  async secret(message: string, options: { multiline?: boolean } = {}): Promise<string> {
     write(this.outputStream, `${message}\n`);
-    write(this.outputStream, "Paste value, then press Enter. Input is hidden: ");
+    write(
+      this.outputStream,
+      options.multiline
+        ? "Paste the value (a certificate chain is fine), then press Enter on a blank line. Input is hidden:\n"
+        : "Paste value, then press Enter. Input is hidden: ",
+    );
     const rl = createMaskedInterface({
       input: this.inputStream,
       output: this.outputStream,
@@ -872,11 +884,40 @@ export class ReadlinePrompt implements PromptDriver {
     rl._writeToOutput = () => {};
 
     try {
-      const answer = await new Promise<string>((resolve) => {
-        rl.question("", resolve);
+      if (!options.multiline) {
+        const answer = await new Promise<string>((resolve) => {
+          rl.question("", resolve);
+        });
+        write(this.outputStream, "\n");
+        return answer.trim();
+      }
+
+      // Multi-line capture: a TLS cert is often a chain (leaf + intermediates)
+      // spanning many lines. Accumulate every line — keeping all
+      // BEGIN/END CERTIFICATE blocks — until a blank line or EOF terminates
+      // input, rather than resolving on the first newline (which would
+      // truncate the value and leak the remaining lines into later prompts).
+      const lines: string[] = [];
+      await new Promise<void>((resolve) => {
+        const finish = () => {
+          rl.off("line", onLine);
+          rl.off("close", onClose);
+          resolve();
+        };
+        const onLine = (raw: string) => {
+          const line = raw.replace(/\r$/, "");
+          if (line.trim() === "") {
+            finish();
+            return;
+          }
+          lines.push(line);
+        };
+        const onClose = () => finish();
+        rl.on("line", onLine);
+        rl.on("close", onClose);
       });
       write(this.outputStream, "\n");
-      return answer.trim();
+      return lines.join("\n").trim();
     } finally {
       rl.close();
     }
