@@ -13,15 +13,26 @@ import { deployVercel } from "../src/deploy/vercel";
 //   - `hodl: true` widened to `boolean` (rejected by ProxyConfig's `hodl?: true`)
 //   - `EnvRootKeyStore` referenced before its class declaration (TS2449 / TDZ)
 //   - implicitly-typed class members under strict typechecking
-async function generateApiIndex(): Promise<string> {
+const BACKENDS = {
+  lnd: {
+    yaml: ["backend:", "  kind: lnd"],
+    env: { LND_SOCKET: "node:10009", LND_TLS_CERT: "Zm9v", LND_MACAROON: "YmFy" },
+  },
+  opennode: {
+    yaml: ["backend:", "  kind: opennode"],
+    env: { OPENNODE_API_KEY: "test-key" },
+  },
+} as const;
+
+async function generateApiIndex(kind: keyof typeof BACKENDS = "lnd"): Promise<string> {
+  const backend = BACKENDS[kind];
   const dir = await mkdtemp(join(tmpdir(), "boltwall-generated-"));
   await writeFile(
     join(dir, "boltwall.yaml"),
     [
       "name: pokedex",
       "targetUrl: https://pokeapi.co/api/v2",
-      "backend:",
-      "  kind: lnd",
+      ...backend.yaml,
       "pricing:",
       '  defaultPriceMsat: "1000"',
       "deploy:",
@@ -33,11 +44,7 @@ async function generateApiIndex(): Promise<string> {
     config: await loadBoltwallConfig(join(dir, "boltwall.yaml")),
     // No BOLTWALL_PROXY_ROOT_KEY: the deploy generates a random one when it is
     // absent, and the key never appears in the generated source we assert on.
-    env: {
-      LND_SOCKET: "node:10009",
-      LND_TLS_CERT: "Zm9v",
-      LND_MACAROON: "YmFy",
-    },
+    env: backend.env,
     secretValues: {},
     production: false,
     configDir: dir,
@@ -66,5 +73,18 @@ describe("generated Vercel api/index.ts", () => {
     // Class members are typed so the generated app passes strict typechecking.
     expect(source).toContain("constructor(secret: string)");
     expect(source).toContain("get(tokenId: Uint8Array)");
+  });
+
+  test("forces tiny-secp256k1's wasm into the bundle for the LND backend", async () => {
+    const source = await generateApiIndex("lnd");
+    // new URL(<literal>, import.meta.url) is the pattern Vercel's file tracer
+    // follows, so this bundles secp256k1.wasm (which lightning loads at runtime
+    // via a readFileSync the tracer cannot see) and avoids the ENOENT crash.
+    expect(source).toContain('new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm"');
+  });
+
+  test("omits the LND wasm hint for non-LND backends", async () => {
+    const source = await generateApiIndex("opennode");
+    expect(source).not.toContain("tiny-secp256k1");
   });
 });

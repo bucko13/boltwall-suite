@@ -189,7 +189,7 @@ async function writeVercelProject(projectDir: string, config: BoltwallConfig): P
     mode: 0o600,
   });
   await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
-  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
+  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(config), { mode: 0o600 });
 }
 
 async function linkVercelProject(
@@ -405,15 +405,29 @@ function generatedVercelJson(): string {
   )}\n`;
 }
 
-function generatedApiIndex(): string {
+function generatedApiIndex(config: BoltwallConfig): string {
+  // The LND backend pulls in `lightning` -> `tiny-secp256k1`, which loads
+  // `secp256k1.wasm` at runtime via a readFileSync the Vercel file tracer does
+  // not follow, so the asset is dropped and the deployed function crashes with
+  // ENOENT. A `new URL(<literal>, import.meta.url)` reference IS traced by the
+  // bundler, so it forces the wasm into the function. The path resolves the same
+  // at build and runtime, and the read is a harmless no-op.
+  const lndWasmImport =
+    config.backend.kind === "lnd"
+      ? `import { readFileSync as __bundleWasm } from "node:fs";\n`
+      : "";
+  const lndWasmAssetHint =
+    config.backend.kind === "lnd"
+      ? `\ntry {\n  __bundleWasm(new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm", import.meta.url));\n} catch {}\n`
+      : "";
   return `import { createHmac } from "node:crypto";
-
+${lndWasmImport}
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
-
+${lndWasmAssetHint}
 const env = process.env;
 // Backend credential env values are never generated into config. For local LND,
 // LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
