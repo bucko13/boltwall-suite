@@ -363,7 +363,12 @@ async function readProxyManifest(): Promise<PackageManifest> {
 
 async function readSiblingManifest(packageDir: "adapters" | "l402"): Promise<PackageManifest> {
   const here = dirname(fileURLToPath(import.meta.url));
-  const candidates = [join(here, `../../../${packageDir}/package.json`)];
+  // Two monorepo layouts, mirroring readProxyManifest: source/tests run from
+  // packages/proxy/src/deploy, the bundled CLI runs from packages/proxy/dist.
+  const candidates = [
+    join(here, `../../../${packageDir}/package.json`),
+    join(here, `../../${packageDir}/package.json`),
+  ];
   for (const candidate of candidates) {
     try {
       return parsePackageManifest(await readFile(candidate, "utf8"));
