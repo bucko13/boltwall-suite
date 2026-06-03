@@ -1,5 +1,12 @@
 # @boltwall/adapters
 
+## 0.1.2
+
+### Patch Changes
+
+- Updated dependencies [e63af19]
+  - @boltwall/l402@0.1.2
+
 ## 0.1.1
 
 ### Patch Changes
