@@ -45,7 +45,7 @@ this repository.
 Use local skills when available, but keep this file's mandatory checks in view:
 
 - `.agents/skills/boltwall-workflow/SKILL.md` for startup, task claiming,
-  reservations, handoff, close, commit, push, and release sequence.
+  reservations, handoff, close, PR, and release sequence.
 - `.agents/skills/boltwall-workflow/worktrees.md` for generic Git worktree mechanics.
 - `.agents/skills/l402-protocol-work/SKILL.md` for protocol-sensitive work
   after reading the relevant live L402 spec sections.
@@ -69,7 +69,7 @@ Authoritative sources (always read the live document — never rely on memory of
 Non-negotiable rules:
 
 1. **Re-read the relevant spec section before any change** to wire format, header parsing/emission, status codes, `WWW-Authenticate` / `Authorization` grammar, macaroon binary handling, identifier construction, caveat semantics, satisfier behavior, or token construction. Do not work from memory or from existing code as the source of truth — the spec is the source of truth.
-2. **Cite the spec section in the change record.** Every commit, PR, and inline comment that touches protocol surface MUST include a citation of the form `L402 protocol-specification.md §<section>` (or the macaroon/agent spec equivalent). Citations without a section anchor are insufficient.
+2. **Cite the spec section in the change record.** Every PR description and inline comment that touches protocol surface MUST include a citation of the form `L402 protocol-specification.md §<section>` (or the macaroon/agent spec equivalent). If work lands without a PR, the commit message must carry the same citation. Citations without a section anchor are insufficient.
 3. **Spec citations beat opinions, taste, and prior code.** If existing code disagrees with the spec, the existing code is the bug. Fix it; do not preserve it.
 4. **Aperture is the reference implementation tiebreaker** when the spec is ambiguous — but only as a tiebreaker. Document the ambiguity, link the Aperture source, and flag it for owner review.
 5. **Conformance fixtures are load-bearing.** Any wire-format change MUST be accompanied by updated vectors in `@boltwall/test-fixtures` and round-trip tests covering L402, legacy LSAT, and dual-challenge shapes where applicable.
@@ -237,18 +237,18 @@ Rules:
 
 Hard triggers stay in this file. Longer reference material lives in focused docs:
 
-| If your task touches...                                                                              | Read...                                                                                          |
-| ---------------------------------------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------ |
-| package boundaries, package roles, feature placement, or non-goals | `docs/architecture.md` |
-| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages | `CONTRIBUTING.md` (Monorepo conventions) |
-| test design, validation commands, browser import checks, or e2e coverage | `CONTRIBUTING.md` (Tests) |
-| public exports, JSDoc, generated docs, or compatibility notes | `docs/api-docs.md` |
-| external dependency additions or shared utility placement | `CONTRIBUTING.md` (Dependencies) |
-| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md` |
-| playground UI, visual direction, or demo flow ergonomics | `.agents/skills/playground-design/SKILL.md` |
-| L402 wire/header/caveat/macaroon/token behavior | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow |
-| startup, reservations, handoff, close, commit, push, release sequence, or task worktrees | `.agents/skills/boltwall-workflow/SKILL.md`; `.agents/skills/boltwall-workflow/worktrees.md` for generic Git mechanics |
-| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags | `CONTRIBUTING.md` (CI & workflows) |
+| If your task touches...                                                                              | Read...                                                                                                                |
+| ---------------------------------------------------------------------------------------------------- | ---------------------------------------------------------------------------------------------------------------------- |
+| package boundaries, package roles, feature placement, or non-goals                                   | `docs/architecture.md`                                                                                                 |
+| workspace packages, shared configs, `workspace:*`, `turbo.json`, or adding packages                  | `CONTRIBUTING.md` (Monorepo conventions)                                                                               |
+| test design, validation commands, browser import checks, or e2e coverage                             | `CONTRIBUTING.md` (Tests)                                                                                              |
+| public exports, JSDoc, generated docs, or compatibility notes                                        | `docs/api-docs.md`                                                                                                     |
+| external dependency additions or shared utility placement                                            | `CONTRIBUTING.md` (Dependencies)                                                                                       |
+| secrets, bearer credentials, TLS, invoice verification, constant-time comparison, or unknown caveats | `docs/security-boundaries.md`                                                                                          |
+| playground UI, visual direction, or demo flow ergonomics                                             | `.agents/skills/playground-design/SKILL.md`                                                                            |
+| L402 wire/header/caveat/macaroon/token behavior                                                      | live L402 specs first; `.agents/skills/l402-protocol-work/SKILL.md` for workflow                                       |
+| startup, reservations, handoff, close, PR, release sequence, or task worktrees                       | `.agents/skills/boltwall-workflow/SKILL.md`; `.agents/skills/boltwall-workflow/worktrees.md` for generic Git mechanics |
+| `.github/workflows/`, GH Actions versions, workflow permissions, or CI install flags                 | `CONTRIBUTING.md` (CI & workflows)                                                                                     |
 
 Mandatory summaries:
 
@@ -273,7 +273,7 @@ bun run test --filter @boltwall/l402     # unit tests, single package
 bun run test:browser                     # Playwright Chromium import test for @boltwall/l402
 bun run test:e2e                         # Playwright e2e for playground
 bun run build                            # tsup builds, all packages
-bun run package-health                   # publint + arethetypeswrong
+bun run package-health                   # publint + public package boundary checks
 bun run docs:api                         # generate TypeDoc API reference (validates public JSDoc)
 bun run size                             # size-limit budget on @boltwall/l402
 bunx changeset                           # create a changeset
@@ -301,6 +301,10 @@ Rules:
 - Do not start implementation until all six are complete and understood.
 - If any item is incomplete or ambiguous, raise it as a blocker — do not improvise. Either draft the missing piece for owner review, or document the ambiguity and ask.
 - Demonstrate the contract was met when the change is recorded.
+- For PR-based work, the PR description is the canonical place to record the
+  validation contract: exit criteria, testing matrix rows, security or
+  architecture notes, and any required spec citations. If work lands without a
+  PR, record the same evidence in the commit message and task thread.
 - Re-read the contract for each new task. Stale assumptions about what "done" means are how spec violations slip in.
 
 This rule supersedes velocity. An agent that pauses to flag an incomplete gate has done the right thing.
@@ -343,7 +347,8 @@ We optimize for clean architecture.
 - When preserving compatibility, prefer L402-native names plus source-compatible aliases or methods where that keeps migration practical. For example, `L402.fromToken(...)` and `L402#toToken(...)` preserve the useful shape of legacy `Lsat.fromToken(...)` / `Lsat#toToken()`.
 - Compatibility work starts from a complete inventory of the MIT `lsat-js` public API, not a remembered subset. Audit package entrypoints, exported types, README/API docs, and generated docs before deciding what to preserve.
 - When compatibility is not preserved, document the reason and replacement in `docs/migration-from-lsat-js.md`.
-- Breaking changes follow Changesets versioning conventions where Changesets is enforced; before v0.1.0 they still need an explicit compatibility/migration note when they affect legacy users.
+- Breaking changes follow Changesets versioning conventions and need an
+  explicit compatibility or migration note when they affect legacy users.
 
 ---
 
@@ -475,16 +480,18 @@ Mandatory workflow:
 8. **Handoff:** if unfinished, post status, changed/reserved files, validation
    done, validation still needed, risks/conflicts, and exact next step before
    releasing reservations.
-9. **Update in-progress task state:** if the work is not ready to land, update
-   task status and post a handoff. Do not close finished work before commit and
-   push.
-10. **Land code:** use the task worktree landing sequence in
-    `.agents/skills/boltwall-workflow/SKILL.md`.
-11. **Close finished task:** after the remote push or PR landing succeeds,
-    close completed work or update any remaining in-progress task state.
+9. **Update in-progress task state:** if the work is not ready for review,
+   update task status and post a handoff. Do not close finished work before the
+   PR lands.
+10. **Open and land a PR:** use the task worktree landing sequence in
+    `.agents/skills/boltwall-workflow/SKILL.md`, push the branch, open a PR,
+    wait for required checks and review, and merge only when the PR is approved
+    and green.
+11. **Close finished task:** after the PR lands, close completed work or update
+    any remaining in-progress task state.
 12. **Release and complete:** release reservations only when no reserved file
     remains locally modified, then send completion mail with summary,
-    validation, commit hash, and released paths.
+    validation, PR URL or landed commit hash, and released paths.
 
 If an environment cannot create task worktrees, stop and ask the owner for a
 fallback before editing in the canonical checkout.
@@ -520,41 +527,59 @@ Agent Mail fallback rules:
 
 ## Landing the Plane (Session Completion)
 
-**When ending a work session, work is NOT complete until the commit is visible
-on the required remote branch or the PR-gated workflow has landed it.**
+**When ending a work session, work is NOT complete until the PR has landed.**
 
 ### Mandatory workflow
 
 1. **File issues for remaining work** — create tracked tasks (`br create ...`) for anything that needs follow-up.
-2. **Verify the validation contract was met.** If any gate is missing, do not push — fix or escalate.
-3. **Run quality gates locally** if code changed:
+2. **Verify the validation contract was met.** If any gate is missing, fix it
+   or escalate before opening the PR.
+3. **Add a changeset when required.** PRs that touch public packages need a
+   Changesets entry unless they are release/version PRs or another documented
+   exemption applies.
+4. **Run quality gates locally** if code changed:
    ```sh
    bun run lint
    bun run typecheck
    bun run test
    bun run build
    ```
-4. **Update in-progress task status** — if work is not ready to land, record the
-   current state and handoff. Do not close finished work before commit and push.
-5. **Land remotely.** Follow `.agents/skills/boltwall-workflow/SKILL.md`: sync
+5. **Update in-progress task status** — if work is not ready for review, record
+   the current state and hand off. Do not close finished work before the PR
+   lands.
+6. **Open the PR.** Follow `.agents/skills/boltwall-workflow/SKILL.md`: sync
    Beads from the canonical checkout, rebase the task worktree, stage reviewed
-   paths, commit, and use the active integration mode. This repository is in
-   direct-integration mode until the owner flips it to PR-gated mode for
-   production; direct-integration work pushes the validated commit to `main`.
-6. **Close completed task status** — only after the remote push or PR landing
-   succeeds. If work remains, leave it open with a current handoff note.
-7. **Release file reservations (Mail).**
-   - `release_file_reservations(project_key="<canonical-project-key>", agent_name=<you>, paths=[...])`
-8. **Final Mail reply** in the task thread with summary and commit hash.
-9. **Hand off** if work remains: short note describing remaining work and outstanding blockers.
+   paths, commit, push the task branch, and open a PR.
+7. **Write the PR description as the change record.** It must demonstrate that
+   the validation contract was met: task exit criteria, tests run or skipped
+   with reasons, relevant testing matrix rows, security or architecture notes,
+   changeset status, and any required spec citations.
+8. **Wait for required checks and review.** Do not merge while required CI,
+   Vercel checks, Changeset Required, package health, coverage, security scans,
+   or required reviews are pending or failing.
+9. **Merge the PR using the repository's configured strategy.** Squash-merge or
+   rebase-merge according to the repository settings and reviewer direction.
+   Do not bypass branch protection.
+10. **Close completed task status** — only after the PR landing succeeds. If
+    work remains, leave it open with a current handoff note.
+11. **Release file reservations (Mail).** Call
+    `release_file_reservations(project_key="<canonical-project-key>", agent_name=<you>, paths=[...])`.
+
+12. **Final Mail reply** in the task thread with summary, validation, PR URL,
+    merge commit or landed commit hash, and released paths.
+13. **Hand off** if work remains: short note describing remaining work and outstanding blockers.
 
 ### Critical rules
 
 - Work is NOT complete while it exists only in a local task worktree.
-- Never say "ready to push when you are" — push or open the required PR.
-- If push or PR validation fails, investigate the root cause. Do not force-push,
-  do not `--no-verify`, do not amend an already-pushed commit. Fix the
-  underlying issue and create a new commit.
+- Never say "ready to push when you are" — open the PR, or explain the blocker
+  in the task thread.
+- If push, PR validation, or merge fails, investigate the root cause. Do not
+  force-push, do not `--no-verify`, and do not bypass branch protection. Fix
+  the underlying issue and create a new commit.
+- Publishable package releases flow through Changesets automation on merge to
+  `main`. Do not run ad hoc package publishing from task worktrees unless the
+  owner gives explicit release instructions for that operation.
 
 ---
 
@@ -567,7 +592,9 @@ If your runtime does not expose exactly the same MCP helper set as Claude Code, 
 - Keep a stable agent identity for a session and include your agent name in `br --actor`.
 - Treat file reservations and task status as authoritative coordination state.
 - Use `bv --robot-*` outputs for triage and avoid interactive modes that block automation.
-- Preserve this file's invariants (spec-first protocol behavior, no destructive actions without explicit owner approval, and mandatory push at session end).
+- Preserve this file's invariants: spec-first protocol behavior, no destructive
+  actions without explicit owner approval, and PR landing or explicit handoff at
+  session end.
 
 Behavioral compliance matters more than tool-brand parity; if a specific helper is unavailable, document the fallback used in the task thread.
 
