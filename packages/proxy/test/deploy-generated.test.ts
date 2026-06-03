@@ -83,8 +83,19 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain('new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm"');
   });
 
-  test("omits the LND wasm hint for non-LND backends", async () => {
+  test("forces lightning's gRPC protos into the bundle for the LND backend", async () => {
+    const source = await generateApiIndex("lnd");
+    // lightning reads its grpc/protos/*.proto from disk at runtime; the tracer
+    // drops them, so each must be referenced via new URL the same way as the wasm.
+    // autopilot.proto is the one the real deploy crashed on; lightning.proto is the
+    // core service definition. A representative pair guards the whole proto list.
+    expect(source).toContain('new URL("../node_modules/lightning/grpc/protos/autopilot.proto"');
+    expect(source).toContain('new URL("../node_modules/lightning/grpc/protos/lightning.proto"');
+  });
+
+  test("omits the LND runtime-asset hints for non-LND backends", async () => {
     const source = await generateApiIndex("opennode");
     expect(source).not.toContain("tiny-secp256k1");
+    expect(source).not.toContain("grpc/protos");
   });
 });
