@@ -11,7 +11,6 @@
     "./next.js": "./next.js"
   },
   "scripts": {
-    "build": "echo \"eslint-config: no build output\"",
     "lint": "echo \"eslint-config: lint from consumer packages\"",
     "typecheck": "echo \"eslint-config: no typecheck step\"",
     "test": "bun test test/*.test.ts"
