@@ -8,14 +8,14 @@
         "@changesets/cli": "^2.31.0",
         "@types/node": "^24.12.4",
         "eslint": "^9.39.4",
-        "turbo": "^2.9.15",
+        "turbo": "^2.9.16",
         "typedoc": "^0.28.19",
         "typescript": "^6.0.3",
       },
     },
     "apps/playground": {
       "name": "@boltwall/playground",
-      "version": "0.0.0",
+      "version": "0.0.1",
       "dependencies": {
         "@boltwall/l402": "workspace:*",
         "@tailwindcss/postcss": "^4.1.17",
