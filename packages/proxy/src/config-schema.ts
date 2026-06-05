@@ -274,7 +274,10 @@ export function createBackendFromEnv(
   if (config.backend.kind === "lnd") {
     return new LndAdapter({
       socket: requireEnv(env, vars.socket),
-      cert: requireEnv(env, vars.cert),
+      // Optional: a self-hosted node's self-signed cert must be supplied as the
+      // gRPC CA, but managed nodes (e.g. Voltage) serve a publicly-trusted cert,
+      // for which a custom CA must be omitted so the system trust store is used.
+      cert: optionalEnv(env, vars.cert) ?? "",
       macaroon: requireEnv(env, vars.macaroon),
     });
   }
@@ -426,7 +429,9 @@ export function backendEnvDescription(
 export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   const vars = backendEnvNames(config.backend.kind, config.backend.envPrefix, config.backend.env);
 
-  if (config.backend.kind === "lnd") return [vars.socket, vars.cert, vars.macaroon];
+  // The LND TLS cert is intentionally not required: managed nodes (e.g. Voltage)
+  // serve a publicly-trusted cert, so no custom CA is supplied.
+  if (config.backend.kind === "lnd") return [vars.socket, vars.macaroon];
   if (config.backend.kind === "opennode") return [vars.apiKey];
   return [vars.baseUrl, vars.apiKey, vars.storeId];
 }

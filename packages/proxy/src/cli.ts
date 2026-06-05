@@ -674,6 +674,17 @@ async function promptForSecrets(
         "Set them in the current environment, or run `boltwall deploy` without `--yes` to enter values interactively.",
     );
   }
+  for (const [key, name] of optionalEnvEntries(config, vars)) {
+    if (env[name] !== undefined && env[name]!.trim() !== "") continue;
+    if (!promptForMissing) continue;
+    const description = backendEnvDescription(config.backend.kind, key);
+    const value = await prompt.secret(`${name} (${description}; optional, blank to skip)`, {
+      multiline: key === "cert",
+    });
+    // Blank is a deliberate choice (e.g. a managed node with a publicly-trusted
+    // cert), so skip it rather than treating it as missing.
+    if (value.trim() !== "") values[name] = value;
+  }
   return values;
 }
 
@@ -756,9 +767,10 @@ function requiredEnvEntries(
   vars: BoltwallBackendEnvNames,
 ): [keyof BoltwallBackendEnvNames, string][] {
   if (config.backend.kind === "lnd") {
+    // The TLS cert is optional (see optionalEnvEntries): self-hosted nodes need it
+    // as the gRPC CA, managed nodes (e.g. Voltage) serve a publicly-trusted cert.
     return [
       ["socket", vars.socket],
-      ["cert", vars.cert],
       ["macaroon", vars.macaroon],
     ];
   }
@@ -768,6 +780,14 @@ function requiredEnvEntries(
     ["apiKey", vars.apiKey],
     ["storeId", vars.storeId],
   ];
+}
+
+function optionalEnvEntries(
+  config: BoltwallConfig,
+  vars: BoltwallBackendEnvNames,
+): [keyof BoltwallBackendEnvNames, string][] {
+  if (config.backend.kind === "lnd") return [["cert", vars.cert]];
+  return [];
 }
 
 function parseFlags(argv: string[]): {

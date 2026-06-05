@@ -112,11 +112,13 @@ describe("generated Vercel api/index.ts", () => {
     expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
   });
 
-  test("normalizes a raw PEM LND_TLS_CERT to what lightning expects", async () => {
+  test("normalizes a raw PEM LND_TLS_CERT and treats it as optional", async () => {
     const source = await generateApiIndex("lnd");
     // lightning base64/hex-decodes the cert; a raw PEM would decode to garbage, so
-    // the generated app base64-encodes it when it detects a PEM header.
-    expect(source).toContain("serializeCert(requireEnv(\"LND_TLS_CERT\"))");
+    // the generated app base64-encodes it when it detects a PEM header. The cert is
+    // optional (managed nodes serve a publicly-trusted cert), so an absent value
+    // falls back to an empty string, for which lightning uses the system CA store.
+    expect(source).toContain('serializeCert(optionalEnv("LND_TLS_CERT") ?? "")');
     expect(source).toContain('value.includes("-----BEGIN")');
   });
 

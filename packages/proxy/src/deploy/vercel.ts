@@ -270,12 +270,34 @@ async function setVercelEnvironment(options: {
       true,
     );
   }
+
+  for (const key of optionalSecretKeys(options.config)) {
+    const sourceName = sourceNames[key];
+    const targetName = targetNames[key];
+    const value =
+      options.secretValues[sourceName] ??
+      options.env[sourceName] ??
+      options.secretValues[targetName] ??
+      options.env[targetName];
+    // Provisioned only when supplied; an omitted value is deliberate (e.g. a
+    // managed node with a publicly-trusted cert that needs no custom CA).
+    if (value !== undefined && value.trim() !== "") {
+      await addVercelEnv(options.runner, options.projectDir, options.environment, targetName, value, true);
+    }
+  }
 }
 
 function requiredSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNames)[] {
-  if (config.backend.kind === "lnd") return ["socket", "cert", "macaroon"];
+  // The LND TLS cert is optional (see optionalSecretKeys): managed nodes such as
+  // Voltage serve a publicly-trusted cert and need no custom CA.
+  if (config.backend.kind === "lnd") return ["socket", "macaroon"];
   if (config.backend.kind === "opennode") return ["apiKey"];
   return ["baseUrl", "apiKey", "storeId"];
+}
+
+function optionalSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNames)[] {
+  if (config.backend.kind === "lnd") return ["cert"];
+  return [];
 }
 
 async function addVercelEnv(
@@ -436,7 +458,10 @@ const backend = (() => {
   if (kind === "lnd") {
     return new LndAdapter({
       socket: requireEnv("LND_SOCKET"),
-      cert: serializeCert(requireEnv("LND_TLS_CERT")),
+      // Optional: omit it (empty) for managed nodes with a publicly-trusted cert
+      // (e.g. Voltage) so lightning uses the system CA store; supply a self-hosted
+      // node's self-signed cert to use it as the gRPC CA.
+      cert: serializeCert(optionalEnv("LND_TLS_CERT") ?? ""),
       macaroon: requireEnv("LND_MACAROON"),
     });
   }
