@@ -69,6 +69,12 @@ export function applyForwardHeaderPolicy(
   policy: ForwardHeadersPolicy = {},
 ): void {
   for (const name of Object.keys(req.headers)) {
+    // The Host header is transport-level: `changeOrigin` rewrites it to the
+    // upstream host, and HTTP/1.1 requires it. It is not a client header to
+    // filter, so the allow/deny policy must never strip it — doing so leaves the
+    // forwarded request with no Host, which CDN-fronted upstreams (e.g.
+    // Cloudflare) reject with `400 Bad Request`.
+    if (name.toLowerCase() === "host") continue;
     if (!shouldForwardHeader(name, policy)) {
       proxyReq.removeHeader(name);
     }
