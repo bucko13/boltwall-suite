@@ -12,6 +12,8 @@ import {
   type PaidCredential,
 } from "../lib/payment";
 
+import { InvoiceQrCode } from "./InvoiceQrCode";
+
 /**
  * WebLN provider surface used by this component.
  *
@@ -66,6 +68,7 @@ export interface PaymentFlowProps {
 export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowProps) {
   const [webLnDetected, setWebLnDetected] = useState<boolean | null>(null);
   const [status, setStatus] = useState<Status>({ kind: "idle" });
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [pastedPreimage, setPastedPreimage] = useState("");
   const [cachedCredential, setCachedCredential] = useState<CachedCredentialState | null>(null);
 
@@ -74,6 +77,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
   }, []);
 
   async function start() {
+    setPaymentError(null);
     setStatus({ kind: "fetching" });
     try {
       const credential =
@@ -106,7 +110,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     if (status.kind !== "awaiting-payment") return;
     const webln = getWebLn();
     if (webln === null) {
-      setStatus({ kind: "error", message: "WebLN not detected" });
+      setPaymentError("WebLN not detected");
       return;
     }
     const { challenge } = status;
@@ -116,10 +120,8 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       const { preimage } = await webln.sendPayment(challenge.invoice);
       await retryAndRender(challenge, preimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      setPaymentError(error instanceof Error ? error.message : String(error));
+      setStatus({ kind: "awaiting-payment", challenge });
     }
   }
 
@@ -129,10 +131,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     try {
       preimage = parsePastedPreimage(pastedPreimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      setPaymentError(error instanceof Error ? error.message : String(error));
       return;
     }
     const { challenge } = status;
@@ -140,10 +139,8 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     try {
       await retryAndRender(challenge, preimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        message: error instanceof Error ? error.message : String(error),
-      });
+      setPaymentError(error instanceof Error ? error.message : String(error));
+      setStatus({ kind: "awaiting-payment", challenge });
     }
   }
 
@@ -152,6 +149,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
     if (result.status === "paid") {
       setCachedCredential({ endpoint, credential: result.credential });
       const body = await result.response.text();
+      setPaymentError(null);
       setStatus({ kind: "ok", body });
       return;
     }
@@ -177,6 +175,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       return;
     }
     setWebLnDetected(getWebLn() !== null);
+    setPaymentError(null);
     setPastedPreimage("");
     setStatus({
       kind: "awaiting-payment",
@@ -286,6 +285,24 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
           >
             {status.challenge.invoice}
           </code>
+          <InvoiceQrCode invoice={status.challenge.invoice} testId="payment-flow-invoice-qr" />
+
+          {paymentError ? (
+            <div
+              data-testid="payment-flow-payment-error"
+              role="status"
+              style={{
+                fontSize: "var(--size-13)",
+                color: "var(--color-danger)",
+                padding: "8px 12px",
+                background: "var(--color-danger-soft)",
+                border: "1px solid var(--color-danger)",
+                borderRadius: 4,
+              }}
+            >
+              {paymentError}
+            </div>
+          ) : null}
 
           <button
             type="button"

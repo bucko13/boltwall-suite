@@ -37,6 +37,11 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
 
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
     await expect(page.locator("[data-testid='payment-flow-invoice']")).toContainText("lnbc");
+    await expect(page.locator("[data-testid='payment-flow-invoice-qr']")).toBeVisible();
+    await expect(page.locator("[data-testid='payment-flow-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
 
     await page.click("[data-testid='payment-flow-webln']");
     const result = page.locator("[data-testid='payment-flow-result']");
@@ -62,6 +67,43 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     const result = page.locator("[data-testid='payment-flow-result']");
     await expect(result).toBeVisible();
     await expect(result).toContainText("bulbasaur");
+  });
+
+  test("WebLN rejection keeps the challenge and manual fallback visible", async ({ page }) => {
+    await page.addInitScript(() => {
+      const webln = {
+        async enable() {},
+        async sendPayment(_invoice: string) {
+          throw new Error("Prompt was closed");
+        },
+      };
+      Object.defineProperty(window, "webln", {
+        value: webln,
+        configurable: true,
+        writable: true,
+      });
+    });
+    await routeProtectedPokemon(page);
+
+    await page.goto("/test-payment-flow");
+    await page.click("[data-testid='payment-flow-start']");
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
+
+    await page.click("[data-testid='payment-flow-webln']");
+
+    await expect(page.locator("[data-testid='payment-flow-payment-error']")).toContainText(
+      "Prompt was closed",
+    );
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
+    await expect(page.locator("[data-testid='payment-flow-invoice']")).toContainText("lnbc1demo");
+    await expect(page.locator("[data-testid='payment-flow-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
+
+    await page.fill("[data-testid='payment-flow-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='payment-flow-preimage-submit']");
+    await expect(page.locator("[data-testid='payment-flow-result']")).toContainText("bulbasaur");
   });
 
   test("reuses a paid credential on later requests", async ({ page }) => {
@@ -162,8 +204,11 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     await page.click("[data-testid='payment-flow-preimage-submit']");
 
     const error = page.locator("[data-testid='payment-flow-error']");
-    await expect(error).toBeVisible();
-    await expect(error).toContainText("invalid-preimage");
+    await expect(error).toHaveCount(0);
+    await expect(page.locator("[data-testid='payment-flow-payment-error']")).toContainText(
+      "invalid-preimage",
+    );
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
     await expect(page.locator("[data-testid='payment-flow-result']")).toHaveCount(0);
   });
 
