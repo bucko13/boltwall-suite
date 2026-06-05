@@ -16,6 +16,7 @@ import {
   type PaidCredential,
 } from "../../lib/payment";
 import { useWorkbenchMemory } from "../../lib/url-state";
+import { InvoiceQrCode } from "../InvoiceQrCode";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
@@ -58,7 +59,7 @@ type DemoStatus =
   | { kind: "idle" }
   | { kind: "fetching"; id: number }
   | { kind: "awaiting-payment"; id: number; challenge: ChallengeState }
-  | { kind: "paying"; id: number }
+  | { kind: "paying"; id: number; challenge: ChallengeState }
   | { kind: "ok"; pokemon: Pokemon; l402Protected: boolean }
   | { kind: "error"; error: DemoError };
 
@@ -98,6 +99,11 @@ function getWebLn(): WebLnHandle | null {
   if (typeof record.enable !== "function") return null;
   if (typeof record.sendPayment !== "function") return null;
   return candidate as WebLnHandle;
+}
+
+function isWalletPromptDismissal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.trim().toLowerCase() === "prompt was closed";
 }
 
 function randomPokemonId(): number {
@@ -176,6 +182,7 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
           "For L402 challenges, the response must also expose WWW-Authenticate so the invoice and macaroon can be shown.",
           `Fetch detail: ${error.diagnostic.message}`,
         ],
+        offerStartFresh: true,
       };
     }
     if (error.diagnostic.kind === "payment-challenge-missing") {
@@ -186,15 +193,21 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
           ...commonDetails,
           "Return a WWW-Authenticate header and expose it to this playground origin.",
         ],
+        offerStartFresh: true,
       };
     }
     return {
       title:
         "The endpoint returned an L402 payment response, but the challenge could not be parsed.",
       details: [...commonDetails, `Parser detail: ${error.diagnostic.message}`],
+      offerStartFresh: true,
     };
   }
-  return messageError(error instanceof Error ? error.message : String(error));
+  return {
+    title: error instanceof Error ? error.message : String(error),
+    details: [],
+    offerStartFresh: true,
+  };
 }
 
 // Persist the earned credential and its endpoint so navigating away and back
@@ -258,6 +271,7 @@ export function Demo() {
   const [customPreimage, setCustomPreimage] = useState("");
   const [customScheme, setCustomScheme] = useState<"L402" | "LSAT">("L402");
   const [status, setStatus] = useState<DemoStatus>({ kind: "idle" });
+  const [paymentError, setPaymentError] = useState<DemoError | null>(null);
   const [capturedArtifact, setCapturedArtifact] = useState<CapturedArtifact | null>(null);
   const [copiedTarget, setCopiedTarget] = useState<CopyTarget | null>(null);
   const [addedArtifact, setAddedArtifact] = useState<AddedArtifact>(null);
@@ -310,6 +324,7 @@ export function Demo() {
     const id = randomPokemonId();
     const endpoint = endpointForPokemon(endpointTemplate, id);
     setStatus({ kind: "fetching", id });
+    setPaymentError(null);
     setPastedPreimage("");
     setAddedArtifact(null);
     try {
@@ -380,6 +395,7 @@ export function Demo() {
     setCredentialSlot(null);
     setCapturedArtifact(null);
     setAddedArtifact(null);
+    setPaymentError(null);
     clearCustomBuffers();
     setStatus({ kind: "idle" });
   }
@@ -451,7 +467,7 @@ export function Demo() {
 
   function resetEndpoint() {
     setEndpointOverride("");
-    resetCredentialStateForEndpoint();
+    startFresh();
   }
 
   async function copyText(value: string, target: CopyTarget) {
@@ -489,20 +505,22 @@ export function Demo() {
     if (status.kind !== "awaiting-payment") return;
     const webln = getWebLn();
     if (webln === null) {
-      setStatus({ kind: "error", error: messageError("WebLN not detected") });
+      setPaymentError(messageError("WebLN not detected"));
       return;
     }
     const { id, challenge } = status;
-    setStatus({ kind: "paying", id });
+    setStatus({ kind: "paying", id, challenge });
     try {
       await webln.enable();
       const { preimage } = await webln.sendPayment(challenge.invoice);
       await retryAndRender(id, challenge, preimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        error: messageError(error instanceof Error ? error.message : String(error)),
-      });
+      setPaymentError(
+        isWalletPromptDismissal(error)
+          ? null
+          : messageError(error instanceof Error ? error.message : String(error)),
+      );
+      setStatus({ kind: "awaiting-payment", id, challenge });
     }
   }
 
@@ -512,21 +530,16 @@ export function Demo() {
     try {
       preimage = parsePastedPreimage(pastedPreimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        error: messageError(error instanceof Error ? error.message : String(error)),
-      });
+      setPaymentError(messageError(error instanceof Error ? error.message : String(error)));
       return;
     }
     const { id, challenge } = status;
-    setStatus({ kind: "paying", id });
+    setStatus({ kind: "paying", id, challenge });
     try {
       await retryAndRender(id, challenge, preimage);
     } catch (error) {
-      setStatus({
-        kind: "error",
-        error: messageError(error instanceof Error ? error.message : String(error)),
-      });
+      setPaymentError(messageError(error instanceof Error ? error.message : String(error)));
+      setStatus({ kind: "awaiting-payment", id, challenge });
     }
   }
 
@@ -544,6 +557,7 @@ export function Demo() {
         credential: result.credential,
         sourceChallenge: challenge.rawAuthenticate,
       });
+      setPaymentError(null);
       setCredentialSlot({
         source: "paid",
         endpointTemplate: challenge.endpointTemplate,
@@ -594,6 +608,7 @@ export function Demo() {
       return;
     }
     setWebLnDetected(getWebLn() !== null);
+    setPaymentError(null);
     setCapturedArtifact({
       kind: "challenge",
       rawAuthenticate: result.challenge.rawAuthenticate,
@@ -639,8 +654,12 @@ export function Demo() {
                 ? "loaded"
                 : "unprotected"
               : "error";
-  const challenge = status.kind === "awaiting-payment" ? status.challenge : undefined;
-  const challengePokemonId = status.kind === "awaiting-payment" ? status.id : undefined;
+  const challenge =
+    status.kind === "awaiting-payment" || status.kind === "paying"
+      ? status.challenge
+      : undefined;
+  const challengePokemonId =
+    status.kind === "awaiting-payment" || status.kind === "paying" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
   const weblnDisabled = webLnDetected === false || busy;
   const primaryActionLabel =
@@ -1151,6 +1170,50 @@ export function Demo() {
                 </button>
               </div>
               <CopyFeedback active={copiedTarget === "invoice"}>Invoice copied</CopyFeedback>
+              <div
+                style={{
+                  display: "flex",
+                  flexWrap: "wrap",
+                  gap: 12,
+                  alignItems: "flex-start",
+                }}
+              >
+                <InvoiceQrCode invoice={challenge.invoice} testId="demo-invoice-qr" />
+                <div
+                  style={{
+                    flex: "1 1 240px",
+                    minWidth: 0,
+                    color: "var(--color-dim)",
+                    fontSize: "var(--size-12)",
+                    lineHeight: 1.45,
+                  }}
+                >
+                  Scan the same BOLT 11 invoice with any Lightning wallet, then paste the resulting
+                  preimage below.
+                </div>
+              </div>
+              {paymentError ? (
+                <div
+                  data-testid="demo-payment-error"
+                  role="status"
+                  style={{
+                    color: "var(--color-danger)",
+                    padding: "8px 12px",
+                    background: "var(--color-danger-soft)",
+                    border: "1px solid var(--color-danger)",
+                    borderRadius: 4,
+                  }}
+                >
+                  <strong>{paymentError.title}</strong>
+                  {paymentError.details.length > 0 ? (
+                    <ul style={{ margin: "6px 0 0", paddingLeft: 18 }}>
+                      {paymentError.details.map((detail) => (
+                        <li key={detail}>{detail}</li>
+                      ))}
+                    </ul>
+                  ) : null}
+                </div>
+              ) : null}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"

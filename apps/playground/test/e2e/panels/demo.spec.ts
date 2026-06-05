@@ -143,6 +143,11 @@ test.describe("panels / demo", () => {
 
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc");
+    await expect(page.locator("[data-testid='demo-invoice-qr']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
     await page.click("[data-testid='demo-copy-invoice']");
     await expect.poll(() => readClipboard(page)).toBe("lnbc1demo");
     await expect(page.locator("[data-testid='demo-copy-invoice']")).toHaveText("✓");
@@ -224,6 +229,68 @@ test.describe("panels / demo", () => {
       "src",
       "https://img.example.test/pikachu.png",
     );
+  });
+
+  test("WebLN rejection preserves the captured challenge and invoice QR fallback", async ({
+    page,
+  }) => {
+    await installRejectingWebLnStub(page, "Prompt was closed");
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+
+    await page.click("[data-testid='demo-pay-webln']");
+
+    await expect(page.locator("[data-testid='demo-payment-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc1demo");
+    await expect(page.locator("[data-testid='demo-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
+    await expect(page.locator("[data-testid='demo-captured-challenge']")).toContainText(
+      "L402 challenge captured",
+    );
+
+    await page.fill("[data-testid='demo-preimage-input']", TEST_PREIMAGE);
+    await page.click("[data-testid='demo-preimage-submit']");
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+  });
+
+  test("WebLN pending payment keeps the invoice visible", async ({ page }) => {
+    await page.addInitScript(() => {
+      const webln = {
+        async enable() {},
+        async sendPayment(_invoice: string) {
+          await new Promise(() => {});
+          return { preimage: "" };
+        },
+      };
+      Object.defineProperty(window, "webln", {
+        value: webln,
+        configurable: true,
+        writable: true,
+      });
+    });
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+
+    await page.click("[data-testid='demo-pay-webln']");
+
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc1demo");
+    await expect(page.locator("[data-testid='demo-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
+    await expect(page.locator("[data-testid='demo-pay-webln']")).toBeDisabled();
   });
 
   test("adds captured L402 challenge to Workbench explicitly", async ({ page }) => {
@@ -744,7 +811,14 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
       "WWW-Authenticate",
     );
+    await expect(page.locator("[data-testid='demo-error-start-fresh']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+
+    await page.click("[data-testid='demo-endpoint-reset']");
+    await expect(page.locator("[data-testid='demo-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
+      "https://pokeapi.co/api/v2/pokemon/{id}",
+    );
   });
 
   test("L402 payment response without readable challenge explains header exposure", async ({
@@ -771,6 +845,7 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
       "WWW-Authenticate",
     );
+    await expect(page.locator("[data-testid='demo-error-start-fresh']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
   });
 
@@ -785,7 +860,11 @@ test.describe("panels / demo", () => {
     await page.fill("[data-testid='demo-preimage-input']", "not-hex-and-too-short");
     await page.click("[data-testid='demo-preimage-submit']");
 
-    await expect(page.locator("[data-testid='demo-error']")).toContainText("invalid-preimage");
+    await expect(page.locator("[data-testid='demo-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-payment-error']")).toContainText(
+      "invalid-preimage",
+    );
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-pokemon']")).toHaveCount(0);
   });
 
@@ -863,4 +942,20 @@ async function installWebLnStub(page: import("@playwright/test").Page) {
       writable: true,
     });
   }, TEST_PREIMAGE);
+}
+
+async function installRejectingWebLnStub(page: import("@playwright/test").Page, message: string) {
+  await page.addInitScript((errorMessage) => {
+    const webln = {
+      async enable() {},
+      async sendPayment(_invoice: string) {
+        throw new Error(errorMessage);
+      },
+    };
+    Object.defineProperty(window, "webln", {
+      value: webln,
+      configurable: true,
+      writable: true,
+    });
+  }, message);
 }
