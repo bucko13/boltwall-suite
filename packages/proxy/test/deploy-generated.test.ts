@@ -112,6 +112,14 @@ describe("generated Vercel api/index.ts", () => {
     expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
   });
 
+  test("normalizes a raw PEM LND_TLS_CERT to what lightning expects", async () => {
+    const source = await generateApiIndex("lnd");
+    // lightning base64/hex-decodes the cert; a raw PEM would decode to garbage, so
+    // the generated app base64-encodes it when it detects a PEM header.
+    expect(source).toContain("serializeCert(requireEnv(\"LND_TLS_CERT\"))");
+    expect(source).toContain('value.includes("-----BEGIN")');
+  });
+
   test("trusts the proxy so TLS-terminated requests are not rejected as non-HTTPS", async () => {
     const source = await generateApiIndex("opennode");
     // Vercel forwards to the function over HTTP after terminating TLS; without

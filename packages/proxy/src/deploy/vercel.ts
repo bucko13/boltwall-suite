@@ -427,17 +427,16 @@ import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
-// Backend credential env values are never generated into config. For local LND,
-// LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
-// may also be accepted by the underlying lightning package) and LND_MACAROON is
-// macaroon content (base64 from infra/scripts/lnd-env). Path-based tools should
-// use path-named variables such as LND_TLS_CERT_PATH instead.
+// Backend credential env values are never generated into config. LND_TLS_CERT may
+// be a raw PEM (what Voltage and lnd's tls.cert contain) or base64/hex; serializeCert
+// normalizes it to what lightning expects. LND_MACAROON is base64/hex macaroon
+// content. Path-based tools should use path-named variables such as LND_TLS_CERT_PATH.
 const backend = (() => {
   const kind = requireEnv("LN_BACKEND");
   if (kind === "lnd") {
     return new LndAdapter({
       socket: requireEnv("LND_SOCKET"),
-      cert: requireEnv("LND_TLS_CERT"),
+      cert: serializeCert(requireEnv("LND_TLS_CERT")),
       macaroon: requireEnv("LND_MACAROON"),
     });
   }
@@ -523,6 +522,14 @@ function requireEnv(name: string): string {
     throw new Error(\`Missing required environment variable \${name}\`);
   }
   return value;
+}
+
+function serializeCert(value: string): string {
+  // lightning expects the TLS cert base64- or hex-encoded, then decodes it back to
+  // the PEM it uses as the gRPC CA. A raw PEM (what Voltage and lnd's tls.cert hold)
+  // would be base64-decoded into garbage, so detect PEM and base64-encode it; an
+  // already-encoded value has no PEM header and passes through unchanged.
+  return value.includes("-----BEGIN") ? Buffer.from(value, "utf8").toString("base64") : value;
 }
 
 function optionalEnv(name: string): string | undefined {
