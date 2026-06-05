@@ -13,14 +13,15 @@ follow it end to end, but every value here is yours to change.
 ## Prerequisites
 
 [Voltage](https://voltageapp.io) is a hosted LND provider: it runs the Lightning
-node for you and exposes a gRPC endpoint, TLS certificate, and macaroon you can
-reach from Vercel.
+node for you and exposes a gRPC endpoint and macaroon you can reach from Vercel.
+Its gRPC endpoint is served with a publicly-trusted TLS certificate, so — unlike
+a self-hosted node with a self-signed cert — you do **not** supply a TLS cert.
 
 - Bun installed.
 - Vercel CLI installed and authenticated (`vercel login`).
 - A running LND node with inbound liquidity to receive test payments, and a
   macaroon permitted to create and look up invoices. With Voltage, the gRPC
-  host, admin macaroon, and TLS certificate come from the Voltage dashboard.
+  host and admin macaroon come from the Voltage dashboard.
 - A local checkout of this repository if you are deploying the workspace
   `@boltwall/proxy` from source.
 
@@ -32,25 +33,40 @@ and macaroons are credentials to be treated like passwords.
 
 ## 1. Prepare LND credentials
 
-The `lnd` backend (`LN_BACKEND=lnd`) reads three env vars. Collect their values
+The `lnd` backend (`LN_BACKEND=lnd`) reads these env vars. Collect their values
 from your node — the Voltage dashboard, or your own LND:
 
-- `LND_SOCKET`: the gRPC endpoint as `host:port`. For a Voltage node this is
-  `<node-name>.m.voltageapp.io:10009`. Use the **gRPC host on port `10009`**, not
-  the dashboard's REST URL (port `8080`) — the adapter speaks gRPC, and pointing
-  it at the REST port will fail to connect.
-- `LND_MACAROON`: the admin macaroon content (base64). Copy it from the Voltage
-  dashboard.
-- `LND_TLS_CERT`: the TLS certificate content (base64 or PEM). Copy it from the
-  Voltage dashboard.
+- `LND_SOCKET` (required): the gRPC endpoint as `host:port`. For a Voltage node
+  this is `<node-name>.m.voltageapp.io:10009`. Use the **gRPC host on port
+  `10009`** with no scheme, not the dashboard's REST URL (port `8080`) — the
+  adapter speaks gRPC, and pointing it at `https://…:8080` fails to connect.
+- `LND_MACAROON` (required): the admin macaroon content (base64 or hex). Copy it
+  from the Voltage dashboard.
+- `LND_TLS_CERT` (optional): the node's TLS certificate, as a PEM or its base64
+  encoding (a raw PEM is normalized automatically). **Omit it for Voltage** — and
+  any node served with a publicly-trusted certificate — so the gRPC client
+  verifies the connection against the system CA store. Supplying a custom cert
+  there makes it the *only* trusted CA and the handshake fails with
+  `unable to get issuer certificate`. Set it **only** for a self-hosted node with
+  a self-signed cert, where it is used as the gRPC CA.
 
-Export them only in the local shell that runs validation/deploy:
+Export them only in the local shell that runs validation/deploy. For Voltage,
+leave `LND_TLS_CERT` unset:
 
 ```sh
 export LND_SOCKET="<node-name>.m.voltageapp.io:10009"
 export LND_MACAROON="<base64-macaroon>"
-export LND_TLS_CERT="<base64-or-pem-certificate>"
+# Voltage: do NOT set LND_TLS_CERT (publicly-trusted cert → system CA store).
+# Self-hosted with a self-signed cert only:
+# export LND_TLS_CERT="$(cat /path/to/tls.cert)"
 ```
+
+> **Vercel keeps environment variables across deploys.** A value set on a
+> previous deploy stays until you overwrite or delete it — omitting it from your
+> shell does not remove it. If you switch a node from a self-signed cert to a
+> managed (no-cert) node, delete the old value or the function keeps using it:
+> `vercel env rm LND_TLS_CERT production` (and `preview`), or remove it in the
+> Vercel dashboard. The same applies to any rotated credential.
 
 Do not commit these values, paste them into client-side code, or store them in
 `NEXT_PUBLIC_*` variables.

@@ -10,6 +10,34 @@ const MACAROON_HEX = "abcdef0123456789".repeat(8);
 const CERT_BASE64 = "QUJDREVGR0hJSktMTU5PUFFSU1RVVldYWVo=".repeat(3);
 
 describe("LndAdapter", () => {
+  test("resolves the TLS cert: passthrough when encoded, PEM and omitted to a CA bundle", () => {
+    function capturedCert(cert?: string): string {
+      let seen = "";
+      new LndAdapter(
+        { socket: "127.0.0.1:10009", macaroon: "base64-macaroon", ...(cert === undefined ? {} : { cert }) },
+        {
+          ...stubApi(),
+          authenticatedLndGrpc(auth) {
+            seen = auth.cert ?? "";
+            return { lnd: {} as never };
+          },
+        },
+      );
+      return seen;
+    }
+    const decode = (b64: string): string => Buffer.from(b64, "base64").toString("utf8");
+
+    // An already base64/hex-encoded cert is passed through unchanged.
+    expect(capturedCert("base64-cert")).toBe("base64-cert");
+    // A raw PEM is base64-encoded so lightning decodes it back to the PEM.
+    const pem = "-----BEGIN CERTIFICATE-----\nMIIB\n-----END CERTIFICATE-----";
+    expect(decode(capturedCert(pem))).toBe(pem);
+    // Omitting the cert (e.g. a managed node with a publicly-trusted cert) yields a
+    // CA bundle of Node's system root certificates, so a public issuer is trusted.
+    const omitted = decode(capturedCert(undefined));
+    expect(omitted).toContain("-----BEGIN CERTIFICATE-----");
+  });
+
   test("creates regular invoices through lightning createInvoice", async () => {
     const calls: unknown[] = [];
     const adapter = new LndAdapter(lndOptions(), {

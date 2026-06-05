@@ -427,8 +427,10 @@ describe("boltwall CLI", () => {
     expect(code).toBe(1);
     expect(stderr.text()).toContain("Missing required deploy environment variables");
     expect(stderr.text()).toContain("LND_SOCKET");
-    expect(stderr.text()).toContain("LND_TLS_CERT");
     expect(stderr.text()).toContain("LND_MACAROON");
+    // The TLS cert is optional (managed nodes serve a publicly-trusted cert), so it
+    // is not reported among the missing required variables.
+    expect(stderr.text()).not.toContain("LND_TLS_CERT");
     expect(stderr.text()).toContain("without `--yes`");
     expect(stderr.text()).not.toContain("unexpected prompt");
     expect(runner.commands.map((command) => command.args)).toEqual([["--version"], ["whoami"]]);

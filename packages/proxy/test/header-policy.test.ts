@@ -1,8 +1,27 @@
+import type { ClientRequest } from "node:http";
+
 import { describe, expect, test } from "bun:test";
 
-import { shouldForwardHeader } from "../src/header-policy";
+import type { Request as ExpressRequest } from "express";
+
+import { applyForwardHeaderPolicy, shouldForwardHeader } from "../src/header-policy";
 
 describe("proxy header policy", () => {
+  test("never strips the Host header, even under an allow-list", () => {
+    // changeOrigin sets Host to the upstream; stripping it leaves no Host and
+    // CDN-fronted upstreams (e.g. Cloudflare) reject the request with 400.
+    const removed: string[] = [];
+    const proxyReq = { removeHeader: (name: string) => removed.push(name) } as unknown as ClientRequest;
+    const req = {
+      headers: { host: "proxy.example", "user-agent": "curl", accept: "application/json" },
+    } as unknown as ExpressRequest;
+
+    applyForwardHeaderPolicy(proxyReq, req, { allow: ["accept"] });
+
+    expect(removed).toContain("user-agent");
+    expect(removed).not.toContain("host");
+  });
+
   test("strips bearer credentials and cookies by default", () => {
     expect(shouldForwardHeader("authorization")).toBe(false);
     expect(shouldForwardHeader("Cookie")).toBe(false);

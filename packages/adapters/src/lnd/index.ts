@@ -1,4 +1,5 @@
 import type { EventEmitter } from "node:events";
+import { rootCertificates } from "node:tls";
 
 import {
   authenticatedLndGrpc,
@@ -40,12 +41,20 @@ export interface LndAdapterOptions {
   /** LND gRPC socket, for example `127.0.0.1:10009`. */
   socket: string;
   /**
-   * TLS certificate content. The local regtest helper exports this as
-   * `LND_TLS_CERT` with base64 content; PEM content may also be accepted by the
-   * underlying `lightning` package. Filesystem paths should use path-named
-   * variables such as `LND_TLS_CERT_PATH` before being read into this field.
+   * TLS certificate used as the gRPC root CA. **Optional.**
+   *
+   * Set it to a **self-hosted** node's self-signed certificate (a PEM, or its
+   * base64/hex encoding — a raw PEM is normalized for you). Omit it for a node
+   * served with a **publicly-trusted** certificate — notably managed providers
+   * like Voltage, whose endpoints use a Let's Encrypt certificate: supplying the
+   * node's own cert there would make it the only trusted CA and the TLS handshake
+   * would fail with `unable to get issuer certificate`. When omitted, the adapter
+   * verifies the connection against Node's system root certificates.
+   *
+   * Filesystem paths should use path-named variables such as `LND_TLS_CERT_PATH`
+   * and be read into this field as content.
    */
-  cert: string;
+  cert?: string;
   /**
    * Admin macaroon content. The local regtest helper exports this as
    * `LND_MACAROON` with base64 content.
@@ -165,7 +174,7 @@ export class LndAdapter implements LightningBackend {
   constructor(opts: LndAdapterOptions, api: LndApi = defaultLndApi) {
     this.#api = api;
     try {
-      this.#lnd = api.authenticatedLndGrpc(opts).lnd;
+      this.#lnd = api.authenticatedLndGrpc({ ...opts, cert: resolveLndCert(opts.cert) }).lnd;
     } catch (error) {
       throw normalizeLndError(error, "Failed to initialize authenticated LND client");
     }
@@ -445,6 +454,21 @@ function normalizeHex(value: string, label: string): string {
     value,
     () => new LndAdapterError("invalid-request", `${label} must be hex encoded`),
   );
+}
+
+function resolveLndCert(cert: string | undefined): string {
+  // `lightning` base64/hex-decodes this value and uses it as the gRPC root CA.
+  if (cert === undefined || cert.trim() === "") {
+    // No node cert (a managed node with a publicly-trusted cert, e.g. Voltage):
+    // trust the public CA store. grpc-js's bundled roots can lag and miss a
+    // current issuer, so pass Node's system roots explicitly rather than relying
+    // on grpc's defaults.
+    return Buffer.from(rootCertificates.join("\n"), "utf8").toString("base64");
+  }
+  // A raw PEM (what Voltage and lnd's tls.cert hold) would be base64-decoded into
+  // garbage, so detect a PEM header and base64-encode it; an already base64/hex
+  // value passes through unchanged.
+  return cert.includes("-----BEGIN") ? Buffer.from(cert, "utf8").toString("base64") : cert;
 }
 
 function normalizeLndError(error: unknown, message: string): LndAdapterError {

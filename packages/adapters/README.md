@@ -46,19 +46,27 @@ import { LndAdapter } from "@boltwall/adapters/lnd";
 
 const backend = new LndAdapter({
   socket: process.env.LND_SOCKET!,
-  cert: process.env.LND_TLS_CERT!,
+  // Self-signed node: the cert is the gRPC CA. Publicly-trusted node (e.g.
+  // Voltage): pass "" to verify against the system CA store.
+  cert: process.env.LND_TLS_CERT ?? "",
   macaroon: process.env.LND_MACAROON!,
 });
 ```
 
-For Boltwall's local regtest helpers, `LND_TLS_CERT` is certificate content and
-`LND_MACAROON` is admin macaroon content; `infra/scripts/lnd-env` emits both as
-base64. Path-based interop tooling should use explicit path variable names such
-as `LND_TLS_CERT_PATH`.
+`cert` is the node's TLS certificate, base64- or hex-encoded (this is what
+`lightning` expects — a raw PEM is not accepted directly). It is used as the gRPC
+CA, so it is only needed for a node with a **self-signed** certificate. For a
+node served with a **publicly-trusted** certificate (e.g. Voltage), pass an empty
+string so the connection is verified against the system CA store; supplying a
+custom cert there makes it the only trusted CA and the TLS handshake fails. For
+Boltwall's local regtest helpers, `infra/scripts/lnd-env` emits the cert and
+admin macaroon as base64; path-based interop tooling should use explicit path
+variable names such as `LND_TLS_CERT_PATH`.
 
-Voltage Cloud nodes are standard LND nodes: construct `LndAdapter` directly with
-the node's gRPC socket (`<node>.m.voltageapp.io:10009`), admin macaroon, and TLS
-cert. The dashboard's REST URL on port 8080 is not the gRPC endpoint.
+Voltage Cloud nodes are standard LND nodes: construct `LndAdapter` with the
+node's gRPC socket (`<node>.m.voltageapp.io:10009`) and admin macaroon, and an
+empty `cert` (Voltage serves a publicly-trusted certificate). The dashboard's
+REST URL on port 8080 is not the gRPC endpoint.
 
 ## OpenNode
 
