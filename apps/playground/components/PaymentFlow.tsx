@@ -36,6 +36,11 @@ function getWebLn(): WebLnHandle | null {
   return candidate as WebLnHandle;
 }
 
+function isWalletPromptDismissal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.trim().toLowerCase() === "prompt was closed";
+}
+
 type Status =
   | { kind: "idle" }
   | { kind: "fetching" }
@@ -120,7 +125,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       const { preimage } = await webln.sendPayment(challenge.invoice);
       await retryAndRender(challenge, preimage);
     } catch (error) {
-      setPaymentError(error instanceof Error ? error.message : String(error));
+      setPaymentError(isWalletPromptDismissal(error) ? null : error instanceof Error ? error.message : String(error));
       setStatus({ kind: "awaiting-payment", challenge });
     }
   }

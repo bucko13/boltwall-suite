@@ -101,6 +101,11 @@ function getWebLn(): WebLnHandle | null {
   return candidate as WebLnHandle;
 }
 
+function isWalletPromptDismissal(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return message.trim().toLowerCase() === "prompt was closed";
+}
+
 function randomPokemonId(): number {
   return Math.floor(Math.random() * MAX_POKEMON_ID) + 1;
 }
@@ -510,7 +515,11 @@ export function Demo() {
       const { preimage } = await webln.sendPayment(challenge.invoice);
       await retryAndRender(id, challenge, preimage);
     } catch (error) {
-      setPaymentError(messageError(error instanceof Error ? error.message : String(error)));
+      setPaymentError(
+        isWalletPromptDismissal(error)
+          ? null
+          : messageError(error instanceof Error ? error.message : String(error)),
+      );
       setStatus({ kind: "awaiting-payment", id, challenge });
     }
   }

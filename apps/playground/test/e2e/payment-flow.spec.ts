@@ -91,9 +91,7 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
 
     await page.click("[data-testid='payment-flow-webln']");
 
-    await expect(page.locator("[data-testid='payment-flow-payment-error']")).toContainText(
-      "Prompt was closed",
-    );
+    await expect(page.locator("[data-testid='payment-flow-payment-error']")).toHaveCount(0);
     await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
     await expect(page.locator("[data-testid='payment-flow-invoice']")).toContainText("lnbc1demo");
     await expect(page.locator("[data-testid='payment-flow-invoice-qr']")).toHaveAttribute(

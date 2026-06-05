@@ -244,9 +244,7 @@ test.describe("panels / demo", () => {
 
     await page.click("[data-testid='demo-pay-webln']");
 
-    await expect(page.locator("[data-testid='demo-payment-error']")).toContainText(
-      "Prompt was closed",
-    );
+    await expect(page.locator("[data-testid='demo-payment-error']")).toHaveCount(0);
     await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc1demo");
     await expect(page.locator("[data-testid='demo-invoice-qr']")).toHaveAttribute(
