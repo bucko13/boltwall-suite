@@ -54,6 +54,31 @@ async function generateApiIndex(kind: keyof typeof BACKENDS = "lnd"): Promise<st
   return readFile(join(dir, "deployments", "pokedex", "api", "index.ts"), "utf8");
 }
 
+async function generateVercelJson(kind: keyof typeof BACKENDS = "lnd"): Promise<string> {
+  const dir = await mkdtemp(join(tmpdir(), "boltwall-generated-"));
+  await writeFile(
+    join(dir, "boltwall.yaml"),
+    [
+      "name: pokedex",
+      "targetUrl: https://pokeapi.co/api/v2",
+      ...BACKENDS[kind].yaml,
+      "pricing:",
+      '  defaultPriceMsat: "1000"',
+      "deploy:",
+      "  projectName: pokedex",
+    ].join("\n"),
+  );
+  await deployVercel({
+    config: await loadBoltwallConfig(join(dir, "boltwall.yaml")),
+    env: BACKENDS[kind].env,
+    secretValues: {},
+    production: false,
+    configDir: dir,
+    runner: { run: async () => ({ code: 0, stdout: "https://pokedex.vercel.app", stderr: "" }) },
+  });
+  return readFile(join(dir, "deployments", "pokedex", "vercel.json"), "utf8");
+}
+
 describe("generated Vercel api/index.ts", () => {
   test("declares EnvRootKeyStore before it is used", async () => {
     const source = await generateApiIndex();
@@ -75,22 +100,16 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain("get(tokenId: Uint8Array)");
   });
 
-  test("forces tiny-secp256k1's wasm into the bundle for the LND backend", async () => {
-    const source = await generateApiIndex("lnd");
-    // new URL(<literal>, import.meta.url) is the pattern Vercel's file tracer
-    // follows, so this bundles secp256k1.wasm (which lightning loads at runtime
-    // via a readFileSync the tracer cannot see) and avoids the ENOENT crash.
-    expect(source).toContain('new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm"');
-  });
-
-  test("forces lightning's gRPC protos into the bundle for the LND backend", async () => {
-    const source = await generateApiIndex("lnd");
-    // lightning reads its grpc/protos/*.proto from disk at runtime; the tracer
-    // drops them, so each must be referenced via new URL the same way as the wasm.
-    // autopilot.proto is the one the real deploy crashed on; lightning.proto is the
-    // core service definition. A representative pair guards the whole proto list.
-    expect(source).toContain('new URL("../node_modules/lightning/grpc/protos/autopilot.proto"');
-    expect(source).toContain('new URL("../node_modules/lightning/grpc/protos/lightning.proto"');
+  test("forces lightning's runtime assets into the LND function via includeFiles", async () => {
+    const vercelJson = JSON.parse(await generateVercelJson("lnd")) as {
+      functions?: Record<string, { includeFiles?: string }>;
+    };
+    // lightning reads its grpc/protos/*.proto and tiny-secp256k1 reads
+    // secp256k1.wasm from disk at runtime; the tracer drops them, so they must be
+    // pulled into the function explicitly. The extension-brace glob covers both
+    // without enumerating lightning's proto set.
+    const includeFiles = vercelJson.functions?.["api/index.ts"]?.includeFiles;
+    expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
   });
 
   test("trusts the proxy so TLS-terminated requests are not rejected as non-HTTPS", async () => {
@@ -101,9 +120,10 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain('app.set("trust proxy", true)');
   });
 
-  test("omits the LND runtime-asset hints for non-LND backends", async () => {
-    const source = await generateApiIndex("opennode");
-    expect(source).not.toContain("tiny-secp256k1");
-    expect(source).not.toContain("grpc/protos");
+  test("omits the includeFiles function config for non-LND backends", async () => {
+    const vercelJson = JSON.parse(await generateVercelJson("opennode")) as {
+      functions?: unknown;
+    };
+    expect(vercelJson.functions).toBeUndefined();
   });
 });

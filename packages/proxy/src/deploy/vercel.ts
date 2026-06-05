@@ -188,8 +188,8 @@ async function writeVercelProject(projectDir: string, config: BoltwallConfig): P
   await writeFile(join(projectDir, "package.json"), await generatedPackageJson(config), {
     mode: 0o600,
   });
-  await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
-  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(config), { mode: 0o600 });
+  await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(config), { mode: 0o600 });
+  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
 }
 
 async function linkVercelProject(
@@ -395,73 +395,37 @@ interface PackageManifest {
   dependencies?: Record<string, string | undefined>;
 }
 
-function generatedVercelJson(): string {
-  return `${JSON.stringify(
-    {
-      rewrites: [{ source: "/(.*)", destination: "/api" }],
-    },
-    null,
-    2,
-  )}\n`;
+function generatedVercelJson(config: BoltwallConfig): string {
+  const manifest: {
+    rewrites: { source: string; destination: string }[];
+    functions?: Record<string, { includeFiles: string }>;
+  } = {
+    rewrites: [{ source: "/(.*)", destination: "/api" }],
+  };
+
+  if (config.backend.kind === "lnd") {
+    // The LND backend pulls in `lightning`, which reads its gRPC `.proto` files,
+    // and `tiny-secp256k1`, which reads `secp256k1.wasm` — both from disk at
+    // runtime via reads Vercel's file tracer does not follow, so they are dropped
+    // from the function bundle and it crashes at boot with ENOENT. `includeFiles`
+    // forces matched files into the function; the extension-brace glob is widely
+    // supported and auto-covers lightning's proto set without a hardcoded list.
+    manifest.functions = {
+      "api/index.ts": { includeFiles: "node_modules/**/*.{proto,wasm}" },
+    };
+  }
+
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-// `lightning`'s gRPC proto definitions, relative to the deployed `node_modules`.
-// These are read from disk at runtime by `lightning` and must be forced into the
-// Vercel bundle (see `generatedApiIndex`). Coupled to lightning@11's proto set.
-const LND_GRPC_PROTOS = [
-  "autopilot",
-  "chainkit",
-  "chainnotifier",
-  "invoices",
-  "lightning",
-  "peers",
-  "router",
-  "signer",
-  "stateservice",
-  "verrpc",
-  "walletkit",
-  "walletunlocker",
-  "watchtower",
-  "wtclient",
-];
-
-function lndRuntimeAssetPaths(): string[] {
-  return [
-    "tiny-secp256k1/lib/secp256k1.wasm",
-    ...LND_GRPC_PROTOS.map((name) => `lightning/grpc/protos/${name}.proto`),
-  ];
-}
-
-function generatedApiIndex(config: BoltwallConfig): string {
-  // The LND backend pulls in `lightning`, which loads two kinds of asset from
-  // disk at runtime that Vercel's file tracer does not follow and therefore drops
-  // from the bundle: `tiny-secp256k1`'s `secp256k1.wasm`, and `lightning`'s gRPC
-  // `.proto` definitions. Without them the deployed function crashes at boot with
-  // ENOENT. A `new URL(<literal>, import.meta.url)` reference IS traced, so reading
-  // each path forces the asset into the function. The reads are harmless no-ops and
-  // the paths resolve identically at build and runtime. The proto list is coupled
-  // to `lightning`'s gRPC proto set (lightning@11); update it if that dep changes.
-  const lndAssetPaths =
-    config.backend.kind === "lnd" ? lndRuntimeAssetPaths() : [];
-  const lndAssetImport =
-    lndAssetPaths.length === 0 ? "" : `import { readFileSync as __bundleAsset } from "node:fs";\n`;
-  const lndAssetHint =
-    lndAssetPaths.length === 0
-      ? ""
-      : `\n${lndAssetPaths
-          .map(
-            (asset) =>
-              `try { __bundleAsset(new URL("../node_modules/${asset}", import.meta.url)); } catch {}`,
-          )
-          .join("\n")}\n`;
+function generatedApiIndex(): string {
   return `import { createHmac } from "node:crypto";
-${lndAssetImport}
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
-${lndAssetHint}
+
 const env = process.env;
 // Backend credential env values are never generated into config. For local LND,
 // LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
