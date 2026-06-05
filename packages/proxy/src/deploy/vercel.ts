@@ -442,6 +442,7 @@ function generatedVercelJson(config: BoltwallConfig): string {
 
 function generatedApiIndex(): string {
   return `import { createHmac } from "node:crypto";
+import { rootCertificates } from "node:tls";
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
@@ -449,19 +450,16 @@ import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "
 import { createProxy } from "@boltwall/proxy";
 
 const env = process.env;
-// Backend credential env values are never generated into config. LND_TLS_CERT may
-// be a raw PEM (what Voltage and lnd's tls.cert contain) or base64/hex; serializeCert
-// normalizes it to what lightning expects. LND_MACAROON is base64/hex macaroon
-// content. Path-based tools should use path-named variables such as LND_TLS_CERT_PATH.
+// Backend credential env values are never generated into config. LND_TLS_CERT is
+// optional: set it (PEM or base64/hex) to a self-hosted node's self-signed cert,
+// or omit it for a managed node (e.g. Voltage) with a publicly-trusted cert.
+// LND_MACAROON is base64/hex. Path-based tools use vars like LND_TLS_CERT_PATH.
 const backend = (() => {
   const kind = requireEnv("LN_BACKEND");
   if (kind === "lnd") {
     return new LndAdapter({
       socket: requireEnv("LND_SOCKET"),
-      // Optional: omit it (empty) for managed nodes with a publicly-trusted cert
-      // (e.g. Voltage) so lightning uses the system CA store; supply a self-hosted
-      // node's self-signed cert to use it as the gRPC CA.
-      cert: serializeCert(optionalEnv("LND_TLS_CERT") ?? ""),
+      cert: lndCert(),
       macaroon: requireEnv("LND_MACAROON"),
     });
   }
@@ -549,12 +547,20 @@ function requireEnv(name: string): string {
   return value;
 }
 
-function serializeCert(value: string): string {
-  // lightning expects the TLS cert base64- or hex-encoded, then decodes it back to
-  // the PEM it uses as the gRPC CA. A raw PEM (what Voltage and lnd's tls.cert hold)
-  // would be base64-decoded into garbage, so detect PEM and base64-encode it; an
-  // already-encoded value has no PEM header and passes through unchanged.
-  return value.includes("-----BEGIN") ? Buffer.from(value, "utf8").toString("base64") : value;
+function lndCert(): string {
+  // lightning base64/hex-decodes this value and uses it as the gRPC root CA.
+  const raw = optionalEnv("LND_TLS_CERT");
+  if (raw === undefined || raw.trim() === "") {
+    // No node cert (managed node with a publicly-trusted cert, e.g. Voltage):
+    // trust the public CA store. grpc-js's bundled roots can lag and miss a
+    // current issuer (Node hints "--use-system-ca"), so pass Node's system roots
+    // explicitly instead of relying on grpc's defaults.
+    return Buffer.from(rootCertificates.join("\\n"), "utf8").toString("base64");
+  }
+  // A raw PEM (what Voltage and lnd's tls.cert hold) would be base64-decoded into
+  // garbage, so detect a PEM header and base64-encode it; an already-encoded value
+  // passes through unchanged.
+  return raw.includes("-----BEGIN") ? Buffer.from(raw, "utf8").toString("base64") : raw;
 }
 
 function optionalEnv(name: string): string | undefined {
