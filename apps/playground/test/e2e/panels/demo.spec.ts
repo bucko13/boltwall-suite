@@ -262,6 +262,39 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
   });
 
+  test("WebLN pending payment keeps the invoice visible", async ({ page }) => {
+    await page.addInitScript(() => {
+      const webln = {
+        async enable() {},
+        async sendPayment(_invoice: string) {
+          await new Promise(() => {});
+          return { preimage: "" };
+        },
+      };
+      Object.defineProperty(window, "webln", {
+        value: webln,
+        configurable: true,
+        writable: true,
+      });
+    });
+    await routeProtectedPokemon(page);
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+
+    await page.click("[data-testid='demo-pay-webln']");
+
+    await expect(page.locator("[data-testid='demo-payment']")).toBeVisible();
+    await expect(page.locator("[data-testid='demo-invoice']")).toContainText("lnbc1demo");
+    await expect(page.locator("[data-testid='demo-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
+    await expect(page.locator("[data-testid='demo-pay-webln']")).toBeDisabled();
+  });
+
   test("adds captured L402 challenge to Workbench explicitly", async ({ page }) => {
     await routeProtectedPokemon(page);
 
@@ -780,7 +813,14 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
       "WWW-Authenticate",
     );
+    await expect(page.locator("[data-testid='demo-error-start-fresh']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+
+    await page.click("[data-testid='demo-endpoint-reset']");
+    await expect(page.locator("[data-testid='demo-error']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
+      "https://pokeapi.co/api/v2/pokemon/{id}",
+    );
   });
 
   test("L402 payment response without readable challenge explains header exposure", async ({
@@ -807,6 +847,7 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-error-details']")).toContainText(
       "WWW-Authenticate",
     );
+    await expect(page.locator("[data-testid='demo-error-start-fresh']")).toBeVisible();
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
   });
 

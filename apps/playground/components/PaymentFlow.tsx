@@ -40,7 +40,7 @@ type Status =
   | { kind: "idle" }
   | { kind: "fetching" }
   | { kind: "awaiting-payment"; challenge: PaidChallenge }
-  | { kind: "paying" }
+  | { kind: "paying"; challenge: PaidChallenge }
   | { kind: "ok"; body: string }
   | { kind: "error"; message: string };
 
@@ -114,7 +114,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       return;
     }
     const { challenge } = status;
-    setStatus({ kind: "paying" });
+    setStatus({ kind: "paying", challenge });
     try {
       await webln.enable();
       const { preimage } = await webln.sendPayment(challenge.invoice);
@@ -135,7 +135,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
       return;
     }
     const { challenge } = status;
-    setStatus({ kind: "paying" });
+    setStatus({ kind: "paying", challenge });
     try {
       await retryAndRender(challenge, preimage);
     } catch (error) {
@@ -186,6 +186,10 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
   const startDisabled = status.kind === "fetching" || status.kind === "paying";
   const pasteDisabled = pastedPreimage.trim() === "" || status.kind === "paying";
   const weblnDisabled = webLnDetected === false || status.kind === "paying";
+  const challenge =
+    status.kind === "awaiting-payment" || status.kind === "paying"
+      ? status.challenge
+      : undefined;
 
   return (
     <section
@@ -254,7 +258,7 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
         </div>
       ) : null}
 
-      {status.kind === "awaiting-payment" ? (
+      {challenge ? (
         <div
           data-testid="payment-flow-challenge"
           style={{
@@ -283,9 +287,9 @@ export function PaymentFlow({ endpoint, label = "Get resource" }: PaymentFlowPro
               border: "1px solid var(--color-border)",
             }}
           >
-            {status.challenge.invoice}
+            {challenge.invoice}
           </code>
-          <InvoiceQrCode invoice={status.challenge.invoice} testId="payment-flow-invoice-qr" />
+          <InvoiceQrCode invoice={challenge.invoice} testId="payment-flow-invoice-qr" />
 
           {paymentError ? (
             <div

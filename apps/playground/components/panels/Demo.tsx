@@ -59,7 +59,7 @@ type DemoStatus =
   | { kind: "idle" }
   | { kind: "fetching"; id: number }
   | { kind: "awaiting-payment"; id: number; challenge: ChallengeState }
-  | { kind: "paying"; id: number }
+  | { kind: "paying"; id: number; challenge: ChallengeState }
   | { kind: "ok"; pokemon: Pokemon; l402Protected: boolean }
   | { kind: "error"; error: DemoError };
 
@@ -177,6 +177,7 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
           "For L402 challenges, the response must also expose WWW-Authenticate so the invoice and macaroon can be shown.",
           `Fetch detail: ${error.diagnostic.message}`,
         ],
+        offerStartFresh: true,
       };
     }
     if (error.diagnostic.kind === "payment-challenge-missing") {
@@ -187,15 +188,21 @@ function describeInitialFetchError(endpoint: string, error: unknown): DemoError 
           ...commonDetails,
           "Return a WWW-Authenticate header and expose it to this playground origin.",
         ],
+        offerStartFresh: true,
       };
     }
     return {
       title:
         "The endpoint returned an L402 payment response, but the challenge could not be parsed.",
       details: [...commonDetails, `Parser detail: ${error.diagnostic.message}`],
+      offerStartFresh: true,
     };
   }
-  return messageError(error instanceof Error ? error.message : String(error));
+  return {
+    title: error instanceof Error ? error.message : String(error),
+    details: [],
+    offerStartFresh: true,
+  };
 }
 
 // Persist the earned credential and its endpoint so navigating away and back
@@ -455,7 +462,7 @@ export function Demo() {
 
   function resetEndpoint() {
     setEndpointOverride("");
-    resetCredentialStateForEndpoint();
+    startFresh();
   }
 
   async function copyText(value: string, target: CopyTarget) {
@@ -497,7 +504,7 @@ export function Demo() {
       return;
     }
     const { id, challenge } = status;
-    setStatus({ kind: "paying", id });
+    setStatus({ kind: "paying", id, challenge });
     try {
       await webln.enable();
       const { preimage } = await webln.sendPayment(challenge.invoice);
@@ -518,7 +525,7 @@ export function Demo() {
       return;
     }
     const { id, challenge } = status;
-    setStatus({ kind: "paying", id });
+    setStatus({ kind: "paying", id, challenge });
     try {
       await retryAndRender(id, challenge, preimage);
     } catch (error) {
@@ -638,8 +645,12 @@ export function Demo() {
                 ? "loaded"
                 : "unprotected"
               : "error";
-  const challenge = status.kind === "awaiting-payment" ? status.challenge : undefined;
-  const challengePokemonId = status.kind === "awaiting-payment" ? status.id : undefined;
+  const challenge =
+    status.kind === "awaiting-payment" || status.kind === "paying"
+      ? status.challenge
+      : undefined;
+  const challengePokemonId =
+    status.kind === "awaiting-payment" || status.kind === "paying" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
   const weblnDisabled = webLnDetected === false || busy;
   const primaryActionLabel =

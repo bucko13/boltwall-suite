@@ -106,6 +106,38 @@ test.describe("payment flow — WebLN + manual paste fallback", () => {
     await expect(page.locator("[data-testid='payment-flow-result']")).toContainText("bulbasaur");
   });
 
+  test("WebLN pending payment keeps the invoice visible", async ({ page }) => {
+    await page.addInitScript(() => {
+      const webln = {
+        async enable() {},
+        async sendPayment(_invoice: string) {
+          await new Promise(() => {});
+          return { preimage: "" };
+        },
+      };
+      Object.defineProperty(window, "webln", {
+        value: webln,
+        configurable: true,
+        writable: true,
+      });
+    });
+    await routeProtectedPokemon(page);
+
+    await page.goto("/test-payment-flow");
+    await page.click("[data-testid='payment-flow-start']");
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
+
+    await page.click("[data-testid='payment-flow-webln']");
+
+    await expect(page.locator("[data-testid='payment-flow-challenge']")).toBeVisible();
+    await expect(page.locator("[data-testid='payment-flow-invoice']")).toContainText("lnbc1demo");
+    await expect(page.locator("[data-testid='payment-flow-invoice-qr']")).toHaveAttribute(
+      "data-invoice",
+      "lnbc1demo",
+    );
+    await expect(page.locator("[data-testid='payment-flow-webln']")).toBeDisabled();
+  });
+
   test("reuses a paid credential on later requests", async ({ page }) => {
     let challengeRequests = 0;
     let authorizedRequests = 0;
