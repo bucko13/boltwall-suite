@@ -428,10 +428,13 @@ function generatedVercelJson(config: BoltwallConfig): string {
   if (config.backend.kind === "lnd") {
     // The LND backend pulls in `lightning`, which reads its gRPC `.proto` files,
     // and `tiny-secp256k1`, which reads `secp256k1.wasm` — both from disk at
-    // runtime via reads Vercel's file tracer does not follow, so they are dropped
-    // from the function bundle and it crashes at boot with ENOENT. `includeFiles`
-    // forces matched files into the function; the extension-brace glob is widely
-    // supported and auto-covers lightning's proto set without a hardcoded list.
+    // runtime via reads that Vercel's file tracer does not follow, so they are
+    // dropped from the function bundle and it crashes at boot with ENOENT.
+    // `includeFiles` forces matched files into the function. The glob is
+    // deliberately broad (any `.proto`/`.wasm` under node_modules) so it survives
+    // `lightning` upgrades without a hardcoded proto list; the tradeoff is that an
+    // unrelated dependency shipping large such assets would add bundle size. Do
+    // not narrow it to specific paths without re-checking the ENOENT is still fixed.
     manifest.functions = {
       "api/index.ts": { includeFiles: "node_modules/**/*.{proto,wasm}" },
     };
@@ -440,6 +443,14 @@ function generatedVercelJson(config: BoltwallConfig): string {
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
+// The generated app inlines its own LND cert resolution (`lndCert` below) rather
+// than delegating to `@boltwall/adapters`' `resolveLndCert`, even though the logic
+// is identical. This is deliberate: the deployed function installs the *published*
+// `@boltwall/adapters` (pinned in the generated package.json), which may predate
+// the adapter's optional-cert support, so the generated app must resolve the cert
+// itself to stay correct against an older adapter. Keep the two in sync; once every
+// supported generated deployment pins an adapter version with `resolveLndCert`, this
+// copy can be dropped in favor of passing the raw env value to the adapter.
 function generatedApiIndex(): string {
   return `import { createHmac } from "node:crypto";
 import { rootCertificates } from "node:tls";

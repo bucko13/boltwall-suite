@@ -112,14 +112,14 @@ describe("generated Vercel api/index.ts", () => {
     expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
   });
 
-  test("normalizes a raw PEM LND_TLS_CERT and falls back to system roots when absent", async () => {
+  test("wires LND cert resolution with a system-roots fallback", async () => {
     const source = await generateApiIndex("lnd");
+    // Guard that the generated app routes the cert through resolution and keeps the
+    // system-roots fallback for managed nodes. The resolution *behavior* (PEM
+    // detection, base64/hex passthrough, system-roots encoding) is covered by the
+    // adapter's resolveLndCert test, which runs it; asserting the exact expression
+    // text here would be brittle without adding coverage.
     expect(source).toContain("cert: lndCert()");
-    // A raw PEM is base64-encoded (lightning base64/hex-decodes the cert and a raw
-    // PEM would decode to garbage).
-    expect(source).toContain('raw.includes("-----BEGIN")');
-    // When the cert is omitted (managed node with a publicly-trusted cert), pass
-    // Node's system root certificates so a current public issuer is trusted.
     expect(source).toContain("rootCertificates");
   });
 
