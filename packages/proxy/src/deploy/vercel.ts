@@ -188,8 +188,8 @@ async function writeVercelProject(projectDir: string, config: BoltwallConfig): P
   await writeFile(join(projectDir, "package.json"), await generatedPackageJson(config), {
     mode: 0o600,
   });
-  await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(), { mode: 0o600 });
-  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(config), { mode: 0o600 });
+  await writeFile(join(projectDir, "vercel.json"), generatedVercelJson(config), { mode: 0o600 });
+  await writeFile(join(projectDir, "api", "index.ts"), generatedApiIndex(), { mode: 0o600 });
 }
 
 async function linkVercelProject(
@@ -270,12 +270,34 @@ async function setVercelEnvironment(options: {
       true,
     );
   }
+
+  for (const key of optionalSecretKeys(options.config)) {
+    const sourceName = sourceNames[key];
+    const targetName = targetNames[key];
+    const value =
+      options.secretValues[sourceName] ??
+      options.env[sourceName] ??
+      options.secretValues[targetName] ??
+      options.env[targetName];
+    // Provisioned only when supplied; an omitted value is deliberate (e.g. a
+    // managed node with a publicly-trusted cert that needs no custom CA).
+    if (value !== undefined && value.trim() !== "") {
+      await addVercelEnv(options.runner, options.projectDir, options.environment, targetName, value, true);
+    }
+  }
 }
 
 function requiredSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNames)[] {
-  if (config.backend.kind === "lnd") return ["socket", "cert", "macaroon"];
+  // The LND TLS cert is optional (see optionalSecretKeys): managed nodes such as
+  // Voltage serve a publicly-trusted cert and need no custom CA.
+  if (config.backend.kind === "lnd") return ["socket", "macaroon"];
   if (config.backend.kind === "opennode") return ["apiKey"];
   return ["baseUrl", "apiKey", "storeId"];
+}
+
+function optionalSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNames)[] {
+  if (config.backend.kind === "lnd") return ["cert"];
+  return [];
 }
 
 async function addVercelEnv(
@@ -395,51 +417,60 @@ interface PackageManifest {
   dependencies?: Record<string, string | undefined>;
 }
 
-function generatedVercelJson(): string {
-  return `${JSON.stringify(
-    {
-      rewrites: [{ source: "/(.*)", destination: "/api" }],
-    },
-    null,
-    2,
-  )}\n`;
+function generatedVercelJson(config: BoltwallConfig): string {
+  const manifest: {
+    rewrites: { source: string; destination: string }[];
+    functions?: Record<string, { includeFiles: string }>;
+  } = {
+    rewrites: [{ source: "/(.*)", destination: "/api" }],
+  };
+
+  if (config.backend.kind === "lnd") {
+    // The LND backend pulls in `lightning`, which reads its gRPC `.proto` files,
+    // and `tiny-secp256k1`, which reads `secp256k1.wasm` — both from disk at
+    // runtime via reads that Vercel's file tracer does not follow, so they are
+    // dropped from the function bundle and it crashes at boot with ENOENT.
+    // `includeFiles` forces matched files into the function. The glob is
+    // deliberately broad (any `.proto`/`.wasm` under node_modules) so it survives
+    // `lightning` upgrades without a hardcoded proto list; the tradeoff is that an
+    // unrelated dependency shipping large such assets would add bundle size. Do
+    // not narrow it to specific paths without re-checking the ENOENT is still fixed.
+    manifest.functions = {
+      "api/index.ts": { includeFiles: "node_modules/**/*.{proto,wasm}" },
+    };
+  }
+
+  return `${JSON.stringify(manifest, null, 2)}\n`;
 }
 
-function generatedApiIndex(config: BoltwallConfig): string {
-  // The LND backend pulls in `lightning` -> `tiny-secp256k1`, which loads
-  // `secp256k1.wasm` at runtime via a readFileSync the Vercel file tracer does
-  // not follow, so the asset is dropped and the deployed function crashes with
-  // ENOENT. A `new URL(<literal>, import.meta.url)` reference IS traced by the
-  // bundler, so it forces the wasm into the function. The path resolves the same
-  // at build and runtime, and the read is a harmless no-op.
-  const lndWasmImport =
-    config.backend.kind === "lnd"
-      ? `import { readFileSync as __bundleWasm } from "node:fs";\n`
-      : "";
-  const lndWasmAssetHint =
-    config.backend.kind === "lnd"
-      ? `\ntry {\n  __bundleWasm(new URL("../node_modules/tiny-secp256k1/lib/secp256k1.wasm", import.meta.url));\n} catch {}\n`
-      : "";
+// The generated app inlines its own LND cert resolution (`lndCert` below) rather
+// than delegating to `@boltwall/adapters`' `resolveLndCert`, even though the logic
+// is identical. This is deliberate: the deployed function installs the *published*
+// `@boltwall/adapters` (pinned in the generated package.json), which may predate
+// the adapter's optional-cert support, so the generated app must resolve the cert
+// itself to stay correct against an older adapter. Keep the two in sync; once every
+// supported generated deployment pins an adapter version with `resolveLndCert`, this
+// copy can be dropped in favor of passing the raw env value to the adapter.
+function generatedApiIndex(): string {
   return `import { createHmac } from "node:crypto";
-${lndWasmImport}
+import { rootCertificates } from "node:tls";
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
-${lndWasmAssetHint}
+
 const env = process.env;
-// Backend credential env values are never generated into config. For local LND,
-// LND_TLS_CERT is certificate content (base64 from infra/scripts/lnd-env; PEM
-// may also be accepted by the underlying lightning package) and LND_MACAROON is
-// macaroon content (base64 from infra/scripts/lnd-env). Path-based tools should
-// use path-named variables such as LND_TLS_CERT_PATH instead.
+// Backend credential env values are never generated into config. LND_TLS_CERT is
+// optional: set it (PEM or base64/hex) to a self-hosted node's self-signed cert,
+// or omit it for a managed node (e.g. Voltage) with a publicly-trusted cert.
+// LND_MACAROON is base64/hex. Path-based tools use vars like LND_TLS_CERT_PATH.
 const backend = (() => {
   const kind = requireEnv("LN_BACKEND");
   if (kind === "lnd") {
     return new LndAdapter({
       socket: requireEnv("LND_SOCKET"),
-      cert: requireEnv("LND_TLS_CERT"),
+      cert: lndCert(),
       macaroon: requireEnv("LND_MACAROON"),
     });
   }
@@ -511,6 +542,12 @@ const app = createProxy({
   ...paywallPolicy(),
 });
 
+// Vercel terminates TLS at the edge and forwards to the function over plain HTTP,
+// so Express sees \`req.protocol === "http"\` unless it trusts the proxy. The L402
+// middleware refuses non-TLS requests, which would 400 every request here. Trust
+// the proxy so \`req.protocol\` reflects the original \`X-Forwarded-Proto\` (https).
+app.set("trust proxy", true);
+
 export default app;
 
 function requireEnv(name: string): string {
@@ -519,6 +556,22 @@ function requireEnv(name: string): string {
     throw new Error(\`Missing required environment variable \${name}\`);
   }
   return value;
+}
+
+function lndCert(): string {
+  // lightning base64/hex-decodes this value and uses it as the gRPC root CA.
+  const raw = optionalEnv("LND_TLS_CERT");
+  if (raw === undefined || raw.trim() === "") {
+    // No node cert (managed node with a publicly-trusted cert, e.g. Voltage):
+    // trust the public CA store. grpc-js's bundled roots can lag and miss a
+    // current issuer (Node hints "--use-system-ca"), so pass Node's system roots
+    // explicitly instead of relying on grpc's defaults.
+    return Buffer.from(rootCertificates.join("\\n"), "utf8").toString("base64");
+  }
+  // A raw PEM (what Voltage and lnd's tls.cert hold) would be base64-decoded into
+  // garbage, so detect a PEM header and base64-encode it; an already-encoded value
+  // passes through unchanged.
+  return raw.includes("-----BEGIN") ? Buffer.from(raw, "utf8").toString("base64") : raw;
 }
 
 function optionalEnv(name: string): string | undefined {
