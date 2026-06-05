@@ -93,6 +93,14 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain('new URL("../node_modules/lightning/grpc/protos/lightning.proto"');
   });
 
+  test("trusts the proxy so TLS-terminated requests are not rejected as non-HTTPS", async () => {
+    const source = await generateApiIndex("opennode");
+    // Vercel forwards to the function over HTTP after terminating TLS; without
+    // trusting the proxy, Express reports req.protocol === "http" and the L402
+    // middleware 400s every request as non-TLS.
+    expect(source).toContain('app.set("trust proxy", true)');
+  });
+
   test("omits the LND runtime-asset hints for non-LND backends", async () => {
     const source = await generateApiIndex("opennode");
     expect(source).not.toContain("tiny-secp256k1");

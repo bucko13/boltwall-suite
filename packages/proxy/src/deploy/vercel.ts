@@ -545,6 +545,12 @@ const app = createProxy({
   ...paywallPolicy(),
 });
 
+// Vercel terminates TLS at the edge and forwards to the function over plain HTTP,
+// so Express sees \`req.protocol === "http"\` unless it trusts the proxy. The L402
+// middleware refuses non-TLS requests, which would 400 every request here. Trust
+// the proxy so \`req.protocol\` reflects the original \`X-Forwarded-Proto\` (https).
+app.set("trust proxy", true);
+
 export default app;
 
 function requireEnv(name: string): string {
