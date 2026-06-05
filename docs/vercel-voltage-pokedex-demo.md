@@ -61,6 +61,13 @@ export LND_MACAROON="<base64-macaroon>"
 # export LND_TLS_CERT="$(cat /path/to/tls.cert)"
 ```
 
+> **Vercel keeps environment variables across deploys.** A value set on a
+> previous deploy stays until you overwrite or delete it — omitting it from your
+> shell does not remove it. If you switch a node from a self-signed cert to a
+> managed (no-cert) node, delete the old value or the function keeps using it:
+> `vercel env rm LND_TLS_CERT production` (and `preview`), or remove it in the
+> Vercel dashboard. The same applies to any rotated credential.
+
 Do not commit these values, paste them into client-side code, or store them in
 `NEXT_PUBLIC_*` variables.
 

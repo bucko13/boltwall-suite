@@ -81,6 +81,13 @@ deployment secret used for L402 macaroon root keys. Rotating it invalidates
 credentials minted by that proxy, so persist it in deployment secrets if paid
 credentials must survive redeploys.
 
+Vercel keeps environment variables across deploys: a value set on a previous
+deploy stays until you overwrite or delete it (omitting it from your shell does
+not remove it). When changing a node's credentials — for example switching the
+LND backend from a self-signed cert to a managed node that needs none — delete
+the stale value with `vercel env rm <NAME> <environment>` or in the dashboard, or
+the deployed function keeps using the old one.
+
 ## Programmatic usage
 
 When embedding the proxy in an existing Express app, construct a backend adapter
