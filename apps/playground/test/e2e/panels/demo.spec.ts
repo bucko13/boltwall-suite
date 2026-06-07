@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { mintMacaroon } from "@boltwall/l402";
+import { specPreimageFixtures } from "@boltwall/test-fixtures";
 
 import { grantClipboard, readClipboard } from "../setup";
 
@@ -9,6 +11,32 @@ const TEST_PREIMAGE = "00".repeat(32);
 const DEFAULT_CHALLENGE = 'L402 macaroon="abc", invoice="lnbc1demo"';
 const CAVEATED_MACAROON =
   "AgJCAAAiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIiIjMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzMzAAISc2VydmljZXM9cG9rZWRleDowAAIZcG9rZWRleF9jYXBhYmlsaXRpZXM9cmVhZAACJHZhbGlkLXVudGlsPTIwMzUtMDEtMDFUMDA6MDA6MDAuMDAwWgAABiDi4gvyy2wrfYkMkvxk7vKV2f8qFlyH7KXdAQk40OwxPQ==";
+const EXPIRED_CAVEATED_MACAROON = mintMacaroon({
+  rootKey: new Uint8Array(32).fill(0x11),
+  identifier: {
+    version: 0,
+    paymentHash: hexToBytes(zeroPreimageFixture().paymentHashHex),
+    tokenId: new Uint8Array(32).fill(0x22),
+  },
+  caveats: [
+    "services=pokedex:0",
+    "valid-until=2020-01-01T00:00:00.000Z",
+    "expiration=1577836800000",
+  ],
+});
+const MIXED_EXPIRATION_CAVEATED_MACAROON = mintMacaroon({
+  rootKey: new Uint8Array(32).fill(0x11),
+  identifier: {
+    version: 0,
+    paymentHash: hexToBytes(zeroPreimageFixture().paymentHashHex),
+    tokenId: new Uint8Array(32).fill(0x22),
+  },
+  caveats: [
+    "services=pokedex:0",
+    "valid-until=2035-01-01T00:00:00.000Z",
+    "expiration=1577836800000",
+  ],
+});
 const WORKBENCH_FIELD_BY_TEST_ID = {
   "workbench-memory-key": "signingKey",
   "workbench-memory-macaroon": "macaroon",
@@ -40,6 +68,22 @@ async function expectMemoryValue(page: Page, testId: WorkbenchMemoryTestId, expe
 
 async function fillEndpoint(page: Page, endpoint: string) {
   await page.fill("[data-testid='demo-endpoint-input']", endpoint);
+}
+
+function zeroPreimageFixture() {
+  const fixture = specPreimageFixtures.find(
+    (candidate) => candidate.name === "zero-preimage-canonical",
+  );
+  if (fixture === undefined) throw new Error("missing-zero-preimage-fixture");
+  return fixture;
+}
+
+function hexToBytes(hex: string) {
+  const out = new Uint8Array(hex.length / 2);
+  for (let index = 0; index < out.length; index += 1) {
+    out[index] = Number.parseInt(hex.slice(index * 2, index * 2 + 2), 16);
+  }
+  return out;
 }
 
 test.describe("panels / demo", () => {
@@ -407,6 +451,41 @@ test.describe("panels / demo", () => {
     await expect(page).toHaveURL(/\/p\/demo/);
     await expectMemoryValue(page, "workbench-memory-macaroon", "AgJCAAAi");
     await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+  });
+
+  test("does not repeat bare expired lines for multiple expired caveats", async ({
+    page,
+  }) => {
+    await routeProtectedPokemon(
+      page,
+      `L402 macaroon="${EXPIRED_CAVEATED_MACAROON}", invoice="lnbc1demo"`,
+    );
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
+    await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
+    await expect(page.locator("[data-testid='demo-caveat-expired-summary']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
+  });
+
+  test("does not show an active countdown when another time caveat is expired", async ({
+    page,
+  }) => {
+    await routeProtectedPokemon(
+      page,
+      `L402 macaroon="${MIXED_EXPIRATION_CAVEATED_MACAROON}", invoice="lnbc1demo"`,
+    );
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
+    await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
+    await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
   });
 
   test("reuses a paid credential for later protected requests", async ({ page }) => {
