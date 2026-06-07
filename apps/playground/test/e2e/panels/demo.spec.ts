@@ -440,7 +440,7 @@ test.describe("panels / demo", () => {
     await expectMemoryValue(page, "workbench-memory-challenge", "L402");
   });
 
-  test("summarizes multiple expired caveats without repeated bare expired lines", async ({
+  test("does not repeat bare expired lines for multiple expired caveats", async ({
     page,
   }) => {
     await routeProtectedPokemon(
@@ -454,9 +454,7 @@ test.describe("panels / demo", () => {
 
     await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
     await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
-    await expect(page.locator("[data-testid='demo-caveat-expired-summary']")).toHaveText(
-      "2 time restrictions expired",
-    );
+    await expect(page.locator("[data-testid='demo-caveat-expired-summary']")).toHaveCount(0);
     await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
   });
 

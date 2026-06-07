@@ -1614,7 +1614,6 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
   const activeExpirationCaveats = expirationCaveats.filter(
     (caveat) => caveat.expiresAtMs !== null && caveat.expiresAtMs > nowMs,
   );
-  const expiredExpirationCount = expirationCaveats.length - activeExpirationCaveats.length;
 
   useEffect(() => {
     if (expirationCaveats.length === 0) return;
@@ -1658,20 +1657,6 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
           </CaveatPill>
         ))}
       </div>
-      {expiredExpirationCount > 0 ? (
-        <span
-          data-testid="demo-caveat-expired-summary"
-          style={{
-            color: "var(--color-danger)",
-            fontSize: "var(--size-12)",
-            fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-          }}
-        >
-          {expiredExpirationCount === 1
-            ? "1 time restriction expired"
-            : `${String(expiredExpirationCount)} time restrictions expired`}
-        </span>
-      ) : null}
       {activeExpirationCaveats.map((caveat, index) => (
         <span
           key={`${caveat.condition}:${caveat.value}:timer`}
