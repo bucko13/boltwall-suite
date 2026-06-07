@@ -215,6 +215,29 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
   });
 
+  test("pasted credentials prefill the preimage input", async ({ page }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_CREDENTIAL);
+    await expect(page.locator("[data-testid='validate-preimage-input']")).toHaveValue(
+      ZERO_PREIMAGE,
+    );
+  });
+
+  test("Workbench credential fill also prefills the preimage input", async ({ page }) => {
+    await page.goto("/p/generate");
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='generate-token-preimage-input']", ZERO_PREIMAGE);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='workbench-memory-credential-status']")).toHaveText(
+      "stored",
+    );
+
+    await page.goto("/p/validate");
+    await page.click("[data-testid='validate-fill-credential']");
+    await expect(page.locator("[data-testid='validate-preimage-input']")).toHaveValue(
+      ZERO_PREIMAGE,
+    );
+  });
+
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
     await seedWorkbenchSigningKey(page);
     await page.fill("[data-testid='validate-token-input']", FIXTURE_MACAROON);

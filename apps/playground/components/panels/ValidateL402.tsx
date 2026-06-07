@@ -307,6 +307,10 @@ export function ValidateL402() {
 
   function fillTokenFromWorkbench(value: string) {
     setToken(value);
+    const input = extractCredentialInput(value);
+    if (input.source === "credential" && input.preimage) {
+      setPreimageHex(input.preimage);
+    }
     setTampered(false);
     setTamperedToken(null);
     setChecks(null);
@@ -384,7 +388,12 @@ export function ValidateL402() {
             <textarea
               value={inputValue}
               onChange={(e) => {
-                setToken(e.target.value);
+                const nextToken = e.target.value;
+                setToken(nextToken);
+                const input = extractCredentialInput(nextToken);
+                if (input.source === "credential" && input.preimage) {
+                  setPreimageHex(input.preimage);
+                }
                 setTampered(false);
                 setTamperedToken(null);
                 setChecks(null);
