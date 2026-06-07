@@ -3,11 +3,13 @@
 import { decodeBolt11Invoice, L402, mintMacaroon, type MacaroonIdentifierV0 } from "@boltwall/l402";
 import { useState } from "react";
 
+import { detectArtifact } from "../../lib/detect-artifact";
 import { bytesToHex, hexToBytes } from "../../lib/hex";
 import { useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
+import { FillFromWorkbench } from "../ui/fill-from-workbench";
 import { HeaderRow } from "../ui/header-row";
 import { StatusPill } from "../ui/status-pill";
 
@@ -17,6 +19,20 @@ const MISSING_KEY_ERROR = "Paste a 64-char hex root key.";
 const INVALID_KEY_ERROR = "Root key must be exactly 64 hex characters (32 bytes).";
 const INVALID_PREIMAGE_ERROR = "Preimage must be exactly 64 hex characters (32 bytes).";
 const HEX_64_RE = /^[0-9a-fA-F]{64}$/;
+
+function invoiceFromWorkbenchChallenge(value: string): string {
+  const artifact = detectArtifact(value);
+  return artifact.ok && artifact.value.kind === "challenge"
+    ? (artifact.value.token.invoice ?? "")
+    : "";
+}
+
+function preimageFromWorkbenchCredential(value: string): string {
+  const artifact = detectArtifact(value);
+  return artifact.ok && artifact.value.kind === "credential"
+    ? (artifact.value.token.paymentPreimage ?? "")
+    : "";
+}
 
 export function GenerateL402Token() {
   const workbenchMemory = useWorkbenchMemory();
@@ -72,6 +88,24 @@ export function GenerateL402Token() {
     clearLocalOutputs();
     const trimmed = value.trim();
     setError(trimmed && !HEX_64_RE.test(trimmed) ? INVALID_KEY_ERROR : null);
+  }
+
+  function fillKeyFromWorkbench(value: string) {
+    applyKey(value);
+    clearLocalOutputs();
+    setError(null);
+  }
+
+  function fillInvoiceFromWorkbench(value: string) {
+    setInvoice(value);
+    clearLocalOutputs();
+    setError(null);
+  }
+
+  function fillPreimageFromWorkbench(value: string) {
+    setPreimage(value);
+    clearLocalOutputs();
+    setError(null);
   }
 
   async function generate() {
@@ -191,6 +225,9 @@ export function GenerateL402Token() {
   const paymentHashLiteral = JSON.stringify(mintedIdentifier?.paymentHashHex ?? "");
   const tokenIdLiteral = JSON.stringify(mintedIdentifier?.tokenIdHex ?? "");
   const hasExactMintSnippet = Boolean(macaroon && mintedIdentifier);
+  const rememberedSigningKey = workbenchMemory?.signingKey.trim() ?? "";
+  const rememberedInvoice = invoiceFromWorkbenchChallenge(workbenchMemory?.challenge ?? "");
+  const rememberedPreimage = preimageFromWorkbenchCredential(workbenchMemory?.credential ?? "");
 
   const hexToBytesHelper = `function hexToBytes(hex: string): Uint8Array {\n  const bytes = new Uint8Array(hex.length / 2);\n  for (let i = 0; i < bytes.length; i++) {\n    bytes[i] = parseInt(hex.slice(i * 2, i * 2 + 2), 16);\n  }\n  return bytes;\n}`;
   const exactImport =
@@ -262,6 +299,41 @@ export function GenerateL402Token() {
             >
               Generate key
             </button>
+          </div>
+
+          <div
+            data-testid="generate-workbench-actions"
+            style={{
+              display: "flex",
+              flexWrap: "wrap",
+              alignItems: "center",
+              gap: 8,
+              fontSize: "var(--size-11)",
+              color: "var(--color-dim)",
+            }}
+          >
+            <span style={{ fontWeight: 600, textTransform: "uppercase" }}>Use from Workbench</span>
+            <FillFromWorkbench
+              label="signing key"
+              available={rememberedSigningKey}
+              current={key ?? ""}
+              onFill={fillKeyFromWorkbench}
+              testId="generate-fill-signing-key"
+            />
+            <FillFromWorkbench
+              label="invoice"
+              available={rememberedInvoice}
+              current={invoice ?? ""}
+              onFill={fillInvoiceFromWorkbench}
+              testId="generate-fill-invoice"
+            />
+            <FillFromWorkbench
+              label="preimage"
+              available={rememberedPreimage}
+              current={preimage ?? ""}
+              onFill={fillPreimageFromWorkbench}
+              testId="generate-fill-preimage"
+            />
           </div>
 
           <label
