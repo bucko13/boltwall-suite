@@ -787,6 +787,68 @@ test.describe("panels / demo", () => {
     expect(challengeRequests).toBe(1);
   });
 
+  test("replacing a rejected custom credential clears stale rejection details", async ({ page }) => {
+    const seenAuthorizations: string[] = [];
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization !== undefined) {
+        seenAuthorizations.push(authorization);
+      }
+      if (authorization === `L402 def:${TEST_PREIMAGE}`) {
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      if (authorization?.startsWith("L402 ") || authorization?.startsWith("LSAT ")) {
+        await route.fulfill({
+          status: 401,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: { error: "custom-rejected" },
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="fresh", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.fill("[data-testid='demo-custom-authorization']", `L402 abc:${TEST_PREIMAGE}`);
+    await page.click("[data-testid='demo-use-custom-authorization']");
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-error-title']")).toContainText(
+      "Custom credential rejected",
+    );
+    await expect(page.locator("[data-testid='demo-rejected-credential']")).toContainText(
+      `L402 abc:${TEST_PREIMAGE}`,
+    );
+
+    await page.fill("[data-testid='demo-custom-authorization']", `L402 def:${TEST_PREIMAGE}`);
+    await page.click("[data-testid='demo-use-custom-authorization']");
+    await expect(page.locator("[data-testid='demo-rejected-credential']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-error-title']")).toHaveCount(0);
+
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-rejected-credential']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-error-title']")).toHaveCount(0);
+    expect(seenAuthorizations).toEqual([`L402 abc:${TEST_PREIMAGE}`, `L402 def:${TEST_PREIMAGE}`]);
+  });
+
   test("request failures show endpoint and origin diagnostics", async ({ page }) => {
     await page.route(PROTECTED_RE, async (route) => {
       await route.abort("failed");
