@@ -107,7 +107,7 @@ function caveatRowsEqual(a: CaveatRow[], b: CaveatRow[]): boolean {
 }
 
 function historyLabel(index: number): string {
-  return index === 0 ? "Original" : `Update ${index}`;
+  return index === 0 ? "Original" : `Revision ${index}`;
 }
 
 export function Caveats() {
@@ -140,7 +140,7 @@ export function Caveats() {
   );
   const caveats = result?.caveats ?? EMPTY_CAVEATS;
   const selectedHistory = history[historyIndex] ?? EMPTY_CAVEATS;
-  const hasUnsavedUpdate = !caveatRowsEqual(added, selectedHistory);
+  const hasUnsavedRevision = !caveatRowsEqual(added, selectedHistory);
 
   useEffect(() => {
     if (!caveats.some((c) => caveatExpiryMs(c.condition, c.value) !== null)) return;
@@ -240,8 +240,8 @@ export function Caveats() {
     setWorkbenchFeedback(null);
   }
 
-  function saveUpdate() {
-    if (!base || !hasUnsavedUpdate) return;
+  function saveRevision() {
+    if (!base || !hasUnsavedRevision) return;
     const nextEntry = added.map((row) => ({ ...row }));
     const nextHistory = history.slice(0, historyIndex + 1);
     nextHistory.push(nextEntry);
@@ -404,13 +404,13 @@ export function Caveats() {
                 currentLabel={historyLabel(historyIndex)}
                 currentPosition={historyIndex + 1}
                 total={history.length}
-                canGoPrevious={!hasUnsavedUpdate && historyIndex > 0}
-                canGoNext={!hasUnsavedUpdate && historyIndex < history.length - 1}
-                canUpdate={hasUnsavedUpdate}
-                hasUnsavedUpdate={hasUnsavedUpdate}
+                canGoPrevious={!hasUnsavedRevision && historyIndex > 0}
+                canGoNext={!hasUnsavedRevision && historyIndex < history.length - 1}
+                canSave={hasUnsavedRevision}
+                hasUnsavedRevision={hasUnsavedRevision}
                 onPrevious={() => selectHistory(historyIndex - 1)}
                 onNext={() => selectHistory(historyIndex + 1)}
-                onUpdate={saveUpdate}
+                onSave={saveRevision}
               />
               <AddControls
                 draft={draft}
@@ -590,30 +590,30 @@ function HistoryControls({
   total,
   canGoPrevious,
   canGoNext,
-  canUpdate,
-  hasUnsavedUpdate,
+  canSave,
+  hasUnsavedRevision,
   onPrevious,
   onNext,
-  onUpdate,
+  onSave,
 }: {
   currentLabel: string;
   currentPosition: number;
   total: number;
   canGoPrevious: boolean;
   canGoNext: boolean;
-  canUpdate: boolean;
-  hasUnsavedUpdate: boolean;
+  canSave: boolean;
+  hasUnsavedRevision: boolean;
   onPrevious: () => void;
   onNext: () => void;
-  onUpdate: () => void;
+  onSave: () => void;
 }) {
   return (
     <div data-testid="caveats-history" style={historyShellStyle}>
       <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
-        <div style={outputLabelStyle}>Update history</div>
+        <div style={outputLabelStyle}>Revision history</div>
         <div data-testid="caveats-history-status" style={historyStatusStyle}>
           {currentLabel} · {currentPosition} of {total}
-          {hasUnsavedUpdate ? " · draft changes" : " · saved"}
+          {hasUnsavedRevision ? " · unsaved draft" : " · saved"}
         </div>
       </div>
       <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
@@ -637,12 +637,12 @@ function HistoryControls({
         </button>
         <button
           type="button"
-          onClick={onUpdate}
-          disabled={!canUpdate}
-          data-testid="caveats-history-update"
-          style={buttonStyle("primary", !canUpdate)}
+          onClick={onSave}
+          disabled={!canSave}
+          data-testid="caveats-history-save"
+          style={buttonStyle("primary", !canSave)}
         >
-          Update
+          Save revision
         </button>
       </div>
     </div>

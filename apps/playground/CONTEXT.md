@@ -47,10 +47,11 @@ Copy a Workbench value into the current panel input.
 Stage an imported or transformed artifact into the Workbench so another panel can
 load it.
 
-### Update
+### Save revision
 
-In Caveats, save the current attenuation into local linear history. Updating does
-not mint a macaroon and does not stage anything to the Workbench by itself.
+In Caveats, save the current attenuation into local linear history. Saving a
+revision does not mint a macaroon and does not stage anything to the Workbench by
+itself.
 
 ### Conversion
 
