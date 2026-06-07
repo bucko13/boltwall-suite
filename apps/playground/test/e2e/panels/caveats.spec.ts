@@ -172,6 +172,8 @@ test.describe("panels / caveats", () => {
       "draft changes",
     );
     await expect(page.locator("[data-testid='caveats-history-update']")).toBeEnabled();
+    await expect(page.locator("[data-testid='caveats-history-previous']")).toBeDisabled();
+    await expect(page.locator("[data-testid='caveats-history-next']")).toBeDisabled();
 
     await page.click("[data-testid='caveats-history-update']");
     await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
@@ -198,6 +200,7 @@ test.describe("panels / caveats", () => {
     await page.fill("[data-testid='caveat-condition-input']", "audience");
     await page.fill("[data-testid='caveat-value-input']", "demo");
     await page.click("[data-testid='caveat-add']");
+    await expect(page.locator("[data-testid='caveats-history-next']")).toBeDisabled();
     await page.click("[data-testid='caveats-history-update']");
 
     await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(

@@ -404,8 +404,8 @@ export function Caveats() {
                 currentLabel={historyLabel(historyIndex)}
                 currentPosition={historyIndex + 1}
                 total={history.length}
-                canGoPrevious={historyIndex > 0}
-                canGoNext={historyIndex < history.length - 1}
+                canGoPrevious={!hasUnsavedUpdate && historyIndex > 0}
+                canGoNext={!hasUnsavedUpdate && historyIndex < history.length - 1}
                 canUpdate={hasUnsavedUpdate}
                 hasUnsavedUpdate={hasUnsavedUpdate}
                 onPrevious={() => selectHistory(historyIndex - 1)}
