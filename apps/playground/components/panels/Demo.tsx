@@ -1610,12 +1610,17 @@ function DisclosureSummary({
 
 function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
   const [nowMs, setNowMs] = useState(() => Date.now());
+  const expirationCaveats = caveats.filter((caveat) => caveat.expiresAtMs !== null);
+  const activeExpirationCaveats = expirationCaveats.filter(
+    (caveat) => caveat.expiresAtMs !== null && caveat.expiresAtMs > nowMs,
+  );
+  const expiredExpirationCount = expirationCaveats.length - activeExpirationCaveats.length;
 
   useEffect(() => {
-    if (!caveats.some((caveat) => caveat.expiresAtMs !== null)) return;
+    if (expirationCaveats.length === 0) return;
     const interval = window.setInterval(() => setNowMs(Date.now()), 1000);
     return () => window.clearInterval(interval);
-  }, [caveats]);
+  }, [expirationCaveats.length]);
 
   if (caveats.length === 0) {
     return (
@@ -1653,21 +1658,33 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
           </CaveatPill>
         ))}
       </div>
-      {caveats
-        .filter((caveat) => caveat.expiresAtMs !== null)
-        .map((caveat, index) => (
-          <span
-            key={`${caveat.condition}:${caveat.value}:timer`}
-            data-testid={`demo-caveat-timer-${index}`}
-            style={{
-              color: "var(--color-dim)",
-              fontSize: "var(--size-12)",
-              fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-            }}
-          >
-            {formatExpirationCountdown(caveat.expiresAtMs!, nowMs)}
-          </span>
-        ))}
+      {expiredExpirationCount > 0 ? (
+        <span
+          data-testid="demo-caveat-expired-summary"
+          style={{
+            color: "var(--color-danger)",
+            fontSize: "var(--size-12)",
+            fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+          }}
+        >
+          {expiredExpirationCount === 1
+            ? "1 restriction expired"
+            : `${String(expiredExpirationCount)} restrictions expired`}
+        </span>
+      ) : null}
+      {activeExpirationCaveats.map((caveat, index) => (
+        <span
+          key={`${caveat.condition}:${caveat.value}:timer`}
+          data-testid={`demo-caveat-timer-${index}`}
+          style={{
+            color: "var(--color-dim)",
+            fontSize: "var(--size-12)",
+            fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+          }}
+        >
+          {formatExpirationCountdown(caveat.expiresAtMs!, nowMs)}
+        </span>
+      ))}
     </div>
   );
 }
