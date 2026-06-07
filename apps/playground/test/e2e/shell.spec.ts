@@ -1,5 +1,8 @@
 import { expect, test } from "@playwright/test";
 
+import l402Package from "../../../../packages/l402/package.json" with { type: "json" };
+import playgroundPackage from "../../package.json" with { type: "json" };
+
 // Panel routing assertions live with the panel-level specs.
 test.describe("Nav shell", () => {
   test("beaker logo present on every route", async ({ page }) => {
@@ -87,10 +90,14 @@ test.describe("Nav shell", () => {
     const provenance = page.getByRole("contentinfo", { name: "Build provenance" });
     await expect(provenance).toBeVisible();
     await expect(page.getByTestId("provenance-l402")).toContainText("@boltwall/l402");
-    await expect(page.getByTestId("provenance-l402-version")).toHaveText("v0.0.0");
+    await expect(page.getByTestId("provenance-l402-version")).toHaveText(
+      `v${l402Package.version}`,
+    );
     await expect(page.getByTestId("provenance-l402-commit")).toHaveText(/^([0-9a-f]{7}|local)$/);
     await expect(page.getByTestId("provenance-playground")).toContainText("playground");
-    await expect(page.getByTestId("provenance-playground-version")).toHaveText("v0.0.0");
+    await expect(page.getByTestId("provenance-playground-version")).toHaveText(
+      `v${playgroundPackage.version}`,
+    );
     await expect(page.getByTestId("provenance-playground-commit")).toHaveText(
       /^([0-9a-f]{7}|local)$/,
     );
