@@ -1614,6 +1614,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
   const activeExpirationCaveats = expirationCaveats.filter(
     (caveat) => caveat.expiresAtMs !== null && caveat.expiresAtMs > nowMs,
   );
+  const hasExpiredExpirationCaveat = expirationCaveats.length > activeExpirationCaveats.length;
 
   useEffect(() => {
     if (expirationCaveats.length === 0) return;
@@ -1657,19 +1658,21 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
           </CaveatPill>
         ))}
       </div>
-      {activeExpirationCaveats.map((caveat, index) => (
-        <span
-          key={`${caveat.condition}:${caveat.value}:timer`}
-          data-testid={`demo-caveat-timer-${index}`}
-          style={{
-            color: "var(--color-dim)",
-            fontSize: "var(--size-12)",
-            fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
-          }}
-        >
-          {formatExpirationCountdown(caveat.expiresAtMs!, nowMs)}
-        </span>
-      ))}
+      {hasExpiredExpirationCaveat
+        ? null
+        : activeExpirationCaveats.map((caveat, index) => (
+            <span
+              key={`${caveat.condition}:${caveat.value}:timer`}
+              data-testid={`demo-caveat-timer-${index}`}
+              style={{
+                color: "var(--color-dim)",
+                fontSize: "var(--size-12)",
+                fontFamily: "var(--font-geist-mono), 'IBM Plex Mono', monospace",
+              }}
+            >
+              {formatExpirationCountdown(caveat.expiresAtMs!, nowMs)}
+            </span>
+          ))}
     </div>
   );
 }

@@ -24,6 +24,19 @@ const EXPIRED_CAVEATED_MACAROON = mintMacaroon({
     "expiration=1577836800000",
   ],
 });
+const MIXED_EXPIRATION_CAVEATED_MACAROON = mintMacaroon({
+  rootKey: new Uint8Array(32).fill(0x11),
+  identifier: {
+    version: 0,
+    paymentHash: hexToBytes(zeroPreimageFixture().paymentHashHex),
+    tokenId: new Uint8Array(32).fill(0x22),
+  },
+  caveats: [
+    "services=pokedex:0",
+    "valid-until=2035-01-01T00:00:00.000Z",
+    "expiration=1577836800000",
+  ],
+});
 const WORKBENCH_FIELD_BY_TEST_ID = {
   "workbench-memory-key": "signingKey",
   "workbench-memory-macaroon": "macaroon",
@@ -455,6 +468,23 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
     await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
     await expect(page.locator("[data-testid='demo-caveat-expired-summary']")).toHaveCount(0);
+    await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
+  });
+
+  test("does not show an active countdown when another time caveat is expired", async ({
+    page,
+  }) => {
+    await routeProtectedPokemon(
+      page,
+      `L402 macaroon="${MIXED_EXPIRATION_CAVEATED_MACAROON}", invoice="lnbc1demo"`,
+    );
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
+    await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
     await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
   });
 
