@@ -1,7 +1,7 @@
 "use client";
 
 import { L402 } from "@boltwall/l402";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   FetchPaidResourceError,
@@ -70,6 +70,7 @@ type DemoError = {
   // dead-end (e.g. a rejected custom credential) can be escaped without hunting
   // for the reset control elsewhere.
   offerStartFresh?: boolean;
+  offerCustomCredential?: boolean;
 };
 
 type CapturedArtifact =
@@ -277,6 +278,7 @@ export function Demo() {
   const [addedArtifact, setAddedArtifact] = useState<AddedArtifact>(null);
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
   const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
+  const customAuthorizationRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -318,6 +320,13 @@ export function Demo() {
   // adoptCustomCredential), so precedence falls out of the single-slot model.
   const activeCredential =
     credentialSlot?.endpointTemplate === endpointTemplate ? credentialSlot : null;
+  const activeCredentialCaveats = useMemo(
+    () =>
+      activeCredential === null
+        ? []
+        : extractCaveatSummaries(activeCredential.credential.authorization),
+    [activeCredential],
+  );
   const visibleArtifact = capturedArtifact;
 
   async function getPokemon(useStoredCredential = true) {
@@ -362,6 +371,7 @@ export function Demo() {
                 "Start fresh to request a new challenge and pay, or open the BYOC panel to paste a different credential.",
               ],
               offerStartFresh: true,
+              offerCustomCredential: true,
             },
           });
           return;
@@ -440,6 +450,18 @@ export function Demo() {
     setCustomMacaroon(workbenchMemory.macaroon);
   }
 
+  function useWorkbenchCredential() {
+    if (!workbenchMemory?.credential) return;
+    try {
+      adoptCustomCredential(parsePastedCredential(workbenchMemory.credential));
+    } catch (error) {
+      setStatus({
+        kind: "error",
+        error: messageError(error instanceof Error ? error.message : String(error)),
+      });
+    }
+  }
+
   // Reset the raw paste inputs that buffer an in-progress custom credential.
   function clearCustomBuffers() {
     setCustomAuthorization("");
@@ -451,6 +473,11 @@ export function Demo() {
   function clearCustomCredential() {
     setCredentialSlot(null);
     clearCustomBuffers();
+  }
+
+  function openCustomCredentialInput() {
+    setCustomCredentialOpen(true);
+    window.requestAnimationFrame(() => customAuthorizationRef.current?.focus());
   }
 
   // Changing the endpoint invalidates every credential we hold for the old one.
@@ -659,9 +686,7 @@ export function Demo() {
                 : "unprotected"
               : "error";
   const challenge =
-    status.kind === "awaiting-payment" || status.kind === "paying"
-      ? status.challenge
-      : undefined;
+    status.kind === "awaiting-payment" || status.kind === "paying" ? status.challenge : undefined;
   const challengePokemonId =
     status.kind === "awaiting-payment" || status.kind === "paying" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
@@ -789,6 +814,30 @@ export function Demo() {
             {busy ? "Loading..." : primaryActionLabel}
           </button>
 
+          {activeCredential ? (
+            <CredentialStatusCard
+              testId={
+                activeCredential.source === "custom"
+                  ? "demo-custom-credential-status"
+                  : "demo-credential-status"
+              }
+              source={activeCredential.source}
+              scheme={activeCredential.credential.scheme}
+              caveats={activeCredentialCaveats}
+              actionLabel={primaryActionLabel}
+              clearTestId={
+                activeCredential.source === "custom"
+                  ? "demo-clear-custom-credential"
+                  : "demo-clear-credential"
+              }
+              onClear={
+                activeCredential.source === "custom"
+                  ? clearCustomCredential
+                  : () => setCredentialSlot(null)
+              }
+            />
+          ) : null}
+
           {/* Surfaced as the first secondary option (above "Use a different
               fetch controls) so a returning payer with a credential can paste
               it instead of re-running the pay flow. */}
@@ -824,6 +873,7 @@ export function Demo() {
               >
                 Authorization credential
                 <textarea
+                  ref={customAuthorizationRef}
                   value={customAuthorization}
                   onChange={(event) => setCustomAuthorization(event.target.value)}
                   placeholder="L402 macaroon:preimage"
@@ -845,6 +895,26 @@ export function Demo() {
                 />
               </label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
+                <button
+                  type="button"
+                  onClick={useWorkbenchCredential}
+                  disabled={!workbenchMemory?.credential}
+                  data-testid="demo-use-workbench-credential"
+                  style={{
+                    padding: "7px 12px",
+                    background: workbenchMemory?.credential
+                      ? "var(--color-surface)"
+                      : "var(--color-surface-alt)",
+                    color: workbenchMemory?.credential ? "var(--color-text)" : "var(--color-dim)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 500,
+                    cursor: workbenchMemory?.credential ? "pointer" : "not-allowed",
+                  }}
+                >
+                  Use credential from Workbench
+                </button>
                 <button
                   type="button"
                   onClick={useFullCustomCredential}
@@ -1018,92 +1088,6 @@ export function Demo() {
               </div>
             </div>
           </details>
-
-          {credentialSlot?.source === "custom" ? (
-            <div
-              data-testid="demo-custom-credential-status"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-                color: "var(--color-dim)",
-                fontSize: "var(--size-12)",
-                order: 12,
-              }}
-            >
-              <span>
-                Custom {credentialSlot.credential.scheme} credential active for this endpoint.
-              </span>
-              <button
-                type="button"
-                onClick={clearCustomCredential}
-                data-testid="demo-clear-custom-credential"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={startFresh}
-                data-testid="demo-start-fresh"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Start fresh
-              </button>
-            </div>
-          ) : null}
-
-          {credentialSlot?.source === "paid" ? (
-            <div
-              data-testid="demo-credential-status"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-                color: "var(--color-dim)",
-                fontSize: "var(--size-12)",
-                order: 12,
-              }}
-            >
-              <span>
-                Paid {credentialSlot.credential.scheme} credential active for this endpoint.
-              </span>
-              <button
-                type="button"
-                onClick={() => setCredentialSlot(null)}
-                data-testid="demo-clear-credential"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-            </div>
-          ) : null}
 
           {challenge ? (
             <div
@@ -1313,25 +1297,44 @@ export function Demo() {
                 </ul>
               ) : null}
               {status.error.offerStartFresh ? (
-                <button
-                  type="button"
-                  onClick={startFresh}
-                  data-testid="demo-error-start-fresh"
-                  style={{
-                    alignSelf: "flex-start",
-                    marginTop: 2,
-                    padding: "4px 10px",
-                    background: "var(--color-surface)",
-                    color: "var(--color-danger)",
-                    border: "1px solid var(--color-danger)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  Start fresh
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                  {status.error.offerCustomCredential ? (
+                    <button
+                      type="button"
+                      onClick={openCustomCredentialInput}
+                      data-testid="demo-error-use-another-credential"
+                      style={{
+                        padding: "4px 10px",
+                        background: "var(--color-surface)",
+                        color: "var(--color-danger)",
+                        border: "1px solid var(--color-danger)",
+                        borderRadius: 4,
+                        fontSize: "var(--size-12)",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Use another credential
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={startFresh}
+                    data-testid="demo-error-start-fresh"
+                    style={{
+                      padding: "4px 10px",
+                      background: "var(--color-surface)",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Start fresh
+                  </button>
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -1443,6 +1446,81 @@ export function Demo() {
         </details>
       }
     />
+  );
+}
+
+function CredentialStatusCard({
+  testId,
+  source,
+  scheme,
+  caveats,
+  actionLabel,
+  clearTestId,
+  onClear,
+}: {
+  testId: string;
+  source: CredentialSlot["source"];
+  scheme: PaidCredential["scheme"];
+  caveats: CaveatSummary[];
+  actionLabel: string;
+  clearTestId: string;
+  onClear: () => void;
+}) {
+  const label = source === "custom" ? "Custom" : "Paid";
+  return (
+    <div
+      data-testid={testId}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        padding: "12px 14px",
+        background: "var(--color-accent-soft)",
+        border: "1px solid var(--color-accent)",
+        borderRadius: 4,
+        order: 2,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <strong style={{ fontSize: "var(--size-14)", color: "var(--color-text)" }}>
+            {label} {scheme} credential ready
+          </strong>
+          <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>
+            {label} {scheme} credential active for this endpoint. {actionLabel} will send it as
+            Authorization.
+          </span>
+        </div>
+        <button
+          type="button"
+          onClick={onClear}
+          data-testid={clearTestId}
+          style={{
+            minHeight: 30,
+            padding: "6px 10px",
+            background: "var(--color-surface)",
+            color: "var(--color-text)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 4,
+            fontSize: "var(--size-12)",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Clear credential
+        </button>
+      </div>
+      <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
+    </div>
   );
 }
 
@@ -1608,7 +1686,13 @@ function DisclosureSummary({
   );
 }
 
-function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
+function CaveatSummaryList({
+  caveats,
+  testIdPrefix = "demo",
+}: {
+  caveats: CaveatSummary[];
+  testIdPrefix?: string;
+}) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const expirationCaveats = caveats.filter((caveat) => caveat.expiresAtMs !== null);
   const activeExpirationCaveats = expirationCaveats.filter(
@@ -1625,7 +1709,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
   if (caveats.length === 0) {
     return (
       <div
-        data-testid="demo-caveats-empty"
+        data-testid={`${testIdPrefix}-caveats-empty`}
         style={{
           color: "var(--color-dim)",
           fontSize: "var(--size-12)",
@@ -1638,7 +1722,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
 
   return (
     <div
-      data-testid="demo-caveats"
+      data-testid={`${testIdPrefix}-caveats`}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1654,7 +1738,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
               caveat.expiresAtMs !== null && caveat.expiresAtMs <= nowMs ? "rejected" : "matched"
             }
           >
-            <span data-testid={`demo-caveat-${index}`}>{caveat.label}</span>
+            <span data-testid={`${testIdPrefix}-caveat-${index}`}>{caveat.label}</span>
           </CaveatPill>
         ))}
       </div>
@@ -1663,7 +1747,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
         : activeExpirationCaveats.map((caveat, index) => (
             <span
               key={`${caveat.condition}:${caveat.value}:timer`}
-              data-testid={`demo-caveat-timer-${index}`}
+              data-testid={`${testIdPrefix}-caveat-timer-${index}`}
               style={{
                 color: "var(--color-dim)",
                 fontSize: "var(--size-12)",

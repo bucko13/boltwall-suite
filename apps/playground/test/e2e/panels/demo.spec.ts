@@ -453,9 +453,7 @@ test.describe("panels / demo", () => {
     await expectMemoryValue(page, "workbench-memory-challenge", "L402");
   });
 
-  test("does not repeat bare expired lines for multiple expired caveats", async ({
-    page,
-  }) => {
+  test("does not repeat bare expired lines for multiple expired caveats", async ({ page }) => {
     await routeProtectedPokemon(
       page,
       `L402 macaroon="${EXPIRED_CAVEATED_MACAROON}", invoice="lnbc1demo"`,
@@ -725,6 +723,55 @@ test.describe("panels / demo", () => {
     expect(authorizedRequests).toBe(1);
   });
 
+  test("can explicitly adopt a Workbench credential for BYOC", async ({ page }) => {
+    let authorizedRequests = 0;
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization === `L402 abc:${TEST_PREIMAGE}`) {
+        authorizedRequests += 1;
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload(),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="fresh", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await page.evaluate((credential) => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({ signingKey: "", macaroon: "", challenge: "", credential }),
+      );
+    }, `L402 abc:${TEST_PREIMAGE}`);
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+
+    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toBeEnabled();
+    await page.click("[data-testid='demo-use-workbench-credential']");
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Custom L402 credential active for this endpoint",
+    );
+    await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue("");
+
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+    await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
+    expect(authorizedRequests).toBe(1);
+  });
+
   test("can edit and replace the macaroon used for custom requests", async ({ page }) => {
     let acceptedAuthorization = "";
     await page.route(PROTECTED_RE, async (route, request) => {
@@ -799,11 +846,43 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-custom-macaroon']")).toHaveValue("abc");
     await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-use-custom-parts']");
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Custom L402 credential active for this endpoint",
+    );
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Fetch Endpoint will send it as Authorization",
+    );
+    await expect(page.locator("[data-testid='demo-clear-custom-credential']")).toHaveText(
+      "Clear credential",
+    );
+    await expect(page.locator("[data-testid='demo-start-fresh']")).toHaveCount(0);
 
     await page.click("[data-testid='demo-get-pokemon']");
 
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     expect(authorizedRequests).toBe(1);
+  });
+
+  test("clear credential removes a BYOC credential without resetting the flow", async ({
+    page,
+  }) => {
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
+    await page.fill("[data-testid='demo-custom-authorization']", `L402 abc:${TEST_PREIMAGE}`);
+    await page.click("[data-testid='demo-use-custom-authorization']");
+
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Custom L402 credential active for this endpoint",
+    );
+    await page.click("[data-testid='demo-clear-custom-credential']");
+
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toHaveCount(0);
+    await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue("");
+    await expect(page.locator("[data-testid='demo-endpoint-input']")).toHaveValue(
+      PROTECTED_ENDPOINT,
+    );
+    await expect(page.locator("[data-testid='demo-error']")).toHaveCount(0);
   });
 
   test("rejected custom credentials show recovery actions", async ({ page }) => {
@@ -855,7 +934,16 @@ test.describe("panels / demo", () => {
     // shows an active-credential banner and a repeated fetch cannot re-send it.
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toHaveCount(0);
 
-    // The escape from the dead-end is inline in the error box.
+    // Recovery actions distinguish replacing the pasted credential from
+    // resetting the whole flow.
+    await expect(page.locator("[data-testid='demo-error-use-another-credential']")).toBeVisible();
+    await page.click("[data-testid='demo-error-use-another-credential']");
+    await expect(page.locator("[data-testid='demo-custom-credential']")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await expect(page.locator("[data-testid='demo-custom-authorization']")).toBeFocused();
+
     await page.click("[data-testid='demo-error-start-fresh']");
     await expect(page.locator("[data-testid='demo-error-title']")).toHaveCount(0);
     await expect(page.locator("[data-testid='demo-rejected-credential']")).toHaveCount(0);
@@ -866,7 +954,9 @@ test.describe("panels / demo", () => {
     expect(challengeRequests).toBe(1);
   });
 
-  test("replacing a rejected custom credential clears stale rejection details", async ({ page }) => {
+  test("replacing a rejected custom credential clears stale rejection details", async ({
+    page,
+  }) => {
     const seenAuthorizations: string[] = [];
     await page.route(PROTECTED_RE, async (route, request) => {
       const authorization = request.headers().authorization;
