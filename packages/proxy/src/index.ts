@@ -47,6 +47,7 @@ export {
   type ProxyEnvVariableMetadata,
   type ProxyEnvVariableName,
 } from "./env.js";
+export { DerivedRootKeyStore, PROXY_ROOT_KEY_ENV } from "./root-key-store.js";
 export { type ProxyRoute } from "./route-matching.js";
 
 /**
@@ -145,14 +146,13 @@ export interface ProxyConfig extends Pick<
  *
  * @example
  * ```ts
- * import { createProxy } from "@boltwall/proxy";
- * import { InMemoryRootKeyStore } from "@boltwall/l402";
+ * import { createProxy, DerivedRootKeyStore } from "@boltwall/proxy";
  * import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
  *
  * const app = createProxy({
  *   targetUrl: "https://api.example.com",
  *   backend: new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! }),
- *   rootKeyStore: new InMemoryRootKeyStore(),
+ *   rootKeyStore: new DerivedRootKeyStore(process.env.BOLTWALL_PROXY_ROOT_KEY!),
  *   defaultPrice: 1_000n,
  *   unprotectedPaths: ["/healthz"],
  * });

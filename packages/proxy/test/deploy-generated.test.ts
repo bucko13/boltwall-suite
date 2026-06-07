@@ -80,7 +80,7 @@ async function generateVercelJson(kind: keyof typeof BACKENDS = "lnd"): Promise<
 }
 
 describe("generated Vercel api/index.ts", () => {
-  test("declares EnvRootKeyStore before it is used", async () => {
+  test("requires the deployment secret for a derived, restart-safe root-key store", async () => {
     const source = await generateApiIndex();
     const declaration = source.indexOf("class EnvRootKeyStore");
     const usage = source.indexOf("new EnvRootKeyStore(");
@@ -88,6 +88,12 @@ describe("generated Vercel api/index.ts", () => {
     expect(usage).toBeGreaterThanOrEqual(0);
     // Classes are not hoisted: the declaration must precede the top-level use.
     expect(declaration).toBeLessThan(usage);
+    // The secret is required at boot — production never silently falls back to
+    // a process-local in-memory store.
+    expect(source).toContain(
+      'rootKeyStore: new EnvRootKeyStore(requireEnv("BOLTWALL_PROXY_ROOT_KEY"))',
+    );
+    expect(source).not.toContain("InMemoryRootKeyStore");
   });
 
   test("emits a literal-typed, strict-clean config", async () => {

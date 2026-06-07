@@ -33,6 +33,7 @@ import {
   type SavedBoltwallConfig,
 } from "./config-store.js";
 import { assertVercelCliReady, deployVercel, type CommandRunner } from "./deploy/vercel.js";
+import { DerivedRootKeyStore, PROXY_ROOT_KEY_ENV } from "./root-key-store.js";
 
 import { createProxy } from "./index.js";
 
@@ -262,7 +263,16 @@ async function devCommand(
   const validationEnv = { ...options.env, ...secretValues };
   const backend = validateConfig(loaded.config, validationEnv);
   writeValidationSummary(options.stdout, loaded.config);
-  const app = createProxy(toProxyConfig(loaded.config, backend));
+  const proxyConfig = toProxyConfig(loaded.config, backend, validationEnv);
+  // Persistence is a deliberate choice: name the active store so an in-memory
+  // dev run is never mistaken for a deployment with durable credentials.
+  write(
+    options.stdout,
+    proxyConfig.rootKeyStore instanceof DerivedRootKeyStore
+      ? `Root-key store: derived from ${PROXY_ROOT_KEY_ENV} (credentials persist across restarts)\n`
+      : `Root-key store: in-memory (credentials reset on restart; set ${PROXY_ROOT_KEY_ENV} to persist)\n`,
+  );
+  const app = createProxy(proxyConfig);
   if (!options.startServer) {
     write(options.stdout, `boltwall proxy validated for http://127.0.0.1:${port}\n`);
     return 0;

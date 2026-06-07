@@ -13,10 +13,12 @@ import {
   originSatisfier,
   validUntil,
   validUntilSatisfier,
+  type RootKeyStore,
 } from "@boltwall/l402";
 import { z } from "zod";
 
 import type { ForwardHeadersPolicy } from "./header-policy.js";
+import { DerivedRootKeyStore, PROXY_ROOT_KEY_ENV } from "./root-key-store.js";
 import type { ProxyHttpMethod, ProxyRoute } from "./route-matching.js";
 
 import type { ProxyConfig, ProxyCorsConfig } from "./index.js";
@@ -223,20 +225,33 @@ export function parseBoltwallConfig(input: unknown): BoltwallConfig {
 /**
  * Convert saved config plus a live backend into runtime proxy config.
  *
- * The conversion creates an in-memory root-key store and maps saved policy
- * fields into middleware caveats, satisfiers, capabilities, and HODL mode.
- * Production deployments that need restart-safe credentials should provide a
- * different root-key store through the programmatic API.
+ * The conversion selects a root-key store from the environment and maps saved
+ * policy fields into middleware caveats, satisfiers, capabilities, and HODL
+ * mode. When `BOLTWALL_PROXY_ROOT_KEY` is set, issued credentials survive
+ * restarts through a {@link DerivedRootKeyStore}; otherwise an
+ * `InMemoryRootKeyStore` is used, which is intended for dev and demo runs
+ * because its credentials reset on every restart.
  *
  * @param config - Validated saved config.
  * @param backend - Live Lightning backend constructed for `config.backend`.
+ * @param env - Env-like record consulted for `BOLTWALL_PROXY_ROOT_KEY`.
  * @returns Runtime config accepted by `createProxy`.
+ * @throws {BoltwallConfigError} when `BOLTWALL_PROXY_ROOT_KEY` is set but is
+ *   not a 64-character hex string. The message never includes the value.
+ * @example
+ * ```ts
+ * const app = createProxy(toProxyConfig(config, backend, process.env));
+ * ```
  */
-export function toProxyConfig(config: BoltwallConfig, backend: LightningBackend): ProxyConfig {
+export function toProxyConfig(
+  config: BoltwallConfig,
+  backend: LightningBackend,
+  env: Record<string, string | undefined> = process.env,
+): ProxyConfig {
   return {
     targetUrl: config.targetUrl,
     backend,
-    rootKeyStore: new InMemoryRootKeyStore(),
+    rootKeyStore: rootKeyStoreFromEnv(env),
     defaultPrice: parseMsat(config.pricing.defaultPriceMsat, "pricing.defaultPriceMsat"),
     challengeCompatibility: config.challengeCompatibility,
     ...(config.service === undefined ? {} : { service: config.service }),
@@ -541,6 +556,19 @@ export function configSummary(config: BoltwallConfig): Record<string, unknown> {
       ? {}
       : { deployment: { target: config.deploy.target, projectName: config.deploy.projectName } }),
   };
+}
+
+function rootKeyStoreFromEnv(env: Record<string, string | undefined>): RootKeyStore {
+  const secret = optionalEnv(env, PROXY_ROOT_KEY_ENV);
+  if (secret === undefined) return new InMemoryRootKeyStore();
+  try {
+    return new DerivedRootKeyStore(secret);
+  } catch {
+    // Replace the store's generic message with the env name; never echo the value.
+    throw new BoltwallConfigError(
+      `${PROXY_ROOT_KEY_ENV}: must be a 64-character hex string encoding 32 bytes`,
+    );
+  }
 }
 
 function toProxyRoutes(routes: BoltwallRoute[], defaultPriceMsat: string): ProxyRoute[] {

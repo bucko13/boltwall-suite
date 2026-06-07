@@ -283,6 +283,63 @@ describe("boltwall CLI", () => {
     expect(stderr.text()).toContain("--port must be a positive integer");
   });
 
+  test("dev names the in-memory root-key store when no deployment secret is set", async () => {
+    const dir = await fixtureDir("dev-store-memory");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["dev", "--config", configPath, "--port", "4010"],
+      stdout,
+      env: { OPENNODE_API_KEY: "test-api-key" },
+      startServer: false,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain(
+      "Root-key store: in-memory (credentials reset on restart; set BOLTWALL_PROXY_ROOT_KEY to persist)",
+    );
+  });
+
+  test("dev derives persistent root keys when BOLTWALL_PROXY_ROOT_KEY is set", async () => {
+    const dir = await fixtureDir("dev-store-derived");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const stdout = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["dev", "--config", configPath, "--port", "4010"],
+      stdout,
+      env: { OPENNODE_API_KEY: "test-api-key", BOLTWALL_PROXY_ROOT_KEY: "ab".repeat(32) },
+      startServer: false,
+    });
+
+    expect(code).toBe(0);
+    expect(stdout.text()).toContain(
+      "Root-key store: derived from BOLTWALL_PROXY_ROOT_KEY (credentials persist across restarts)",
+    );
+  });
+
+  test("dev fails fast on a malformed BOLTWALL_PROXY_ROOT_KEY without echoing it", async () => {
+    const dir = await fixtureDir("dev-store-malformed");
+    const configPath = join(dir, "boltwall.yaml");
+    await writeFile(configPath, yamlConfig());
+    const stderr = new CaptureStream();
+
+    const code = await runCli({
+      argv: ["dev", "--config", configPath, "--port", "4010"],
+      stderr,
+      env: { OPENNODE_API_KEY: "test-api-key", BOLTWALL_PROXY_ROOT_KEY: "not-a-key" },
+      startServer: false,
+    });
+
+    expect(code).toBe(1);
+    expect(stderr.text()).toContain("BOLTWALL_PROXY_ROOT_KEY");
+    expect(stderr.text()).toContain("hex");
+    expect(stderr.text()).not.toContain("not-a-key");
+  });
+
   test("dev creates a saved config interactively when none exists", async () => {
     const dir = await fixtureDir("dev-interactive");
     const stdout = new CaptureStream();

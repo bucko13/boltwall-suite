@@ -76,10 +76,35 @@ names only; backend credentials, `BOLTWALL_PROXY_ROOT_KEY`, macaroons,
 preimages, bearer tokens, TLS certificates, and `.env` files must stay outside
 source control.
 
-Generated Vercel projects receive `BOLTWALL_PROXY_ROOT_KEY`, a 32-byte hex
-deployment secret used for L402 macaroon root keys. Rotating it invalidates
-credentials minted by that proxy, so persist it in deployment secrets if paid
-credentials must survive redeploys.
+## Root-key persistence
+
+L402 macaroon root keys are bearer secrets: anyone holding a root key can mint
+valid credentials. The proxy supports two stores:
+
+- **`DerivedRootKeyStore`** (production) derives each token's root key as
+  `HMAC-SHA256(secret, tokenId)` from the 32-byte hex deployment secret in
+  `BOLTWALL_PROXY_ROOT_KEY`. Issued credentials survive restarts, serverless
+  cold starts, and horizontal scaling: every instance holding the same secret
+  mints and verifies independently, with no shared storage. The trade-off is
+  revocation granularity — derivation has no per-token state, so individual
+  credentials cannot be revoked; rotating the secret invalidates every
+  credential minted by that proxy.
+- **`InMemoryRootKeyStore`** (dev/demo) holds root keys in process memory.
+  Credentials reset on every restart and cannot be verified by other
+  instances. `boltwall dev` uses it when `BOLTWALL_PROXY_ROOT_KEY` is unset and
+  prints which store is active.
+
+Provide `BOLTWALL_PROXY_ROOT_KEY` through a platform secret manager or injected
+environment variable — never bake it into images or commit it. Generate one
+with `openssl rand -hex 32`. Startup fails fast (without echoing the value)
+when the variable is set but is not 64 hex characters.
+
+Generated Vercel projects provision `BOLTWALL_PROXY_ROOT_KEY` as a sensitive
+Vercel env var automatically, generating a fresh secret when none is supplied.
+Docker, Compose, and Kubernetes deployments use the same contract: inject the
+same variable (Compose `secrets`/`environment`, Kubernetes `Secret` →
+`env.valueFrom.secretKeyRef`) and replicas verify each other's credentials
+without coordination.
 
 Vercel keeps environment variables across deploys: a value set on a previous
 deploy stays until you overwrite or delete it (omitting it from your shell does
@@ -94,12 +119,11 @@ When embedding the proxy in an existing Express app, construct a backend adapter
 and root key store explicitly:
 
 ```ts
-import { createProxy } from "@boltwall/proxy";
-import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { createProxy, DerivedRootKeyStore } from "@boltwall/proxy";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 
 const backend = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
-const rootKeyStore = new InMemoryRootKeyStore();
+const rootKeyStore = new DerivedRootKeyStore(process.env.BOLTWALL_PROXY_ROOT_KEY!);
 
 const app = createProxy({
   targetUrl: "https://api.example.com",
@@ -123,9 +147,9 @@ const app = createProxy({
 ```
 
 `createProxy` returns an Express app. Mount it directly, or compose it inside a
-larger Express server. `InMemoryRootKeyStore` holds root keys in process memory
-and has no per-credential revocation; rotate the deployment root key and restart
-or redeploy to invalidate credentials.
+larger Express server. See [Root-key persistence](#root-key-persistence) for
+the store trade-offs; tests and demos can substitute `InMemoryRootKeyStore`
+from `@boltwall/l402`.
 
 ## Environment loading
 
@@ -133,13 +157,12 @@ Use `loadProxyEnv()` for typed, secret-safe loading of deploy-time proxy
 settings:
 
 ```ts
-import { createProxy, loadProxyEnv } from "@boltwall/proxy";
-import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { createProxy, DerivedRootKeyStore, loadProxyEnv } from "@boltwall/proxy";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 
 const envConfig = loadProxyEnv({ envFile: ".env.local" });
 const backend = new OpenNodeAdapter({ apiKey: process.env.OPENNODE_API_KEY! });
-const rootKeyStore = new InMemoryRootKeyStore();
+const rootKeyStore = new DerivedRootKeyStore(process.env.BOLTWALL_PROXY_ROOT_KEY!);
 
 const app = createProxy({ ...envConfig, backend, rootKeyStore });
 ```
