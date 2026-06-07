@@ -17,6 +17,7 @@ import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 type CaveatRow = { condition: string; value: string };
 const EMPTY_CAVEATS: CaveatRow[] = [];
+const EMPTY_HISTORY: CaveatRow[][] = [[]];
 
 function buildChallenge(macaroon: string, invoice: string): string {
   return L402.fromMacaroon(macaroon, invoice).toChallenge();
@@ -100,12 +101,23 @@ function parsePositiveIntegerSeconds(value: string): number | null {
   return Number.isSafeInteger(seconds) ? seconds : null;
 }
 
+function caveatRowsEqual(a: CaveatRow[], b: CaveatRow[]): boolean {
+  if (a.length !== b.length) return false;
+  return a.every((row, i) => row.condition === b[i]?.condition && row.value === b[i]?.value);
+}
+
+function historyLabel(index: number): string {
+  return index === 0 ? "Original" : `Update ${index}`;
+}
+
 export function Caveats() {
   const workbenchMemory = useWorkbenchMemory();
 
   // Inputs are plain local state — never auto-synced to the URL or Workbench.
   const [input, setInput] = useState("");
   const [added, setAdded] = useState<CaveatRow[]>([]);
+  const [history, setHistory] = useState<CaveatRow[][]>(EMPTY_HISTORY);
+  const [historyIndex, setHistoryIndex] = useState(0);
   const [draft, setDraft] = useState<CaveatRow>({ condition: "", value: "" });
   const [seconds, setSeconds] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -127,6 +139,8 @@ export function Caveats() {
     [baseMacaroon],
   );
   const caveats = result?.caveats ?? EMPTY_CAVEATS;
+  const selectedHistory = history[historyIndex] ?? EMPTY_CAVEATS;
+  const hasUnsavedUpdate = !caveatRowsEqual(added, selectedHistory);
 
   useEffect(() => {
     if (!caveats.some((c) => caveatExpiryMs(c.condition, c.value) !== null)) return;
@@ -138,6 +152,8 @@ export function Caveats() {
     setInput(next);
     // Appended caveats are relative to the base macaroon; a new base invalidates them.
     setAdded([]);
+    setHistory(EMPTY_HISTORY);
+    setHistoryIndex(0);
     setError(null);
     setWorkbenchFeedback(null);
     setCopied(false);
@@ -195,6 +211,8 @@ export function Caveats() {
   function reset() {
     setInput("");
     setAdded([]);
+    setHistory(EMPTY_HISTORY);
+    setHistoryIndex(0);
     setDraft({ condition: "", value: "" });
     setSeconds("");
     setError(null);
@@ -211,6 +229,26 @@ export function Caveats() {
     } catch {
       // Clipboard is a progressive enhancement; the BigBlob copy still works.
     }
+  }
+
+  function selectHistory(index: number) {
+    const entry = history[index];
+    if (!entry) return;
+    setHistoryIndex(index);
+    setAdded(entry);
+    setError(null);
+    setWorkbenchFeedback(null);
+  }
+
+  function saveUpdate() {
+    if (!base || !hasUnsavedUpdate) return;
+    const nextEntry = added.map((row) => ({ ...row }));
+    const nextHistory = history.slice(0, historyIndex + 1);
+    nextHistory.push(nextEntry);
+    setHistory(nextHistory);
+    setHistoryIndex(nextHistory.length - 1);
+    setError(null);
+    setWorkbenchFeedback(null);
   }
 
   function addToWorkbench() {
@@ -361,15 +399,29 @@ export function Caveats() {
           )}
 
           {base ? (
-            <AddControls
-              draft={draft}
-              setDraft={setDraft}
-              addCustom={addCustom}
-              seconds={seconds}
-              setSeconds={setSeconds}
-              addTimeLimit={addTimeLimit}
-              reset={reset}
-            />
+            <>
+              <HistoryControls
+                currentLabel={historyLabel(historyIndex)}
+                currentPosition={historyIndex + 1}
+                total={history.length}
+                canGoPrevious={historyIndex > 0}
+                canGoNext={historyIndex < history.length - 1}
+                canUpdate={hasUnsavedUpdate}
+                hasUnsavedUpdate={hasUnsavedUpdate}
+                onPrevious={() => selectHistory(historyIndex - 1)}
+                onNext={() => selectHistory(historyIndex + 1)}
+                onUpdate={saveUpdate}
+              />
+              <AddControls
+                draft={draft}
+                setDraft={setDraft}
+                addCustom={addCustom}
+                seconds={seconds}
+                setSeconds={setSeconds}
+                addTimeLimit={addTimeLimit}
+                reset={reset}
+              />
+            </>
           ) : null}
 
           {error ? (
@@ -532,6 +584,71 @@ function CurrentCaveats({
   );
 }
 
+function HistoryControls({
+  currentLabel,
+  currentPosition,
+  total,
+  canGoPrevious,
+  canGoNext,
+  canUpdate,
+  hasUnsavedUpdate,
+  onPrevious,
+  onNext,
+  onUpdate,
+}: {
+  currentLabel: string;
+  currentPosition: number;
+  total: number;
+  canGoPrevious: boolean;
+  canGoNext: boolean;
+  canUpdate: boolean;
+  hasUnsavedUpdate: boolean;
+  onPrevious: () => void;
+  onNext: () => void;
+  onUpdate: () => void;
+}) {
+  return (
+    <div data-testid="caveats-history" style={historyShellStyle}>
+      <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+        <div style={outputLabelStyle}>Update history</div>
+        <div data-testid="caveats-history-status" style={historyStatusStyle}>
+          {currentLabel} · {currentPosition} of {total}
+          {hasUnsavedUpdate ? " · draft changes" : " · saved"}
+        </div>
+      </div>
+      <div style={{ display: "flex", alignItems: "center", gap: 8, flexWrap: "wrap" }}>
+        <button
+          type="button"
+          onClick={onPrevious}
+          disabled={!canGoPrevious}
+          data-testid="caveats-history-previous"
+          style={buttonStyle("secondary", !canGoPrevious)}
+        >
+          Previous
+        </button>
+        <button
+          type="button"
+          onClick={onNext}
+          disabled={!canGoNext}
+          data-testid="caveats-history-next"
+          style={buttonStyle("secondary", !canGoNext)}
+        >
+          Next
+        </button>
+        <button
+          type="button"
+          onClick={onUpdate}
+          disabled={!canUpdate}
+          data-testid="caveats-history-update"
+          style={buttonStyle("primary", !canUpdate)}
+        >
+          Update
+        </button>
+      </div>
+    </div>
+  );
+}
+
 function AddControls({
   draft,
   setDraft,
@@ -687,6 +804,23 @@ const caveatMetaStyle = {
   minWidth: 0,
 } as const;
 
+const historyShellStyle = {
+  display: "flex",
+  alignItems: "center",
+  justifyContent: "space-between",
+  gap: 12,
+  padding: 12,
+  border: "1px solid var(--color-border)",
+  background: "var(--color-surface-alt)",
+  flexWrap: "wrap",
+} as const;
+
+const historyStatusStyle = {
+  color: "var(--color-text)",
+  fontSize: "var(--size-13)",
+  minHeight: 18,
+} as const;
+
 const equalsStyle = {
   flex: "0 0 auto",
   color: "var(--color-dim)",
@@ -765,6 +899,15 @@ const secondaryButtonStyle = {
   fontWeight: 500,
   cursor: "pointer",
 } as const;
+
+function buttonStyle(kind: "primary" | "secondary", disabled: boolean) {
+  const base = kind === "primary" ? primaryButtonStyle : secondaryButtonStyle;
+  return {
+    ...base,
+    opacity: disabled ? 0.45 : 1,
+    cursor: disabled ? "not-allowed" : "pointer",
+  } as const;
+}
 
 const removeButtonStyle = {
   width: 26,
