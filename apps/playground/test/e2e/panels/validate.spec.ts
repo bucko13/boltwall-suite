@@ -11,6 +11,8 @@ const WRONG_PREIMAGE = "ffffffffffffffffffffffffffffffffffffffffffffffffffffffff
 const MATCHED_MACAROON =
   "AgJCAABmaHqt+GK9d2yPwYuOn44gCJcUhW7iM7OQKlkdDV8pJUJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCQkJCAAAGIH9hp+uMItiKi8tWoZlifmqpAXGfIYkWOdhGLJw3aWRR";
 const ZERO_PREIMAGE = "0000000000000000000000000000000000000000000000000000000000000000";
+const MATCHED_CREDENTIAL = `L402 ${MATCHED_MACAROON}:${ZERO_PREIMAGE}`;
+const MATCHED_CHALLENGE = `L402 macaroon="${MATCHED_MACAROON}", invoice=""`;
 
 async function seedWorkbenchSigningKey(page: Page) {
   await page.goto("/p/generate");
@@ -129,6 +131,59 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='status-pill']")).toContainText("valid");
   });
 
+  test("macaroon plus matching preimage emits a credential and stages it", async ({ page }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
+    await page.fill("[data-testid='validate-preimage-input']", ZERO_PREIMAGE);
+
+    const credential = page.getByTestId("validate-generated-credential");
+    await expect(credential).toBeVisible();
+    await expect(credential).toContainText(MATCHED_CREDENTIAL);
+
+    await page.click("[data-testid='validate-add-credential-workbench']");
+    await expect(page.getByTestId("validate-workbench-status")).toContainText(
+      "Credential added to Workbench",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential-status']")).toHaveText(
+      "stored",
+    );
+  });
+
+  test("challenge plus matching preimage stages the credential and preserves challenge context", async ({
+    page,
+  }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_CHALLENGE);
+    await page.fill("[data-testid='validate-preimage-input']", ZERO_PREIMAGE);
+    await expect(page.getByTestId("validate-generated-credential")).toContainText(
+      MATCHED_CREDENTIAL,
+    );
+
+    await page.click("[data-testid='validate-add-credential-workbench']");
+    await expect(page.locator("[data-testid='workbench-memory-macaroon-status']")).toHaveText(
+      "stored",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge-status']")).toHaveText(
+      "stored",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential-status']")).toHaveText(
+      "stored",
+    );
+  });
+
+  test("invalid preimage and existing credentials do not expose duplicate credential output", async ({
+    page,
+  }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
+    await page.fill("[data-testid='validate-preimage-input']", WRONG_PREIMAGE);
+    await expect(page.getByTestId("validate-generated-credential")).toHaveCount(0);
+
+    await page.fill("[data-testid='validate-token-input']", MATCHED_CREDENTIAL);
+    await page.fill("[data-testid='validate-preimage-input']", "");
+    await expect(page.getByTestId("validate-generated-credential")).toHaveCount(0);
+  });
+
   test("malformed preimage is skipped instead of blocking verification", async ({ page }) => {
     await seedWorkbenchSigningKey(page);
     await page.fill("[data-testid='validate-token-input']", MATCHED_MACAROON);
@@ -158,6 +213,29 @@ test.describe("panels / validate", () => {
     await expect(page.locator("[data-testid='validate-output']")).toContainText("SKIPPED");
     // The signature is unverified without the Workbench signing key — not green/"valid".
     await expect(page.locator("[data-testid='status-pill']")).toContainText("partially verified");
+  });
+
+  test("pasted credentials prefill the preimage input", async ({ page }) => {
+    await page.fill("[data-testid='validate-token-input']", MATCHED_CREDENTIAL);
+    await expect(page.locator("[data-testid='validate-preimage-input']")).toHaveValue(
+      ZERO_PREIMAGE,
+    );
+  });
+
+  test("Workbench credential fill also prefills the preimage input", async ({ page }) => {
+    await page.goto("/p/generate");
+    await page.fill("[data-testid='generate-token-key-input']", FIXTURE_KEY);
+    await page.fill("[data-testid='generate-token-preimage-input']", ZERO_PREIMAGE);
+    await page.click("[data-testid='generate-token-mint']");
+    await expect(page.locator("[data-testid='workbench-memory-credential-status']")).toHaveText(
+      "stored",
+    );
+
+    await page.goto("/p/validate");
+    await page.click("[data-testid='validate-fill-credential']");
+    await expect(page.locator("[data-testid='validate-preimage-input']")).toHaveValue(
+      ZERO_PREIMAGE,
+    );
   });
 
   test("tamper button flips last byte and shows tampered indicator", async ({ page }) => {
