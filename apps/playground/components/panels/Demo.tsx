@@ -1668,8 +1668,8 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
           }}
         >
           {expiredExpirationCount === 1
-            ? "1 restriction expired"
-            : `${String(expiredExpirationCount)} restrictions expired`}
+            ? "1 time restriction expired"
+            : `${String(expiredExpirationCount)} time restrictions expired`}
         </span>
       ) : null}
       {activeExpirationCaveats.map((caveat, index) => (

@@ -455,7 +455,7 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-caveat-1']")).toContainText("expires");
     await expect(page.locator("[data-testid='demo-caveat-2']")).toContainText("expires");
     await expect(page.locator("[data-testid='demo-caveat-expired-summary']")).toHaveText(
-      "2 restrictions expired",
+      "2 time restrictions expired",
     );
     await expect(page.locator("[data-testid^='demo-caveat-timer-']")).toHaveCount(0);
   });
