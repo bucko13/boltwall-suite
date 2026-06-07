@@ -9,8 +9,10 @@ import {
 } from "@boltwall/l402";
 import { useState } from "react";
 
+import { detectArtifact, detectArtifactKind } from "../../lib/detect-artifact";
 import { bytesToHex, hexToBytes } from "../../lib/hex";
 import { useWorkbenchMemory } from "../../lib/url-state";
+import { BigBlob } from "../ui/big-blob";
 import { Cell } from "../ui/cell";
 import { CodeSnippet } from "../ui/code-snippet";
 import { FillFromWorkbench } from "../ui/fill-from-workbench";
@@ -55,10 +57,20 @@ function extractCredentialInput(input: string): {
   token: L402 | null;
   macaroons: string[];
   preimage: string | null;
-  source: "macaroon" | "credential";
+  source: "macaroon" | "challenge" | "credential";
 } {
   const trimmed = input.trim();
   if (!trimmed) return { token: null, macaroons: [], preimage: null, source: "macaroon" };
+
+  const artifact = detectArtifact(trimmed);
+  if (artifact.ok) {
+    return {
+      token: artifact.value.token,
+      macaroons: artifact.value.token.macaroons,
+      preimage: artifact.value.token.paymentPreimage ?? null,
+      source: artifact.value.kind,
+    };
+  }
 
   if (isCredentialLikeInput(trimmed)) {
     try {
@@ -74,6 +86,11 @@ function extractCredentialInput(input: string): {
         return { token: null, macaroons: [], preimage: null, source: "credential" };
       }
     }
+  }
+
+  const source = detectArtifactKind(trimmed);
+  if (source === "challenge") {
+    return { token: null, macaroons: [], preimage: null, source };
   }
 
   try {
@@ -93,6 +110,33 @@ function extractCredentialInput(input: string): {
   }
 }
 
+function credentialFromParts(input: {
+  macaroons: string[];
+  preimage: string;
+  source: "macaroon" | "challenge" | "credential";
+}): { authorization: string; macaroon: string } | null {
+  if (input.source === "credential") return null;
+  if (!/^[0-9a-fA-F]{64}$/.test(input.preimage)) return null;
+
+  const macaroon = input.macaroons[0] ?? "";
+  if (!macaroon) return null;
+
+  try {
+    const id = Identifier.fromMacaroon(macaroon);
+    const normalizedPreimage = input.preimage.toLowerCase();
+    if (!verifyPreimage({ paymentHash: id.paymentHash, preimage: normalizedPreimage })) {
+      return null;
+    }
+
+    // L402 protocol-specification.md §5.2/§5.3: Authorization credentials are
+    // `L402 <base64 macaroon>:<hex preimage>`.
+    const token = new L402({ macaroons: input.macaroons, paymentPreimage: normalizedPreimage });
+    return { authorization: token.toAuthorizationHeader(), macaroon };
+  } catch {
+    return null;
+  }
+}
+
 export function ValidateL402() {
   const workbenchMemory = useWorkbenchMemory();
   // Inputs are plain local state — never auto-synced to the URL or Workbench.
@@ -104,6 +148,7 @@ export function ValidateL402() {
   const [error, setError] = useState<string | null>(null);
   const [tampered, setTampered] = useState(false);
   const [tamperedToken, setTamperedToken] = useState<string | null>(null);
+  const [workbenchStatus, setWorkbenchStatus] = useState<string | null>(null);
 
   async function runVerify(overrideToken?: string) {
     const rawTokenInput = overrideToken ?? (token ?? "").trim();
@@ -116,6 +161,7 @@ export function ValidateL402() {
     if (!mac) {
       setError("Paste a base64-encoded macaroon or full Authorization credential.");
       setChecks(null);
+      setWorkbenchStatus(null);
       return;
     }
 
@@ -221,6 +267,7 @@ export function ValidateL402() {
 
     setChecks(newChecks);
     setError(null);
+    setWorkbenchStatus(null);
   }
 
   function handleTamper() {
@@ -237,6 +284,7 @@ export function ValidateL402() {
     setTamperedToken(newB64);
     setTampered(true);
     setChecks(null);
+    setWorkbenchStatus(null);
     runVerify(newB64);
   }
 
@@ -247,6 +295,7 @@ export function ValidateL402() {
     setError(null);
     setTampered(false);
     setTamperedToken(null);
+    setWorkbenchStatus(null);
   }
 
   function clearBoth() {
@@ -258,10 +307,15 @@ export function ValidateL402() {
 
   function fillTokenFromWorkbench(value: string) {
     setToken(value);
+    const input = extractCredentialInput(value);
+    if (input.source === "credential" && input.preimage) {
+      setPreimageHex(input.preimage);
+    }
     setTampered(false);
     setTamperedToken(null);
     setChecks(null);
     setError(null);
+    setWorkbenchStatus(null);
   }
 
   // A skipped (warn) check must not read as fully valid: without the Workbench
@@ -281,6 +335,12 @@ export function ValidateL402() {
           : "valid";
   const inputValue = tampered && tamperedToken ? tamperedToken : (token ?? "");
   const extractedInput = extractCredentialInput(inputValue);
+  const derivedPreimage = extractedInput.preimage ?? (preimageHex ?? "").trim();
+  const generatedCredential = credentialFromParts({
+    macaroons: extractedInput.macaroons,
+    preimage: derivedPreimage,
+    source: extractedInput.source,
+  });
   const tokenLiteral = JSON.stringify(extractedInput.macaroons[0] ?? "<base64 macaroon>");
   const rememberedSigningKey = workbenchMemory?.signingKey.trim() ?? "";
   const rootKeyLiteral = JSON.stringify(rememberedSigningKey || "<Workbench signing key>");
@@ -289,6 +349,16 @@ export function ValidateL402() {
   );
   const rememberedMacaroon = workbenchMemory?.macaroon.trim() ?? "";
   const rememberedCredential = workbenchMemory?.credential.trim() ?? "";
+
+  function addGeneratedCredentialToWorkbench() {
+    if (!generatedCredential) return;
+    workbenchMemory?.setMacaroon(generatedCredential.macaroon);
+    if (extractedInput.source === "challenge") {
+      workbenchMemory?.setChallenge(inputValue.trim());
+    }
+    workbenchMemory?.setCredential(generatedCredential.authorization);
+    setWorkbenchStatus("Credential added to Workbench");
+  }
 
   return (
     <Cell
@@ -318,7 +388,12 @@ export function ValidateL402() {
             <textarea
               value={inputValue}
               onChange={(e) => {
-                setToken(e.target.value);
+                const nextToken = e.target.value;
+                setToken(nextToken);
+                const input = extractCredentialInput(nextToken);
+                if (input.source === "credential" && input.preimage) {
+                  setPreimageHex(input.preimage);
+                }
                 setTampered(false);
                 setTamperedToken(null);
                 setChecks(null);
@@ -556,6 +631,45 @@ export function ValidateL402() {
                   </div>
                 );
               })}
+            </div>
+          ) : null}
+
+          {generatedCredential ? (
+            <div
+              data-testid="validate-generated-credential"
+              style={{ display: "flex", flexDirection: "column", gap: 8 }}
+            >
+              <BigBlob
+                value={generatedCredential.authorization}
+                label="Generated Authorization credential"
+              />
+              <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+                <button
+                  type="button"
+                  onClick={addGeneratedCredentialToWorkbench}
+                  data-testid="validate-add-credential-workbench"
+                  style={{
+                    padding: "6px 12px",
+                    background: "var(--color-surface)",
+                    color: "var(--color-dim)",
+                    border: "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-13)",
+                    fontWeight: 500,
+                    cursor: "pointer",
+                  }}
+                >
+                  Add credential to Workbench
+                </button>
+                {workbenchStatus ? (
+                  <span
+                    data-testid="validate-workbench-status"
+                    style={{ fontSize: "var(--size-12)", color: "var(--color-accent)" }}
+                  >
+                    {workbenchStatus}
+                  </span>
+                ) : null}
+              </div>
             </div>
           ) : null}
         </div>
