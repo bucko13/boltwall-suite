@@ -158,6 +158,63 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='code-snippet']")).toContainText("services");
   });
 
+  test("saves linear revision history and branches from older entries", async ({ page }) => {
+    await page.fill("[data-testid='caveats-input']", FIXTURE_MACAROON);
+    await expect(page.locator("[data-testid='caveats-history']")).toContainText("Revision history");
+    await expect(page.locator("[data-testid='caveats-history-save']")).toHaveText("Save revision");
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "Original · 1 of 1 · saved",
+    );
+    await expect(page.locator("[data-testid='caveats-history-save']")).toBeDisabled();
+
+    await page.fill("[data-testid='caveat-condition-input']", "services");
+    await page.fill("[data-testid='caveat-value-input']", "pokedex:0");
+    await page.click("[data-testid='caveat-add']");
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "unsaved draft",
+    );
+    await expect(page.locator("[data-testid='caveats-history-save']")).toBeEnabled();
+    await expect(page.locator("[data-testid='caveats-history-previous']")).toBeDisabled();
+    await expect(page.locator("[data-testid='caveats-history-next']")).toBeDisabled();
+
+    await page.click("[data-testid='caveats-history-save']");
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "Revision 1 · 2 of 2 · saved",
+    );
+
+    await page.fill("[data-testid='caveat-condition-input']", "origin");
+    await page.fill("[data-testid='caveat-value-input']", "example.com");
+    await page.click("[data-testid='caveat-add']");
+    await page.click("[data-testid='caveats-history-save']");
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "Revision 2 · 3 of 3 · saved",
+    );
+
+    await page.click("[data-testid='caveats-history-previous']");
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "Revision 1 · 2 of 3 · saved",
+    );
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("services=pokedex:0");
+    await expect(page.locator("[data-testid='caveats-list']")).not.toContainText(
+      "origin=example.com",
+    );
+
+    await page.fill("[data-testid='caveat-condition-input']", "audience");
+    await page.fill("[data-testid='caveat-value-input']", "demo");
+    await page.click("[data-testid='caveat-add']");
+    await expect(page.locator("[data-testid='caveats-history-next']")).toBeDisabled();
+    await page.click("[data-testid='caveats-history-save']");
+
+    await expect(page.locator("[data-testid='caveats-history-status']")).toContainText(
+      "Revision 2 · 3 of 3 · saved",
+    );
+    await expect(page.locator("[data-testid='caveats-history-next']")).toBeDisabled();
+    await expect(page.locator("[data-testid='caveats-list']")).toContainText("audience=demo");
+    await expect(page.locator("[data-testid='caveats-list']")).not.toContainText(
+      "origin=example.com",
+    );
+  });
+
   test("adds an attenuated bare macaroon to Workbench and clears derived fields", async ({
     page,
   }) => {
