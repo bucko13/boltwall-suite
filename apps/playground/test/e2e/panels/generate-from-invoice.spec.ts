@@ -8,7 +8,7 @@
  * Parse panel via Workbench memory, plus credential emission (macaroon +
  * preimage) and its end-to-end verification in the Validate panel.
  */
-import { expect, test } from "@playwright/test";
+import { expect, test, type Page } from "@playwright/test";
 
 import { BOLT11_SPEC_EXAMPLES } from "@boltwall/test-fixtures";
 
@@ -23,6 +23,22 @@ if (!invoiceFixture) {
 const SIGNING_KEY = "000102030405060708090a0b0c0d0e0f101112131415161718191a1b1c1d1e1f";
 // Arbitrary 32-byte hex preimage; Generate binds the macaroon to sha256 of it.
 const PREIMAGE = "1f1e1d1c1b1a191817161514131211100f0e0d0c0b0a09080706050403020100";
+const WORKBENCH_MACAROON =
+  "AgJCAAABAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBAQEBASAgICAgICAgICAgICAgICAgICAgICAgICAgICAgICAgAAAGIG7u7yeNG/kpBwGaHpeJZF6Dn9Q1zoLhmSx0PQPPESkC";
+const WORKBENCH_CHALLENGE = `L402 macaroon="${WORKBENCH_MACAROON}", invoice="${invoiceFixture.invoice}"`;
+const WORKBENCH_CREDENTIAL = `L402 ${WORKBENCH_MACAROON}:${PREIMAGE}`;
+
+async function seedWorkbenchMemory(
+  page: Page,
+  memory: Partial<Record<"signingKey" | "macaroon" | "challenge" | "credential", string>>,
+) {
+  const snapshot = { signingKey: "", macaroon: "", challenge: "", credential: "", ...memory };
+  await page.evaluate((value) => {
+    window.sessionStorage.setItem("bw.workbench-memory", JSON.stringify(value));
+  }, snapshot);
+  await page.reload();
+  await expect(page.locator("[data-testid='cell']").first()).toBeVisible();
+}
 
 test.describe("panels / generate-from-invoice", () => {
   test.beforeEach(async ({ page }) => {
@@ -52,6 +68,41 @@ test.describe("panels / generate-from-invoice", () => {
     await expect(snippet).toContainText(invoiceFixture.invoice.slice(0, 8), { timeout: 200 });
     await expect(page.locator("[data-testid='code-snippet-contract']").first()).toContainText(
       "recipe code",
+    );
+  });
+
+  test("Workbench fill controls are compact and disabled when empty", async ({ page }) => {
+    const actions = page.getByTestId("generate-workbench-actions");
+    await expect(actions).toContainText("Use from Workbench");
+    await expect(page.getByTestId("generate-fill-signing-key")).toHaveText("Signing key");
+    await expect(page.getByTestId("generate-fill-invoice")).toHaveText("Invoice");
+    await expect(page.getByTestId("generate-fill-preimage")).toHaveText("Preimage");
+    await expect(page.getByTestId("generate-fill-signing-key")).toBeDisabled();
+    await expect(page.getByTestId("generate-fill-invoice")).toBeDisabled();
+    await expect(page.getByTestId("generate-fill-preimage")).toBeDisabled();
+  });
+
+  test("fills Generate inputs from matching Workbench artifacts", async ({ page }) => {
+    await seedWorkbenchMemory(page, {
+      signingKey: SIGNING_KEY,
+      challenge: WORKBENCH_CHALLENGE,
+      credential: WORKBENCH_CREDENTIAL,
+    });
+
+    await page.click("[data-testid='generate-fill-signing-key']");
+    await page.click("[data-testid='generate-fill-invoice']");
+    await page.click("[data-testid='generate-fill-preimage']");
+
+    await expect(page.locator("[data-testid='generate-token-key-input']")).toHaveValue(SIGNING_KEY);
+    await expect(page.locator("[data-testid='generate-token-invoice-input']")).toHaveValue(
+      invoiceFixture.invoice,
+    );
+    await expect(page.locator("[data-testid='generate-token-preimage-input']")).toHaveValue(
+      PREIMAGE,
+    );
+    await expect(page.getByTestId("generate-fill-signing-key")).toHaveAttribute(
+      "aria-label",
+      "Signing key already filled",
     );
   });
 
