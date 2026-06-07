@@ -327,6 +327,7 @@ export function Demo() {
     setPaymentError(null);
     setPastedPreimage("");
     setAddedArtifact(null);
+    setCapturedArtifact(null);
     try {
       const active = useStoredCredential ? activeCredential : null;
       const credential = active?.credential ?? null;
@@ -404,6 +405,9 @@ export function Demo() {
   // cached paid credential for the endpoint.
   function adoptCustomCredential(credential: PaidCredential) {
     setCredentialSlot({ source: "custom", endpointTemplate, credential });
+    setCapturedArtifact(null);
+    setPaymentError(null);
+    setAddedArtifact(null);
     setStatus({ kind: "idle" });
   }
 
