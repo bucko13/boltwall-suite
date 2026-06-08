@@ -37,6 +37,11 @@ test.describe("Workbench Memory strip", () => {
 
     for (const testId of SLOT_TEST_IDS) {
       await expect(page.getByTestId(testId)).toBeVisible();
+      const labelBox = await page.getByTestId(`${testId}-label`).evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }));
+      expect(labelBox.scrollWidth).toBeLessThanOrEqual(labelBox.clientWidth + 1);
       await expect(page.getByTestId(`${testId}-status`)).toHaveText("empty");
       await expect(page.getByTestId(`${testId}-reveal`)).toBeDisabled();
       await expect(page.getByTestId(`${testId}-copy`)).toBeDisabled();

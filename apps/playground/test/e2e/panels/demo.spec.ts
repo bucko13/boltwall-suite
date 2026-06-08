@@ -363,6 +363,10 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
       "Workbench updated.",
     );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toHaveAttribute(
+      "data-updated",
+      "false",
+    );
     await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
       "data-updated",
       "true",
@@ -373,7 +377,7 @@ test.describe("panels / demo", () => {
     );
     await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
       "data-updated",
-      "true",
+      "false",
     );
   });
 

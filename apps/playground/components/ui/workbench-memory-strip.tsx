@@ -185,6 +185,7 @@ function MemorySlot({
         }}
       >
         <span
+          data-testid={`${testId}-label`}
           style={{
             color: hasValue ? "var(--color-text)" : "var(--color-dim)",
             fontSize: "var(--size-12)",
@@ -197,20 +198,8 @@ function MemorySlot({
         >
           {label}
         </span>
-        <span
-          data-testid={`${testId}-feedback`}
-          style={{
-            marginLeft: 6,
-            color: "var(--color-accent)",
-            fontSize: "var(--size-10)",
-            fontWeight: 600,
-            lineHeight: 1,
-            textTransform: "uppercase",
-            opacity: updated ? 1 : 0,
-            whiteSpace: "nowrap",
-          }}
-        >
-          updated
+        <span data-testid={`${testId}-feedback`} style={visuallyHiddenStyle}>
+          {updated ? "updated" : ""}
         </span>
         <span
           data-testid={`${testId}-status`}
