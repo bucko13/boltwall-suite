@@ -233,6 +233,25 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
       "Updated macaroon; cleared challenge and credential.",
     );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toHaveAttribute(
+      "data-updated",
+      "false",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
     await expect
       .poll(() => workbenchMemory(page))
       .toMatchObject({
@@ -259,6 +278,25 @@ test.describe("panels / caveats", () => {
     await page.click("[data-testid='caveats-add-workbench']");
     await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
       "Updated macaroon and challenge; cleared credential.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toHaveAttribute(
+      "data-updated",
+      "false",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
+      "data-updated",
+      "true",
     );
     await expect
       .poll(() => workbenchMemory(page))
@@ -287,6 +325,41 @@ test.describe("panels / caveats", () => {
     await page.click("[data-testid='caveats-add-workbench']");
     await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
       "Updated macaroon, credential, and challenge.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toHaveAttribute(
+      "data-updated",
+      "false",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect
+      .poll(() => workbenchMemory(page))
+      .toMatchObject({
+        signingKey: FIXTURE_KEY,
+        macaroon: attenuated,
+        challenge: `L402 macaroon="${attenuated}", invoice="lnbc1demo"`,
+        credential: `L402 ${attenuated}:${PREIMAGE}`,
+      });
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).not.toContainText(
+      "already",
     );
     await expect
       .poll(() => workbenchMemory(page))

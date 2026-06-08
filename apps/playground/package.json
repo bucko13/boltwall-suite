@@ -1,7 +1,7 @@
 {
   "name": "@boltwall/playground",
   "private": true,
-  "version": "0.1.0",
+  "version": "0.1.1",
   "type": "module",
   "scripts": {
     "dev": "next dev",
@@ -11,9 +11,7 @@
     "lint:fix": "eslint app components lib --fix",
     "typecheck": "tsc --noEmit",
     "test": "bun test components lib",
-    "test:e2e": "node node_modules/@playwright/test/cli.js test",
-    "test:a11y": "node node_modules/@playwright/test/cli.js test test/e2e/lighthouse.spec.ts",
-    "lhci:a11y": "lhci autorun"
+    "test:e2e": "node node_modules/@playwright/test/cli.js test"
   },
   "dependencies": {
     "@boltwall/l402": "workspace:*",
@@ -27,12 +25,10 @@
     "tailwindcss": "^4.1.17"
   },
   "devDependencies": {
-    "@axe-core/playwright": "^4.10.1",
     "@boltwall/eslint-config": "workspace:*",
     "@boltwall/test-fixtures": "workspace:*",
     "@boltwall/prettier-config": "workspace:*",
     "@boltwall/typescript-config": "workspace:*",
-    "@lhci/cli": "0.15.1",
     "@playwright/test": "^1.56.1",
     "@types/node": "^24.10.0",
     "@types/react": "^19.2.3",

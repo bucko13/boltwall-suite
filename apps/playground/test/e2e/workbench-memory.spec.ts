@@ -37,6 +37,11 @@ test.describe("Workbench Memory strip", () => {
 
     for (const testId of SLOT_TEST_IDS) {
       await expect(page.getByTestId(testId)).toBeVisible();
+      const labelBox = await page.getByTestId(`${testId}-label`).evaluate((element) => ({
+        clientWidth: element.clientWidth,
+        scrollWidth: element.scrollWidth,
+      }));
+      expect(labelBox.scrollWidth).toBeLessThanOrEqual(labelBox.clientWidth + 1);
       await expect(page.getByTestId(`${testId}-status`)).toHaveText("empty");
       await expect(page.getByTestId(`${testId}-reveal`)).toBeDisabled();
       await expect(page.getByTestId(`${testId}-copy`)).toBeDisabled();
@@ -135,18 +140,21 @@ test.describe("Workbench Memory strip", () => {
     const feedback = page.getByTestId("workbench-memory-feedback");
     await page.getByTestId("generate-token-key-input").fill(FIXTURE_MEMORY.signingKey);
     await expect(page.getByTestId("workbench-memory-key-status")).toHaveText("stored");
-    await expect(feedback).toHaveText(/Stored|Replaced/);
-    await expect(feedback).toContainText("signing key");
+    await expect(feedback).toHaveText("Workbench updated.");
     await expect(feedback).not.toContainText(FIXTURE_MEMORY.signingKey);
+    await expect(page.getByTestId("workbench-memory-key")).toHaveAttribute("data-updated", "true");
+    await expect(page.getByTestId("workbench-memory-key-feedback")).toHaveText("updated");
 
     await page.getByTestId("generate-token-key-input").fill(REPLACEMENT_KEY);
     await expect(page.getByTestId("generate-token-key-input")).toHaveValue(REPLACEMENT_KEY);
-    await expect(feedback).toHaveText("Replaced signing key.");
+    await expect(feedback).toHaveText("Workbench updated.");
     await expect(feedback).not.toContainText(REPLACEMENT_KEY);
+    await expect(page.getByTestId("workbench-memory-key")).toHaveAttribute("data-updated", "true");
 
     await page.getByTestId("workbench-memory-key-clear").click();
     await expect(page.getByTestId("workbench-memory-key-status")).toHaveText("empty");
-    await expect(feedback).toHaveText("Cleared signing key.");
+    await expect(feedback).toHaveText("Workbench updated.");
+    await expect(page.getByTestId("workbench-memory-key")).toHaveAttribute("data-updated", "true");
   });
 
   test("clear all reports one accessible Workbench confirmation", async ({ page }) => {
@@ -158,11 +166,12 @@ test.describe("Workbench Memory strip", () => {
     await expect(feedback).toHaveAttribute("aria-live", "polite");
 
     await page.getByTestId("workbench-memory-clear-all").click();
-    await expect(feedback).toHaveText("Cleared Workbench memory.");
+    await expect(feedback).toHaveText("Workbench updated.");
     await expect(feedback).not.toContainText(FIXTURE_MEMORY.macaroon);
 
     for (const testId of SLOT_TEST_IDS) {
       await expect(page.getByTestId(`${testId}-status`)).toHaveText("empty");
+      await expect(page.getByTestId(testId)).toHaveAttribute("data-updated", "true");
     }
   });
 

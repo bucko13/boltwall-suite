@@ -257,13 +257,16 @@ export function Caveats() {
     const sourceInvoice =
       base.token.invoice ??
       matchingWorkbenchInvoice(workbenchMemory.challenge, base.macaroon) ??
+      matchingWorkbenchInvoice(workbenchMemory.challenge, result.macaroon) ??
       null;
 
-    workbenchMemory.setMacaroon(result.macaroon);
-
     if (base.kind === "macaroon") {
-      workbenchMemory.setChallenge(null);
-      workbenchMemory.setCredential(null);
+      const next = {
+        macaroon: result.macaroon,
+        challenge: null,
+        credential: null,
+      };
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon; cleared challenge and credential.");
       return;
     }
@@ -273,8 +276,13 @@ export function Caveats() {
         setError("Loaded challenge is missing an invoice.");
         return;
       }
-      workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
-      workbenchMemory.setCredential(null);
+      const nextChallenge = buildChallenge(result.macaroon, sourceInvoice);
+      const next = {
+        macaroon: result.macaroon,
+        challenge: nextChallenge,
+        credential: null,
+      };
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon and challenge; cleared credential.");
       return;
     }
@@ -285,12 +293,23 @@ export function Caveats() {
       return;
     }
 
-    workbenchMemory.setCredential(buildCredential(result.macaroon, preimage));
+    const nextCredential = buildCredential(result.macaroon, preimage);
     if (sourceInvoice) {
-      workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
+      const nextChallenge = buildChallenge(result.macaroon, sourceInvoice);
+      const next = {
+        macaroon: result.macaroon,
+        challenge: nextChallenge,
+        credential: nextCredential,
+      };
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon, credential, and challenge.");
     } else {
-      workbenchMemory.setChallenge(null);
+      const next = {
+        macaroon: result.macaroon,
+        challenge: null,
+        credential: nextCredential,
+      };
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon and credential; cleared challenge.");
     }
   }
