@@ -1,7 +1,7 @@
 "use client";
 
 import { L402 } from "@boltwall/l402";
-import { useEffect, useMemo, useState, type CSSProperties, type ReactNode } from "react";
+import { useEffect, useMemo, useRef, useState, type CSSProperties, type ReactNode } from "react";
 
 import {
   FetchPaidResourceError,
@@ -46,7 +46,7 @@ type ChallengeState = {
 } & PaidChallenge;
 
 // One credential slot per endpoint. The slot is a discriminated value: a
-// credential is either pasted by the user ("custom") or earned by paying a
+// credential is either supplied through BYOC ("custom") or earned by paying a
 // challenge ("paid"). It is scoped to the endpoint it was captured for so a
 // stale credential never leaks across endpoints.
 type CredentialSlot = {
@@ -70,6 +70,7 @@ type DemoError = {
   // dead-end (e.g. a rejected custom credential) can be escaped without hunting
   // for the reset control elsewhere.
   offerStartFresh?: boolean;
+  offerCustomCredential?: boolean;
 };
 
 type CapturedArtifact =
@@ -277,6 +278,8 @@ export function Demo() {
   const [addedArtifact, setAddedArtifact] = useState<AddedArtifact>(null);
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
   const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
+  const customAuthorizationRef = useRef<HTMLTextAreaElement | null>(null);
+  const customMacaroonRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -318,7 +321,25 @@ export function Demo() {
   // adoptCustomCredential), so precedence falls out of the single-slot model.
   const activeCredential =
     credentialSlot?.endpointTemplate === endpointTemplate ? credentialSlot : null;
-  const visibleArtifact = capturedArtifact;
+  const activeCredentialCaveats = useMemo(
+    () =>
+      activeCredential === null
+        ? []
+        : extractCaveatSummaries(activeCredential.credential.authorization),
+    [activeCredential],
+  );
+  const capturedCredentialMatchesActive =
+    capturedArtifact?.kind === "credential" &&
+    capturedArtifact.outcome === "created" &&
+    capturedArtifact.credential.authorization === activeCredential?.credential.authorization;
+  const activeCredentialSourceChallenge = capturedCredentialMatchesActive
+    ? capturedArtifact.sourceChallenge
+    : undefined;
+  const activeCredentialInWorkbench =
+    activeCredential !== null &&
+    workbenchMemory?.credential === activeCredential.credential.authorization;
+  const canFillFromWorkbench = Boolean(workbenchMemory?.credential || workbenchMemory?.macaroon);
+  const visibleArtifact = capturedCredentialMatchesActive ? null : capturedArtifact;
 
   async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
@@ -362,6 +383,7 @@ export function Demo() {
                 "Start fresh to request a new challenge and pay, or open the BYOC panel to paste a different credential.",
               ],
               offerStartFresh: true,
+              offerCustomCredential: true,
             },
           });
           return;
@@ -403,8 +425,8 @@ export function Demo() {
 
   // A freshly pasted custom credential takes the slot outright, evicting any
   // cached paid credential for the endpoint.
-  function adoptCustomCredential(credential: PaidCredential) {
-    setCredentialSlot({ source: "custom", endpointTemplate, credential });
+  function adoptCredential(credential: PaidCredential, source: CredentialSlot["source"]) {
+    setCredentialSlot({ source, endpointTemplate, credential });
     setCapturedArtifact(null);
     setPaymentError(null);
     setAddedArtifact(null);
@@ -413,7 +435,8 @@ export function Demo() {
 
   function useFullCustomCredential() {
     try {
-      adoptCustomCredential(parsePastedCredential(customAuthorization));
+      adoptCredential(parsePastedCredential(customAuthorization), "custom");
+      setCustomAuthorization("");
     } catch (error) {
       setStatus({
         kind: "error",
@@ -424,8 +447,9 @@ export function Demo() {
 
   function useCustomCredentialParts() {
     try {
-      adoptCustomCredential(
+      adoptCredential(
         buildPastedCredentialParts(customMacaroon, customPreimage, customScheme),
+        "custom",
       );
     } catch (error) {
       setStatus({
@@ -435,9 +459,27 @@ export function Demo() {
     }
   }
 
-  function loadWorkbenchMacaroon() {
-    if (!workbenchMemory?.macaroon) return;
+  function loadWorkbenchCredentialOrMacaroon() {
+    if (workbenchMemory?.credential) {
+      setCustomAuthorization(workbenchMemory.credential);
+      setStatus({ kind: "idle" });
+      return "authorization";
+    }
+    if (!workbenchMemory?.macaroon) return null;
     setCustomMacaroon(workbenchMemory.macaroon);
+    return "macaroon";
+  }
+
+  function fillFromWorkbench() {
+    const target = loadWorkbenchCredentialOrMacaroon();
+    setCustomCredentialOpen(true);
+    window.requestAnimationFrame(() => {
+      if (target === "macaroon") {
+        customMacaroonRef.current?.focus();
+        return;
+      }
+      customAuthorizationRef.current?.focus();
+    });
   }
 
   // Reset the raw paste inputs that buffer an in-progress custom credential.
@@ -451,6 +493,21 @@ export function Demo() {
   function clearCustomCredential() {
     setCredentialSlot(null);
     clearCustomBuffers();
+  }
+
+  function clearPaidCredential() {
+    if (
+      capturedArtifact?.kind === "credential" &&
+      capturedArtifact.credential.authorization === credentialSlot?.credential.authorization
+    ) {
+      setCapturedArtifact(null);
+    }
+    setCredentialSlot(null);
+  }
+
+  function openCustomCredentialInput() {
+    setCustomCredentialOpen(true);
+    window.requestAnimationFrame(() => customAuthorizationRef.current?.focus());
   }
 
   // Changing the endpoint invalidates every credential we hold for the old one.
@@ -659,9 +716,7 @@ export function Demo() {
                 : "unprotected"
               : "error";
   const challenge =
-    status.kind === "awaiting-payment" || status.kind === "paying"
-      ? status.challenge
-      : undefined;
+    status.kind === "awaiting-payment" || status.kind === "paying" ? status.challenge : undefined;
   const challengePokemonId =
     status.kind === "awaiting-payment" || status.kind === "paying" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;
@@ -789,16 +844,80 @@ export function Demo() {
             {busy ? "Loading..." : primaryActionLabel}
           </button>
 
-          {/* Surfaced as the first secondary option (above "Use a different
-              fetch controls) so a returning payer with a credential can paste
-              it instead of re-running the pay flow. */}
+          {activeCredential ? (
+            <CredentialStatusCard
+              testId={
+                activeCredential.source !== "paid"
+                  ? "demo-custom-credential-status"
+                  : "demo-credential-status"
+              }
+              source={activeCredential.source}
+              credential={activeCredential.credential}
+              scheme={activeCredential.credential.scheme}
+              caveats={activeCredentialCaveats}
+              actionLabel={primaryActionLabel}
+              clearTestId={
+                activeCredential.source !== "paid"
+                  ? "demo-clear-custom-credential"
+                  : "demo-clear-credential"
+              }
+              onClear={
+                activeCredential.source !== "paid" ? clearCustomCredential : clearPaidCredential
+              }
+              onAddWorkbench={() =>
+                addCredentialToWorkbench(
+                  activeCredential.credential,
+                  activeCredentialSourceChallenge,
+                )
+              }
+              inWorkbench={activeCredentialInWorkbench}
+              onCopy={copyText}
+              copiedTarget={copiedTarget}
+            />
+          ) : null}
+
           <details
             data-testid="demo-custom-credential"
             open={customCredentialOpen}
             onToggle={(event) => setCustomCredentialOpen(event.currentTarget.open)}
             style={{ order: 10 }}
           >
-            <DisclosureSummary iconTestId="demo-custom-credential-icon" open={customCredentialOpen}>
+            <DisclosureSummary
+              iconTestId="demo-custom-credential-icon"
+              open={customCredentialOpen}
+              action={
+                <button
+                  type="button"
+                  disabled={!canFillFromWorkbench}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (canFillFromWorkbench) {
+                      fillFromWorkbench();
+                    }
+                  }}
+                  data-testid="demo-use-workbench-credential"
+                  style={{
+                    minHeight: 28,
+                    padding: "5px 10px",
+                    background: canFillFromWorkbench
+                      ? "var(--color-primary)"
+                      : "var(--color-surface)",
+                    color: canFillFromWorkbench ? "var(--color-surface)" : "var(--color-dim)",
+                    border: canFillFromWorkbench
+                      ? "1px solid var(--color-primary)"
+                      : "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 600,
+                    cursor: canFillFromWorkbench ? "pointer" : "not-allowed",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Fill from Workbench
+                </button>
+              }
+            >
               BYOC — Bring Your Own Credential
             </DisclosureSummary>
             <div
@@ -824,6 +943,7 @@ export function Demo() {
               >
                 Authorization credential
                 <textarea
+                  ref={customAuthorizationRef}
                   value={customAuthorization}
                   onChange={(event) => setCustomAuthorization(event.target.value)}
                   placeholder="L402 macaroon:preimage"
@@ -888,6 +1008,7 @@ export function Demo() {
                 >
                   Macaroon
                   <textarea
+                    ref={customMacaroonRef}
                     value={customMacaroon}
                     onChange={(event) => setCustomMacaroon(event.target.value)}
                     placeholder="base64 macaroon"
@@ -972,24 +1093,6 @@ export function Demo() {
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
                 <button
                   type="button"
-                  onClick={loadWorkbenchMacaroon}
-                  disabled={!workbenchMemory?.macaroon}
-                  data-testid="demo-load-workbench-macaroon"
-                  style={{
-                    padding: "7px 12px",
-                    background: "var(--color-surface)",
-                    color: workbenchMemory?.macaroon ? "var(--color-text)" : "var(--color-dim)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    cursor: workbenchMemory?.macaroon ? "pointer" : "not-allowed",
-                  }}
-                >
-                  Fill macaroon from Workbench
-                </button>
-                <button
-                  type="button"
                   onClick={useCustomCredentialParts}
                   disabled={customMacaroon.trim() === "" || customPreimage.trim() === ""}
                   data-testid="demo-use-custom-parts"
@@ -1018,92 +1121,6 @@ export function Demo() {
               </div>
             </div>
           </details>
-
-          {credentialSlot?.source === "custom" ? (
-            <div
-              data-testid="demo-custom-credential-status"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-                color: "var(--color-dim)",
-                fontSize: "var(--size-12)",
-                order: 12,
-              }}
-            >
-              <span>
-                Custom {credentialSlot.credential.scheme} credential active for this endpoint.
-              </span>
-              <button
-                type="button"
-                onClick={clearCustomCredential}
-                data-testid="demo-clear-custom-credential"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-              <button
-                type="button"
-                onClick={startFresh}
-                data-testid="demo-start-fresh"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Start fresh
-              </button>
-            </div>
-          ) : null}
-
-          {credentialSlot?.source === "paid" ? (
-            <div
-              data-testid="demo-credential-status"
-              style={{
-                display: "flex",
-                flexWrap: "wrap",
-                gap: 8,
-                alignItems: "center",
-                color: "var(--color-dim)",
-                fontSize: "var(--size-12)",
-                order: 12,
-              }}
-            >
-              <span>
-                Paid {credentialSlot.credential.scheme} credential active for this endpoint.
-              </span>
-              <button
-                type="button"
-                onClick={() => setCredentialSlot(null)}
-                data-testid="demo-clear-credential"
-                style={{
-                  padding: "4px 8px",
-                  background: "var(--color-surface)",
-                  color: "var(--color-dim)",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: 4,
-                  fontSize: "var(--size-12)",
-                  cursor: "pointer",
-                }}
-              >
-                Clear
-              </button>
-            </div>
-          ) : null}
 
           {challenge ? (
             <div
@@ -1313,25 +1330,44 @@ export function Demo() {
                 </ul>
               ) : null}
               {status.error.offerStartFresh ? (
-                <button
-                  type="button"
-                  onClick={startFresh}
-                  data-testid="demo-error-start-fresh"
-                  style={{
-                    alignSelf: "flex-start",
-                    marginTop: 2,
-                    padding: "4px 10px",
-                    background: "var(--color-surface)",
-                    color: "var(--color-danger)",
-                    border: "1px solid var(--color-danger)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    cursor: "pointer",
-                  }}
-                >
-                  Start fresh
-                </button>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginTop: 2 }}>
+                  {status.error.offerCustomCredential ? (
+                    <button
+                      type="button"
+                      onClick={openCustomCredentialInput}
+                      data-testid="demo-error-use-another-credential"
+                      style={{
+                        padding: "4px 10px",
+                        background: "var(--color-surface)",
+                        color: "var(--color-danger)",
+                        border: "1px solid var(--color-danger)",
+                        borderRadius: 4,
+                        fontSize: "var(--size-12)",
+                        fontWeight: 500,
+                        cursor: "pointer",
+                      }}
+                    >
+                      Use another credential
+                    </button>
+                  ) : null}
+                  <button
+                    type="button"
+                    onClick={startFresh}
+                    data-testid="demo-error-start-fresh"
+                    style={{
+                      padding: "4px 10px",
+                      background: "var(--color-surface)",
+                      color: "var(--color-danger)",
+                      border: "1px solid var(--color-danger)",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 500,
+                      cursor: "pointer",
+                    }}
+                  >
+                    Start fresh
+                  </button>
+                </div>
               ) : null}
             </div>
           ) : null}
@@ -1443,6 +1479,127 @@ export function Demo() {
         </details>
       }
     />
+  );
+}
+
+function CredentialStatusCard({
+  testId,
+  source,
+  credential,
+  scheme,
+  caveats,
+  actionLabel,
+  clearTestId,
+  onClear,
+  onAddWorkbench,
+  inWorkbench,
+  onCopy,
+  copiedTarget,
+}: {
+  testId: string;
+  source: CredentialSlot["source"];
+  credential: PaidCredential;
+  scheme: PaidCredential["scheme"];
+  caveats: CaveatSummary[];
+  actionLabel: string;
+  clearTestId: string;
+  onClear: () => void;
+  onAddWorkbench: () => void;
+  inWorkbench: boolean;
+  onCopy: (value: string, target: CopyTarget) => void | Promise<void>;
+  copiedTarget: CopyTarget | null;
+}) {
+  const sourceLabel = source === "custom" ? "BYOC" : "Demo payment";
+  return (
+    <div
+      data-testid={testId}
+      style={{
+        display: "flex",
+        flexDirection: "column",
+        gap: 10,
+        padding: "12px 14px",
+        background: "var(--color-accent-soft)",
+        border: "1px solid var(--color-accent)",
+        borderRadius: 4,
+        order: 2,
+      }}
+    >
+      <div
+        style={{
+          display: "flex",
+          flexWrap: "wrap",
+          gap: 10,
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+        }}
+      >
+        <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
+          <strong style={{ fontSize: "var(--size-14)", color: "var(--color-text)" }}>
+            Credential ready
+          </strong>
+          <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>
+            Source: {sourceLabel}. {actionLabel} will send this {scheme} Authorization header.
+          </span>
+        </div>
+      </div>
+      <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
+      <ArtifactActions>
+        <ArtifactButton
+          testId="demo-add-credential-workbench"
+          onClick={onAddWorkbench}
+          disabled={inWorkbench}
+        >
+          {inWorkbench ? "Added to Workbench" : "Add to Workbench"}
+        </ArtifactButton>
+        <ArtifactButton
+          testId="demo-copy-credential"
+          onClick={() => {
+            void onCopy(credential.authorization, "credential");
+          }}
+          ariaLabel={
+            copiedTarget === "credential"
+              ? "Authorization header copied"
+              : "Copy Authorization header"
+          }
+          title={
+            copiedTarget === "credential"
+              ? "Authorization header copied"
+              : "Copy Authorization header"
+          }
+          copied={copiedTarget === "credential"}
+          subtle
+        >
+          {copiedTarget === "credential" ? "✓" : "⧉"}
+        </ArtifactButton>
+        <button
+          type="button"
+          onClick={onClear}
+          data-testid={clearTestId}
+          style={{
+            minHeight: 30,
+            padding: "6px 10px",
+            background: "var(--color-surface)",
+            color: "var(--color-text)",
+            border: "1px solid var(--color-border)",
+            borderRadius: 4,
+            fontSize: "var(--size-12)",
+            fontWeight: 500,
+            cursor: "pointer",
+            whiteSpace: "nowrap",
+          }}
+        >
+          Clear credential
+        </button>
+      </ArtifactActions>
+      <CopyFeedback active={copiedTarget === "credential"}>
+        Authorization header copied
+      </CopyFeedback>
+      <RawArtifactDetails
+        label="Show raw header"
+        testId="demo-raw-authorization"
+        value={credential.authorization}
+      />
+    </div>
   );
 }
 
@@ -1561,18 +1718,21 @@ function DisclosureSummary({
   children,
   iconTestId,
   open,
+  action,
 }: {
   children: ReactNode;
   iconTestId: string;
   open: boolean;
+  action?: ReactNode;
 }) {
   return (
     <summary
       style={{
         cursor: "pointer",
-        display: "inline-flex",
+        display: "flex",
         alignItems: "center",
-        gap: 6,
+        justifyContent: "space-between",
+        gap: 12,
         padding: "5px 0",
         fontSize: "var(--size-13)",
         color: "var(--color-text)",
@@ -1603,12 +1763,19 @@ function DisclosureSummary({
           }}
         />
       </span>
-      <span>{children}</span>
+      <span style={{ minWidth: 0, flex: "1 1 auto" }}>{children}</span>
+      {action ? <span style={{ display: "inline-flex", flex: "0 0 auto" }}>{action}</span> : null}
     </summary>
   );
 }
 
-function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
+function CaveatSummaryList({
+  caveats,
+  testIdPrefix = "demo",
+}: {
+  caveats: CaveatSummary[];
+  testIdPrefix?: string;
+}) {
   const [nowMs, setNowMs] = useState(() => Date.now());
   const expirationCaveats = caveats.filter((caveat) => caveat.expiresAtMs !== null);
   const activeExpirationCaveats = expirationCaveats.filter(
@@ -1625,7 +1792,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
   if (caveats.length === 0) {
     return (
       <div
-        data-testid="demo-caveats-empty"
+        data-testid={`${testIdPrefix}-caveats-empty`}
         style={{
           color: "var(--color-dim)",
           fontSize: "var(--size-12)",
@@ -1638,7 +1805,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
 
   return (
     <div
-      data-testid="demo-caveats"
+      data-testid={`${testIdPrefix}-caveats`}
       style={{
         display: "flex",
         flexDirection: "column",
@@ -1654,7 +1821,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
               caveat.expiresAtMs !== null && caveat.expiresAtMs <= nowMs ? "rejected" : "matched"
             }
           >
-            <span data-testid={`demo-caveat-${index}`}>{caveat.label}</span>
+            <span data-testid={`${testIdPrefix}-caveat-${index}`}>{caveat.label}</span>
           </CaveatPill>
         ))}
       </div>
@@ -1663,7 +1830,7 @@ function CaveatSummaryList({ caveats }: { caveats: CaveatSummary[] }) {
         : activeExpirationCaveats.map((caveat, index) => (
             <span
               key={`${caveat.condition}:${caveat.value}:timer`}
-              data-testid={`demo-caveat-timer-${index}`}
+              data-testid={`${testIdPrefix}-caveat-timer-${index}`}
               style={{
                 color: "var(--color-dim)",
                 fontSize: "var(--size-12)",
@@ -1844,6 +2011,7 @@ function ArtifactButton({
   children,
   ariaLabel,
   copied = false,
+  disabled = false,
   onClick,
   subtle = false,
   testId,
@@ -1852,6 +2020,7 @@ function ArtifactButton({
   children: ReactNode;
   ariaLabel?: string;
   copied?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   subtle?: boolean;
   testId: string;
@@ -1861,6 +2030,7 @@ function ArtifactButton({
     <button
       type="button"
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={onClick}
       data-testid={testId}
       title={title}
@@ -1869,19 +2039,23 @@ function ArtifactButton({
         minWidth: ariaLabel?.startsWith("Copy") || ariaLabel?.endsWith("copied") ? 38 : undefined,
         background: copied
           ? "var(--color-accent-soft)"
-          : subtle
+          : disabled
             ? "var(--color-surface)"
-            : "var(--color-primary)",
+            : subtle
+              ? "var(--color-surface)"
+              : "var(--color-primary)",
         color: copied
           ? "var(--color-accent)"
-          : subtle
-            ? "var(--color-text)"
-            : "var(--color-surface)",
+          : disabled
+            ? "var(--color-dim)"
+            : subtle
+              ? "var(--color-text)"
+              : "var(--color-surface)",
         border: copied ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
         borderRadius: 4,
         fontSize: "var(--size-12)",
         fontWeight: 500,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         textAlign: "center",
         transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease",
       }}
