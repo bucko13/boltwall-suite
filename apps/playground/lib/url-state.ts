@@ -12,6 +12,8 @@ import {
 } from "react";
 
 export type WorkbenchMemoryField = "signingKey" | "macaroon" | "challenge" | "credential";
+export type WorkbenchMemoryValues = Record<WorkbenchMemoryField, string>;
+export type WorkbenchMemoryWrite = Partial<Record<WorkbenchMemoryField, string | null>>;
 
 export type WorkbenchMemoryFeedback = {
   id: number;
@@ -19,16 +21,31 @@ export type WorkbenchMemoryFeedback = {
   fields: WorkbenchMemoryField[];
 };
 
-type WorkbenchMemoryContextValue = {
-  signingKey: string;
-  macaroon: string;
-  challenge: string;
-  credential: string;
+const WORKBENCH_MEMORY_FIELDS: WorkbenchMemoryField[] = [
+  "signingKey",
+  "macaroon",
+  "challenge",
+  "credential",
+];
+
+export function changedWorkbenchFields(
+  memory: WorkbenchMemoryValues,
+  fields: readonly WorkbenchMemoryField[],
+  next: WorkbenchMemoryWrite,
+): WorkbenchMemoryField[] {
+  return fields.filter((field) => {
+    if (!Object.prototype.hasOwnProperty.call(next, field)) return false;
+    return memory[field] !== (next[field] || "");
+  });
+}
+
+type WorkbenchMemoryContextValue = WorkbenchMemoryValues & {
   feedback: WorkbenchMemoryFeedback | null;
   setSigningKey: (value: string | null) => void;
   setMacaroon: (value: string | null) => void;
   setChallenge: (value: string | null) => void;
   setCredential: (value: string | null) => void;
+  setFields: (values: WorkbenchMemoryWrite, fields?: readonly WorkbenchMemoryField[]) => void;
   notify: (fields: WorkbenchMemoryField[]) => void;
   clear: () => void;
 };
@@ -36,16 +53,14 @@ type WorkbenchMemoryContextValue = {
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
 const WORKBENCH_MEMORY_STORAGE_KEY = "bw.workbench-memory";
 
-type WorkbenchMemorySnapshot = Record<WorkbenchMemoryField, string>;
-
-const EMPTY_WORKBENCH_MEMORY: WorkbenchMemorySnapshot = {
+const EMPTY_WORKBENCH_MEMORY: WorkbenchMemoryValues = {
   signingKey: "",
   macaroon: "",
   challenge: "",
   credential: "",
 };
 
-function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
+function readStoredWorkbenchMemory(): WorkbenchMemoryValues {
   if (typeof window === "undefined") return EMPTY_WORKBENCH_MEMORY;
   try {
     const raw = window.sessionStorage.getItem(WORKBENCH_MEMORY_STORAGE_KEY);
@@ -62,7 +77,7 @@ function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
   }
 }
 
-function writeStoredWorkbenchMemory(snapshot: WorkbenchMemorySnapshot) {
+function writeStoredWorkbenchMemory(snapshot: WorkbenchMemoryValues) {
   if (typeof window === "undefined") return;
   const hasValue = Object.values(snapshot).some(Boolean);
   try {
@@ -154,6 +169,30 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     [credential, notify],
   );
 
+  const setFields = useCallback(
+    (
+      values: WorkbenchMemoryWrite,
+      fields: readonly WorkbenchMemoryField[] = WORKBENCH_MEMORY_FIELDS,
+    ) => {
+      const memory = { signingKey, macaroon, challenge, credential };
+      notify(changedWorkbenchFields(memory, fields, values));
+
+      if (Object.prototype.hasOwnProperty.call(values, "signingKey")) {
+        setSigningKeyState(values.signingKey || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "macaroon")) {
+        setMacaroonState(values.macaroon || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "challenge")) {
+        setChallengeState(values.challenge || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "credential")) {
+        setCredentialState(values.credential || "");
+      }
+    },
+    [challenge, credential, macaroon, notify, signingKey],
+  );
+
   const clear = useCallback(() => {
     const clearedFields: WorkbenchMemoryField[] = [];
     if (signingKey) clearedFields.push("signingKey");
@@ -178,6 +217,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       setMacaroon,
       setChallenge,
       setCredential,
+      setFields,
       notify,
       clear,
     }),
@@ -189,6 +229,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       macaroon,
       setChallenge,
       setCredential,
+      setFields,
       setMacaroon,
       setSigningKey,
       signingKey,

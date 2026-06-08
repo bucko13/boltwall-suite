@@ -15,7 +15,7 @@ import {
   type PaidChallenge,
   type PaidCredential,
 } from "../../lib/payment";
-import { useWorkbenchMemory, type WorkbenchMemoryField } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { InvoiceQrCode } from "../InvoiceQrCode";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
@@ -83,7 +83,6 @@ type CapturedArtifact =
 
 type CopyTarget = "invoice" | "challenge" | "credential";
 type AddedArtifact = "challenge" | "credential" | null;
-type WorkbenchMemoryValues = Record<WorkbenchMemoryField, string>;
 
 type CaveatSummary = {
   condition: string;
@@ -91,23 +90,6 @@ type CaveatSummary = {
   label: string;
   expiresAtMs: number | null;
 };
-
-const WORKBENCH_FIELDS: WorkbenchMemoryField[] = [
-  "signingKey",
-  "macaroon",
-  "challenge",
-  "credential",
-];
-
-function changedWorkbenchFields(
-  memory: WorkbenchMemoryValues,
-  next: Partial<Record<WorkbenchMemoryField, string | null>>,
-): WorkbenchMemoryField[] {
-  return WORKBENCH_FIELDS.filter((field) => {
-    if (!(field in next)) return false;
-    return memory[field] !== (next[field] || "");
-  });
-}
 
 function getWebLn(): WebLnHandle | null {
   if (typeof window === "undefined") return null;
@@ -515,12 +497,7 @@ export function Demo() {
       challenge: rawAuthenticate,
       credential: null,
     };
-    const fields = changedWorkbenchFields(workbenchMemory, next);
-    workbenchMemory.setSigningKey(null);
-    workbenchMemory.setMacaroon(macaroon);
-    workbenchMemory.setChallenge(rawAuthenticate);
-    workbenchMemory.setCredential(null);
-    workbenchMemory.notify(fields);
+    workbenchMemory.setFields(next);
     setAddedArtifact("challenge");
   }
 
@@ -532,12 +509,7 @@ export function Demo() {
       credential: credential.authorization,
       challenge: sourceChallenge ?? null,
     };
-    const fields = changedWorkbenchFields(workbenchMemory, next);
-    workbenchMemory.setSigningKey(null);
-    workbenchMemory.setMacaroon(credential.macaroon);
-    workbenchMemory.setCredential(credential.authorization);
-    workbenchMemory.setChallenge(sourceChallenge ?? null);
-    workbenchMemory.notify(fields);
+    workbenchMemory.setFields(next);
     setAddedArtifact("credential");
   }
 

@@ -4,7 +4,7 @@ import { Caveat, L402, validUntil } from "@boltwall/l402";
 import { useEffect, useMemo, useState } from "react";
 
 import { describeArtifactError, detectArtifact } from "../../lib/detect-artifact";
-import { useWorkbenchMemory, type WorkbenchMemoryField } from "../../lib/url-state";
+import { useWorkbenchMemory } from "../../lib/url-state";
 import { BigBlob } from "../ui/big-blob";
 import { CaveatPill } from "../ui/caveat-pill";
 import { Cell } from "../ui/cell";
@@ -16,10 +16,8 @@ import { StatusPill } from "../ui/status-pill";
 import { panelInputStyle, panelTextareaStyle } from "./panel-styles";
 
 type CaveatRow = { condition: string; value: string };
-type WorkbenchMemoryValues = Record<WorkbenchMemoryField, string>;
 const EMPTY_CAVEATS: CaveatRow[] = [];
 const EMPTY_HISTORY: CaveatRow[][] = [[]];
-const CAVEATS_WORKBENCH_FIELDS: WorkbenchMemoryField[] = ["macaroon", "challenge", "credential"];
 
 function buildChallenge(macaroon: string, invoice: string): string {
   return L402.fromMacaroon(macaroon, invoice).toChallenge();
@@ -34,16 +32,6 @@ function matchingWorkbenchInvoice(challenge: string, macaroon: string): string |
   if (!detected?.ok || detected.value.kind !== "challenge") return null;
   if (detected.value.macaroon !== macaroon) return null;
   return detected.value.token.invoice ?? null;
-}
-
-function changedWorkbenchFields(
-  memory: WorkbenchMemoryValues,
-  next: Partial<Record<WorkbenchMemoryField, string | null>>,
-): WorkbenchMemoryField[] {
-  return CAVEATS_WORKBENCH_FIELDS.filter((field) => {
-    if (!(field in next)) return false;
-    return memory[field] !== (next[field] || "");
-  });
 }
 
 /**
@@ -278,11 +266,7 @@ export function Caveats() {
         challenge: null,
         credential: null,
       };
-      const fields = changedWorkbenchFields(workbenchMemory, next);
-      workbenchMemory.setMacaroon(result.macaroon);
-      workbenchMemory.setChallenge(null);
-      workbenchMemory.setCredential(null);
-      workbenchMemory.notify(fields);
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon; cleared challenge and credential.");
       return;
     }
@@ -298,11 +282,7 @@ export function Caveats() {
         challenge: nextChallenge,
         credential: null,
       };
-      const fields = changedWorkbenchFields(workbenchMemory, next);
-      workbenchMemory.setMacaroon(result.macaroon);
-      workbenchMemory.setChallenge(nextChallenge);
-      workbenchMemory.setCredential(null);
-      workbenchMemory.notify(fields);
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon and challenge; cleared credential.");
       return;
     }
@@ -321,11 +301,7 @@ export function Caveats() {
         challenge: nextChallenge,
         credential: nextCredential,
       };
-      const fields = changedWorkbenchFields(workbenchMemory, next);
-      workbenchMemory.setMacaroon(result.macaroon);
-      workbenchMemory.setCredential(nextCredential);
-      workbenchMemory.setChallenge(nextChallenge);
-      workbenchMemory.notify(fields);
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon, credential, and challenge.");
     } else {
       const next = {
@@ -333,11 +309,7 @@ export function Caveats() {
         challenge: null,
         credential: nextCredential,
       };
-      const fields = changedWorkbenchFields(workbenchMemory, next);
-      workbenchMemory.setMacaroon(result.macaroon);
-      workbenchMemory.setCredential(nextCredential);
-      workbenchMemory.setChallenge(null);
-      workbenchMemory.notify(fields);
+      workbenchMemory.setFields(next);
       setWorkbenchFeedback("Updated macaroon and credential; cleared challenge.");
     }
   }
