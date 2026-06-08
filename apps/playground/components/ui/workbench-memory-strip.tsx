@@ -395,27 +395,53 @@ export function WorkbenchMemoryStrip() {
           >
             Workbench memory
           </span>
-          <button
-            type="button"
-            disabled={!hasAnyValue}
-            onClick={memory.clear}
-            data-testid="workbench-memory-clear-all"
+          <div
             style={{
-              minHeight: 24,
-              padding: "3px 7px",
-              borderRadius: 4,
-              border: "1px solid var(--color-border)",
-              background: "var(--color-surface)",
-              color: "var(--color-dim)",
-              fontSize: "var(--size-11)",
-              fontWeight: 500,
-              whiteSpace: "nowrap",
-              opacity: hasAnyValue ? 1 : 0.45,
-              cursor: hasAnyValue ? "pointer" : "not-allowed",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "flex-end",
+              gap: 8,
+              minWidth: 0,
             }}
           >
-            Clear all
-          </button>
+            <span
+              role="status"
+              aria-live="polite"
+              data-testid="workbench-memory-feedback"
+              style={{
+                minHeight: 18,
+                color: memory.feedback ? "var(--color-accent)" : "var(--color-dim)",
+                fontSize: "var(--size-11)",
+                fontWeight: 500,
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}
+            >
+              {memory.feedback?.message ?? ""}
+            </span>
+            <button
+              type="button"
+              disabled={!hasAnyValue}
+              onClick={memory.clear}
+              data-testid="workbench-memory-clear-all"
+              style={{
+                minHeight: 24,
+                padding: "3px 7px",
+                borderRadius: 4,
+                border: "1px solid var(--color-border)",
+                background: "var(--color-surface)",
+                color: "var(--color-dim)",
+                fontSize: "var(--size-11)",
+                fontWeight: 500,
+                whiteSpace: "nowrap",
+                opacity: hasAnyValue ? 1 : 0.45,
+                cursor: hasAnyValue ? "pointer" : "not-allowed",
+              }}
+            >
+              Clear all
+            </button>
+          </div>
         </div>
         <div
           style={{
