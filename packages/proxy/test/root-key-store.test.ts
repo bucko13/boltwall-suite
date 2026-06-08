@@ -1,7 +1,11 @@
 import { describe, expect, test } from "bun:test";
 
+import type { CreateInvoiceRequest, CreatedInvoice } from "@boltwall/adapters";
 import { MockAdapter } from "@boltwall/adapters/testing";
-import { InMemoryRootKeyStore } from "@boltwall/l402";
+import { bytesToHex } from "@boltwall/internal";
+import { InMemoryRootKeyStore, L402, servicesSatisfier, verifyMacaroon } from "@boltwall/l402";
+import { authorizeL402 } from "@boltwall/middleware/core";
+import type { L402Config } from "@boltwall/middleware/core";
 
 import {
   BoltwallConfigError,
@@ -13,7 +17,25 @@ import { DerivedRootKeyStore, PROXY_ROOT_KEY_ENV } from "../src/root-key-store";
 const SECRET_HEX = "ab".repeat(32);
 const OTHER_SECRET_HEX = "cd".repeat(32);
 
+// Known-answer vector: HMAC-SHA256(secret=ab*32, tokenId=07*32). This pins the
+// exact derivation so the inline EnvRootKeyStore in deploy/vercel.ts (a copy of
+// this store until bw-743o swaps it for the import) cannot drift without a test
+// failure — drift would silently invalidate every deployed proxy's credentials.
+// The generated source's matching constructor pipeline is asserted in
+// deploy-generated.test.ts ("derives keys identically to the exported store").
+const KNOWN_ANSWER_TOKEN_ID = new Uint8Array(32).fill(7);
+// Not a secret: the deterministic HMAC output of the public SECRET_HEX/tokenId
+// above. gitleaks:allow (high-entropy hex, but a fixture, not a credential).
+const KNOWN_ANSWER_KEY_HEX =
+  "1d72defb48f81153687f47e2d840285d247b0e51c9af949c486a9b42e2386e17"; // gitleaks:allow
+
 describe("DerivedRootKeyStore", () => {
+  test("matches the pinned known-answer derivation vector", async () => {
+    const key = await new DerivedRootKeyStore(SECRET_HEX).get(KNOWN_ANSWER_TOKEN_ID);
+    expect(key).not.toBeNull();
+    expect(bytesToHex(key!)).toBe(KNOWN_ANSWER_KEY_HEX);
+  });
+
   test("derives a 32-byte key deterministically per token id", async () => {
     const store = new DerivedRootKeyStore(SECRET_HEX);
     const tokenId = new Uint8Array(32).fill(7);
@@ -142,5 +164,57 @@ describe("toProxyConfig root-key store selection", () => {
     const message = (thrown as BoltwallConfigError).message;
     expect(message).toContain(PROXY_ROOT_KEY_ENV);
     expect(message).not.toContain("not-a-key");
+  });
+});
+
+describe("DerivedRootKeyStore mint/verify across the middleware", () => {
+  // Wrap MockAdapter so createInvoice returns a BOLT11-prefixed paymentRequest;
+  // L402 challenge construction rejects MockAdapter's default `mockbolt11_` form.
+  class Bolt11Backend extends MockAdapter {
+    override async createInvoice(req: CreateInvoiceRequest): Promise<CreatedInvoice> {
+      const result = await super.createInvoice(req);
+      return { ...result, paymentRequest: `lnbcrt${result.amountMsat}n1${result.paymentHash}` };
+    }
+  }
+
+  async function challengeMacaroon(rootKeyStore: L402Config["rootKeyStore"]): Promise<string> {
+    const config: L402Config = { backend: new Bolt11Backend(), rootKeyStore, price: 1_000n };
+    const request = new Request("https://example.com/test");
+    const result = await authorizeL402(request, config);
+    expect(result.ok).toBe(false);
+    if (result.ok) throw new Error("expected a 402 challenge");
+    return L402.fromHeader(result.response.headers.get("WWW-Authenticate")!).macaroon;
+  }
+
+  // The derived store's put() is a no-op, so minting only works if middleware
+  // signs with the get()-derived key (getOrGenerateRootKey calls get before put).
+  // Verifying with a FRESH derived store under the same secret proves the minting
+  // key came from derivation, not an ephemeral generated key that put() discarded.
+  test("a macaroon minted with one derived store verifies under a fresh one (same secret)", async () => {
+    const macaroon = await challengeMacaroon(new DerivedRootKeyStore(SECRET_HEX));
+
+    const result = await verifyMacaroon({
+      macaroons: [macaroon],
+      rootKeyStore: new DerivedRootKeyStore(SECRET_HEX),
+      satisfiers: [servicesSatisfier("test-service")],
+      context: { request: new Request("https://example.com/test"), now: new Date() },
+      requirePreimage: false,
+    });
+
+    expect(result.ok).toBe(true);
+  });
+
+  test("the same macaroon fails verification under a different secret (rotation invalidates)", async () => {
+    const macaroon = await challengeMacaroon(new DerivedRootKeyStore(SECRET_HEX));
+
+    const result = await verifyMacaroon({
+      macaroons: [macaroon],
+      rootKeyStore: new DerivedRootKeyStore(OTHER_SECRET_HEX),
+      satisfiers: [servicesSatisfier("test-service")],
+      context: { request: new Request("https://example.com/test"), now: new Date() },
+      requirePreimage: false,
+    });
+
+    expect(result.ok).toBe(false);
   });
 });
