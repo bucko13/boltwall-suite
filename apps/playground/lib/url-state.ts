@@ -12,61 +12,55 @@ import {
 } from "react";
 
 export type WorkbenchMemoryField = "signingKey" | "macaroon" | "challenge" | "credential";
+export type WorkbenchMemoryValues = Record<WorkbenchMemoryField, string>;
+export type WorkbenchMemoryWrite = Partial<Record<WorkbenchMemoryField, string | null>>;
 
 export type WorkbenchMemoryFeedback = {
   id: number;
   message: string;
+  fields: WorkbenchMemoryField[];
 };
 
-type WorkbenchMemoryContextValue = {
-  signingKey: string;
-  macaroon: string;
-  challenge: string;
-  credential: string;
+const WORKBENCH_MEMORY_FIELDS: WorkbenchMemoryField[] = [
+  "signingKey",
+  "macaroon",
+  "challenge",
+  "credential",
+];
+
+export function changedWorkbenchFields(
+  memory: WorkbenchMemoryValues,
+  fields: readonly WorkbenchMemoryField[],
+  next: WorkbenchMemoryWrite,
+): WorkbenchMemoryField[] {
+  return fields.filter((field) => {
+    if (!Object.prototype.hasOwnProperty.call(next, field)) return false;
+    return memory[field] !== (next[field] || "");
+  });
+}
+
+type WorkbenchMemoryContextValue = WorkbenchMemoryValues & {
   feedback: WorkbenchMemoryFeedback | null;
   setSigningKey: (value: string | null) => void;
   setMacaroon: (value: string | null) => void;
   setChallenge: (value: string | null) => void;
   setCredential: (value: string | null) => void;
+  setFields: (values: WorkbenchMemoryWrite, fields?: readonly WorkbenchMemoryField[]) => void;
+  notify: (fields: WorkbenchMemoryField[]) => void;
   clear: () => void;
 };
 
 const WorkbenchMemoryContext = createContext<WorkbenchMemoryContextValue | null>(null);
 const WORKBENCH_MEMORY_STORAGE_KEY = "bw.workbench-memory";
 
-type WorkbenchMemorySnapshot = Record<WorkbenchMemoryField, string>;
-
-const EMPTY_WORKBENCH_MEMORY: WorkbenchMemorySnapshot = {
+const EMPTY_WORKBENCH_MEMORY: WorkbenchMemoryValues = {
   signingKey: "",
   macaroon: "",
   challenge: "",
   credential: "",
 };
 
-const WORKBENCH_MEMORY_LABELS: Record<WorkbenchMemoryField, string> = {
-  signingKey: "signing key",
-  macaroon: "macaroon",
-  challenge: "challenge",
-  credential: "credential",
-};
-
-function sentenceCase(value: string): string {
-  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
-}
-
-function describeFieldChange(
-  field: WorkbenchMemoryField,
-  previous: string,
-  next: string,
-): string | null {
-  const label = WORKBENCH_MEMORY_LABELS[field];
-  if (previous === next) return next ? `${sentenceCase(label)} already stored.` : null;
-  if (!next) return `Cleared ${label}.`;
-  if (previous) return `Replaced ${label}.`;
-  return `Stored ${label}.`;
-}
-
-function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
+function readStoredWorkbenchMemory(): WorkbenchMemoryValues {
   if (typeof window === "undefined") return EMPTY_WORKBENCH_MEMORY;
   try {
     const raw = window.sessionStorage.getItem(WORKBENCH_MEMORY_STORAGE_KEY);
@@ -83,7 +77,7 @@ function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
   }
 }
 
-function writeStoredWorkbenchMemory(snapshot: WorkbenchMemorySnapshot) {
+function writeStoredWorkbenchMemory(snapshot: WorkbenchMemoryValues) {
   if (typeof window === "undefined") return;
   const hasValue = Object.values(snapshot).some(Boolean);
   try {
@@ -133,15 +127,19 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     return () => window.clearTimeout(timeout);
   }, [feedback]);
 
-  const notify = useCallback((message: string | null) => {
-    if (!message) return;
-    setFeedback((current) => ({ id: (current?.id ?? 0) + 1, message }));
+  const notify = useCallback((fields: WorkbenchMemoryField[]) => {
+    if (fields.length === 0) return;
+    setFeedback((current) => ({
+      id: (current?.id ?? 0) + 1,
+      message: "Workbench updated.",
+      fields: Array.from(new Set(fields)),
+    }));
   }, []);
 
   const setSigningKey = useCallback(
     (value: string | null) => {
       const next = value || "";
-      notify(describeFieldChange("signingKey", signingKey, next));
+      if (signingKey !== next) notify(["signingKey"]);
       setSigningKeyState(next);
     },
     [notify, signingKey],
@@ -149,7 +147,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const setMacaroon = useCallback(
     (value: string | null) => {
       const next = value || "";
-      notify(describeFieldChange("macaroon", macaroon, next));
+      if (macaroon !== next) notify(["macaroon"]);
       setMacaroonState(next);
     },
     [macaroon, notify],
@@ -157,7 +155,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const setChallenge = useCallback(
     (value: string | null) => {
       const next = value || "";
-      notify(describeFieldChange("challenge", challenge, next));
+      if (challenge !== next) notify(["challenge"]);
       setChallengeState(next);
     },
     [challenge, notify],
@@ -165,17 +163,43 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const setCredential = useCallback(
     (value: string | null) => {
       const next = value || "";
-      notify(describeFieldChange("credential", credential, next));
+      if (credential !== next) notify(["credential"]);
       setCredentialState(next);
     },
     [credential, notify],
   );
 
+  const setFields = useCallback(
+    (
+      values: WorkbenchMemoryWrite,
+      fields: readonly WorkbenchMemoryField[] = WORKBENCH_MEMORY_FIELDS,
+    ) => {
+      const memory = { signingKey, macaroon, challenge, credential };
+      notify(changedWorkbenchFields(memory, fields, values));
+
+      if (Object.prototype.hasOwnProperty.call(values, "signingKey")) {
+        setSigningKeyState(values.signingKey || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "macaroon")) {
+        setMacaroonState(values.macaroon || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "challenge")) {
+        setChallengeState(values.challenge || "");
+      }
+      if (Object.prototype.hasOwnProperty.call(values, "credential")) {
+        setCredentialState(values.credential || "");
+      }
+    },
+    [challenge, credential, macaroon, notify, signingKey],
+  );
+
   const clear = useCallback(() => {
-    const clearedCount = [signingKey, macaroon, challenge, credential].filter(Boolean).length;
-    if (clearedCount > 0) {
-      notify("Cleared Workbench memory.");
-    }
+    const clearedFields: WorkbenchMemoryField[] = [];
+    if (signingKey) clearedFields.push("signingKey");
+    if (macaroon) clearedFields.push("macaroon");
+    if (challenge) clearedFields.push("challenge");
+    if (credential) clearedFields.push("credential");
+    notify(clearedFields);
     setSigningKeyState("");
     setMacaroonState("");
     setChallengeState("");
@@ -193,6 +217,8 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       setMacaroon,
       setChallenge,
       setCredential,
+      setFields,
+      notify,
       clear,
     }),
     [
@@ -203,9 +229,11 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       macaroon,
       setChallenge,
       setCredential,
+      setFields,
       setMacaroon,
       setSigningKey,
       signingKey,
+      notify,
     ],
   );
 

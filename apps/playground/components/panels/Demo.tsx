@@ -547,18 +547,26 @@ export function Demo() {
   }
 
   function addChallengeToWorkbench(rawAuthenticate: string, macaroon: string) {
-    workbenchMemory?.setSigningKey(null);
-    workbenchMemory?.setMacaroon(macaroon);
-    workbenchMemory?.setChallenge(rawAuthenticate);
-    workbenchMemory?.setCredential(null);
+    if (!workbenchMemory) return;
+    const next = {
+      signingKey: null,
+      macaroon,
+      challenge: rawAuthenticate,
+      credential: null,
+    };
+    workbenchMemory.setFields(next);
     setAddedArtifact("challenge");
   }
 
   function addCredentialToWorkbench(credential: PaidCredential, sourceChallenge?: string) {
-    workbenchMemory?.setSigningKey(null);
-    workbenchMemory?.setMacaroon(credential.macaroon);
-    workbenchMemory?.setCredential(credential.authorization);
-    workbenchMemory?.setChallenge(sourceChallenge ?? null);
+    if (!workbenchMemory) return;
+    const next = {
+      signingKey: null,
+      macaroon: credential.macaroon,
+      credential: credential.authorization,
+      challenge: sourceChallenge ?? null,
+    };
+    workbenchMemory.setFields(next);
     setAddedArtifact("credential");
   }
 
