@@ -336,6 +336,7 @@ export function Demo() {
   const activeCredentialInWorkbench =
     activeCredential !== null &&
     workbenchMemory?.credential === activeCredential.credential.authorization;
+  const canFillFromWorkbench = Boolean(workbenchMemory?.credential || workbenchMemory?.macaroon);
   const visibleArtifact =
     capturedArtifact?.kind === "credential" &&
     capturedArtifact.outcome === "created" &&
@@ -881,31 +882,36 @@ export function Demo() {
               iconTestId="demo-custom-credential-icon"
               open={customCredentialOpen}
               action={
-                !activeCredential && (workbenchMemory?.credential || workbenchMemory?.macaroon) ? (
-                  <button
-                    type="button"
-                    onClick={(event) => {
-                      event.preventDefault();
-                      event.stopPropagation();
+                <button
+                  type="button"
+                  disabled={!canFillFromWorkbench}
+                  onClick={(event) => {
+                    event.preventDefault();
+                    event.stopPropagation();
+                    if (canFillFromWorkbench) {
                       fillFromWorkbench();
-                    }}
-                    data-testid="demo-use-workbench-credential"
-                    style={{
-                      minHeight: 28,
-                      padding: "5px 10px",
-                      background: "var(--color-primary)",
-                      color: "var(--color-surface)",
-                      border: "1px solid var(--color-primary)",
-                      borderRadius: 4,
-                      fontSize: "var(--size-12)",
-                      fontWeight: 600,
-                      cursor: "pointer",
-                      whiteSpace: "nowrap",
-                    }}
-                  >
-                    Fill from Workbench
-                  </button>
-                ) : null
+                    }
+                  }}
+                  data-testid="demo-use-workbench-credential"
+                  style={{
+                    minHeight: 28,
+                    padding: "5px 10px",
+                    background: canFillFromWorkbench
+                      ? "var(--color-primary)"
+                      : "var(--color-surface)",
+                    color: canFillFromWorkbench ? "var(--color-surface)" : "var(--color-dim)",
+                    border: canFillFromWorkbench
+                      ? "1px solid var(--color-primary)"
+                      : "1px solid var(--color-border)",
+                    borderRadius: 4,
+                    fontSize: "var(--size-12)",
+                    fontWeight: 600,
+                    cursor: canFillFromWorkbench ? "pointer" : "not-allowed",
+                    whiteSpace: "nowrap",
+                  }}
+                >
+                  Fill from Workbench
+                </button>
               }
             >
               BYOC — Bring Your Own Credential

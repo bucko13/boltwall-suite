@@ -148,6 +148,10 @@ test.describe("panels / demo", () => {
     await expect(existing).toBeVisible();
     await expect(endpointInput).toBeVisible();
     await expect(existing.locator("summary")).toContainText("BYOC");
+    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toHaveText(
+      "Fill from Workbench",
+    );
+    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toBeDisabled();
 
     const existingBox = await existing.boundingBox();
     const endpointBox = await endpointInput.boundingBox();
@@ -774,6 +778,7 @@ test.describe("panels / demo", () => {
         JSON.stringify({ signingKey: "", macaroon: "", challenge: "", credential }),
       );
     }, `L402 abc:${TEST_PREIMAGE}`);
+    await page.reload();
     await fillEndpoint(page, PROTECTED_ENDPOINT);
 
     await expect(page.locator("[data-testid='demo-custom-credential']")).not.toHaveAttribute(
@@ -803,6 +808,83 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
     await expect(page.locator("[data-testid='demo-payment']")).toHaveCount(0);
     expect(authorizedRequests).toBe(1);
+  });
+
+  test("can replace an active credential from a Workbench credential", async ({ page }) => {
+    await installWebLnStub(page);
+    const seenAuthorizations: string[] = [];
+    await page.route(PROTECTED_RE, async (route, request) => {
+      const authorization = request.headers().authorization;
+      if (authorization === `L402 abc:${TEST_PREIMAGE}`) {
+        seenAuthorizations.push(authorization);
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload({ name: "pikachu" }),
+        });
+        return;
+      }
+      if (authorization === `L402 def:${TEST_PREIMAGE}`) {
+        seenAuthorizations.push(authorization);
+        await route.fulfill({
+          status: 200,
+          headers: { "access-control-allow-origin": "*", "content-type": "application/json" },
+          json: pokemonPayload({ name: "charmander" }),
+        });
+        return;
+      }
+      await route.fulfill({
+        status: 402,
+        headers: {
+          "access-control-allow-origin": "*",
+          "access-control-expose-headers": "www-authenticate",
+          "content-type": "application/json",
+          "www-authenticate": 'L402 macaroon="abc", invoice="lnbc1demo"',
+        },
+        json: { error: "payment-required" },
+      });
+    });
+
+    await page.goto("/p/demo");
+    await fillEndpoint(page, PROTECTED_ENDPOINT);
+    await page.click("[data-testid='demo-get-pokemon']");
+    await page.click("[data-testid='demo-pay-webln']");
+    await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
+      "Source: Demo payment",
+    );
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("pikachu");
+
+    await page.evaluate((credential) => {
+      window.sessionStorage.setItem(
+        "bw.workbench-memory",
+        JSON.stringify({ signingKey: "", macaroon: "", challenge: "", credential }),
+      );
+    }, `L402 def:${TEST_PREIMAGE}`);
+    await page.reload();
+
+    await expect(page.locator("[data-testid='demo-credential-status']")).toContainText(
+      "Source: Demo payment",
+    );
+    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toHaveText(
+      "Fill from Workbench",
+    );
+    await page.click("[data-testid='demo-use-workbench-credential']");
+    await expect(page.locator("[data-testid='demo-custom-credential']")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue(
+      `L402 def:${TEST_PREIMAGE}`,
+    );
+
+    await page.click("[data-testid='demo-use-custom-authorization']");
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
+      "Source: BYOC",
+    );
+    await page.click("[data-testid='demo-get-pokemon']");
+
+    await expect(page.locator("[data-testid='demo-pokemon-name']")).toContainText("charmander");
+    expect(seenAuthorizations).toEqual([`L402 abc:${TEST_PREIMAGE}`, `L402 def:${TEST_PREIMAGE}`]);
   });
 
   test("can edit and replace the macaroon used for custom requests", async ({ page }) => {
