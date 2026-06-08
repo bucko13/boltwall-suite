@@ -1,4 +1,0 @@
----
----
-
-Version private playground app.
