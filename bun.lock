@@ -15,7 +15,7 @@
     },
     "apps/playground": {
       "name": "@boltwall/playground",
-      "version": "0.1.0",
+      "version": "0.1.1",
       "dependencies": {
         "@boltwall/l402": "workspace:*",
         "@tailwindcss/postcss": "^4.1.17",
