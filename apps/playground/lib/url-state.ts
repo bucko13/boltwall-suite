@@ -13,11 +13,17 @@ import {
 
 export type WorkbenchMemoryField = "signingKey" | "macaroon" | "challenge" | "credential";
 
+export type WorkbenchMemoryFeedback = {
+  id: number;
+  message: string;
+};
+
 type WorkbenchMemoryContextValue = {
   signingKey: string;
   macaroon: string;
   challenge: string;
   credential: string;
+  feedback: WorkbenchMemoryFeedback | null;
   setSigningKey: (value: string | null) => void;
   setMacaroon: (value: string | null) => void;
   setChallenge: (value: string | null) => void;
@@ -36,6 +42,29 @@ const EMPTY_WORKBENCH_MEMORY: WorkbenchMemorySnapshot = {
   challenge: "",
   credential: "",
 };
+
+const WORKBENCH_MEMORY_LABELS: Record<WorkbenchMemoryField, string> = {
+  signingKey: "signing key",
+  macaroon: "macaroon",
+  challenge: "challenge",
+  credential: "credential",
+};
+
+function sentenceCase(value: string): string {
+  return `${value.charAt(0).toUpperCase()}${value.slice(1)}`;
+}
+
+function describeFieldChange(
+  field: WorkbenchMemoryField,
+  previous: string,
+  next: string,
+): string | null {
+  const label = WORKBENCH_MEMORY_LABELS[field];
+  if (previous === next) return next ? `${sentenceCase(label)} already stored.` : null;
+  if (!next) return `Cleared ${label}.`;
+  if (previous) return `Replaced ${label}.`;
+  return `Stored ${label}.`;
+}
 
 function readStoredWorkbenchMemory(): WorkbenchMemorySnapshot {
   if (typeof window === "undefined") return EMPTY_WORKBENCH_MEMORY;
@@ -81,6 +110,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
   const [macaroon, setMacaroonState] = useState("");
   const [challenge, setChallengeState] = useState("");
   const [credential, setCredentialState] = useState("");
+  const [feedback, setFeedback] = useState<WorkbenchMemoryFeedback | null>(null);
   const [storageHydrated, setStorageHydrated] = useState(false);
 
   useEffect(() => {
@@ -97,17 +127,60 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
     writeStoredWorkbenchMemory({ signingKey, macaroon, challenge, credential });
   }, [challenge, credential, macaroon, signingKey, storageHydrated]);
 
-  const setSigningKey = useCallback((value: string | null) => setSigningKeyState(value || ""), []);
-  const setMacaroon = useCallback((value: string | null) => setMacaroonState(value || ""), []);
-  const setChallenge = useCallback((value: string | null) => setChallengeState(value || ""), []);
-  const setCredential = useCallback((value: string | null) => setCredentialState(value || ""), []);
+  useEffect(() => {
+    if (!feedback) return;
+    const timeout = window.setTimeout(() => setFeedback(null), 2600);
+    return () => window.clearTimeout(timeout);
+  }, [feedback]);
+
+  const notify = useCallback((message: string | null) => {
+    if (!message) return;
+    setFeedback((current) => ({ id: (current?.id ?? 0) + 1, message }));
+  }, []);
+
+  const setSigningKey = useCallback(
+    (value: string | null) => {
+      const next = value || "";
+      notify(describeFieldChange("signingKey", signingKey, next));
+      setSigningKeyState(next);
+    },
+    [notify, signingKey],
+  );
+  const setMacaroon = useCallback(
+    (value: string | null) => {
+      const next = value || "";
+      notify(describeFieldChange("macaroon", macaroon, next));
+      setMacaroonState(next);
+    },
+    [macaroon, notify],
+  );
+  const setChallenge = useCallback(
+    (value: string | null) => {
+      const next = value || "";
+      notify(describeFieldChange("challenge", challenge, next));
+      setChallengeState(next);
+    },
+    [challenge, notify],
+  );
+  const setCredential = useCallback(
+    (value: string | null) => {
+      const next = value || "";
+      notify(describeFieldChange("credential", credential, next));
+      setCredentialState(next);
+    },
+    [credential, notify],
+  );
 
   const clear = useCallback(() => {
+    const clearedCount = [signingKey, macaroon, challenge, credential].filter(Boolean).length;
+    if (clearedCount > 0) {
+      notify("Cleared Workbench memory.");
+    }
     setSigningKeyState("");
     setMacaroonState("");
     setChallengeState("");
     setCredentialState("");
-  }, []);
+  }, [challenge, credential, macaroon, notify, signingKey]);
 
   const contextValue = useMemo<WorkbenchMemoryContextValue>(
     () => ({
@@ -115,6 +188,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       macaroon,
       challenge,
       credential,
+      feedback,
       setSigningKey,
       setMacaroon,
       setChallenge,
@@ -125,6 +199,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       challenge,
       clear,
       credential,
+      feedback,
       macaroon,
       setChallenge,
       setCredential,
