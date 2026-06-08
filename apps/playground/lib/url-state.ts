@@ -28,6 +28,7 @@ type WorkbenchMemoryContextValue = {
   setMacaroon: (value: string | null) => void;
   setChallenge: (value: string | null) => void;
   setCredential: (value: string | null) => void;
+  notify: (message: string) => void;
   clear: () => void;
 };
 
@@ -193,6 +194,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       setMacaroon,
       setChallenge,
       setCredential,
+      notify,
       clear,
     }),
     [
@@ -206,6 +208,7 @@ export function WorkbenchMemoryProvider({ children }: { children: ReactNode }) {
       setMacaroon,
       setSigningKey,
       signingKey,
+      notify,
     ],
   );
 

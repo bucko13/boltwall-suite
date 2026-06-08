@@ -260,6 +260,9 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
       "Updated macaroon and challenge; cleared credential.",
     );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Updated macaroon and challenge; cleared credential.",
+    );
     await expect
       .poll(() => workbenchMemory(page))
       .toMatchObject({
@@ -288,6 +291,9 @@ test.describe("panels / caveats", () => {
     await expect(page.locator("[data-testid='caveats-workbench-feedback']")).toContainText(
       "Updated macaroon, credential, and challenge.",
     );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Updated macaroon, credential, and challenge.",
+    );
     await expect
       .poll(() => workbenchMemory(page))
       .toMatchObject({
@@ -296,6 +302,14 @@ test.describe("panels / caveats", () => {
         challenge: `L402 macaroon="${attenuated}", invoice="lnbc1demo"`,
         credential: `L402 ${attenuated}:${PREIMAGE}`,
       });
+
+    await page.click("[data-testid='caveats-add-workbench']");
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Updated macaroon, credential, and challenge.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).not.toContainText(
+      "already stored",
+    );
   });
 
   test("adds an attenuated credential to Workbench and clears unrelated challenge", async ({
