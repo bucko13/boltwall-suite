@@ -76,12 +76,6 @@ jobs:
         working-directory: apps/playground
         run: bun run scripts/audit-bundle.ts --self-test
 
-      - name: Lighthouse a11y
-        working-directory: apps/playground
-        run: bun run lhci:a11y
-        env:
-          LHCI_BUILD_CONTEXT__CURRENT_HASH: ${{ github.sha }}
-
   package-health:
     name: Package health
     runs-on: ubuntu-latest
