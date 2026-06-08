@@ -494,6 +494,7 @@ export function Demo() {
     workbenchMemory?.setMacaroon(macaroon);
     workbenchMemory?.setChallenge(rawAuthenticate);
     workbenchMemory?.setCredential(null);
+    workbenchMemory?.notify(["signingKey", "macaroon", "challenge", "credential"]);
     setAddedArtifact("challenge");
   }
 
@@ -502,6 +503,7 @@ export function Demo() {
     workbenchMemory?.setMacaroon(credential.macaroon);
     workbenchMemory?.setCredential(credential.authorization);
     workbenchMemory?.setChallenge(sourceChallenge ?? null);
+    workbenchMemory?.notify(["signingKey", "macaroon", "credential", "challenge"]);
     setAddedArtifact("credential");
   }
 
@@ -659,9 +661,7 @@ export function Demo() {
                 : "unprotected"
               : "error";
   const challenge =
-    status.kind === "awaiting-payment" || status.kind === "paying"
-      ? status.challenge
-      : undefined;
+    status.kind === "awaiting-payment" || status.kind === "paying" ? status.challenge : undefined;
   const challengePokemonId =
     status.kind === "awaiting-payment" || status.kind === "paying" ? status.id : undefined;
   const pasteDisabled = pastedPreimage.trim() === "" || busy;

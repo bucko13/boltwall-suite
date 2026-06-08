@@ -257,6 +257,7 @@ export function Caveats() {
     const sourceInvoice =
       base.token.invoice ??
       matchingWorkbenchInvoice(workbenchMemory.challenge, base.macaroon) ??
+      matchingWorkbenchInvoice(workbenchMemory.challenge, result.macaroon) ??
       null;
 
     workbenchMemory.setMacaroon(result.macaroon);
@@ -264,6 +265,7 @@ export function Caveats() {
     if (base.kind === "macaroon") {
       workbenchMemory.setChallenge(null);
       workbenchMemory.setCredential(null);
+      workbenchMemory.notify(["macaroon", "challenge", "credential"]);
       setWorkbenchFeedback("Updated macaroon; cleared challenge and credential.");
       return;
     }
@@ -275,6 +277,7 @@ export function Caveats() {
       }
       workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
       workbenchMemory.setCredential(null);
+      workbenchMemory.notify(["macaroon", "challenge", "credential"]);
       setWorkbenchFeedback("Updated macaroon and challenge; cleared credential.");
       return;
     }
@@ -288,9 +291,11 @@ export function Caveats() {
     workbenchMemory.setCredential(buildCredential(result.macaroon, preimage));
     if (sourceInvoice) {
       workbenchMemory.setChallenge(buildChallenge(result.macaroon, sourceInvoice));
+      workbenchMemory.notify(["macaroon", "credential", "challenge"]);
       setWorkbenchFeedback("Updated macaroon, credential, and challenge.");
     } else {
       workbenchMemory.setChallenge(null);
+      workbenchMemory.notify(["macaroon", "credential", "challenge"]);
       setWorkbenchFeedback("Updated macaroon and credential; cleared challenge.");
     }
   }

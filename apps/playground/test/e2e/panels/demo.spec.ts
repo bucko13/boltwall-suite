@@ -360,6 +360,21 @@ test.describe("panels / demo", () => {
     await expect(page.locator("[data-testid='demo-add-workbench-feedback']")).toContainText(
       "Added to Workbench",
     );
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
   });
 
   test("adds created credential to Workbench explicitly", async ({ page }) => {
@@ -396,6 +411,25 @@ test.describe("panels / demo", () => {
     await expectMemoryValue(page, "workbench-memory-credential", "L402");
     await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
     await expectMemoryValue(page, "workbench-memory-challenge", "L402");
+    await expect(page.locator("[data-testid='workbench-memory-feedback']")).toHaveText(
+      "Workbench updated.",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-key']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-macaroon']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-challenge']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
+    await expect(page.locator("[data-testid='workbench-memory-credential']")).toHaveAttribute(
+      "data-updated",
+      "true",
+    );
     await expect(page.locator("[data-testid='workbench-memory-clear-all']")).toHaveCSS(
       "white-space",
       "nowrap",
@@ -453,9 +487,7 @@ test.describe("panels / demo", () => {
     await expectMemoryValue(page, "workbench-memory-challenge", "L402");
   });
 
-  test("does not repeat bare expired lines for multiple expired caveats", async ({
-    page,
-  }) => {
+  test("does not repeat bare expired lines for multiple expired caveats", async ({ page }) => {
     await routeProtectedPokemon(
       page,
       `L402 macaroon="${EXPIRED_CAVEATED_MACAROON}", invoice="lnbc1demo"`,
@@ -866,7 +898,9 @@ test.describe("panels / demo", () => {
     expect(challengeRequests).toBe(1);
   });
 
-  test("replacing a rejected custom credential clears stale rejection details", async ({ page }) => {
+  test("replacing a rejected custom credential clears stale rejection details", async ({
+    page,
+  }) => {
     const seenAuthorizations: string[] = [];
     await page.route(PROTECTED_RE, async (route, request) => {
       const authorization = request.headers().authorization;

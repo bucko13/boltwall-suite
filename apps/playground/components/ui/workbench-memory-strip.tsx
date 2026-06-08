@@ -113,11 +113,13 @@ const visuallyHiddenStyle = {
 function MemorySlot({
   label,
   value,
+  updated,
   onClear,
   testId,
 }: {
   label: string;
   value: string;
+  updated: boolean;
   onClear: () => void;
   testId: string;
 }) {
@@ -153,6 +155,7 @@ function MemorySlot({
     <div
       ref={slotRef}
       data-testid={testId}
+      data-updated={updated ? "true" : "false"}
       onMouseEnter={() => {
         if (hasValue) setRevealed(true);
       }}
@@ -168,7 +171,7 @@ function MemorySlot({
         minHeight: 34,
         padding: "5px 6px 5px 8px",
         borderRadius: 4,
-        border: "1px solid var(--color-border)",
+        border: `1px solid ${updated ? "var(--color-accent)" : "var(--color-border)"}`,
         background: hasValue ? "var(--color-accent-soft)" : "var(--color-surface)",
         color: "var(--color-text)",
         boxSizing: "border-box",
@@ -193,6 +196,21 @@ function MemorySlot({
           }}
         >
           {label}
+        </span>
+        <span
+          data-testid={`${testId}-feedback`}
+          style={{
+            marginLeft: 6,
+            color: "var(--color-accent)",
+            fontSize: "var(--size-10)",
+            fontWeight: 600,
+            lineHeight: 1,
+            textTransform: "uppercase",
+            opacity: updated ? 1 : 0,
+            whiteSpace: "nowrap",
+          }}
+        >
+          updated
         </span>
         <span
           data-testid={`${testId}-status`}
@@ -460,6 +478,7 @@ export function WorkbenchMemoryStrip() {
               key={slot.field}
               label={slot.label}
               value={memory[slot.field]}
+              updated={Boolean(memory.feedback?.fields.includes(slot.field))}
               onClear={() => memory[slot.clear](null)}
               testId={slot.testId}
             />
