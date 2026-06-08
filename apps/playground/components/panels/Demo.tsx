@@ -279,6 +279,7 @@ export function Demo() {
   const [customCredentialOpen, setCustomCredentialOpen] = useState(false);
   const [demoSessionHydrated, setDemoSessionHydrated] = useState(false);
   const customAuthorizationRef = useRef<HTMLTextAreaElement | null>(null);
+  const customMacaroonRef = useRef<HTMLTextAreaElement | null>(null);
 
   useEffect(() => {
     setWebLnDetected(getWebLn() !== null);
@@ -327,22 +328,18 @@ export function Demo() {
         : extractCaveatSummaries(activeCredential.credential.authorization),
     [activeCredential],
   );
-  const activeCredentialSourceChallenge =
+  const capturedCredentialMatchesActive =
     capturedArtifact?.kind === "credential" &&
     capturedArtifact.outcome === "created" &&
-    capturedArtifact.credential.authorization === activeCredential?.credential.authorization
-      ? capturedArtifact.sourceChallenge
-      : undefined;
+    capturedArtifact.credential.authorization === activeCredential?.credential.authorization;
+  const activeCredentialSourceChallenge = capturedCredentialMatchesActive
+    ? capturedArtifact.sourceChallenge
+    : undefined;
   const activeCredentialInWorkbench =
     activeCredential !== null &&
     workbenchMemory?.credential === activeCredential.credential.authorization;
   const canFillFromWorkbench = Boolean(workbenchMemory?.credential || workbenchMemory?.macaroon);
-  const visibleArtifact =
-    capturedArtifact?.kind === "credential" &&
-    capturedArtifact.outcome === "created" &&
-    capturedArtifact.credential.authorization === activeCredential?.credential.authorization
-      ? null
-      : capturedArtifact;
+  const visibleArtifact = capturedCredentialMatchesActive ? null : capturedArtifact;
 
   async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
@@ -462,20 +459,27 @@ export function Demo() {
     }
   }
 
-  function loadWorkbenchMacaroon() {
+  function loadWorkbenchCredentialOrMacaroon() {
     if (workbenchMemory?.credential) {
       setCustomAuthorization(workbenchMemory.credential);
       setStatus({ kind: "idle" });
-      return;
+      return "authorization";
     }
-    if (!workbenchMemory?.macaroon) return;
+    if (!workbenchMemory?.macaroon) return null;
     setCustomMacaroon(workbenchMemory.macaroon);
+    return "macaroon";
   }
 
   function fillFromWorkbench() {
-    loadWorkbenchMacaroon();
+    const target = loadWorkbenchCredentialOrMacaroon();
     setCustomCredentialOpen(true);
-    window.requestAnimationFrame(() => customAuthorizationRef.current?.focus());
+    window.requestAnimationFrame(() => {
+      if (target === "macaroon") {
+        customMacaroonRef.current?.focus();
+        return;
+      }
+      customAuthorizationRef.current?.focus();
+    });
   }
 
   // Reset the raw paste inputs that buffer an in-progress custom credential.
@@ -1004,6 +1008,7 @@ export function Demo() {
                 >
                   Macaroon
                   <textarea
+                    ref={customMacaroonRef}
                     value={customMacaroon}
                     onChange={(event) => setCustomMacaroon(event.target.value)}
                     placeholder="base64 macaroon"

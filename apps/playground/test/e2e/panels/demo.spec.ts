@@ -958,6 +958,7 @@ test.describe("panels / demo", () => {
 
     await page.click("[data-testid='demo-use-workbench-credential']");
     await expect(page.locator("[data-testid='demo-custom-macaroon']")).toHaveValue("abc");
+    await expect(page.locator("[data-testid='demo-custom-macaroon']")).toBeFocused();
     await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-use-custom-parts']");
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
