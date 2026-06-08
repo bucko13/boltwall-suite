@@ -94,6 +94,9 @@ async function buildUpstream() {
   app.get("/slow", (_req, res) => {
     setTimeout(() => res.json({ ok: true }), 100);
   });
+  app.all("/boom", (_req, res) => {
+    res.status(503).json({ detail: "upstream-internal-secret" });
+  });
   return listen(app);
 }
 
@@ -434,6 +437,51 @@ describe("createProxy", () => {
     expect(await res.json()).toEqual({ error: "upstream_unavailable" });
   });
 
+  test("upstream 5xx response is redacted to a 502", async () => {
+    const upstream = await buildUpstream();
+    const { app, backend } = buildProxy(upstream.url, {
+      routes: [{ path: "/boom", price: AMOUNT_MSAT }],
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/boom`, {
+      headers: await payFor(proxy.url, backend, "/boom"),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "upstream_unavailable" });
+  });
+
+  test("upstream 5xx body does not leak through the proxy", async () => {
+    const upstream = await buildUpstream();
+    const { app, backend } = buildProxy(upstream.url, {
+      routes: [{ path: "/boom", price: AMOUNT_MSAT }],
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/boom`, {
+      headers: await payFor(proxy.url, backend, "/boom"),
+    });
+
+    expect(await res.text()).not.toContain("upstream-internal-secret");
+  });
+
+  test("unreachable upstream is redacted to a 502 via the error handler", async () => {
+    // Port 1 is reserved and never accepting connections, so the upstream
+    // request fails to connect and exercises the proxy's `error` handler.
+    const { app, backend } = buildProxy("http://127.0.0.1:1", {
+      routes: [{ path: "/paid", price: AMOUNT_MSAT }],
+    });
+    const proxy = await listen(app);
+
+    const res = await fetch(`${proxy.url}/paid`, {
+      headers: await payFor(proxy.url, backend, "/paid"),
+    });
+
+    expect(res.status).toBe(502);
+    expect(await res.json()).toEqual({ error: "upstream_unavailable" });
+  });
+
   test("logs a warning for non-TLS upstream targets", async () => {
     const upstream = await buildUpstream();
     const { logger } = buildProxy(upstream.url);
@@ -441,6 +489,19 @@ describe("createProxy", () => {
     expect(logger.warnings).toContainEqual({ target: new URL(upstream.url).origin });
   });
 });
+
+async function payFor(
+  proxyUrl: string,
+  backend: FixedInvoiceBackend,
+  path: string,
+): Promise<Record<string, string>> {
+  const challenge = await fetch(`${proxyUrl}${path}`);
+  const macaroon = extractMacaroon(challenge.headers.get("www-authenticate") ?? "");
+  const token = L402.fromMacaroon(macaroon);
+  token.setPreimage(PREIMAGE_HEX);
+  backend.settle(PAYMENT_HASH_HEX, PREIMAGE_HEX);
+  return { authorization: token.toAuthorizationHeader() };
+}
 
 function extractMacaroon(header: string): string {
   const match = /(?:L402|LSAT) macaroon="([^"]+)"/.exec(header);
