@@ -327,7 +327,21 @@ export function Demo() {
         : extractCaveatSummaries(activeCredential.credential.authorization),
     [activeCredential],
   );
-  const visibleArtifact = capturedArtifact;
+  const activeCredentialSourceChallenge =
+    capturedArtifact?.kind === "credential" &&
+    capturedArtifact.outcome === "created" &&
+    capturedArtifact.credential.authorization === activeCredential?.credential.authorization
+      ? capturedArtifact.sourceChallenge
+      : undefined;
+  const activeCredentialInWorkbench =
+    activeCredential !== null &&
+    workbenchMemory?.credential === activeCredential.credential.authorization;
+  const visibleArtifact =
+    capturedArtifact?.kind === "credential" &&
+    capturedArtifact.outcome === "created" &&
+    capturedArtifact.credential.authorization === activeCredential?.credential.authorization
+      ? null
+      : capturedArtifact;
 
   async function getPokemon(useStoredCredential = true) {
     const id = randomPokemonId();
@@ -474,6 +488,16 @@ export function Demo() {
   function clearCustomCredential() {
     setCredentialSlot(null);
     clearCustomBuffers();
+  }
+
+  function clearPaidCredential() {
+    if (
+      capturedArtifact?.kind === "credential" &&
+      capturedArtifact.credential.authorization === credentialSlot?.credential.authorization
+    ) {
+      setCapturedArtifact(null);
+    }
+    setCredentialSlot(null);
   }
 
   function openCustomCredentialInput() {
@@ -823,6 +847,7 @@ export function Demo() {
                   : "demo-credential-status"
               }
               source={activeCredential.source}
+              credential={activeCredential.credential}
               scheme={activeCredential.credential.scheme}
               caveats={activeCredentialCaveats}
               actionLabel={primaryActionLabel}
@@ -832,10 +857,17 @@ export function Demo() {
                   : "demo-clear-credential"
               }
               onClear={
-                activeCredential.source !== "paid"
-                  ? clearCustomCredential
-                  : () => setCredentialSlot(null)
+                activeCredential.source !== "paid" ? clearCustomCredential : clearPaidCredential
               }
+              onAddWorkbench={() =>
+                addCredentialToWorkbench(
+                  activeCredential.credential,
+                  activeCredentialSourceChallenge,
+                )
+              }
+              inWorkbench={activeCredentialInWorkbench}
+              onCopy={copyText}
+              copiedTarget={copiedTarget}
             />
           ) : null}
 
@@ -1442,21 +1474,31 @@ export function Demo() {
 function CredentialStatusCard({
   testId,
   source,
+  credential,
   scheme,
   caveats,
   actionLabel,
   clearTestId,
   onClear,
+  onAddWorkbench,
+  inWorkbench,
+  onCopy,
+  copiedTarget,
 }: {
   testId: string;
   source: CredentialSlot["source"];
+  credential: PaidCredential;
   scheme: PaidCredential["scheme"];
   caveats: CaveatSummary[];
   actionLabel: string;
   clearTestId: string;
   onClear: () => void;
+  onAddWorkbench: () => void;
+  inWorkbench: boolean;
+  onCopy: (value: string, target: CopyTarget) => void | Promise<void>;
+  copiedTarget: CopyTarget | null;
 }) {
-  const label = source === "custom" ? "Custom" : "Paid";
+  const sourceLabel = source === "custom" ? "BYOC" : "Demo payment";
   return (
     <div
       data-testid={testId}
@@ -1482,13 +1524,42 @@ function CredentialStatusCard({
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 4, minWidth: 0 }}>
           <strong style={{ fontSize: "var(--size-14)", color: "var(--color-text)" }}>
-            {label} {scheme} credential ready
+            Credential ready
           </strong>
           <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>
-            {label} {scheme} credential active for this endpoint. {actionLabel} will send it as
-            Authorization.
+            Source: {sourceLabel}. {actionLabel} will send this {scheme} Authorization header.
           </span>
         </div>
+      </div>
+      <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
+      <ArtifactActions>
+        <ArtifactButton
+          testId="demo-add-credential-workbench"
+          onClick={onAddWorkbench}
+          disabled={inWorkbench}
+        >
+          {inWorkbench ? "Added to Workbench" : "Add to Workbench"}
+        </ArtifactButton>
+        <ArtifactButton
+          testId="demo-copy-credential"
+          onClick={() => {
+            void onCopy(credential.authorization, "credential");
+          }}
+          ariaLabel={
+            copiedTarget === "credential"
+              ? "Authorization header copied"
+              : "Copy Authorization header"
+          }
+          title={
+            copiedTarget === "credential"
+              ? "Authorization header copied"
+              : "Copy Authorization header"
+          }
+          copied={copiedTarget === "credential"}
+          subtle
+        >
+          {copiedTarget === "credential" ? "✓" : "⧉"}
+        </ArtifactButton>
         <button
           type="button"
           onClick={onClear}
@@ -1508,8 +1579,15 @@ function CredentialStatusCard({
         >
           Clear credential
         </button>
-      </div>
-      <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
+      </ArtifactActions>
+      <CopyFeedback active={copiedTarget === "credential"}>
+        Authorization header copied
+      </CopyFeedback>
+      <RawArtifactDetails
+        label="Show raw header"
+        testId="demo-raw-authorization"
+        value={credential.authorization}
+      />
     </div>
   );
 }
@@ -1922,6 +2000,7 @@ function ArtifactButton({
   children,
   ariaLabel,
   copied = false,
+  disabled = false,
   onClick,
   subtle = false,
   testId,
@@ -1930,6 +2009,7 @@ function ArtifactButton({
   children: ReactNode;
   ariaLabel?: string;
   copied?: boolean;
+  disabled?: boolean;
   onClick: () => void;
   subtle?: boolean;
   testId: string;
@@ -1939,6 +2019,7 @@ function ArtifactButton({
     <button
       type="button"
       aria-label={ariaLabel}
+      disabled={disabled}
       onClick={onClick}
       data-testid={testId}
       title={title}
@@ -1947,19 +2028,23 @@ function ArtifactButton({
         minWidth: ariaLabel?.startsWith("Copy") || ariaLabel?.endsWith("copied") ? 38 : undefined,
         background: copied
           ? "var(--color-accent-soft)"
-          : subtle
+          : disabled
             ? "var(--color-surface)"
-            : "var(--color-primary)",
+            : subtle
+              ? "var(--color-surface)"
+              : "var(--color-primary)",
         color: copied
           ? "var(--color-accent)"
-          : subtle
-            ? "var(--color-text)"
-            : "var(--color-surface)",
+          : disabled
+            ? "var(--color-dim)"
+            : subtle
+              ? "var(--color-text)"
+              : "var(--color-surface)",
         border: copied ? "1px solid var(--color-accent)" : "1px solid var(--color-border)",
         borderRadius: 4,
         fontSize: "var(--size-12)",
         fontWeight: 500,
-        cursor: "pointer",
+        cursor: disabled ? "not-allowed" : "pointer",
         textAlign: "center",
         transition: "background-color 160ms ease, border-color 160ms ease, color 160ms ease",
       }}
