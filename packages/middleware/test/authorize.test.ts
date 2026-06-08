@@ -523,6 +523,32 @@ describe("authorizeL402 — HODL flow", () => {
     });
   });
 
+  test("hodl:true held invoice + backend missing settleHodlInvoice → invoice-provider-failure", async () => {
+    const { config, backend } = await makeHodlConfig("held");
+    (backend as { settleHodlInvoice?: unknown }).settleHodlInvoice = undefined;
+
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.kind).toBe("invoice-provider-failure");
+  });
+
+  test("hodl:true held invoice + settlement throws → invoice-provider-failure", async () => {
+    const { config, backend } = await makeHodlConfig("held");
+    backend.settleHodlInvoice = async () => {
+      throw new Error("settle rpc failed");
+    };
+
+    const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
+
+    expect(result.ok).toBe(false);
+    if (result.ok) return;
+    expect(result.error.kind).toBe("invoice-provider-failure");
+    // The thrown cause is logged, never surfaced in the response body.
+    expect(await result.response.text()).not.toContain("settle rpc failed");
+  });
+
   test("hodl:true settled invoice → 401 expired credential", async () => {
     const { config, backend } = await makeHodlConfig("settled");
     const result = await authorizeL402(makeRequest(makeHodlAuthHeader(PREIMAGE_HEX)), config);
