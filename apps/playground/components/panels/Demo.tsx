@@ -46,11 +46,11 @@ type ChallengeState = {
 } & PaidChallenge;
 
 // One credential slot per endpoint. The slot is a discriminated value: a
-// credential is either selected from Workbench, pasted by the user ("custom"),
-// or earned by paying a challenge ("paid"). It is scoped to the endpoint it was
-// captured for so a stale credential never leaks across endpoints.
+// credential is either supplied through BYOC ("custom") or earned by paying a
+// challenge ("paid"). It is scoped to the endpoint it was captured for so a
+// stale credential never leaks across endpoints.
 type CredentialSlot = {
-  source: "custom" | "paid" | "workbench";
+  source: "custom" | "paid";
   endpointTemplate: string;
   credential: PaidCredential;
 };
@@ -225,9 +225,7 @@ type PersistedDemoSession = {
 function isCredentialSlot(value: unknown): value is CredentialSlot {
   if (typeof value !== "object" || value === null) return false;
   const slot = value as Record<string, unknown>;
-  if (slot.source !== "custom" && slot.source !== "paid" && slot.source !== "workbench") {
-    return false;
-  }
+  if (slot.source !== "custom" && slot.source !== "paid") return false;
   if (typeof slot.endpointTemplate !== "string") return false;
   const credential = slot.credential as Record<string, unknown> | null;
   if (typeof credential !== "object" || credential === null) return false;
@@ -426,6 +424,7 @@ export function Demo() {
   function useFullCustomCredential() {
     try {
       adoptCredential(parsePastedCredential(customAuthorization), "custom");
+      setCustomAuthorization("");
     } catch (error) {
       setStatus({
         kind: "error",
@@ -449,20 +448,19 @@ export function Demo() {
   }
 
   function loadWorkbenchMacaroon() {
+    if (workbenchMemory?.credential) {
+      setCustomAuthorization(workbenchMemory.credential);
+      setStatus({ kind: "idle" });
+      return;
+    }
     if (!workbenchMemory?.macaroon) return;
     setCustomMacaroon(workbenchMemory.macaroon);
   }
 
-  function useWorkbenchCredential() {
-    if (!workbenchMemory?.credential) return;
-    try {
-      adoptCredential(parsePastedCredential(workbenchMemory.credential), "workbench");
-    } catch (error) {
-      setStatus({
-        kind: "error",
-        error: messageError(error instanceof Error ? error.message : String(error)),
-      });
-    }
+  function fillFromWorkbench() {
+    loadWorkbenchMacaroon();
+    setCustomCredentialOpen(true);
+    window.requestAnimationFrame(() => customAuthorizationRef.current?.focus());
   }
 
   // Reset the raw paste inputs that buffer an in-progress custom credential.
@@ -841,17 +839,43 @@ export function Demo() {
             />
           ) : null}
 
-          {!activeCredential && workbenchMemory?.credential ? (
-            <WorkbenchCredentialPrompt onUse={useWorkbenchCredential} />
-          ) : null}
-
           <details
             data-testid="demo-custom-credential"
             open={customCredentialOpen}
             onToggle={(event) => setCustomCredentialOpen(event.currentTarget.open)}
             style={{ order: 10 }}
           >
-            <DisclosureSummary iconTestId="demo-custom-credential-icon" open={customCredentialOpen}>
+            <DisclosureSummary
+              iconTestId="demo-custom-credential-icon"
+              open={customCredentialOpen}
+              action={
+                !activeCredential && (workbenchMemory?.credential || workbenchMemory?.macaroon) ? (
+                  <button
+                    type="button"
+                    onClick={(event) => {
+                      event.preventDefault();
+                      event.stopPropagation();
+                      fillFromWorkbench();
+                    }}
+                    data-testid="demo-use-workbench-credential"
+                    style={{
+                      minHeight: 28,
+                      padding: "5px 10px",
+                      background: "var(--color-primary)",
+                      color: "var(--color-surface)",
+                      border: "1px solid var(--color-primary)",
+                      borderRadius: 4,
+                      fontSize: "var(--size-12)",
+                      fontWeight: 600,
+                      cursor: "pointer",
+                      whiteSpace: "nowrap",
+                    }}
+                  >
+                    Fill from Workbench
+                  </button>
+                ) : null
+              }
+            >
               BYOC — Bring Your Own Credential
             </DisclosureSummary>
             <div
@@ -1024,24 +1048,6 @@ export function Demo() {
                 </div>
               </div>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={loadWorkbenchMacaroon}
-                  disabled={!workbenchMemory?.macaroon}
-                  data-testid="demo-load-workbench-macaroon"
-                  style={{
-                    padding: "7px 12px",
-                    background: "var(--color-surface)",
-                    color: workbenchMemory?.macaroon ? "var(--color-text)" : "var(--color-dim)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    cursor: workbenchMemory?.macaroon ? "pointer" : "not-allowed",
-                  }}
-                >
-                  Fill macaroon from Workbench
-                </button>
                 <button
                   type="button"
                   onClick={useCustomCredentialParts}
@@ -1450,7 +1456,7 @@ function CredentialStatusCard({
   clearTestId: string;
   onClear: () => void;
 }) {
-  const label = source === "workbench" ? "Workbench" : source === "custom" ? "Custom" : "Paid";
+  const label = source === "custom" ? "Custom" : "Paid";
   return (
     <div
       data-testid={testId}
@@ -1504,54 +1510,6 @@ function CredentialStatusCard({
         </button>
       </div>
       <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
-    </div>
-  );
-}
-
-function WorkbenchCredentialPrompt({ onUse }: { onUse: () => void }) {
-  return (
-    <div
-      data-testid="demo-workbench-credential-prompt"
-      style={{
-        display: "flex",
-        flexWrap: "wrap",
-        alignItems: "center",
-        justifyContent: "space-between",
-        gap: 10,
-        padding: "10px 12px",
-        background: "var(--color-surface-alt)",
-        border: "1px solid var(--color-border)",
-        borderRadius: 4,
-        order: 2,
-      }}
-    >
-      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
-        <strong style={{ color: "var(--color-text)", fontSize: "var(--size-13)" }}>
-          Workbench credential available
-        </strong>
-        <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>
-          Use the stored credential for the next fetch, or fetch without it for a fresh challenge.
-        </span>
-      </div>
-      <button
-        type="button"
-        onClick={onUse}
-        data-testid="demo-use-workbench-credential"
-        style={{
-          minHeight: 32,
-          padding: "7px 12px",
-          background: "var(--color-primary)",
-          color: "var(--color-surface)",
-          border: "1px solid var(--color-primary)",
-          borderRadius: 4,
-          fontSize: "var(--size-12)",
-          fontWeight: 600,
-          cursor: "pointer",
-          whiteSpace: "nowrap",
-        }}
-      >
-        Use Workbench credential
-      </button>
     </div>
   );
 }
@@ -1671,18 +1629,21 @@ function DisclosureSummary({
   children,
   iconTestId,
   open,
+  action,
 }: {
   children: ReactNode;
   iconTestId: string;
   open: boolean;
+  action?: ReactNode;
 }) {
   return (
     <summary
       style={{
         cursor: "pointer",
-        display: "inline-flex",
+        display: "flex",
         alignItems: "center",
-        gap: 6,
+        justifyContent: "space-between",
+        gap: 12,
         padding: "5px 0",
         fontSize: "var(--size-13)",
         color: "var(--color-text)",
@@ -1713,7 +1674,8 @@ function DisclosureSummary({
           }}
         />
       </span>
-      <span>{children}</span>
+      <span style={{ minWidth: 0, flex: "1 1 auto" }}>{children}</span>
+      {action ? <span style={{ display: "inline-flex", flex: "0 0 auto" }}>{action}</span> : null}
     </summary>
   );
 }

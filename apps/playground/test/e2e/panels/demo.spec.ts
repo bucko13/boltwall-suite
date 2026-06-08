@@ -723,7 +723,7 @@ test.describe("panels / demo", () => {
     expect(authorizedRequests).toBe(1);
   });
 
-  test("can explicitly adopt a Workbench credential for BYOC", async ({ page }) => {
+  test("can fill BYOC from a Workbench credential and use it", async ({ page }) => {
     let authorizedRequests = 0;
     await page.route(PROTECTED_RE, async (route, request) => {
       const authorization = request.headers().authorization;
@@ -761,13 +761,21 @@ test.describe("panels / demo", () => {
       "open",
       "",
     );
-    await expect(page.locator("[data-testid='demo-workbench-credential-prompt']")).toContainText(
-      "Workbench credential available",
+    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toHaveText(
+      "Fill from Workbench",
     );
-    await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toBeEnabled();
     await page.click("[data-testid='demo-use-workbench-credential']");
+    await expect(page.locator("[data-testid='demo-custom-credential']")).toHaveAttribute(
+      "open",
+      "",
+    );
+    await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue(
+      `L402 abc:${TEST_PREIMAGE}`,
+    );
+    await expect(page.locator("[data-testid='demo-custom-credential-status']")).toHaveCount(0);
+    await page.click("[data-testid='demo-use-custom-authorization']");
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
-      "Workbench L402 credential active for this endpoint",
+      "Custom L402 credential active for this endpoint",
     );
     await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue("");
 
@@ -847,8 +855,7 @@ test.describe("panels / demo", () => {
     await page.click("[data-testid='demo-add-challenge-workbench']");
     await expectMemoryValue(page, "workbench-memory-macaroon", "abc");
 
-    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
-    await page.click("[data-testid='demo-load-workbench-macaroon']");
+    await page.click("[data-testid='demo-use-workbench-credential']");
     await expect(page.locator("[data-testid='demo-custom-macaroon']")).toHaveValue("abc");
     await page.fill("[data-testid='demo-custom-preimage']", TEST_PREIMAGE);
     await page.click("[data-testid='demo-use-custom-parts']");
