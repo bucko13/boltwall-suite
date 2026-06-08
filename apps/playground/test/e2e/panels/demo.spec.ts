@@ -756,12 +756,18 @@ test.describe("panels / demo", () => {
       );
     }, `L402 abc:${TEST_PREIMAGE}`);
     await fillEndpoint(page, PROTECTED_ENDPOINT);
-    await page.locator("[data-testid='demo-custom-credential']").locator("summary").click();
 
+    await expect(page.locator("[data-testid='demo-custom-credential']")).not.toHaveAttribute(
+      "open",
+      "",
+    );
+    await expect(page.locator("[data-testid='demo-workbench-credential-prompt']")).toContainText(
+      "Workbench credential available",
+    );
     await expect(page.locator("[data-testid='demo-use-workbench-credential']")).toBeEnabled();
     await page.click("[data-testid='demo-use-workbench-credential']");
     await expect(page.locator("[data-testid='demo-custom-credential-status']")).toContainText(
-      "Custom L402 credential active for this endpoint",
+      "Workbench L402 credential active for this endpoint",
     );
     await expect(page.locator("[data-testid='demo-custom-authorization']")).toHaveValue("");
 

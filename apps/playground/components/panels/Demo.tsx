@@ -46,11 +46,11 @@ type ChallengeState = {
 } & PaidChallenge;
 
 // One credential slot per endpoint. The slot is a discriminated value: a
-// credential is either pasted by the user ("custom") or earned by paying a
-// challenge ("paid"). It is scoped to the endpoint it was captured for so a
-// stale credential never leaks across endpoints.
+// credential is either selected from Workbench, pasted by the user ("custom"),
+// or earned by paying a challenge ("paid"). It is scoped to the endpoint it was
+// captured for so a stale credential never leaks across endpoints.
 type CredentialSlot = {
-  source: "custom" | "paid";
+  source: "custom" | "paid" | "workbench";
   endpointTemplate: string;
   credential: PaidCredential;
 };
@@ -225,7 +225,9 @@ type PersistedDemoSession = {
 function isCredentialSlot(value: unknown): value is CredentialSlot {
   if (typeof value !== "object" || value === null) return false;
   const slot = value as Record<string, unknown>;
-  if (slot.source !== "custom" && slot.source !== "paid") return false;
+  if (slot.source !== "custom" && slot.source !== "paid" && slot.source !== "workbench") {
+    return false;
+  }
   if (typeof slot.endpointTemplate !== "string") return false;
   const credential = slot.credential as Record<string, unknown> | null;
   if (typeof credential !== "object" || credential === null) return false;
@@ -413,8 +415,8 @@ export function Demo() {
 
   // A freshly pasted custom credential takes the slot outright, evicting any
   // cached paid credential for the endpoint.
-  function adoptCustomCredential(credential: PaidCredential) {
-    setCredentialSlot({ source: "custom", endpointTemplate, credential });
+  function adoptCredential(credential: PaidCredential, source: CredentialSlot["source"]) {
+    setCredentialSlot({ source, endpointTemplate, credential });
     setCapturedArtifact(null);
     setPaymentError(null);
     setAddedArtifact(null);
@@ -423,7 +425,7 @@ export function Demo() {
 
   function useFullCustomCredential() {
     try {
-      adoptCustomCredential(parsePastedCredential(customAuthorization));
+      adoptCredential(parsePastedCredential(customAuthorization), "custom");
     } catch (error) {
       setStatus({
         kind: "error",
@@ -434,8 +436,9 @@ export function Demo() {
 
   function useCustomCredentialParts() {
     try {
-      adoptCustomCredential(
+      adoptCredential(
         buildPastedCredentialParts(customMacaroon, customPreimage, customScheme),
+        "custom",
       );
     } catch (error) {
       setStatus({
@@ -453,7 +456,7 @@ export function Demo() {
   function useWorkbenchCredential() {
     if (!workbenchMemory?.credential) return;
     try {
-      adoptCustomCredential(parsePastedCredential(workbenchMemory.credential));
+      adoptCredential(parsePastedCredential(workbenchMemory.credential), "workbench");
     } catch (error) {
       setStatus({
         kind: "error",
@@ -817,7 +820,7 @@ export function Demo() {
           {activeCredential ? (
             <CredentialStatusCard
               testId={
-                activeCredential.source === "custom"
+                activeCredential.source !== "paid"
                   ? "demo-custom-credential-status"
                   : "demo-credential-status"
               }
@@ -826,21 +829,22 @@ export function Demo() {
               caveats={activeCredentialCaveats}
               actionLabel={primaryActionLabel}
               clearTestId={
-                activeCredential.source === "custom"
+                activeCredential.source !== "paid"
                   ? "demo-clear-custom-credential"
                   : "demo-clear-credential"
               }
               onClear={
-                activeCredential.source === "custom"
+                activeCredential.source !== "paid"
                   ? clearCustomCredential
                   : () => setCredentialSlot(null)
               }
             />
           ) : null}
 
-          {/* Surfaced as the first secondary option (above "Use a different
-              fetch controls) so a returning payer with a credential can paste
-              it instead of re-running the pay flow. */}
+          {!activeCredential && workbenchMemory?.credential ? (
+            <WorkbenchCredentialPrompt onUse={useWorkbenchCredential} />
+          ) : null}
+
           <details
             data-testid="demo-custom-credential"
             open={customCredentialOpen}
@@ -895,26 +899,6 @@ export function Demo() {
                 />
               </label>
               <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-                <button
-                  type="button"
-                  onClick={useWorkbenchCredential}
-                  disabled={!workbenchMemory?.credential}
-                  data-testid="demo-use-workbench-credential"
-                  style={{
-                    padding: "7px 12px",
-                    background: workbenchMemory?.credential
-                      ? "var(--color-surface)"
-                      : "var(--color-surface-alt)",
-                    color: workbenchMemory?.credential ? "var(--color-text)" : "var(--color-dim)",
-                    border: "1px solid var(--color-border)",
-                    borderRadius: 4,
-                    fontSize: "var(--size-12)",
-                    fontWeight: 500,
-                    cursor: workbenchMemory?.credential ? "pointer" : "not-allowed",
-                  }}
-                >
-                  Use credential from Workbench
-                </button>
                 <button
                   type="button"
                   onClick={useFullCustomCredential}
@@ -1466,7 +1450,7 @@ function CredentialStatusCard({
   clearTestId: string;
   onClear: () => void;
 }) {
-  const label = source === "custom" ? "Custom" : "Paid";
+  const label = source === "workbench" ? "Workbench" : source === "custom" ? "Custom" : "Paid";
   return (
     <div
       data-testid={testId}
@@ -1520,6 +1504,54 @@ function CredentialStatusCard({
         </button>
       </div>
       <CaveatSummaryList caveats={caveats} testIdPrefix="demo-active-credential" />
+    </div>
+  );
+}
+
+function WorkbenchCredentialPrompt({ onUse }: { onUse: () => void }) {
+  return (
+    <div
+      data-testid="demo-workbench-credential-prompt"
+      style={{
+        display: "flex",
+        flexWrap: "wrap",
+        alignItems: "center",
+        justifyContent: "space-between",
+        gap: 10,
+        padding: "10px 12px",
+        background: "var(--color-surface-alt)",
+        border: "1px solid var(--color-border)",
+        borderRadius: 4,
+        order: 2,
+      }}
+    >
+      <div style={{ display: "flex", flexDirection: "column", gap: 3, minWidth: 0 }}>
+        <strong style={{ color: "var(--color-text)", fontSize: "var(--size-13)" }}>
+          Workbench credential available
+        </strong>
+        <span style={{ color: "var(--color-dim)", fontSize: "var(--size-12)" }}>
+          Use the stored credential for the next fetch, or fetch without it for a fresh challenge.
+        </span>
+      </div>
+      <button
+        type="button"
+        onClick={onUse}
+        data-testid="demo-use-workbench-credential"
+        style={{
+          minHeight: 32,
+          padding: "7px 12px",
+          background: "var(--color-primary)",
+          color: "var(--color-surface)",
+          border: "1px solid var(--color-primary)",
+          borderRadius: 4,
+          fontSize: "var(--size-12)",
+          fontWeight: 600,
+          cursor: "pointer",
+          whiteSpace: "nowrap",
+        }}
+      >
+        Use Workbench credential
+      </button>
     </div>
   );
 }
