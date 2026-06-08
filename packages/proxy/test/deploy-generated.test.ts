@@ -1,3 +1,4 @@
+import { createHmac } from "node:crypto";
 import { mkdtemp, readFile, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
@@ -80,7 +81,7 @@ async function generateVercelJson(kind: keyof typeof BACKENDS = "lnd"): Promise<
 }
 
 describe("generated Vercel api/index.ts", () => {
-  test("declares EnvRootKeyStore before it is used", async () => {
+  test("requires the deployment secret for a derived, restart-safe root-key store", async () => {
     const source = await generateApiIndex();
     const declaration = source.indexOf("class EnvRootKeyStore");
     const usage = source.indexOf("new EnvRootKeyStore(");
@@ -88,6 +89,12 @@ describe("generated Vercel api/index.ts", () => {
     expect(usage).toBeGreaterThanOrEqual(0);
     // Classes are not hoisted: the declaration must precede the top-level use.
     expect(declaration).toBeLessThan(usage);
+    // The secret is required at boot — production never silently falls back to
+    // a process-local in-memory store.
+    expect(source).toContain(
+      'rootKeyStore: new EnvRootKeyStore(requireEnv("BOLTWALL_PROXY_ROOT_KEY"))',
+    );
+    expect(source).not.toContain("InMemoryRootKeyStore");
   });
 
   test("emits a literal-typed, strict-clean config", async () => {
@@ -98,6 +105,35 @@ describe("generated Vercel api/index.ts", () => {
     // Class members are typed so the generated app passes strict typechecking.
     expect(source).toContain("constructor(secret: string)");
     expect(source).toContain("get(tokenId: Uint8Array)");
+  });
+
+  test("derives keys identically to the exported DerivedRootKeyStore", async () => {
+    // The generated EnvRootKeyStore is a copy of the exported DerivedRootKeyStore
+    // (kept in sync by a comment until bw-743o swaps it for the import). If the
+    // two derivations drift, the eventual import-swap silently invalidates every
+    // credential a deployed proxy minted. Execute the generated class and pin it
+    // to the same known-answer vector the exported store is pinned to in
+    // root-key-store.test.ts ("matches the pinned known-answer derivation vector").
+    const source = await generateApiIndex();
+    const start = source.indexOf("class EnvRootKeyStore");
+    const end = source.indexOf("const app = createProxy");
+    expect(start).toBeGreaterThanOrEqual(0);
+    expect(end).toBeGreaterThan(start);
+
+    // Strip TS types from the extracted class and instantiate it directly.
+    // createHmac is injected; Buffer is a global the generated class relies on.
+    const classJs = new Bun.Transpiler({ loader: "ts" }).transformSync(source.slice(start, end));
+    const EnvRootKeyStore = new Function("createHmac", `${classJs}\nreturn EnvRootKeyStore;`)(
+      createHmac,
+    ) as new (secret: string) => { get(id: Uint8Array): Promise<Uint8Array> };
+
+    const SECRET_HEX = "ab".repeat(32);
+    // Not a secret: the deterministic HMAC fixture also pinned in
+    // root-key-store.test.ts. gitleaks:allow (high-entropy hex, not a credential).
+    const KNOWN_ANSWER_KEY_HEX =
+      "1d72defb48f81153687f47e2d840285d247b0e51c9af949c486a9b42e2386e17"; // gitleaks:allow
+    const key = await new EnvRootKeyStore(SECRET_HEX).get(new Uint8Array(32).fill(7));
+    expect(Buffer.from(key).toString("hex")).toBe(KNOWN_ANSWER_KEY_HEX);
   });
 
   test("forces lightning's runtime assets into the LND function via includeFiles", async () => {

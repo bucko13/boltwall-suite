@@ -11,8 +11,7 @@ import {
   type BoltwallBackendEnvNames,
 } from "../config-schema.js";
 import { deploymentDirForConfig } from "../config-store.js";
-
-const VERCEL_ROOT_KEY_ENV = "BOLTWALL_PROXY_ROOT_KEY";
+import { PROXY_ROOT_KEY_ENV } from "../root-key-store.js";
 
 /** Result of one shell command run during Vercel deployment. */
 export interface CommandResult {
@@ -236,14 +235,14 @@ async function setVercelEnvironment(options: {
   }
 
   const rootKeySecret =
-    options.secretValues[VERCEL_ROOT_KEY_ENV] ??
-    options.env[VERCEL_ROOT_KEY_ENV] ??
+    options.secretValues[PROXY_ROOT_KEY_ENV] ??
+    options.env[PROXY_ROOT_KEY_ENV] ??
     randomBytes(32).toString("hex");
   await addVercelEnv(
     options.runner,
     options.projectDir,
     options.environment,
-    VERCEL_ROOT_KEY_ENV,
+    PROXY_ROOT_KEY_ENV,
     rootKeySecret,
     true,
   );
@@ -451,6 +450,13 @@ function generatedVercelJson(config: BoltwallConfig): string {
 // itself to stay correct against an older adapter. Keep the two in sync; once every
 // supported generated deployment pins an adapter version with `resolveLndCert`, this
 // copy can be dropped in favor of passing the raw env value to the adapter.
+//
+// The same reasoning keeps `EnvRootKeyStore` inline: it is a copy of this
+// package's exported `DerivedRootKeyStore` (src/root-key-store.ts), but the
+// deployed function installs the *published* @boltwall/proxy, which may predate
+// that export. Keep the derivation (HMAC-SHA256(secret, tokenId)) in sync; once
+// every supported generated deployment pins a proxy version that exports
+// `DerivedRootKeyStore`, replace the inline class with the import.
 function generatedApiIndex(): string {
   return `import { createHmac } from "node:crypto";
 import { rootCertificates } from "node:tls";
@@ -508,19 +514,20 @@ class EnvRootKeyStore {
 
   async get(tokenId: Uint8Array) {
     // L402 macaroon-spec.md §Identifier Structure / §Minting require a
-    // server-side 32-byte root key per token id. This release-MVP Vercel store
-    // deterministically derives that key from a deployment secret and token id.
+    // server-side 32-byte root key per token id. This store deterministically
+    // derives that key from a deployment secret and token id, so credentials
+    // survive cold starts and scale-out without shared storage.
     return createHmac("sha256", this.#secret).update(tokenId).digest();
   }
 
   async put() {
     // The key is derived from BOLTWALL_PROXY_ROOT_KEY, so there is no mutable
-    // per-token write surface in this Vercel MVP store.
+    // per-token write surface in this derived store.
   }
 
   async delete() {
     // L402 macaroon-spec.md §Revocation requires deleting the stored root key.
-    // This env-secret MVP cannot revoke individual credentials; rotate the
+    // Derived keys cannot revoke individual credentials; rotate the
     // deployment secret to invalidate every credential minted by this proxy.
   }
 }
@@ -528,6 +535,8 @@ class EnvRootKeyStore {
 const app = createProxy({
   targetUrl: requireEnv("TARGET_URL"),
   backend,
+  // The secret is required at boot: production never falls back to an
+  // in-memory store.
   rootKeyStore: new EnvRootKeyStore(requireEnv("BOLTWALL_PROXY_ROOT_KEY")),
   defaultPrice: BigInt(optionalEnv("DEFAULT_PRICE_MSAT") ?? "1000"),
   challengeCompatibility: challengeCompatibility(),
