@@ -22,6 +22,13 @@ const BACKENDS = {
     yaml: ["backend:", "  kind: opennode"],
     env: { OPENNODE_API_KEY: "test-key" },
   },
+  nwc: {
+    yaml: ["backend:", "  kind: nwc"],
+    env: {
+      NWC_CONNECTION_STRING:
+        "nostr+walletconnect://wallet?relay=wss%3A%2F%2Frelay.example&secret=secret",
+    },
+  },
 } as const;
 
 async function generateApiIndex(kind: keyof typeof BACKENDS = "lnd"): Promise<string> {
@@ -131,10 +138,22 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain('app.set("trust proxy", true)');
   });
 
+  test("wires NWC through a sensitive runtime env var", async () => {
+    const source = await generateApiIndex("nwc");
+
+    expect(source).toContain('import { NwcAdapter } from "@boltwall/adapters/nwc"');
+    expect(source).toContain("new NwcAdapter({");
+    expect(source).toContain('nostrWalletConnectUrl: requireEnv("NWC_CONNECTION_STRING")');
+    expect(source).not.toContain("nostr+walletconnect://wallet");
+    expect(source).not.toContain("secret=secret");
+  });
+
   test("omits the includeFiles function config for non-LND backends", async () => {
-    const vercelJson = JSON.parse(await generateVercelJson("opennode")) as {
-      functions?: unknown;
-    };
-    expect(vercelJson.functions).toBeUndefined();
+    for (const kind of ["opennode", "nwc"] as const) {
+      const vercelJson = JSON.parse(await generateVercelJson(kind)) as {
+        functions?: unknown;
+      };
+      expect(vercelJson.functions).toBeUndefined();
+    }
   });
 });

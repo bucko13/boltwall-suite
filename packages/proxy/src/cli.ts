@@ -418,7 +418,7 @@ async function promptForConfig(
   const name = await prompt.input("Config name", existing?.name ?? "default");
   const backendKind = (await prompt.select(
     "Lightning backend",
-    ["lnd", "opennode", "btcpay"],
+    ["lnd", "opennode", "btcpay", "nwc"],
     existing?.backend.kind ?? "lnd",
   )) as BoltwallBackendKind;
   const defaultNames = backendEnvNames(backendKind);
@@ -752,6 +752,12 @@ function configBackendEnvNames(
     };
   }
 
+  if (kind === "nwc") {
+    return {
+      connectionString: existing?.connectionString ?? defaults.connectionString,
+    };
+  }
+
   return {
     baseUrl: existing?.baseUrl ?? defaults.baseUrl,
     apiKey: existing?.apiKey ?? defaults.apiKey,
@@ -775,6 +781,7 @@ function requiredEnvEntries(
     ];
   }
   if (config.backend.kind === "opennode") return [["apiKey", vars.apiKey]];
+  if (config.backend.kind === "nwc") return [["connectionString", vars.connectionString]];
   return [
     ["baseUrl", vars.baseUrl],
     ["apiKey", vars.apiKey],

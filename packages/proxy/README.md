@@ -36,7 +36,7 @@ boltwall dev
 
 **From zero to a paid request:**
 
-1. Run `boltwall deploy` and choose `lnd`, `opennode`, or `btcpay`.
+1. Run `boltwall deploy` and choose `lnd`, `opennode`, `btcpay`, or `nwc`.
 2. Enter the upstream URL — the HTTP service being protected — for example
    `https://pokeapi.co/api/v2`, and protect a path such as `/pokemon/*`.
 3. Set a small price, for example `1000` millisatoshis, then provide the backend
@@ -194,10 +194,10 @@ Reference detail for runtime config lives in the generated API docs:
   stripping.
 - `loadProxyEnv` / `ProxyEnvConfig` for environment variable loading.
 
-Supported CLI backend kinds are `lnd`, `opennode`, and `btcpay`. Config files
-store environment variable names for backend credentials, not credential values.
-If no custom `backend.env` names are provided, Boltwall uses the provider
-defaults documented by the CLI prompts and validation output.
+Supported CLI backend kinds are `lnd`, `opennode`, `btcpay`, and `nwc`. Config
+files store environment variable names for backend credentials, not credential
+values. If no custom `backend.env` names are provided, Boltwall uses the
+provider defaults documented by the CLI prompts and validation output.
 
 Use exact origins for stable production frontends. For nondeterministic preview
 deployments, add `cors.allowOriginPatterns` with a narrow regular expression

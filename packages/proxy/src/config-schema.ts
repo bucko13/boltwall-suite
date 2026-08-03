@@ -5,6 +5,7 @@ import {
 } from "@boltwall/adapters";
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
+import { NwcAdapter } from "@boltwall/adapters/nwc";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { parseAmount } from "@boltwall/internal/numeric";
 import {
@@ -21,7 +22,7 @@ import type { ProxyHttpMethod, ProxyRoute } from "./route-matching.js";
 
 import type { ProxyConfig, ProxyCorsConfig } from "./index.js";
 
-const backendKindSchema = z.enum(["lnd", "opennode", "btcpay"]);
+const backendKindSchema = z.enum(["lnd", "opennode", "btcpay", "nwc"]);
 const challengeCompatibilitySchema = z.enum(["dual", "l402-only", "lsat-only"]);
 const httpMethodSchema = z.enum(["GET", "POST", "PUT", "DELETE", "PATCH"]);
 const corsMethodSchema = z.enum(["GET", "HEAD", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]);
@@ -48,6 +49,7 @@ const backendEnvSchema = z
     cryptoCode: envNameSchema.optional(),
     hodlInvoices: envNameSchema.optional(),
     streamingInvoices: envNameSchema.optional(),
+    connectionString: envNameSchema.optional(),
   })
   .strict();
 
@@ -194,6 +196,8 @@ export interface BoltwallBackendEnvNames {
   hodlInvoices: string;
   /** BTCPay streaming support assertion variable name. */
   streamingInvoices: string;
+  /** Nostr Wallet Connect connection string. */
+  connectionString: string;
 }
 
 /**
@@ -290,6 +294,12 @@ export function createBackendFromEnv(
     });
   }
 
+  if (config.backend.kind === "nwc") {
+    return new NwcAdapter({
+      nostrWalletConnectUrl: requireEnv(env, vars.connectionString),
+    });
+  }
+
   return new BtcPayAdapter({
     baseUrl: requireEnv(env, vars.baseUrl),
     apiKey: requireEnv(env, vars.apiKey),
@@ -370,6 +380,16 @@ export function backendEnvNames(
     );
   }
 
+  if (kind === "nwc") {
+    const prefix = envPrefix ?? "NWC";
+    return fillEnvNames(
+      {
+        connectionString: `${prefix}_CONNECTION_STRING`,
+      },
+      overrides,
+    );
+  }
+
   const prefix = envPrefix ?? "BTCPAY";
   return fillEnvNames(
     {
@@ -406,6 +426,11 @@ export function backendEnvDescription(
     if (key === "baseUrl") return "optional OpenNode API base URL";
   }
 
+  if (kind === "nwc") {
+    if (key === "connectionString")
+      return "Nostr Wallet Connect connection string from Alby Hub or another NWC wallet service";
+  }
+
   if (key === "baseUrl") return "BTCPay Server base URL";
   if (key === "apiKey") return "BTCPay API key";
   if (key === "storeId") return "BTCPay store ID";
@@ -433,6 +458,7 @@ export function requiredSecretEnvNames(config: BoltwallConfig): string[] {
   // serve a publicly-trusted cert, so no custom CA is supplied.
   if (config.backend.kind === "lnd") return [vars.socket, vars.macaroon];
   if (config.backend.kind === "opennode") return [vars.apiKey];
+  if (config.backend.kind === "nwc") return [vars.connectionString];
   return [vars.baseUrl, vars.apiKey, vars.storeId];
 }
 
@@ -691,6 +717,8 @@ function fillEnvNames(
     hodlInvoices: overrides.hodlInvoices ?? defaults.hodlInvoices ?? "UNUSED_HODL_INVOICES",
     streamingInvoices:
       overrides.streamingInvoices ?? defaults.streamingInvoices ?? "UNUSED_STREAMING_INVOICES",
+    connectionString:
+      overrides.connectionString ?? defaults.connectionString ?? "UNUSED_CONNECTION_STRING",
   };
 }
 
