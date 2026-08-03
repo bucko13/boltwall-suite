@@ -37,7 +37,7 @@ export const nwcProviderMetadata = {
       name: "hodlInvoices",
       support: "unsupported",
       description:
-        "The SDK exposes hold-invoice methods, but this PoC does not advertise HODL until tested against target wallet services.",
+        "Alby Hub documents NWC hold-invoice support, but this PoC does not advertise HODL until tested against target wallet services.",
     },
     {
       name: "cancelInvoice",
@@ -128,6 +128,10 @@ export class NwcAdapterError extends Error {
 export class NwcAdapter implements LightningBackend {
   readonly kind: BackendKind = "nwc";
   readonly capabilities: BackendCapabilities = {
+    // TODO: Add NWC HODL support via Alby/NWC make_hold_invoice,
+    // settle_hold_invoice, cancel_hold_invoice, and hold_invoice_accepted once
+    // the permission model and live adapter behavior are validated.
+    // https://getalby.com/blog/build-conditional-payment-logic-into-your-app
     hodl: false,
     cancelInvoice: false,
     streamingInvoices: false,

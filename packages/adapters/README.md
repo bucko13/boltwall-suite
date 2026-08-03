@@ -125,6 +125,13 @@ standard challenge -> pay -> retry flow. It does not advertise HODL invoices,
 cancellation, or streaming until those semantics are validated against target
 wallet services such as Alby Hub.
 
+Alby documents HODL invoice support over NWC with `make_hold_invoice`,
+`settle_hold_invoice`, `cancel_hold_invoice`, and `hold_invoice_accepted` events
+in [Build Conditional Payment Logic Into Your App](https://getalby.com/blog/build-conditional-payment-logic-into-your-app).
+That should let a future adapter revision support Boltwall's HODL mode, but it
+is intentionally deferred from this receive-only PoC because it requires broader
+permissions and live settlement/cancellation coverage.
+
 ## Testing adapter
 
 `@boltwall/adapters/testing` exports `MockAdapter`, a deterministic in-memory
