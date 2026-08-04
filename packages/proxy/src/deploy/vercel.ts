@@ -433,20 +433,14 @@ function generatedVercelJson(config: BoltwallConfig): string {
     rewrites: [{ source: "/(.*)", destination: "/api" }],
   };
 
-  if (config.backend.kind === "lnd") {
-    // The LND backend pulls in `lightning`, which reads its gRPC `.proto` files,
-    // and `tiny-secp256k1`, which reads `secp256k1.wasm` — both from disk at
-    // runtime via reads that Vercel's file tracer does not follow, so they are
-    // dropped from the function bundle and it crashes at boot with ENOENT.
-    // `includeFiles` forces matched files into the function. The glob is
-    // deliberately broad (any `.proto`/`.wasm` under node_modules) so it survives
-    // `lightning` upgrades without a hardcoded proto list; the tradeoff is that an
-    // unrelated dependency shipping large such assets would add bundle size. Do
-    // not narrow it to specific paths without re-checking the ENOENT is still fixed.
-    manifest.functions = {
-      "api/index.ts": { includeFiles: "node_modules/**/*.{proto,wasm}" },
-    };
-  }
+  // The generated API imports every adapter at module load, so LND's dependency
+  // chain is loaded even for non-LND deployments. `lightning` reads gRPC `.proto`
+  // files and `tiny-secp256k1` reads `secp256k1.wasm` from disk at runtime via
+  // reads that Vercel's file tracer does not follow. `includeFiles` forces those
+  // assets into the function until adapter loading is made backend-specific.
+  manifest.functions = {
+    "api/index.ts": { includeFiles: "node_modules/**/*.{proto,wasm}" },
+  };
 
   return `${JSON.stringify(manifest, null, 2)}\n`;
 }

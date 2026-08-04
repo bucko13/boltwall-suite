@@ -107,16 +107,18 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).toContain("get(tokenId: Uint8Array)");
   });
 
-  test("forces lightning's runtime assets into the LND function via includeFiles", async () => {
-    const vercelJson = JSON.parse(await generateVercelJson("lnd")) as {
-      functions?: Record<string, { includeFiles?: string }>;
-    };
-    // lightning reads its grpc/protos/*.proto and tiny-secp256k1 reads
-    // secp256k1.wasm from disk at runtime; the tracer drops them, so they must be
-    // pulled into the function explicitly. The extension-brace glob covers both
-    // without enumerating lightning's proto set.
-    const includeFiles = vercelJson.functions?.["api/index.ts"]?.includeFiles;
-    expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
+  test("forces eagerly imported adapter runtime assets into every generated function", async () => {
+    for (const kind of ["lnd", "opennode", "nwc"] as const) {
+      const vercelJson = JSON.parse(await generateVercelJson(kind)) as {
+        functions?: Record<string, { includeFiles?: string }>;
+      };
+      // The generated API imports every adapter at module load. That loads LND's
+      // dependency chain even for non-LND backends, and those dependencies read
+      // .proto/.wasm files from disk at runtime. The tracer drops them unless they
+      // are pulled into the function explicitly.
+      const includeFiles = vercelJson.functions?.["api/index.ts"]?.includeFiles;
+      expect(includeFiles).toBe("node_modules/**/*.{proto,wasm}");
+    }
   });
 
   test("wires LND cert resolution with a system-roots fallback", async () => {
@@ -148,12 +150,4 @@ describe("generated Vercel api/index.ts", () => {
     expect(source).not.toContain("secret=secret");
   });
 
-  test("omits the includeFiles function config for non-LND backends", async () => {
-    for (const kind of ["opennode", "nwc"] as const) {
-      const vercelJson = JSON.parse(await generateVercelJson(kind)) as {
-        functions?: unknown;
-      };
-      expect(vercelJson.functions).toBeUndefined();
-    }
-  });
 });
