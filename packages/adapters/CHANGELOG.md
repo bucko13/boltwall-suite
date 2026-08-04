@@ -1,5 +1,13 @@
 # @boltwall/adapters
 
+## 0.3.0
+
+### Minor Changes
+
+- 1c0718a: Add a proof-of-concept Nostr Wallet Connect backend adapter and proxy deployment support for `LN_BACKEND=nwc`.
+
+  The adapter reads `NWC_CONNECTION_STRING` as bearer secret material, creates and looks up standard invoices through NWC, and keeps HODL/cancel/streaming capabilities disabled until those paths are validated against target wallet services.
+
 ## 0.2.0
 
 ### Minor Changes

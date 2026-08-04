@@ -1,5 +1,12 @@
 # @boltwall/middleware
 
+## 0.1.4
+
+### Patch Changes
+
+- Updated dependencies [1c0718a]
+  - @boltwall/adapters@0.3.0
+
 ## 0.1.3
 
 ### Patch Changes
