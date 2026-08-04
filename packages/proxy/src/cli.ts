@@ -1,6 +1,6 @@
 #!/usr/bin/env node
 
-import { existsSync } from "node:fs";
+import { existsSync, realpathSync } from "node:fs";
 import { homedir } from "node:os";
 import { extname, resolve } from "node:path";
 import { stdin as defaultStdin, stdout as defaultStdout } from "node:process";
@@ -160,6 +160,20 @@ export async function runCli(options: CliOptions = {}): Promise<number> {
   } catch (error) {
     write(stderr, `${formatCliError(error)}\n`);
     return 1;
+  }
+}
+
+/** Return true when Node is executing this module directly, including through a bin symlink. */
+export function isCliEntrypoint(argv1: string | undefined, moduleUrl: string): boolean {
+  if (argv1 === undefined) return false;
+
+  const modulePath = fileURLToPath(moduleUrl);
+  if (argv1 === modulePath) return true;
+
+  try {
+    return realpathSync(argv1) === realpathSync(modulePath);
+  } catch {
+    return false;
   }
 }
 
@@ -981,7 +995,7 @@ export class ReadlinePrompt implements PromptDriver {
   }
 }
 
-if (process.argv[1] === fileURLToPath(import.meta.url)) {
+if (isCliEntrypoint(process.argv[1], import.meta.url)) {
   const code = await runCli();
   process.exitCode = code;
 }
