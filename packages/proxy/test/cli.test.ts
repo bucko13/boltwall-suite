@@ -128,7 +128,6 @@ describe("boltwall CLI", () => {
       configDir: dir,
       env: {
         LND_SOCKET: "localhost:10009",
-        LND_TLS_CERT: "cert",
         LND_MACAROON: "macaroon",
       },
     });
@@ -828,7 +827,6 @@ describe("boltwall CLI", () => {
       configDir: dir,
       env: {
         LND_SOCKET: "localhost:10009",
-        LND_TLS_CERT: "cert",
         LND_MACAROON: "macaroon",
       },
       runner,
