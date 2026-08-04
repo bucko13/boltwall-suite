@@ -52,7 +52,7 @@ export const nwcProviderMetadata = {
   ],
 } as const satisfies AdapterProviderMetadata;
 
-type NwcTransactionState = "settled" | "pending" | "failed" | "accepted";
+type NwcTransactionState = "settled" | "pending" | "failed" | "accepted" | "expired";
 
 export interface NwcTransaction {
   invoice: string;
@@ -213,9 +213,20 @@ export class NwcAdapter implements LightningBackend {
     const normalizedHash = normalizePaymentHash(paymentHash);
     try {
       const invoice = await this.#client.lookupInvoice({ payment_hash: normalizedHash });
+      const responseHash = invoice.payment_hash?.trim();
+      if (
+        responseHash !== undefined &&
+        responseHash !== "" &&
+        normalizePaymentHash(responseHash) !== normalizedHash
+      ) {
+        throw new NwcAdapterError(
+          "invalid-response",
+          "NWC lookup payment hash does not match request",
+        );
+      }
       const result: InvoiceLookup = {
         status: mapNwcState(invoice.state),
-        paymentHash: normalizePaymentHash(invoice.payment_hash ?? normalizedHash),
+        paymentHash: normalizedHash,
       };
       const amountMsat = parseNwcAmount(invoice.amount, undefined);
       if (amountMsat !== undefined) result.amountMsat = amountMsat;
@@ -304,6 +315,7 @@ function mapNwcState(state: NwcTransactionState | undefined): InvoiceStatus {
   if (state === "settled") return "settled";
   if (state === "failed") return "canceled";
   if (state === "accepted") return "held";
+  if (state === "expired") return "expired";
   return "open";
 }
 

@@ -94,7 +94,7 @@ function assertNwcUrl(value: string): void {
   if (secret === null || secret.trim() === "") {
     throw new Error("missing-secret");
   }
-  if (!parsed.searchParams.has("relay")) {
+  if (!parsed.searchParams.getAll("relay").some((relay) => relay.trim() !== "")) {
     throw new Error("missing-relay");
   }
 }

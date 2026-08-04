@@ -109,6 +109,7 @@ describe("NwcAdapter", () => {
       ["settled", "settled"],
       ["failed", "canceled"],
       ["accepted", "held"],
+      ["expired", "expired"],
       [undefined, "open"],
     ] as const;
     const adapter = new NwcAdapter({
@@ -144,6 +145,27 @@ describe("NwcAdapter", () => {
     await expect(adapter.createInvoice({ amountMsat: 250_000_000n })).rejects.toMatchObject({
       kind: "invalid-response",
       message: "NWC invoice payment hash does not match BOLT 11 invoice",
+    });
+  });
+
+  test("rejects lookup responses for a different payment hash", async () => {
+    const adapter = new NwcAdapter({
+      nostrWalletConnectUrl: VALID_NWC_URL,
+      clientFactory: () =>
+        nwcClientStub([], {
+          makeInvoice: { invoice: PAYREQ, payment_hash: PAYMENT_HASH, amount: 250_000_000 },
+          lookupInvoice: {
+            invoice: PAYREQ,
+            payment_hash: "11".repeat(32),
+            amount: 250_000_000,
+            state: "settled",
+          },
+        }),
+    });
+
+    await expect(adapter.lookupInvoice(PAYMENT_HASH)).rejects.toMatchObject({
+      kind: "invalid-response",
+      message: "NWC lookup payment hash does not match request",
     });
   });
 
@@ -223,6 +245,11 @@ describe("NwcAdapter", () => {
     expect(() =>
       loadNwcEnv({
         NWC_CONNECTION_STRING: `nostr+walletconnect://${TEST_NWC_PUBKEY}?relay=wss%3A%2F%2Frelay.example.test%2Fv1`,
+      }),
+    ).toThrow(/value redacted/u);
+    expect(() =>
+      loadNwcEnv({
+        NWC_CONNECTION_STRING: `nostr+walletconnect://${TEST_NWC_PUBKEY}?relay=&secret=${TEST_NWC_SECRET}`,
       }),
     ).toThrow(/value redacted/u);
   });
