@@ -28,12 +28,13 @@ assertBackendSupports(backend, { hodl: true });
 
 ## Adapter entrypoints
 
-| Entry point                   | Use for                                                      | Capability shape                                                                           |
-| ----------------------------- | ------------------------------------------------------------ | ------------------------------------------------------------------------------------------ |
-| `@boltwall/adapters/lnd`      | LND gRPC nodes, including local regtest and hosted LND nodes | HODL invoices, invoice cancellation, invoice streams, and custom descriptions              |
-| `@boltwall/adapters/opennode` | OpenNode REST charge API                                     | Custom descriptions; HODL, cancellation, and adapter-level invoice streams are unsupported |
-| `@boltwall/adapters/btcpay`   | BTCPay Server Greenfield store Lightning API                 | Custom descriptions; HODL, cancellation, and adapter-level invoice streams are unsupported |
-| `@boltwall/adapters/testing`  | Unit tests, browser import checks, playground demos          | Deterministic in-memory backend with the full capability surface                           |
+| Entry point                   | Use for                                                      | Capability shape                                                                                      |
+| ----------------------------- | ------------------------------------------------------------ | ----------------------------------------------------------------------------------------------------- |
+| `@boltwall/adapters/lnd`      | LND gRPC nodes, including local regtest and hosted LND nodes | HODL invoices, invoice cancellation, invoice streams, and custom descriptions                         |
+| `@boltwall/adapters/opennode` | OpenNode REST charge API                                     | Custom descriptions; HODL, cancellation, and adapter-level invoice streams are unsupported            |
+| `@boltwall/adapters/btcpay`   | BTCPay Server Greenfield store Lightning API                 | Custom descriptions; HODL, cancellation, and adapter-level invoice streams are unsupported            |
+| `@boltwall/adapters/nwc`      | Nostr Wallet Connect services such as Alby Hub               | Custom descriptions; HODL, cancellation, and adapter-level invoice streams are unsupported in the PoC |
+| `@boltwall/adapters/testing`  | Unit tests, browser import checks, playground demos          | Deterministic in-memory backend with the full capability surface                                      |
 
 Provider-specific charge IDs and invoice IDs stay inside concrete adapters.
 Middleware and proxy code should depend on normalized `paymentHash` lookup and
@@ -101,6 +102,36 @@ persistent storage before relying on long-lived invoices.
 `btcPayEnvVariables` and `btcPayProviderMetadata` describe supported environment
 variables and provider capability facts for API reference and CLI/help output.
 
+## Nostr Wallet Connect
+
+```ts
+import { createNwcAdapterFromEnv } from "@boltwall/adapters/nwc";
+
+const backend = createNwcAdapterFromEnv();
+```
+
+The NWC adapter reads `NWC_CONNECTION_STRING` by default. Treat that value like
+an LND macaroon or provider API key: it authorizes wallet requests and must not
+be committed, logged, copied into `NEXT_PUBLIC_*` variables, or pasted into shell
+history.
+
+For Alby Hub, create a dedicated NWC app with the narrowest permissions needed
+for the proxy. The standard Boltwall flow only needs receive/read invoice access
+(`make_invoice` and `lookup_invoice`), so the connection string can come from an
+app that cannot send payments.
+
+This proof-of-concept uses NIP-47 `make_invoice` and `lookup_invoice` for the
+standard challenge -> pay -> retry flow. It does not advertise HODL invoices,
+cancellation, or streaming until those semantics are validated against target
+wallet services such as Alby Hub.
+
+Alby documents HODL invoice support over NWC with `make_hold_invoice`,
+`settle_hold_invoice`, `cancel_hold_invoice`, and `hold_invoice_accepted` events
+in [Build Conditional Payment Logic Into Your App](https://getalby.com/blog/build-conditional-payment-logic-into-your-app).
+That should let a future adapter revision support Boltwall's HODL mode, but it
+is intentionally deferred from this receive-only PoC because it requires broader
+permissions and live settlement/cancellation coverage.
+
 ## Testing adapter
 
 `@boltwall/adapters/testing` exports `MockAdapter`, a deterministic in-memory
@@ -130,7 +161,7 @@ mainnet payment-provider credentials for tests that create invoices.
 ## Server-only boundary
 
 Network/payment-provider adapters are server runtime code. Do not import LND,
-OpenNode, or BTCPay adapters from playground client components or browser
+OpenNode, BTCPay, or NWC adapters from playground client components or browser
 bundles. Browser-facing code should depend on protocol helpers from
 `@boltwall/l402` and test doubles from `@boltwall/adapters/testing`.
 

@@ -26,6 +26,7 @@ const SECRET_ENV_VARS = [
   "LND_MACAROON",
   "LND_TLS_CERT",
   "LND_ADMIN_MACAROON",
+  "NWC_CONNECTION_STRING",
 ];
 
 // Regex patterns for bearer/token shapes that must not reach the client.
@@ -34,7 +35,7 @@ const SHAPE_PATTERNS: { name: string; re: RegExp }[] = [
   { name: "bearer-token", re: /Bearer\s+[A-Za-z0-9+/=_-]{40,}/g },
   // NEXT_PUBLIC_ prefixed secret key name appearing as a string literal
   // (catches accidental NEXT_PUBLIC_LND_MACAROON etc.).
-  { name: "NEXT_PUBLIC_secret", re: /NEXT_PUBLIC_(LND_|OPENNODE_|BTCPAY_)[A-Z_]+/g },
+  { name: "NEXT_PUBLIC_secret", re: /NEXT_PUBLIC_(LND_|OPENNODE_|BTCPAY_|NWC_)[A-Z_]+/g },
 ];
 
 type Finding = { file: string; line: number; rule: string; snippet: string };
@@ -94,7 +95,11 @@ for (const rel of relPaths) {
 
 // Clean up self-test artefact before reporting.
 if (tempRelPath) {
-  try { rmSync(join(BUNDLE_ROOT, tempRelPath)); } catch { /* ignore */ }
+  try {
+    rmSync(join(BUNDLE_ROOT, tempRelPath));
+  } catch {
+    /* ignore */
+  }
 }
 
 if (SELF_TEST) {

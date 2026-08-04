@@ -6,6 +6,7 @@ export default defineConfig({
     "src/lnd/index.ts",
     "src/opennode/index.ts",
     "src/btcpay/index.ts",
+    "src/nwc/index.ts",
     "src/testing/index.ts",
   ],
   format: ["esm"],

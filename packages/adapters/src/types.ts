@@ -268,6 +268,9 @@ function formatBackendKind(kind: BackendKind): string {
   if (kind === "opennode") {
     return "OpenNodeAdapter";
   }
+  if (kind === "nwc") {
+    return "NwcAdapter";
+  }
   if (kind === "mock") {
     return "MockAdapter";
   }

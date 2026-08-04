@@ -282,7 +282,14 @@ async function setVercelEnvironment(options: {
     // Provisioned only when supplied; an omitted value is deliberate (e.g. a
     // managed node with a publicly-trusted cert that needs no custom CA).
     if (value !== undefined && value.trim() !== "") {
-      await addVercelEnv(options.runner, options.projectDir, options.environment, targetName, value, true);
+      await addVercelEnv(
+        options.runner,
+        options.projectDir,
+        options.environment,
+        targetName,
+        value,
+        true,
+      );
     }
   }
 }
@@ -292,6 +299,7 @@ function requiredSecretKeys(config: BoltwallConfig): (keyof BoltwallBackendEnvNa
   // Voltage serve a publicly-trusted cert and need no custom CA.
   if (config.backend.kind === "lnd") return ["socket", "macaroon"];
   if (config.backend.kind === "opennode") return ["apiKey"];
+  if (config.backend.kind === "nwc") return ["connectionString"];
   return ["baseUrl", "apiKey", "storeId"];
 }
 
@@ -456,6 +464,7 @@ function generatedApiIndex(): string {
 import { rootCertificates } from "node:tls";
 import { BtcPayAdapter } from "@boltwall/adapters/btcpay";
 import { LndAdapter } from "@boltwall/adapters/lnd";
+import { NwcAdapter } from "@boltwall/adapters/nwc";
 import { OpenNodeAdapter } from "@boltwall/adapters/opennode";
 import { originCaveat, originSatisfier, validUntil, validUntilSatisfier } from "@boltwall/l402";
 import { createProxy } from "@boltwall/proxy";
@@ -465,6 +474,7 @@ const env = process.env;
 // optional: set it (PEM or base64/hex) to a self-hosted node's self-signed cert,
 // or omit it for a managed node (e.g. Voltage) with a publicly-trusted cert.
 // LND_MACAROON is base64/hex. Path-based tools use vars like LND_TLS_CERT_PATH.
+// NWC_CONNECTION_STRING is a bearer credential like a macaroon/API key.
 const backend = (() => {
   const kind = requireEnv("LN_BACKEND");
   if (kind === "lnd") {
@@ -480,6 +490,11 @@ const backend = (() => {
       ...(optionalEnv("OPENNODE_BASE_URL") === undefined ? {} : { baseUrl: optionalEnv("OPENNODE_BASE_URL") }),
     });
   }
+  if (kind === "nwc") {
+    return new NwcAdapter({
+      nostrWalletConnectUrl: requireEnv("NWC_CONNECTION_STRING"),
+    });
+  }
   if (kind === "btcpay") {
     return new BtcPayAdapter({
       baseUrl: requireEnv("BTCPAY_BASE_URL"),
@@ -492,7 +507,7 @@ const backend = (() => {
       },
     });
   }
-  throw new Error("LN_BACKEND must be lnd, opennode, or btcpay");
+  throw new Error("LN_BACKEND must be lnd, opennode, btcpay, or nwc");
 })();
 
 class EnvRootKeyStore {
@@ -672,6 +687,7 @@ function redact(value: string, sensitiveValues: readonly string[] = []): string 
     ...Object.values(backendEnvNames("lnd")),
     ...Object.values(backendEnvNames("opennode")),
     ...Object.values(backendEnvNames("btcpay")),
+    ...Object.values(backendEnvNames("nwc")),
   ];
   let out = value;
   for (const sensitiveValue of sensitiveValues) {

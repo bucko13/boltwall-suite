@@ -19,6 +19,10 @@
       "types": "./dist/btcpay/index.d.ts",
       "import": "./dist/btcpay/index.js"
     },
+    "./nwc": {
+      "types": "./dist/nwc/index.d.ts",
+      "import": "./dist/nwc/index.js"
+    },
     "./testing": {
       "types": "./dist/testing/index.d.ts",
       "import": "./dist/testing/index.js"
@@ -44,6 +48,7 @@
     "publish:npm": "bun publish --tolerate-republish"
   },
   "dependencies": {
+    "@getalby/sdk": "^8.0.3",
     "@boltwall/l402": "workspace:*",
     "lightning": "^11.1.0"
   },
