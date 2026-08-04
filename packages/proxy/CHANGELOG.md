@@ -1,5 +1,12 @@
 # @boltwall/proxy
 
+## 0.2.1
+
+### Patch Changes
+
+- 844d03f: Fix the published `boltwall` bin so symlinked package-manager launchers run the CLI instead of exiting silently.
+- a1aa932: Include adapter runtime `.proto` and `.wasm` assets in every generated Vercel function while the generated API eagerly imports all Lightning adapters, fixing NWC deployments that crashed before route handling when Vercel omitted `tiny-secp256k1`'s WASM file.
+
 ## 0.2.0
 
 ### Minor Changes
