@@ -1,11 +1,12 @@
-import { mkdir, readFile, writeFile } from "node:fs/promises";
+import { mkdir, readFile, symlink, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { Readable, Writable } from "node:stream";
+import { pathToFileURL } from "node:url";
 
 import { describe, expect, test } from "bun:test";
 
-import { ReadlinePrompt, runCli, type PromptDriver } from "../src/cli";
+import { ReadlinePrompt, isCliEntrypoint, runCli, type PromptDriver } from "../src/cli";
 import type { CommandResult, CommandRunner } from "../src/deploy/vercel";
 
 describe("boltwall CLI", () => {
@@ -15,6 +16,16 @@ describe("boltwall CLI", () => {
     expect(stdout.text()).toContain("deploy [--config <name-or-path>]");
     expect(stdout.text()).not.toContain("deploy vercel");
     expect(stdout.text()).toContain("config allow-origin <name-or-path> <origin...>");
+  });
+
+  test("recognizes a bin symlink as the CLI entrypoint", async () => {
+    const dir = await fixtureDir("entrypoint-symlink");
+    const target = join(dir, "cli.js");
+    const bin = join(dir, "boltwall");
+    await writeFile(target, "");
+    await symlink(target, bin);
+
+    expect(isCliEntrypoint(bin, pathToFileURL(target).href)).toBe(true);
   });
 
   test("readline select renders a choice prompt with a default marker", async () => {
